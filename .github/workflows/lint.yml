@@ -21,6 +21,33 @@ jobs:
 
       - run: gem install yerba
 
+      - name: Check corpus.yml is valid YAML
+        run: |
+          ruby -ryaml -ryerba -e '
+            begin
+              psych = YAML.safe_load_file("corpus.yml")["apps"]
+            rescue Psych::SyntaxError => error
+              abort "corpus.yml is not valid YAML: #{error.message}"
+            end
+
+            yerba = Yerba.parse_file("corpus.yml").to_h["apps"]
+
+            abort "Psych and Yerba disagree on entry count: #{psych.size} vs #{yerba.size}" unless psych.size == yerba.size
+            abort "Psych and Yerba disagree on contents" unless psych == yerba
+
+            strings = %w[name repo license license_file note exclude_paths]
+            psych.each do |entry|
+              strings.each do |field|
+                value = entry[field]
+                next if value.nil? || value.is_a?(String)
+
+                abort "#{entry["name"]}: expected #{field} to be a string, got #{value.class} (#{value.inspect})"
+              end
+            end
+
+            puts "#{psych.size} entries, valid YAML, both parsers agree"
+          '
+
       - name: Check corpus.yml against the Yerbafile
         run: |
           if ! yerba check; then
