@@ -12,6 +12,7 @@ require "json"
 require "open3"
 require "optparse"
 require "fileutils"
+require "set"
 require "yerba"
 
 ROOT = File.expand_path("..", __dir__)
@@ -804,6 +805,74 @@ def render_stats(stats)
   ].join("\n")
 end
 
+RUNS_DIR = File.join(ROOT, "runs")
+
+def measure_version(version, gem_path: nil, limit: nil, out: nil)
+  args = [File.join(ROOT, "bin", "measure-herb")]
+
+  args += ["--gem-path", gem_path] if gem_path
+  args += ["--version", version] if version && !gem_path
+  args += ["--limit", limit.to_s] if limit
+  args += ["--out", out] if out
+
+  system(RbConfig.ruby, *args) or raise CommandError, "measurement failed for #{gem_path || version}"
+end
+
+def diff_runs!(before_path, after_path, fail_on_regression:)
+  args = [File.join(ROOT, "bin", "diff-runs"), before_path, after_path]
+  args << "--fail-on-regression" if fail_on_regression
+
+  system(RbConfig.ruby, *args) ? 0 : 1
+end
+
+def command_measure(argv)
+  versions = []
+  gem_path = nil
+  limit = nil
+  diff_only = nil
+  fail_on_regression = false
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus measure [options]"
+    parser.on("--herb V", "Herb version to measure; repeat to compare two") { |v| versions << v }
+    parser.on("--gem-path PATH", "Measure a Herb working tree (compared against the last --herb)") { |v| gem_path = v }
+    parser.on("--limit N", Integer, "Only measure the first N files") { |v| limit = v }
+    parser.on("--diff A B", Array, "Diff two existing run files instead of measuring") { |v| diff_only = v }
+    parser.on("--fail-on-regression", "Exit non-zero if any file regressed or started crashing") { fail_on_regression = true }
+  end.parse!(argv)
+
+  if diff_only
+    return diff_runs!(diff_only[0], diff_only[1], fail_on_regression: fail_on_regression)
+  end
+
+  raise CommandError, "give at least one --herb VERSION, or --gem-path" if versions.empty? && !gem_path
+
+  FileUtils.mkdir_p(RUNS_DIR)
+
+  runs = versions.map do |version|
+    path = File.join(RUNS_DIR, "#{version}.json")
+    measure_version(version, limit: limit, out: path)
+    path
+  end
+
+  if gem_path
+    path = File.join(RUNS_DIR, "working-tree.json")
+    measure_version(nil, gem_path: gem_path, limit: limit, out: path)
+    runs << path
+  end
+
+  if runs.size < 2
+    puts "\n#{File.read(runs.first).then { |json| JSON.parse(json) }.then { |r| "herb #{r["herb_version"]}: #{r["files_failing"]} of #{r["files"]} files failing" }}"
+    puts Color.dim("Pass a second --herb (or --gem-path) to compare.")
+
+    return 0
+  end
+
+  puts
+
+  diff_runs!(*runs.last(2), fail_on_regression: fail_on_regression)
+end
+
 def command_stats(argv)
   write = false
 
@@ -846,6 +915,7 @@ COMMANDS = {
   "update" => method(:command_update),
   "status" => method(:command_status),
   "stats" => method(:command_stats),
+  "measure" => method(:command_measure),
   "list" => method(:command_list),
   "add" => method(:command_add),
   "remove" => method(:command_remove),
@@ -860,7 +930,8 @@ USAGE = <<~TEXT
     clone     Clone the apps that are not checked out yet (ERB-only by default)
     update    Move each pin to the tip of its tracked branch
     status    Show each app's pin, checkout state, and drift
-  stats     Print corpus totals, or refresh the generated block in README.md
+    stats     Print corpus totals, or refresh the generated block in README.md
+    measure   Run one or two Herb versions over the corpus and diff the results
     drift     Report which pins are behind their branch (no checkout needed)
     list      List apps with repo, branch, .erb count, and license
     add       Add a new app as a submodule and stub its manifest entry

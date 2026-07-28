@@ -1,0 +1,62 @@
+name: Measure
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Space-separated Herb versions to compare (oldest first)"
+        required: false
+        default: "0.9.4 0.10.2"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler: none
+
+      - name: Measure and compare
+        id: measure
+        run: |
+          set -euo pipefail
+
+          VERSIONS="${{ inputs.versions || '0.9.4 0.10.2' }}"
+          ARGS=""
+
+          for version in $VERSIONS; do
+            gem install herb -v "$version" --no-document
+            ARGS="$ARGS --herb $version"
+          done
+
+          NO_COLOR=1 bin/corpus measure $ARGS | tee measurement.txt
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### Corpus measurement'
+            echo
+            echo '```'
+            cat measurement.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: corpus-runs
+          path: runs/*.json
+          retention-days: 90

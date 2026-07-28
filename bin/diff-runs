@@ -1,0 +1,119 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Diffs two measurement runs produced by bin/measure-herb.
+#
+#   bin/diff-runs runs/release.json runs/branch.json --fail-on-regression
+
+require "json"
+require "optparse"
+require "set"
+
+fail_on_regression = false
+
+OptionParser.new do |parser|
+  parser.banner = "usage: diff-runs BEFORE.json AFTER.json [options]"
+  parser.on("--fail-on-regression", "Exit non-zero if any file regressed or started crashing") { fail_on_regression = true }
+end.parse!
+
+before_path, after_path = ARGV
+abort "usage: diff-runs BEFORE.json AFTER.json [--fail-on-regression]" unless before_path && after_path
+
+module Color
+  ENABLED = $stdout.tty? && !ENV.key?("NO_COLOR")
+
+  def self.wrap(text, code) = ENABLED ? "\e[#{code}m#{text}\e[0m" : text.to_s
+
+  def self.bold(text) = wrap(text, 1)
+  def self.dim(text) = wrap(text, 2)
+  def self.red(text) = wrap(text, 31)
+  def self.green(text) = wrap(text, 32)
+  def self.yellow(text) = wrap(text, 33)
+end
+
+def load_run(path)
+  abort "no such run: #{path}" unless File.exist?(path)
+
+  JSON.parse(File.read(path))
+end
+
+def visible_length(text) = text.to_s.gsub(/\e\[[0-9;]*m/, "").length
+
+def table(rows, headers)
+  widths = headers.each_index.map do |index|
+    ([headers[index]] + rows.map { |row| row[index].to_s }).map { |cell| visible_length(cell) }.max
+  end
+
+  puts headers.each_with_index.map { |header, index| Color.bold(header.ljust(widths[index])) }.join("  ")
+  puts widths.map { |width| Color.dim("-" * width) }.join("  ")
+
+  rows.each do |row|
+    puts row.each_with_index.map { |cell, index|
+      "#{cell}#{" " * [widths[index] - visible_length(cell.to_s), 0].max}"
+    }.join("  ").rstrip
+  end
+end
+
+def delta(before, after)
+  change = after - before
+
+  return Color.dim("0") if change.zero?
+
+  change.positive? ? Color.red("+#{change}") : Color.green(change.to_s)
+end
+
+before = load_run(before_path)
+after = load_run(after_path)
+
+# Two runs are only comparable if they counted the same thing over the same
+# input. Otherwise a moved number says nothing about Herb.
+if before["metric"] != after["metric"]
+  abort "runs measure different things (#{before["metric"]} vs #{after["metric"]}); they are not comparable"
+end
+
+if before["corpus_commit"] && after["corpus_commit"] && before["corpus_commit"] != after["corpus_commit"]
+  abort "runs measured different corpus commits (#{before["corpus_commit"][0, 8]} vs #{after["corpus_commit"][0, 8]}); " \
+        "re-measure both against the same corpus before comparing"
+end
+
+if before["files"] != after["files"]
+  puts Color.yellow("Warning: runs cover different file counts (#{before["files"]} vs #{after["files"]}); the corpus moved between them.")
+end
+
+diff = {
+  "regressed" => (Set.new(after["failing"].keys) - Set.new(before["failing"].keys)).sort,
+  "fixed" => (Set.new(before["failing"].keys) - Set.new(after["failing"].keys)).sort,
+  "newly_crashing" => (Set.new(after["crashed"].keys) - Set.new(before["crashed"].keys)).sort,
+  "no_longer_crashing" => (Set.new(before["crashed"].keys) - Set.new(after["crashed"].keys)).sort
+}
+
+puts "#{Color.bold("herb #{before["herb_version"]}")} -> #{Color.bold("herb #{after["herb_version"]}")}   (#{before["metric"]})"
+puts
+
+table(
+  [
+    ["files measured", before["files"].to_s, after["files"].to_s, ""],
+    ["files failing", before["files_failing"].to_s, after["files_failing"].to_s, delta(before["files_failing"], after["files_failing"])],
+    ["files crashed", before["files_crashed"].to_s, after["files_crashed"].to_s, delta(before["files_crashed"], after["files_crashed"])],
+    ["total errors", before["total_errors"].to_s, after["total_errors"].to_s, delta(before["total_errors"], after["total_errors"])]
+  ],
+  ["", before["herb_version"], after["herb_version"], "DELTA"]
+)
+
+{
+  "regressed" => ["REGRESSED (parsed before, fails now)", :red],
+  "newly_crashing" => ["NEWLY CRASHING", :red],
+  "fixed" => ["FIXED (failed before, parses now)", :green],
+  "no_longer_crashing" => ["NO LONGER CRASHING", :green]
+}.each do |key, (title, color)|
+  entries = diff[key]
+  next if entries.empty?
+
+  puts "\n#{Color.send(color, "#{title}: #{entries.size}")}"
+  entries.first(20).each { |file| puts "  #{file}" }
+  puts Color.dim("  ... and #{entries.size - 20} more") if entries.size > 20
+end
+
+puts "\n#{Color.green("No change in outcomes.")}" if diff.values.all?(&:empty?)
+
+exit 1 if fail_on_regression && !(diff["regressed"] + diff["newly_crashing"]).empty?

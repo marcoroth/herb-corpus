@@ -1,0 +1,99 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Measures one Herb version against the extracted corpus and prints JSON.
+#
+#   bin/measure-herb --version 0.10.2 --out runs/0.10.2.json
+#   bin/measure-herb --gem-path ../herb
+
+require "json"
+require "optparse"
+
+options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil, gem_path: nil, out: nil }
+
+OptionParser.new do |parser|
+  parser.banner = "usage: measure-herb [options]"
+  parser.on("--version V", "Herb gem version to measure (default: whatever is activated)") { |v| options[:version] = v }
+  parser.on("--gem-path PATH", "Load Herb from a working tree instead of an installed gem") { |v| options[:gem_path] = v }
+  parser.on("--corpus DIR", "Directory of .erb files (default: erb/)") { |v| options[:root] = File.expand_path(v) }
+  parser.on("--limit N", Integer, "Only measure the first N files, for a quick check") { |v| options[:limit] = v }
+  parser.on("--out FILE", "Write JSON here instead of stdout") { |v| options[:out] = v }
+end.parse!
+
+if options[:gem_path]
+  $LOAD_PATH.unshift(File.join(File.expand_path(options[:gem_path]), "lib"))
+elsif options[:version]
+  gem "herb", options[:version]
+end
+
+require "herb"
+
+METRIC = "files_with_recursive_errors"
+
+document = Herb.parse("<div></div>").value
+
+unless document.respond_to?(:recursive_errors)
+  abort "herb #{Herb::VERSION} has no DocumentNode#recursive_errors; cannot measure comparably"
+end
+
+files = Dir.glob(File.join(options[:root], "**", "*.erb")).sort
+files = files.first(options[:limit]) if options[:limit]
+
+abort "no .erb files under #{options[:root]}" if files.empty?
+
+failing = {}
+crashed = {}
+total_errors = 0
+
+started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+files.each do |path|
+  relative = path.sub("#{options[:root]}/", "")
+
+  begin
+    errors = Herb.parse(File.read(path)).value.recursive_errors
+
+    next if errors.empty?
+
+    total_errors += errors.size
+
+    failing[relative] = errors.map { |error| error.class.name.split("::").last }.tally
+  rescue StandardError => error
+    crashed[relative] = error.class.name
+  end
+end
+
+elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+corpus_commit =
+  begin
+    Dir.chdir(File.dirname(__dir__)) { `git rev-parse HEAD 2>/dev/null`.strip }
+  rescue StandardError
+    ""
+  end
+
+report = {
+  "herb_version" => Herb::VERSION,
+  "metric" => METRIC,
+  "corpus" => options[:root],
+  "corpus_commit" => (corpus_commit.empty? ? nil : corpus_commit),
+  "files" => files.size,
+  "files_failing" => failing.size,
+  "files_crashed" => crashed.size,
+  "files_clean" => files.size - failing.size - crashed.size,
+  "total_errors" => total_errors,
+  "seconds" => elapsed.round(1),
+  "error_types" => failing.values.flat_map(&:keys).tally.sort_by { |_, count| -count }.to_h,
+  "failing" => failing.sort.to_h,
+  "crashed" => crashed.sort.to_h
+}
+
+json = JSON.pretty_generate(report)
+
+if options[:out]
+  FileUtils.mkdir_p(File.dirname(options[:out])) if defined?(FileUtils) || require("fileutils")
+  File.write(options[:out], "#{json}\n")
+  warn "herb #{Herb::VERSION}: #{failing.size} failing, #{crashed.size} crashed, of #{files.size} files (#{elapsed.round(1)}s) -> #{options[:out]}"
+else
+  puts json
+end

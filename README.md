@@ -79,6 +79,7 @@ bin/corpus add       Add a new app as a submodule and stub its manifest entry
 bin/corpus remove    Remove an app's submodule and checkout
 bin/corpus extract   Copy the .erb files into erb/ with a provenance manifest
 bin/corpus stats     Print corpus totals, or refresh the generated block in this README
+bin/corpus measure   Run Herb versions over the corpus and diff the results
 ```
 
 Every command takes an optional list of app names to work on a subset, and `--help` for its own
@@ -151,6 +152,43 @@ templates would be indistinguishable. A human decides when the baseline moves.
 
 The number worth watching frequently is the parse-error count, and that belongs in Herb's own CI
 against a fixed corpus commit, not here.
+
+## Measuring Herb against the corpus
+
+```sh
+bin/corpus measure --herb 0.9.4 --herb 0.10.2       # compare two releases
+bin/corpus measure --herb 0.10.2 --gem-path ../herb # a release against a working tree
+bin/corpus measure --diff runs/a.json,runs/b.json   # re-diff existing runs
+```
+
+The whole corpus takes about seven seconds per version. Output is a table plus the list of files
+whose outcome changed, which is the part that leads to a fix:
+
+```
+                0.9.4  0.10.2  DELTA
+files failing   1035   1037    +2
+total errors    2940   2908    -32
+
+REGRESSED (parsed before, fails now): 2
+  splana/app/views/appointments/show.html.erb
+  splana/app/views/recurring_orders/show.html.erb
+```
+
+Three things make the comparison trustworthy:
+
+- **The measurement lives here, not in Herb.** The Herb version under test is a swappable
+  dependency, so every release is measured by identical code. A test living in Herb could not
+  measure an older release without being backported into it, which would change the measurement
+  along with the parser.
+- **One fixed metric.** `files_with_recursive_errors` counts files with an error anywhere in the
+  tree. Top-level `errors` gives a different, lower number, so the metric is recorded in every run
+  and two runs cannot silently disagree about what they counted.
+- **Runs record their corpus commit.** `measure` refuses to diff runs taken over different corpus
+  states, where a "newly failing" file might simply be a file that did not exist before.
+
+`.github/workflows/measure.yml` tracks released versions weekly. Herb's own CI runs
+`bin/measure-herb --gem-path .` against the last release on every pull request and fails on
+regressions — that check belongs where the code changes.
 
 ## Pinning
 
