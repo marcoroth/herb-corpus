@@ -169,9 +169,9 @@ including the parts Herb complains about.
 Pinning only guarantees reproducibility while the commit stays fetchable, and that is not a given.
 Both cases below turned up the first time `bin/corpus drift` ran:
 
-- **A branch gets deleted.** `casa` tracked a fork branch opened for a pull request; once that branch
-  was gone, the pinned commit was no longer advertised. It now tracks `rubyforgood/casa@main`.
-- **A repository disappears.** `evilmartians/solaris` started returning *"Repository not found"*. Its
+- **A branch gets deleted.** a repo tracked a fork branch opened for a pull request; once that branch
+  was gone, the pinned commit was no longer advertised. It now tracks `main` instead.
+- **A repository disappears.** a repo started returning *"Repository not found"*. Its
   checkout was moved out of the corpus rather than deleted, since no other copy exists.
 
 `bin/corpus drift` reports these as unreachable, and the weekly workflow raises them as warnings.
