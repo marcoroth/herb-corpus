@@ -1,0 +1,385 @@
+<div class="container user-settings">
+  <div class="w-100 d-flex justify-content-between">
+    <h1 class="pt-3"><%= t('users.titles.settings') %></h1>
+  </div>
+  <hr>
+
+  <div class="card mb-3" id='pinned-searches'>
+    <h5 class="card-header">
+      <%= t('users.titles.pinned_searches') %>
+    </h5>
+    <div class="card-body">
+      <p><%= t('users.notices.pin_favorites') %></p>
+
+      <% if current_user.pinned_searches.any? %>
+        <table class='table table-responsive-sm border-bottom'>
+          <thead>
+            <th>
+              <%= t('users.labels.name') %>
+            </th>
+            <th colspan="2">
+              <%= t('users.labels.search_query') %>
+            </th>
+          </thead>
+          <% current_user.pinned_searches.sort_by(&:name).each do |pinned_search| %>
+            <tr>
+              <td>
+                <%= pinned_search.name %>
+              </td>
+              <td>
+                <%= pinned_search.query %>
+              </td>
+              <td>
+                <%= link_to octicon('pencil'), edit_pinned_search_path(pinned_search), title: t('crud_actions.edit'), data: {toggle: 'tooltip'}, class: 'mr-2' %>
+                <%= link_to octicon('trash'), pinned_search_path(pinned_search), title: t('crud_actions.delete'), data: {toggle: 'tooltip'}, method: :delete %>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      <% end %>
+      <p><strong><%= t('users.labels.pin_a_search') %></strong></p>
+      <%= render 'pinned_searches/form' %>
+    </div>
+  </div>
+
+  <%= form_for current_user do |f| %>
+    <% if Octobox.refresh_interval_enabled? || Octobox.personal_access_tokens_enabled? %>
+      <% if Octobox.refresh_interval_enabled? %>
+        <div class="card mb-3">
+          <h5 class="card-header">
+            <%= t('users.titles.automatic_refresh_interval') %>
+          </h5>
+          <div class="card-body">
+            <div class="form-group">
+              <%= f.number_field :refresh_interval_minutes, max: 1440, min: Octobox.config.minimum_refresh_interval, value: current_user.effective_refresh_interval.nil? ? '' : current_user.effective_refresh_interval / 60_000, class: 'form-control w-25' %>
+
+              <p>
+                <em>
+                  <%= t('users.notices.automatic_refresh_interval') %>
+                </em>
+              </p>
+              <%= submit_tag t('crud_actions.save'), class: 'btn btn-primary' %>
+              <%= link_to t('crud_actions.cancel'), root_path, class: 'btn btn-light' %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <% if Octobox.personal_access_tokens_enabled? %>
+        <div class="card mb-3">
+          <h5 class="card-header">
+            <%= t('users.titles.personal_access_token') %>
+          </h5>
+          <div class="card-body">
+            <div class="form-group">
+              <%= f.label :personal_access_token, "Personal Access Token" %>
+              <%= f.text_field :personal_access_token, value: nil, placeholder: current_user.masked_personal_access_token, class: 'form-control' %>
+              <span class="help-block"><%= t('users.notices.personal_access_token_impact') %></span>
+            </div>
+            <div class="form-group">
+              <div class="checkbox">
+                <label>
+                  <input type="checkbox" autocomplete="off" name="clear_personal_access_token" id="clear_personal_access_token"/>
+                  <%= t('users.labels.clear_personal_access_token') %>
+                </label>
+              </div>
+            </div>
+            <%= submit_tag t('crud_actions.save'), class: 'btn btn-primary' %>
+            <%= link_to t('crud_actions.cancel'), root_path, class: 'btn btn-light' %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+
+    <div class='d-flex flex-column flex-md-row'>
+      <div class="card w-100 mb-3 <%= 'mr-3' if Octobox.config.subjects_enabled? && Octobox.config.include_comments %>">
+        <h5 class="card-header">
+          <%= t('users.titles.theme') %>
+        </h5>
+        <div class="card-body">
+          <div class="form-group">
+            <%= f.select :theme, [['Light', 'light'], ['Dark', 'dark']], {}, class: 'form-control' %>
+          </div>
+
+          <%= submit_tag t('crud_actions.save'), class: 'btn btn-primary' %>
+          <%= link_to t('crud_actions.cancel'), root_path, class: 'btn btn-light' %>
+        </div>
+      </div>
+
+      <% if Octobox.config.subjects_enabled? && Octobox.config.include_comments %>
+        <div class="w-100 mb-3 card">
+          <h5 class="card-header">
+            <%= t('users.titles.open_notifications') %>
+          </h5>
+          <div class="card-body">
+            <div class="form-group">
+              <%= f.select :display_comments, [['On GitHub', 'false'], ['On Octobox', 'true']], {}, class: 'form-control' %>
+            </div>
+
+            <%= submit_tag t('crud_actions.save'), class: 'btn btn-primary' %>
+            <%= link_to t('crud_actions.cancel'), root_path, class: 'btn btn-light' %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class='d-flex flex-column flex-md-row'>
+      <div class="card w-100 mb-3">
+        <h5 class="card-header">
+          <%= t('users.titles.advanced') %>
+        </h5>
+        <div class="card-body">
+          <div class="form-check mb-3">
+            <label class='col-form-label'>
+              <%= f.check_box :disable_confirmations, class: 'form-check-input' %>
+              Disable confirmations when muting and deleting
+            </label>
+          </div>
+
+          <%= submit_tag t('crud_actions.save'), class: 'btn btn-primary' %>
+          <%= link_to t('crud_actions.cancel'), root_path, class: 'btn btn-light' %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="card mb-3">
+    <h5 class="card-header">
+      <%= t('users.titles.octobox_api_access') %>
+    </h5>
+    <div class="card-body">
+      <p><%= t('users.notices.octobox_api_token') %></p>
+
+      <ul class="list-inline">
+        <li class="list-inline-item">
+          <button onclick="document.getElementById('api_token').classList.remove('d-none'); this.parentNode.classList.add('d-none')" class="btn btn-outline-dark"><%= t('users.actions.show_api_token') %></button>
+        </li>
+        <li class="list-inline-item">
+          <%= form_tag current_user, method: :put do %>
+            <%= hidden_field_tag 'user[regenerate_api_token]', '1' %>
+            <%= submit_tag t('users.actions.regenerate_api_token'), class: 'btn btn-outline-dark' %>
+          <% end %>
+        </li>
+      </ul>
+
+      <div id="api_token" class="card card-body bg-light d-none">
+        <code><%= current_user.api_token || t('users.notices.regenerate_api_token') %></code>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <h5 class="card-header">
+      <%= t('users.titles.manage_oauth_access') %>
+    </h5>
+    <div class="card-body">
+      <p><%= t('users.notices.notifications_for_orgs_with_access') %></p>
+      <p><%= t('users.notices.enable_or_request_access') %></p>
+      <%= link_to "#{Octobox.config.github_domain}/settings/connections/applications/#{Octobox.config.github_client_id}", class: 'btn btn-outline-dark' do %>
+        <%= octicon 'tools' %>&nbsp;
+        <%= t('users.actions.manage_oauth_access') %>
+      <% end %>
+
+      <% if Octobox.github_app? && current_user.github_app_authorized? %>
+        <%= link_to "#{Octobox.config.github_domain}/settings/connections/applications/#{Octobox.config.github_app_client_id}", class: 'btn btn-outline-dark' do %>
+          <%= octicon 'mark-github' %>&nbsp;
+          <%= t('users.actions.manage_app_access') %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if Octobox.github_app? %>
+    <div class="card mb-3">
+      <h5 class="card-header">
+        <%= t('users.titles.app_installations') %>
+      </h5>
+      <div class="card-body">
+        <% if current_user.app_installations.any? %>
+          <table class='table table-responsive-sm'>
+            <thead>
+              <tr>
+                <th class='border-top-0'><%= t('users.labels.account') %></th>
+                <th class='border-top-0'><%= t('users.labels.repos') %></th>
+                <% if Octobox.io? %>
+                  <th class='border-top-0' colspan='2'><%= t('users.labels.billing') %></th>
+                <% end %>
+                <th class='border-top-0'><%= t('users.labels.settings') %></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% current_user.app_installations.each do |app_installation| %>
+                <% next if app_installation.account_type == 'User' && app_installation.account_login != current_user.github_login %>
+                <tr>
+                  <td class="align-middle">
+                    <%= image_tag app_installation.github_avatar_url+ "?size=50", width: 25, height: 25, class: 'pull-left mr-1' %>
+                    <%= app_installation.account_login %>
+                  </td>
+                  <td class="align-middle">
+                    <%= pluralize app_installation.repositories.github_app_installed.count, 'repo' %>
+                  </td >
+                  <% if Octobox.io? %>
+                    <td class="align-middle">
+                      <% if app_installation.subscription_purchase %>
+                        <% if app_installation.subscription_purchase.active? %>
+                          <strong>
+                            <%= app_installation.subscription_purchase.subscription_plan.name %>
+                          </strong> -
+                          <% if app_installation.subscription_purchase.billing_cycle == 'monthly' %>
+                            <%= number_to_currency app_installation.subscription_purchase.subscription_plan.monthly_price_in_cents/100 %>
+                          <% else %>
+                            <%= number_to_currency app_installation.subscription_purchase.subscription_plan.yearly_price_in_cents/100 %>
+                          <% end %>
+                          <%= app_installation.subscription_purchase.billing_cycle %>
+
+                          <% if app_installation.subscription_purchase.on_free_trial? %>
+                            <i class='text-muted'>
+                              (Free Trial ends in <%= distance_of_time_in_words_to_now app_installation.subscription_purchase.free_trial_ends_on %>)
+                            </i>
+                          <% end %>
+                        <% else %>
+                          Cancelled Plan
+                        <% end %>
+                      <% else %>
+                        No Plan
+                      <% end %>
+                    </td>
+                    <td>
+                      <% if app_installation.subscription_purchase.try(:active?) %>
+                        <% if app_installation.subscription_purchase.edit_url.present? %>
+                          <%= link_to 'Edit Plan', app_installation.subscription_purchase.edit_url, class: 'btn btn-primary btn-sm', target: '_blank', rel: 'noopener' %>
+                        <% else %>
+                          <%= link_to octicon("gift"), 'https://twitter.com/FluffSociety/status/1042866091985387520', class: 'btn btn-sm', target: '_blank', rel: 'noopener' %>
+                        <% end %>
+                      <% else %>
+                        <%= link_to 'Start a Plan', pricing_path, class: 'btn btn-primary btn-sm' %>
+                      <% end %>
+                    </td>
+                  <% end %>
+                  <td class="align-middle">
+                    <%= link_to 'Manage', app_installation.settings_url, class: 'btn btn-secondary btn-sm', target: '_blank', rel: 'noopener' %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+          <hr>
+        <% end %>
+        <% unless current_user.github_app_authorized? %>
+          <p>
+            <%= t('users.notices.connect_to_github_account') %>
+          </p>
+          <p><%= link_to t('users.actions.login_to_github_app'), '/auth/githubapp', class: 'btn btn-info', method: :post %></p>
+        <% end %>
+        <p>
+          <%= t('users.notices.extra_features_and_data') %>
+        </p>
+        <ul>
+          <li><%= t('users.notices.issues_and_pull_request_data') %></li>
+          <li><%= t('users.notices.private_repo_data') %></li>
+          <li><%= t('users.notices.sync_automatically') %></li>
+        </ul>
+        <%= link_to t('users.actions.install_github_app'), Octobox.config.app_install_url, class: 'btn btn-primary', target: '_blank', rel: 'noopener' %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="card mb-3">
+    <h5 class="card-header">
+      <%= t('users.titles.statistics') %>
+    </h5>
+    <div class="card-body">
+      <p>
+        <%= pluralize @total, 'notification' %> <%= t('users.notices.synced_notications') %>
+        <span title='Signed up on <%= current_user.created_at.to_formatted_s(:long) %> UTC'>
+          <%= pluralize(((Time.current - current_user.created_at)/ 1.day).round, 'day') %> ago.
+        </span>
+      </p>
+      <div class="row">
+        <% if @most_active_repos %>
+          <div class="col-md">
+            <table class='table table-sm table-responsive-sm'>
+              <thead>
+                <th class='border-top-0' colspan="2"><%= t('users.labels.most_active_repos') %></th>
+              </thead>
+              <tbody>
+                <% @most_active_repos.each do |repository_full_name, count| %>
+                  <tr>
+                    <td>
+                      <%= link_to repository_full_name, "#{Octobox.config.github_domain}/#{repository_full_name}" %>
+                    </td>
+                    <td>
+                      <%= pluralize count, 'notification' %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+
+        <% if @most_active_repos %>
+          <div class="col-md">
+            <table class='table table-sm table-responsive-sm'>
+              <thead>
+                <th class='border-top-0' colspan="2"><%= t('users.labels.most_active_owners') %></th>
+              </thead>
+              <tbody>
+                <% @most_active_orgs.each do |repository_owner_name, count| %>
+                  <tr>
+                    <td>
+                      <%= link_to repository_owner_name, "#{Octobox.config.github_domain}/#{repository_owner_name}" %>
+                    </td>
+                    <td>
+                      <%= pluralize count, 'notification' %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <h5 class="card-header">
+      <%= t('users.titles.export_import') %>
+    </h5>
+    <div class="card-body">
+      <p><%= t('users.notices.export_import') %></p>
+      <%= link_to export_path, class: 'btn btn-outline-dark' do %>
+        <%= octicon 'desktop-download' %>&nbsp;
+        <%= t('users.actions.export') %>
+      <% end %>
+      <% unless Octobox.io? %>
+
+        <%= form_tag import_path, class: 'd-inline', multipart: true do %>
+          <label class="btn btn-outline-dark mt-2">
+            <%= octicon 'upload' %>&nbsp;
+            <%= t('users.actions.import') %>
+          <span style="display:none;">
+            <%= file_field_tag :file, required: true, onchange: "form.submit();" %>
+          </span>
+          </label>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="card">
+    <h5 class="card-header bg-danger text-white">
+      <%= t('users.titles.danger_zone') %>
+    </h5>
+    <div class="card-body">
+      <p><%= t('users.notices.deleting_account_removes_all_data') %></p>
+      <p><%= t('users.notices.subsequent_logins') %></p>
+      <%= link_to current_user, method: :delete, class: 'btn btn-danger', data: { confirm: 'Are you sure you want to do this?' } do %>
+        <%= octicon 'trash', class: 'inverse' %>&nbsp;
+        <%= t('users.actions.delete_account') %>
+      <% end %>
+    </div>
+  </div>
+  <%= render 'layouts/footer' %>
+</div>

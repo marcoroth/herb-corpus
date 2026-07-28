@@ -1,0 +1,120 @@
+<div class="title-block profile-title-block row">
+  <div class="col-sm-3">
+    <%= image_tag(@user.avatar_url(200), :alt => @user.nickname, :class => "profile-avatar") %>
+  </div>
+  <div class="col-sm-9 profile-details">
+    <% if @user == current_user %>
+      <div class="profile-actions hidden-xs">
+        <div class="row">
+          <%= link_to preferences_path, class: "btn btn-default btn-sm" do %>
+            <%= octicon "gear", :height => 16 %>
+            <%= t("navigation.preferences") %>
+          <% end %>
+          <%= link_to pull_request_download_path, :id => 'fetch-pull-requests', :class => 'btn btn-info btn-sm', :rel => 'tooltip', :title => t('pull_request.download.tooltip') do %>
+            <%= image_tag('spinner.gif', :id => 'spinner', :alt => ' ') %>
+            <%= t('dashboard.synchronize') %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    <h2 class="username"><%= @user.nickname %></h2>
+    <div class="profile-item">
+      <%= github_button @user.nickname %>
+    </div>
+    <% if @user.skills.any? %>
+      <div class="profile-item">
+        <span class="tiny-title">
+          <%= t("preferred_languages") %>
+        </span>
+        <% @user.languages.each do |language| %>
+          <span class="<%= language.downcase %>">
+            <div class="label label-info language">
+              <%= link_to language, language_path(language) %>
+            </div>
+          </span>
+        <% end %>
+      </div>
+    <% end %>
+    <% if @user.organisations.any? %>
+      <div class="profile-item">
+        <span class="tiny-title">
+          <%= t('user.organisations') %>
+        </span>
+        <ul class="avatar-list avatar-list-xs">
+          <% @user.organisations.each do |organisation| %>
+            <li class="avatar-cell">
+              <%= link_to organisation_path(organisation.login), class: "avatar-link", rel: "tooltip", title: organisation.login, data: { placement: "bottom" } do %>
+                <%= image_tag(organisation.avatar_url, alt: organisation.login, class: "avatar-img") %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <div class="profile-pull-request-count">
+      <%= octicon "gift" %>
+      <%= t("user.contribution_count", user: @user.nickname, count: @user.contributions_ignoring_organisations.year(current_year).count, year: current_year) %>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="col-sm-12">
+    <% if @user.gifts.year(current_year).any? or @user.contributions_ignoring_organisations.year(current_year).any? or @merged_contributions.any? %>
+      <ul class="nav nav-tabs" id="presents">
+        <% if @user.gifts.year(current_year).any? %>
+        <li>
+          <a class="active" data-toggle="tab" href="#gifts">Gifts</a>
+        </li>
+        <% end %>
+        <% if @user.contributions_ignoring_organisations.year(current_year).any? %>
+        <li>
+          <a data-toggle="tab" href="#contributions">Contributions</a>
+        </li>
+        <% end %>
+        <% if @merged_contributions.any? %>
+        <li>
+          <a data-toggle="tab" href="#merged_contributions">Merges</a>
+        </li>
+        <% end %>
+        <% ((Tfpullrequests::Application.current_year) -1).downto(LAUNCH_YEAR) do |year| %>
+          <li>
+            <a data-toggle="tab" href="#<%= year %>">
+              <%= year %>
+            </a>
+          </li>
+        <% end %>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane" id="gifts">
+          <% if @calendar %>
+            <%= render :partial => 'calendar', :object => @calendar %>
+          <% else %>
+            <div class="alert alert-info">
+              No gifts to display in calendar view.
+            </div>
+          <% end %>
+        </div>
+        <div class="tab-pane" id="contributions">
+          <%= render partial: 'users/contribution', collection: @user.contributions_ignoring_organisations.year(current_year).latest(nil), cache: true %>
+        </div>
+        <div class="tab-pane" id="merged_contributions">
+          <%= render @merged_contributions, cache: true %>
+        </div>
+        <% ((Tfpullrequests::Application.current_year) -1).downto(LAUNCH_YEAR) do |year| %>
+          <div class="tab-pane" id="<%= year %>">
+            <%= render partial: 'users/contribution', collection: @user.contributions.year(year), cache: true %>
+          </div>
+        <% end %>
+      </div>
+    <% elsif !Contribution.in_date_range? %>
+      <div class="alert alert-info">
+        24 Pull Requests runs from 1st-24th December, come back then to see
+        <%= "#{@user.nickname}'s progress." %>
+      </div>
+    <% else %>
+      <div class="alert alert-warning">
+        <%= t("user.no_current_pr_message", user: content_tag(:strong, "@" + @user.nickname), year: current_year).html_safe %>
+      </div>
+    <% end %>
+  </div>
+</div>

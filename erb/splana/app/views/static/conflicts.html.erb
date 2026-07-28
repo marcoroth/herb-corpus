@@ -1,0 +1,55 @@
+<% content_for :page_title, "Termin-Konflikte #{I18n.t("date.month_names")[@start_date.month]} #{@start_date.year}" %>
+<% content_for :page_subtitle, "" %>
+
+<div class="container-fluid mt--6">
+  <%= render PageHeaderComponent.new %>
+
+  <%= render CardComponent.new do |card| %>
+    <%= card.with_header do |header| %>
+      <%= header.with_title do %>
+        <form action="/conflicts" method="get" data-controller="planer">
+          <input type="hidden" value="<%= @start_date %>" name="start_date">
+
+          <%= select_tag "user_id", options_from_collection_for_select(Employee.all, "id", "name", @user.id), data: { action: "change->planer#submit" } %>
+        </form>
+      <% end %>
+
+      <%= header.with_button do %>
+        <%= link_to "Verfügbarkeiten", planer_path(start_date: @start_date, user_id: @user), class: "btn btn-sm btn-white" %>
+        <%= link_to "Konflikt-Kalender", planer_conflicts_path(start_date: @start_date, user_id: @user), class: "btn btn-sm btn-white" %>
+        <%= link_to "Konflikt-Liste", conflicts_path(start_date: @start_date, user_id: @user), class: "btn btn-sm tw-bg-gray-300 hover:tw-bg-gray-200 tw-mr-3" %>
+        <%= link_to "Zurück", conflicts_path(start_date: @previous_date, user_id: @user), class: "btn btn-sm btn-white" %>
+        <%= link_to "Heute", conflicts_path(start_date: Date.current, user_id: @user), class: "btn btn-sm btn-white" %>
+        <%= link_to "Weiter", conflicts_path(start_date: @next_date, user_id: @user), class: "btn btn-sm btn-white" %>
+      <% end %>
+    <% end %>
+
+    <%= card.with_body do %>
+      <table class="table">
+        <tr>
+          <th>Termin-Name</th>
+          <th>Quelle</th>
+          <th>Kunde</th>
+          <th>Datum</th>
+          <th>Dauer</th>
+          <th>Grund</th>
+        </tr>
+
+        <% @blocks.group_by { |a| a.appointment }.each do |appointment, blocks| %>
+          <tr>
+            <td><%= link_to appointment.name, appointment %></td>
+            <td><%= link_to appointment.source, appointment.source if appointment.source %></td>
+            <td><%= link_to appointment&.client&.name, appointment&.client %></td>
+            <td><%= appointment.time_text %></td>
+            <td><%= (appointment.end_time-appointment.start_time)/60/60 %>h</td>
+            <td><%= link_to blocks.map(&:reasons_raw).flatten.uniq.to_sentence, blocks.select { |b| b.has_conflict }.first %></td>
+          </tr>
+        <% end %>
+      </table>
+      <% if @blocks.none? %>
+        Keine Konflikte im <%= I18n.t("date.month_names")[@start_date.month] %> <%= @start_date.year %>
+      <% end %>
+    <% end %>
+
+  <% end %>
+</div>

@@ -1,0 +1,63 @@
+<%=
+  component_wrapper do
+    render(OpPrimer::InsetBoxComponent.new(border: false, classes: "outcome-container")) do
+      grid_layout("op-meeting-outcome-notes", tag: :div, id: "outcome-#{@meeting_outcome.id}") do |grid|
+        grid.with_area(:title, tag: :span, classes: "title") do
+          if multiple_outcomes?
+            render(Primer::Beta::Heading.new(tag: :h5)) { "#{t(:label_agenda_outcome)} #{@index + 1}" }
+          else
+            render(Primer::Beta::Heading.new(tag: :h5)) { t(:label_agenda_outcome) }
+          end
+        end
+
+        grid.with_area(:content, tag: :div) do
+          render(Primer::Box.new(classes: "op-uc-container", mt: 1, pb: 0)) do
+            if @meeting_outcome.visible_work_package?
+              flex_layout(direction: :column, gap: 2) do |flex|
+                flex.with_row do
+                  render(WorkPackages::InfoLineComponent.new(work_package: @meeting_outcome.work_package))
+                end
+                flex.with_row do
+                  render(
+                    Primer::Beta::Link.new(
+                      href: work_package_path(@meeting_outcome.work_package),
+                      font_size: :normal,
+                      font_weight: :bold
+                    )
+                  ) { @meeting_outcome.work_package.subject }
+                end
+              end
+            elsif @meeting_outcome.linked_work_package?
+              render(Primer::Beta::Text.new(font_size: :small, color: :subtle)) do
+                I18n.t(:label_agenda_item_undisclosed_wp, id: @meeting_outcome.work_package_id)
+              end
+            elsif @meeting_outcome.deleted_work_package?
+              render(Primer::Beta::Text.new(tag: :s, font_size: :small, color: :danger)) do
+                I18n.t(:label_agenda_item_deleted_wp)
+              end
+            end
+          end
+        end
+
+        grid.with_area(:actions, tag: :div, justify_self: :end, classes: "hide-when-print") do
+          render(Primer::Alpha::ActionMenu.new) do |menu|
+            menu.with_show_button(
+              icon: "kebab-horizontal",
+              "aria-label": t(:label_agenda_outcome_actions),
+              scheme: :invisible,
+              ml: 2,
+              test_selector: "op-meeting-outcome-actions"
+            )
+            with_item_group(menu) do
+              copy_action_item(menu)
+            end
+
+            with_item_group(menu) do
+              delete_action_item(menu)
+            end
+          end
+        end
+      end
+    end
+  end
+%>

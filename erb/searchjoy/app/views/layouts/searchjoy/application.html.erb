@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Searchjoy</title>
+
+    <meta charset="utf-8" />
+    <%= csp_meta_tag %>
+
+    <% if defined?(Propshaft::Railtie) && Rails.application.assets.is_a?(Propshaft::Assembly) %>
+      <%= stylesheet_link_tag "searchjoy/application", "searchjoy/litepicker" %>
+      <%= javascript_include_tag "chartkick", "Chart.bundle", "searchjoy/application", "searchjoy/litepicker", nonce: true %>
+    <% else %>
+      <%= stylesheet_link_tag "searchjoy/application" %>
+      <%= javascript_include_tag "searchjoy/application", nonce: true %>
+    <% end %>
+  </head>
+  <body>
+    <div class="container">
+      <div id="header">
+        <div class="grid">
+          <div class="col-1-2 nav-col">
+            <ul class="nav">
+              <li id="brand">Searchjoy</li>
+              <li><%= link_to "Live Stream", root_path, class: ("active" if !@search_type) %></li>
+              <% @search_types.each do |search_type| %>
+                <li><%= link_to search_type, overview_searches_path(search_type: search_type, **(@time_params || {})), class: ("active" if @search_type == search_type) %></li>
+              <% end %>
+            </ul>
+          </div>
+
+          <div class="col-1-2 time-range-col">
+            <% if @time_range %>
+              <span id="time-range">
+                <%= @time_range.first.strftime("%b %-e, %Y") %> to <%= @time_range.last.strftime("%b %-e, %Y") %>
+              </span>
+              <span class="text-muted"><%= @time_zone.name.sub(" (US & Canada)", "") %></span>
+              <%= javascript_tag nonce: true do %>
+                function toDate(d) {
+                  return (new Date(d - (d.getTimezoneOffset() * 60000))).toISOString().slice(0, 10);
+                }
+                var startDate = <%= raw json_escape(@time_range.first.to_json) %>;
+                var endDate = <%= raw json_escape(@time_range.last.to_json) %>;
+                new Litepicker({
+                  element: document.getElementById('time-range'),
+                  firstDay: 0,
+                  numberOfMonths: 2,
+                  numberOfColumns: 2,
+                  autoApply: true,
+                  singleMode: false,
+                  mobileFriendly: false,
+                  startDate: new Date(startDate),
+                  endDate: new Date(endDate),
+                  maxDate: new Date(),
+                  onSelect: function(date1, date2) {
+                    var currentParams = new URLSearchParams(window.location.search);
+                    var params = new URLSearchParams();
+                    params.set('search_type', currentParams.get('search_type'));
+                    params.set('start_date', toDate(date1));
+                    params.set('end_date', toDate(date2));
+                    window.location.href = window.location.pathname + "?" + params.toString();
+                  }
+                });
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <%= yield %>
+    </div>
+  </body>
+</html>

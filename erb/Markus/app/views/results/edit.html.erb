@@ -1,0 +1,100 @@
+<% content_for :head do %>
+  <%= javascript_include_tag 'Results/main', nonce: true %>
+  <%= javascript_tag nonce: true do %>
+    document.addEventListener('DOMContentLoaded', () => {
+      window.resultComponent = makeResult(document.getElementById('result-main'),
+        {
+          course_id: <%= @current_course.id %>,
+          result_id: <%= @result.id %>,
+          submission_id: <%= @result.submission_id %>,
+          grouping_id: <%= @result.submission.grouping_id %>,
+          assignment_id: <%= @result.submission.grouping.assessment_id %>,
+          role: '<%= @current_role.class.name %>',
+          user_id: '<%= @current_role.id %>',
+          rmd_convert_enabled: <%= Rails.application.config.rmd_convert_enabled %>,
+          scanned_exam: <%= @assignment.scanned_exam %>
+        }
+      );
+
+      window.modal_help = new ModalMarkus('#help_dialog');
+    });
+
+    categories_with_criteria = <%= @result.submission
+                                          .grouping
+                                          .assignment
+                                          .annotation_categories
+                                          .where.not(flexible_criterion_id: nil).pluck(:id) %>;
+    function check_criterion () {
+      if (categories_with_criteria.includes(parseInt($('#new_annotation_category').val()))) {
+        $('#deduction_disclaimer').removeClass('hidden');
+      } else {
+        $('#deduction_disclaimer').addClass('hidden');
+      }
+    }
+  <% end %>
+<% end %>
+
+<!-- Dialogs -->
+<aside class='markus-dialog no-display' id='notes_dialog'></aside>
+<%= render partial: 'download_modal', layout: 'layouts/modal_dialog' %>
+
+<aside class='markus-dialog no-display' id='help_dialog'>
+  <h2><%= t('results.keybinding.keyboard_help') %></h2>
+  <table class="shortcuts-table">
+    <tr>
+      <td><kbd>Alt</kbd> + <kbd>Enter/return</kbd></td>
+      <td><%= t('results.keybinding.toggle_compact') %></td>
+    </tr>
+    <tr>
+      <td><kbd>Shift</kbd> + <kbd>⇨</kbd></td>
+      <td><%= t('results.next_submission') %></td>
+    </tr>
+    <tr>
+      <td><kbd>Shift</kbd> + <kbd>⇦</kbd></td>
+      <td><%= t('results.previous_submission') %></td>
+    </tr>
+    <% if @current_role.class.name != 'Student' %>
+      <tr>
+        <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>⇨</kbd></td>
+        <td><%= t('results.random_incomplete_submission') %></td>
+      </tr>
+    <% end %>
+    <tr>
+      <td><kbd>Shift</kbd> + <kbd>⇧</kbd></td>
+      <td><%= t('results.keybinding.previous_criterion') %></td>
+    </tr>
+    <tr>
+      <td><kbd>Shift</kbd> + <kbd>⇩</kbd></td>
+      <td><%= t('results.keybinding.next_criterion') %></td>
+    </tr>
+    <tr>
+      <td><kbd>⇧</kbd></td>
+      <td><%= t('results.keybinding.when_rubric') + t('results.keybinding.previous_level') %></td>
+    </tr>
+    <tr>
+      <td><kbd>⇩</kbd></td>
+      <td><%= t('results.keybinding.when_rubric') + t('results.keybinding.next_level') %></td>
+    </tr>
+    <tr>
+      <td><kbd>Enter/return</kbd></td>
+      <td><%= t('results.keybinding.when_rubric') + t('results.keybinding.confirm_level') %></td>
+    </tr>
+    <tr>
+      <td><kbd>Shift</kbd> + <kbd>n</kbd></td>
+      <td><%= t('results.keybinding.open_annotation') %></td>
+    </tr>
+    <tr>
+      <td><kbd>Cmd/Ctrl</kbd> + <kbd>Enter/return</kbd></td>
+      <td><%= t('results.keybinding.confirm_annotation') %></td>
+    </tr>
+  </table>
+</aside>
+<div id='criterion_incomplete_error' class='error hidden'></div>
+
+<div id='result-main' class='flex-col'></div>
+
+<!-- Annotation pane-->
+<div id='annotation_holder'></div>
+
+<!-- Modal element -->
+<aside class='markus-dialog' id='annotation_dialog'></aside>

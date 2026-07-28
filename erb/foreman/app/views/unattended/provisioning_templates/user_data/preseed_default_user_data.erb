@@ -1,0 +1,58 @@
+<%#
+kind: user_data
+name: Preseed default user data
+model: ProvisioningTemplate
+oses:
+- Debian
+- Ubuntu
+test_on:
+- debian4dhcp
+- ubuntu4dhcp
+description: |
+  This template is used during image based provisioning, when the image is configured to use user-data.
+  The output is a shell script that cloud-init runs to configures the VM
+  booted from the image. The image must have cloud-init installed in order for this to work.
+  This script can be used with preseed distributions images.
+-%>
+#!/bin/bash
+
+<%# Cloud instances frequently have incorrect hosts data %>
+<%= snippet 'fix_hosts' %>
+
+<%
+  # safemode renderer does not support unary negation
+  proxy_uri = host_param('http-proxy') ? "http://#{host_param('http-proxy')}:#{host_param('http-proxy-port')}" : nil
+  puppet_enabled = !host_param_true?('skip-puppet-setup') && (host_puppet_server.present? || host_param_true?('force-puppet'))
+  salt_enabled = host_param('salt_master') ? true : false
+  chef_enabled = @host.respond_to?(:chef_proxy) && @host.chef_proxy
+%>
+
+<% if proxy_uri -%>
+echo 'Acquire::http::Proxy "<%= proxy_uri %>";' >> /etc/apt/apt.conf
+<% end -%>
+
+<% if @host.realm && @host.realm.realm_type == 'FreeIPA' -%>
+<%= snippet 'freeipa_register' %>
+<% end -%>
+
+<%= snippet('remote_execution_ssh_keys') %>
+
+<%= snippet "blacklist_kernel_modules" %>
+
+<% if chef_enabled %>
+<%= snippet 'chef_client' %>
+<% end -%>
+
+<% if puppet_enabled %>
+<% if host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-official-puppet8-repo') || host_param_true?('enable-official-puppet7-repo') || host_param_true?('enable-puppetlabs-puppet6-repo') || host_param_true?('enable-puppetlabs-puppet5-repo') -%>
+<%= snippet 'puppetlabs_repo' %>
+<% end -%>
+<%= snippet 'puppet_setup' %>
+<% end -%>
+
+<% if salt_enabled %>
+<%= snippet 'saltstack_setup' %>
+<% end -%>
+
+# UserData still needs wget to mark as finished
+<%= snippet 'built' %>

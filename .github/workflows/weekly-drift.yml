@@ -1,0 +1,132 @@
+name: Weekly pin drift
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "Space-separated app names to check (default: all)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: weekly-drift
+  cancel-in-progress: false
+
+env:
+  BRANCH: corpus/pin-updates
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the superproject only
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler: none
+
+      - run: gem install yerba
+
+      - name: Detect drift
+        id: drift
+        run: |
+          bin/corpus drift --json ${{ inputs.apps }} > drift.json
+          ruby -rjson -e '
+            d = JSON.parse(File.read("drift.json"))
+            names = d["drifted"].map { |a| a["name"] }
+            File.open(ENV["GITHUB_OUTPUT"], "a") do |f|
+              f.puts "count=#{names.size}"
+              f.puts "apps=#{names.join(" ")}"
+              f.puts "unreachable=#{d["unreachable"].size}"
+            end
+            puts "#{names.size} of #{d["total"]} pin(s) behind; #{d["unreachable"].size} unreachable"
+          '
+
+      - name: Flag unreachable remotes
+        if: steps.drift.outputs.unreachable != '0'
+        run: |
+          ruby -rjson -e '
+            JSON.parse(File.read("drift.json"))["unreachable"].each do |a|
+              puts "::warning title=Unreachable remote::#{a["name"]} (#{a["repo"]}, branch #{a["branch"]}) could not be queried. Its pinned commit may no longer be fetchable, so a fresh clone cannot reproduce the corpus."
+            end
+          '
+
+      - name: Clone the drifted apps
+        if: steps.drift.outputs.count != '0'
+        run: bin/corpus clone --jobs 12 ${{ steps.drift.outputs.apps }}
+
+      - name: Move the drifted pins
+        if: steps.drift.outputs.count != '0'
+        run: bin/corpus update --report update.json ${{ steps.drift.outputs.apps }}
+
+      - name: Regenerate erb/ for those apps
+        if: steps.drift.outputs.count != '0'
+        run: bin/corpus extract ${{ steps.drift.outputs.apps }}
+
+      - name: Refresh the README stats block
+        if: steps.drift.outputs.count != '0'
+        run: bin/corpus stats --write
+
+      - name: Open or update the pull request
+        if: steps.drift.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          .github/scripts/render-pr-body.rb drift.json update.json > pr-body.md
+          rm -f drift.json update.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Rebuild the branch from the default branch each run, so the PR shows
+          # only current drift rather than accumulating stale pin moves.
+          git checkout -B "$BRANCH"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Pins reported as drifted but nothing changed on disk; nothing to push."
+            exit 0
+          fi
+
+          git commit -q -m "Update corpus pins (${{ steps.drift.outputs.count }} app(s))" -m "Automated weekly drift update. See the pull request for the per-app diff."
+          git push --force-with-lease origin "$BRANCH"
+
+          TITLE="Update corpus pins (${{ steps.drift.outputs.count }} app(s))"
+
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' || true)" ]; then
+            gh pr edit "$BRANCH" --title "$TITLE" --body-file pr-body.md
+            echo "Updated existing pull request."
+          else
+            gh pr create --head "$BRANCH" --title "$TITLE" --body-file pr-body.md
+            echo "Opened pull request."
+          fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ "${{ steps.drift.outputs.count }}" = "0" ]; then
+            echo "All pins are current." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ${{ steps.drift.outputs.count }} pin(s) behind" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '${{ steps.drift.outputs.apps }}' | tr ' ' '\n' | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "${{ steps.drift.outputs.unreachable }}" != "0" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**${{ steps.drift.outputs.unreachable }} remote(s) unreachable** — see warnings above." >> "$GITHUB_STEP_SUMMARY"
+          fi

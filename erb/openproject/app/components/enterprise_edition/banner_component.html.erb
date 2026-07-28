@@ -1,0 +1,110 @@
+<%=
+  component_wrapper(tag: "turbo-frame") do
+    render(Primer::BaseComponent.new(tag: :div, classes: "op-enterprise-banner-container")) do
+      grid_layout(
+        "op-enterprise-banner",
+        **@system_arguments
+      ) do |grid|
+        if inline?
+          grid.with_area(:visual) do
+            render(Primer::Beta::Octicon.new(icon: :"op-enterprise-addons", classes: "op-enterprise-banner--icon"))
+          end
+        end
+
+        grid.with_area(:content) do
+          flex_layout(h: :full) do |flex|
+            flex.with_row do
+              if medium? || large?
+                flex_layout(
+                  classes: "op-enterprise-banner--title-wrapper",
+                  align_items: :center,
+                  mb: 3
+                ) do |title_flex|
+                  title_flex.with_column do
+                    render(
+                      Primer::Beta::Octicon.new(
+                        icon: :"op-enterprise-addons",
+                        size: :medium,
+                        classes: "upsell-colored"
+                      )
+                    )
+                  end
+
+                  title_flex.with_column(ml: 2) do
+                    render(Primer::Beta::Heading.new(tag: :h2)) { title }
+                  end
+                end
+              else
+                render(Primer::Beta::Text.new(font_weight: :bold)) { title }
+              end
+            end
+
+            flex.with_row(classes: "op-enterprise-banner--description") do
+              concat render(Primer::Beta::Text.new(tag: :p)) { description }
+
+              unless large?
+                concat render(Primer::Beta::Text.new(tag: :p)) { plan_text }
+              end
+            end
+
+            if features.present?
+              flex.with_row do
+                content_tag(:ul) { safe_join(features.map { |text| render(Primer::Beta::Text.new(tag: :li)) { text } }) }
+              end
+            end
+
+            if large?
+              flex.with_row(my: 2) do
+                if @video
+                  video_tag @video,
+                            controls: false,
+                            class: "op-enterprise-banner--media",
+                            autoplay: true,
+                            loop: true,
+                            muted: true
+                elsif @dark_image
+                  concat image_tag(@image, class: "op-enterprise-banner--media op-enterprise-banner--media_light")
+                  concat image_tag(@dark_image, class: "op-enterprise-banner--media op-enterprise-banner--media_dark")
+                else
+                  image_tag @image, class: "op-enterprise-banner--media"
+                end
+              end
+
+              flex.with_row do
+                render(Primer::Beta::Text.new(tag: :p, text_align: :center)) { plan_text }
+              end
+            end
+
+            flex.with_row(mt: 1) do
+              render EnterpriseEdition::UpsellButtonsComponent.new(
+                feature_key,
+                justify_content: (large? ? :center : :flex_start)
+              )
+            end
+          end
+        end
+
+        if medium? && @image
+          grid.with_area(:image, **image_as_background_arguments)
+        end
+
+        if @dismissable
+          grid.with_area(:dismiss) do
+            classes = medium? ? "op-enterprise-banner--close-icon_hovering" : ""
+            render(
+              Primer::Beta::IconButton.new(
+                classes: class_names("op-enterprise-banner--close-icon", classes),
+                scheme: :invisible,
+                tag: :a,
+                href: dismiss_enterprise_banner_path(feature_key: @feature_key, dismiss_key: @dismiss_key),
+                data: { turbo_stream: true, turbo_method: :post },
+                icon: :x,
+                aria: { label: t("ee.upsell.hide_banner") }
+              )
+            )
+          end
+        end
+      end
+    end
+  end
+%>

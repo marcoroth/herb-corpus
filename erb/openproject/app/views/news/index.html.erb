@@ -1,0 +1,91 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% html_title t(:label_news_plural) %>
+
+<%
+  managable = User.current.allowed_in_project?(:manage_news, @project)
+%>
+
+<%=
+  render Primer::OpenProject::PageHeader.new do |header|
+    header.with_title { t(:label_news_plural) }
+    header.with_breadcrumbs(@project ? [{ href: project_overview_path(@project.id), text: @project.name }, t(:label_news_plural)] : nil)
+  end
+%>
+<% if managable %>
+  <%=
+    render(Primer::OpenProject::SubHeader.new) do |subheader|
+      subheader.with_action_button(
+        scheme: :primary,
+        leading_icon: :plus,
+        label: t(:label_news_new),
+        tag: :a,
+        id: "new_news_link",
+        data: { "test-selector": "add-news-button" },
+        href: new_project_news_path(@project)
+      ) do
+        t(:label_news_singular)
+      end
+    end
+  %>
+<% end %>
+
+<% if @news.any? %>
+  <% @news.each do |news| %>
+   <div class="news">
+     <h3 class="news--header"><%= avatar(news.author) %><%= link_to_project(news.project).concat(": ") unless news.project == @project %>
+       <%= link_to h(news.title), project_news_path(news.project, news) %>
+       <%= "(#{t(:label_x_comments, count: news.comments_count)})" if news.comments_count > 0 %></h3>
+    <p class="author additional-information"><%= authoring news.created_at, news.author %></p>
+    <div class="wiki op-uc-container">
+      <%= format_text(news.summary.presence || truncate(news.description, length: 150, escape: false), object: news) %>
+    </div>
+   </div>
+  <% end %>
+<% else %>
+  <% if managable %>
+    <%= no_results_box(
+          action_url: new_project_news_path(@project),
+          display_action: true
+        ) %>
+  <% else %>
+    <%= no_results_box %>
+  <% end %>
+<% end %>
+
+<%= pagination_links_full @news %>
+
+<%= other_formats_links do |f| %>
+  <%= f.link_to "Atom", url: { project_id: @project, key: User.current.rss_key } %>
+<% end %>
+
+<% content_for :header_tags do %>
+  <%= auto_discovery_link_tag(:atom, params.merge({ format: "atom", page: nil, key: User.current.rss_key })) %>
+<% end %>

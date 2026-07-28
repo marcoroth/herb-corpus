@@ -1,0 +1,32 @@
+<%
+if current_user.present? && current_user.has_role?('Member')
+  members_only_text_entry = { slug: 'defaults.members_only_text' }
+else
+  members_only_text_entry = nil
+end
+
+# Essentially the same as in the public events index, so likely edit that too if you edit this.
+search_fields = {
+  name_cont:                      { slug: 'defaults.name' },
+  publicity_text_or_tagline_cont: { slug: 'defaults.publicity_text' },
+  members_only_text_cont:         members_only_text_entry,
+  users_full_name_cont:           { slug: 'defaults.user' },
+  author_cont:                    { slug: 'defaults.author' },
+
+  venue_id_eq:                    { slug: 'defaults.venue', type: :select, collection: Venue.accessible_by(current_ability) },
+  event_tags_id_eq:               { slug: 'defaults.event_tags', type: :select, collection: EventTag.accessible_by(current_ability) },
+  date_range:                     { type: :date_range, options: {  start_date_attribute: 'start_date', end_date_attribute: 'end_date'} },
+  show_private_only:              { slug: 'defaults.show_private_only', type: :boolean },
+
+  random_button:      { type: :submit_button, action: :Random },
+  on_this_day_button: { type: :submit_button, action: 'On This Day' }
+}
+
+quick_actions = []
+if @events.klass == Show && can?(:debt_overview, Event)
+  quick_actions << link_to('Show Debt Overview', debt_overview_admin_events_path, class: btn_classes(:primary))
+end
+%>
+
+<%= render 'shared/pages/index', resource_class: @events.klass, resources: @events, content: render('admin/events/index_results'), search_fields: search_fields,
+  show_new_button: @events.klass != Event, quick_actions: quick_actions %>

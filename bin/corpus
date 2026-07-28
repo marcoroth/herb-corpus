@@ -1,0 +1,894 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Management CLI for the Herb corpus.
+#
+# The corpus is a superproject: every app under apps/ is a git submodule
+# pinned to an exact commit, so the corpus is reproducible across machines and
+# CI. This script wraps the submodule plumbing in task-shaped commands and
+# keeps corpus.yml (provenance and licensing) in step with .gitmodules.
+
+require "json"
+require "open3"
+require "optparse"
+require "fileutils"
+require "yerba"
+
+ROOT = File.expand_path("..", __dir__)
+APPS_DIR = File.join(ROOT, "apps")
+MANIFEST = File.join(ROOT, "corpus.yml")
+
+SPARSE_PATTERNS = [
+  "/**/*.erb",
+  "LICENSE*",
+  "LICENCE*",
+  "MIT-LICENSE*",
+  "COPYING*",
+  "README*"
+].freeze
+
+module Color
+  ENABLED = $stdout.tty? && !ENV.key?("NO_COLOR")
+
+  def self.wrap(text, code) = ENABLED ? "\e[#{code}m#{text}\e[0m" : text.to_s
+
+  def self.bold(text) = wrap(text, 1)
+  def self.dim(text) = wrap(text, 2)
+  def self.red(text) = wrap(text, 31)
+  def self.green(text) = wrap(text, 32)
+  def self.yellow(text) = wrap(text, 33)
+  def self.blue(text) = wrap(text, 34)
+end
+
+class CommandError < StandardError; end
+
+def git(*args, chdir: ROOT)
+  stdout, stderr, status = Open3.capture3("git", *args, chdir: chdir)
+  raise CommandError, "git #{args.join(" ")} failed: #{stderr.strip}" unless status.success?
+
+  stdout.strip
+end
+
+def git!(*args, chdir: ROOT)
+  system("git", *args, chdir: chdir)
+end
+
+def git?(*args, chdir: ROOT)
+  Open3.capture3("git", *args, chdir: chdir).last.success?
+end
+
+def configure_sparse(dir)
+  git?("sparse-checkout", "set", "--no-cone", *SPARSE_PATTERNS, chdir: dir)
+end
+
+def sparse?(dir)
+  git("config", "--get", "core.sparseCheckout", chdir: dir) == "true"
+rescue CommandError
+  false
+end
+
+def in_parallel(items, jobs)
+  queue = Queue.new
+  items.each { |item| queue << item }
+  results = Queue.new
+
+  workers = [jobs, items.size].min.clamp(1, 32).times.map do
+    Thread.new do
+      while (item = queue.pop(true) rescue nil)
+        results << [item, yield(item)]
+      end
+    end
+  end
+
+  workers.each(&:join)
+
+  Array.new(results.size) { results.pop }
+end
+
+App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
+  def dir = File.join(ROOT, path)
+  def cloned? = Dir.exist?(File.join(dir, ".git")) || File.exist?(File.join(dir, ".git"))
+  def repo = meta["repo"] || url.to_s.sub(%r{\Ahttps://github\.com/}, "").sub(/\.git\z/, "")
+  def upstream = meta["upstream"]
+  def fork? = meta["fork"] == true
+  def license = meta["license"] || "unknown"
+  def license_file = meta["license_file"]
+  def note = meta["note"]
+  def redistributable? = meta["redistributable"] != false
+
+  def pinned_sha
+    if git?("rev-parse", "--verify", "--quiet", "HEAD")
+      entry = git("ls-tree", "HEAD", path)
+
+      return entry.split(/\s+/)[2] unless entry.empty?
+    end
+
+    entry = git("ls-files", "--stage", "--", path)
+
+    entry.empty? ? nil : entry.split(/\s+/)[1]
+  end
+
+  def head_sha = cloned? ? git("rev-parse", "HEAD", chdir: dir) : nil
+
+  def dirty?
+    cloned? && !git("status", "--porcelain", chdir: dir).empty?
+  end
+
+  def erb_files
+    return [] unless cloned?
+
+    Dir.glob("**/*.erb", base: dir, flags: File::FNM_DOTMATCH).reject { |file| file.start_with?(".git/") }
+  end
+end
+
+def manifest_document = Yerba.parse_file(MANIFEST)
+
+def load_manifest
+  return {} unless File.exist?(MANIFEST)
+
+  entries = manifest_document.to_h["apps"] || []
+
+  duplicates = entries.map { |entry| entry["name"] }.tally.select { |_, count| count > 1 }.keys
+  raise CommandError, "duplicate entries in corpus.yml: #{duplicates.join(", ")}" if duplicates.any?
+
+  entries.to_h { |entry| [entry["name"], entry.reject { |key, _| key == "name" }] }
+end
+
+def load_apps(filter = [])
+  raise CommandError, "no .gitmodules found at #{ROOT}" unless File.exist?(File.join(ROOT, ".gitmodules"))
+
+  config = git("config", "-f", ".gitmodules", "--get-regexp", '^submodule\..*\.(path|url|branch)$')
+  manifest = load_manifest
+
+  submodules = Hash.new { |hash, key| hash[key] = {} }
+
+  config.each_line do |line|
+    key, value = line.strip.split(/\s+/, 2)
+    next unless key
+
+    section = key[/\Asubmodule\.(.+)\.(path|url|branch)\z/, 1]
+    field = key[/\.(path|url|branch)\z/, 1]
+    submodules[section][field] = value
+  end
+
+  apps = submodules.map do |_section, fields|
+    name = File.basename(fields["path"])
+
+    App.new(
+      name: name,
+      path: fields["path"],
+      url: fields["url"],
+      branch: fields["branch"] || "HEAD",
+      meta: manifest[name] || {}
+    )
+  end
+
+  apps.sort_by! { |app| app.name.downcase }
+
+  return apps if filter.empty?
+
+  selected = apps.select { |app| filter.include?(app.name) }
+  missing = filter - selected.map(&:name)
+  raise CommandError, "unknown app(s): #{missing.join(", ")}" if missing.any?
+
+  selected
+end
+
+def table(rows, headers)
+  widths = headers.each_index.map do |index|
+    ([headers[index]] + rows.map { |row| row[index].to_s }).map { |cell| visible_length(cell) }.max
+  end
+
+  puts headers.each_with_index.map { |header, index| Color.bold(header.ljust(widths[index])) }.join("  ")
+  puts widths.map { |width| Color.dim("-" * width) }.join("  ")
+
+  rows.each do |row|
+    puts row.each_with_index.map { |cell, index|
+      padding = " " * [widths[index] - visible_length(cell.to_s), 0].max
+      "#{cell}#{padding}"
+    }.join("  ").rstrip
+  end
+end
+
+def visible_length(text) = text.to_s.gsub(/\e\[[0-9;]*m/, "").length
+def short(sha) = sha ? sha[0, 8] : "-"
+
+def command_clone(argv)
+  full = false
+  jobs = 4
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus clone [options] [APP...]"
+    parser.on("--full", "Download full history and all blobs (default: blobless partial clone)") { full = true }
+    parser.on("--jobs N", Integer, "Parallel clone jobs (default: #{jobs})") { |value| jobs = value }
+  end.parse!(argv)
+
+  apps = load_apps(argv)
+  pending = apps.reject(&:cloned?)
+
+  if pending.empty?
+    puts "All #{apps.size} app(s) already cloned. Use `corpus update` to move pins forward."
+    return 0
+  end
+
+  puts "Cloning #{pending.size} app(s)#{full ? "" : " (ERB-only sparse checkout)"}..."
+
+  args = ["submodule", "update", "--init", "--jobs", jobs.to_s]
+  args += ["--filter=blob:none", "--no-checkout"] unless full
+  args += pending.map(&:path)
+
+  return 1 unless git!(*args)
+
+  unless full
+    pending.each do |app|
+      configure_sparse(app.dir)
+      git?("checkout", "--", ".", chdir: app.dir) || git?("checkout", app.branch, chdir: app.dir)
+    end
+  end
+
+  puts Color.green("Cloned #{pending.size} app(s).")
+  0
+end
+
+def command_drift(argv)
+  as_json = false
+  jobs = 12
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus drift [options] [APP...]"
+    parser.on("--json", "Emit JSON instead of a table") { as_json = true }
+    parser.on("--jobs N", Integer, "Parallel ref queries (default: #{jobs})") { |value| jobs = value }
+  end.parse!(argv)
+
+  apps = load_apps(argv)
+
+  probed = in_parallel(apps, jobs) do |app|
+    output = begin
+      git("ls-remote", app.url, "refs/heads/#{app.branch}")
+    rescue CommandError
+      nil
+    end
+
+    output.to_s.split(/\s+/).first
+  end
+
+  drifted = []
+  unreachable = []
+  current = []
+
+  probed.each do |app, tip|
+    pinned = app.pinned_sha
+
+    if tip.nil?
+      unreachable << { "name" => app.name, "repo" => app.repo, "branch" => app.branch }
+    elsif tip == pinned
+      current << app.name
+    else
+      drifted << {
+        "name" => app.name,
+        "repo" => app.repo,
+        "branch" => app.branch,
+        "pinned" => pinned,
+        "tip" => tip
+      }
+    end
+  end
+
+  drifted.sort_by! { |entry| entry["name"].downcase }
+  unreachable.sort_by! { |entry| entry["name"].downcase }
+
+  if as_json
+    puts JSON.pretty_generate({
+      "drifted" => drifted,
+      "unreachable" => unreachable,
+      "current" => current.size,
+      "total" => apps.size
+    })
+
+    return 0
+  end
+
+  if drifted.any?
+    table(
+      drifted.map { |entry| [entry["name"], entry["branch"], short(entry["pinned"]), Color.yellow(short(entry["tip"]))] },
+      ["APP", "BRANCH", "PINNED", "TIP"]
+    )
+  end
+
+  puts "\n#{drifted.size} of #{apps.size} pin(s) behind their tracked branch."
+  puts Color.yellow("#{unreachable.size} unreachable: #{unreachable.map { |e| e["name"] }.join(", ")}") if unreachable.any?
+
+  0
+end
+
+def command_update(argv)
+  commit = false
+  report_path = nil
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus update [options] [APP...]"
+    parser.on("--commit", "Commit the moved pins to the superproject") { commit = true }
+    parser.on("--report FILE", "Write a JSON summary of what moved") { |value| report_path = value }
+  end.parse!(argv)
+
+  apps = load_apps(argv).select(&:cloned?)
+  moved = []
+  report = { "moved" => [], "skipped" => [], "failed" => [], "unchanged" => 0 }
+
+  apps.each do |app|
+    if app.dirty?
+      puts "#{Color.yellow("skip")} #{app.name} #{Color.dim("(uncommitted local changes)")}"
+      report["skipped"] << { "name" => app.name, "reason" => "uncommitted local changes" }
+      next
+    end
+
+    before = app.head_sha
+    erb_before = app.erb_files.size
+
+    unless git?("fetch", "--quiet", "origin", app.branch, chdir: app.dir)
+      puts "#{Color.red("fail")} #{app.name} #{Color.dim("(could not fetch #{app.branch})")}"
+      report["failed"] << { "name" => app.name, "reason" => "fetch failed" }
+      next
+    end
+
+    unless git?("checkout", "--quiet", "--detach", "FETCH_HEAD", chdir: app.dir)
+      puts "#{Color.red("fail")} #{app.name} #{Color.dim("(could not check out #{app.branch})")}"
+      report["failed"] << { "name" => app.name, "reason" => "checkout failed" }
+      next
+    end
+
+    git?("checkout", "--quiet", "-B", app.branch, "FETCH_HEAD", chdir: app.dir)
+
+    after = app.head_sha
+
+    if before == after
+      puts "#{Color.dim("same")} #{app.name} #{Color.dim(short(after))}"
+      report["unchanged"] += 1
+    else
+      count = git("rev-list", "--count", "#{before}..#{after}", chdir: app.dir) rescue "?"
+      puts "#{Color.green("move")} #{app.name} #{short(before)} -> #{Color.green(short(after))} #{Color.dim("(+#{count} commits)")}"
+      moved << app
+
+      report["moved"] << {
+        "name" => app.name,
+        "repo" => app.repo,
+        "branch" => app.branch,
+        "from" => before,
+        "to" => after,
+        "commits" => count.to_i,
+        "erb_before" => erb_before,
+        "erb_after" => app.erb_files.size
+      }
+    end
+  end
+
+  write_report(report_path, report) if report_path
+
+  if moved.empty?
+    puts "\nNo pins moved."
+    return 0
+  end
+
+  puts "\n#{moved.size} pin(s) moved: #{moved.map(&:name).join(", ")}"
+
+  if commit
+    git!("add", "--", *moved.map(&:path))
+    git!("commit", "-m", "Update corpus pins: #{moved.map(&:name).join(", ")}")
+    puts Color.green("Committed moved pins.")
+  else
+    puts Color.dim("Review with `git diff --submodule`, then commit, or re-run with --commit.")
+  end
+
+  0
+end
+
+def command_status(argv)
+  fetch = false
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus status [options] [APP...]"
+    parser.on("--fetch", "Fetch each remote first to report how far behind each pin is") { fetch = true }
+  end.parse!(argv)
+
+  apps = load_apps(argv)
+
+  rows = apps.map do |app|
+    unless app.cloned?
+      next [app.name, Color.yellow("not cloned"), short(app.pinned_sha), app.branch, "-"]
+    end
+
+    pinned = app.pinned_sha
+    head = app.head_sha
+
+    state = if head != pinned
+              Color.yellow("drifted")
+            elsif app.dirty?
+              Color.yellow("dirty")
+            else
+              Color.green("ok")
+            end
+
+    behind = "-"
+
+    if fetch
+      if git?("fetch", "--quiet", "origin", app.branch, chdir: app.dir)
+        behind = (git("rev-list", "--count", "#{head}..FETCH_HEAD", chdir: app.dir) rescue "?")
+        behind = behind == "0" ? Color.dim("0") : Color.yellow(behind)
+      else
+        behind = Color.red("fetch failed")
+      end
+    end
+
+    [app.name, state, short(pinned), app.branch, behind]
+  end
+
+  table(rows, ["APP", "STATE", "PINNED", "BRANCH", "BEHIND"])
+
+  unless fetch
+    puts "\n#{Color.dim("Re-run with --fetch to see how many commits each pin is behind its branch.")}"
+  end
+
+  0
+end
+
+def command_list(argv)
+  as_json = false
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus list [options] [APP...]"
+    parser.on("--json", "Emit JSON instead of a table") { as_json = true }
+  end.parse!(argv)
+
+  apps = load_apps(argv)
+
+  if as_json
+    puts JSON.pretty_generate(apps.map { |app|
+      {
+        name: app.name,
+        repo: app.repo,
+        upstream: app.upstream,
+        fork: app.fork?,
+        branch: app.branch,
+        pinned_sha: app.pinned_sha,
+        license: app.license,
+        redistributable: app.redistributable?,
+        erb_files: app.erb_files.size,
+        cloned: app.cloned?
+      }
+    })
+
+    return 0
+  end
+
+  rows = apps.map do |app|
+    count = app.cloned? ? app.erb_files.size : nil
+
+    [
+      app.name,
+      app.repo + (app.fork? ? Color.yellow(" (fork)") : ""),
+      app.branch,
+      count ? count.to_s : Color.dim("not cloned"),
+      app.redistributable? ? app.license : Color.yellow("#{app.license} *")
+    ]
+  end
+
+  table(rows, ["APP", "REPO", "BRANCH", "ERB", "LICENSE"])
+
+  total = apps.select(&:cloned?).sum { |app| app.erb_files.size }
+  puts "\n#{Color.bold(apps.size.to_s)} app(s), #{Color.bold(total.to_s)} .erb file(s)."
+
+  excluded = apps.reject(&:redistributable?)
+  if excluded.any?
+    puts Color.yellow("* excluded from `corpus extract`: #{excluded.map(&:name).join(", ")}")
+  end
+
+  0
+end
+
+Candidate = Struct.new(:repo, :branch, :license, :redistributable, :name, keyword_init: true) do
+  def url = "https://github.com/#{repo}"
+  def path = "apps/#{name}"
+  def dir = File.join(ROOT, path)
+end
+
+def parse_batch(file)
+  File.readlines(file, chomp: true).filter_map do |line|
+    next if line.strip.empty? || line.start_with?("#")
+
+    repo, branch, license, redistributable, name = line.split("\t").map { |field| field.to_s.strip }
+    repo = repo.sub(%r{\Ahttps://github\.com/}, "").sub(%r{\Agit@github\.com:}, "").sub(/\.git\z/, "")
+
+    Candidate.new(
+      repo: repo,
+      branch: (branch unless branch.to_s.empty?),
+      license: (license.to_s.empty? ? "unknown" : license),
+      redistributable: redistributable.to_s != "false",
+      name: (name.to_s.empty? ? File.basename(repo) : name)
+    )
+  end
+end
+
+def detect_default_branch(url)
+  git("ls-remote", "--symref", url, "HEAD")[%r{^ref: refs/heads/(\S+)\s+HEAD}, 1]
+rescue CommandError
+  nil
+end
+
+def command_add(argv)
+  from = nil
+  branch = nil
+  name = nil
+  full = false
+  jobs = 8
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus add URL [options]\n       corpus add --from FILE [options]"
+    parser.on("--from FILE", "Add many apps from a TSV of repo[, branch, license, redistributable]") { |value| from = value }
+    parser.on("--branch B", "Branch to track (default: the remote's default branch)") { |value| branch = value }
+    parser.on("--name N", "Directory name under apps/ (default: derived from the URL)") { |value| name = value }
+    parser.on("--full", "Check out the whole app instead of an ERB-only sparse checkout") { full = true }
+    parser.on("--jobs N", Integer, "Parallel clone jobs for --from (default: #{jobs})") { |value| jobs = value }
+  end.parse!(argv)
+
+  candidates =
+    if from
+      raise CommandError, "no such file: #{from}" unless File.exist?(from)
+
+      parse_batch(from)
+    else
+      url = argv.shift
+      raise CommandError, "usage: corpus add URL [--branch B] [--name N]" unless url
+
+      repo = url.sub(%r{\Ahttps://github\.com/}, "").sub(%r{\Agit@github\.com:}, "").sub(/\.git\z/, "")
+
+      [Candidate.new(repo: repo, branch: branch, license: "unknown", redistributable: true, name: name || File.basename(repo))]
+    end
+
+  existing = Dir.exist?(APPS_DIR) ? Dir.children(APPS_DIR) : []
+  skipped = candidates.select { |candidate| existing.include?(candidate.name) }
+  candidates -= skipped
+
+  skipped.each { |candidate| puts "#{Color.dim("skip")} #{candidate.name} #{Color.dim("(already present)")}" }
+
+  raise CommandError, "nothing to add" if candidates.empty?
+
+  puts "Cloning #{candidates.size} app(s)#{full ? "" : " (ERB-only sparse checkout)"}..."
+
+  cloned = in_parallel(candidates, jobs) do |candidate|
+    candidate.branch ||= detect_default_branch(candidate.url)
+
+    next :no_branch unless candidate.branch
+
+    args = ["clone", "--quiet", "--filter=blob:none", "--branch", candidate.branch]
+    args << "--sparse" unless full
+    args += [candidate.url, candidate.dir]
+
+    next :clone_failed unless git?(*args)
+
+    if full || configure_sparse(candidate.dir)
+      :ok
+    else
+      :sparse_failed
+    end
+  end
+
+  ok, failed = cloned.partition { |_candidate, status| status == :ok }
+
+  failed.each do |candidate, status|
+    puts "#{Color.red("fail")} #{candidate.repo} #{Color.dim("(#{status})")}"
+    FileUtils.rm_rf(candidate.dir)
+  end
+
+  added = []
+
+  ok.map(&:first).sort_by { |candidate| candidate.name.downcase }.each do |candidate|
+    if git?("submodule", "add", "--force", "-b", candidate.branch, candidate.url, candidate.path)
+      added << candidate
+      puts "#{Color.green("add")} #{candidate.name} #{Color.dim("#{candidate.repo}@#{candidate.branch}")}"
+    else
+      puts "#{Color.red("fail")} #{candidate.repo} #{Color.dim("(submodule add)")}"
+      FileUtils.rm_rf(candidate.dir)
+    end
+  end
+
+  append_manifest_entries(added)
+
+  puts "\n#{Color.bold(added.size.to_s)} app(s) added."
+  puts Color.yellow("#{failed.size} failed to clone.") if failed.any?
+
+  unknown = added.select { |candidate| candidate.license == "unknown" }
+  puts Color.yellow("Set a license for: #{unknown.map(&:name).join(", ")}") if unknown.any?
+
+  0
+end
+
+def write_report(path, report)
+  report["erb_delta"] = report["moved"].sum { |entry| entry["erb_after"] - entry["erb_before"] }
+
+  FileUtils.mkdir_p(File.dirname(path))
+  File.write(path, JSON.pretty_generate(report) + "\n")
+
+  puts Color.dim("Wrote report to #{path}")
+end
+
+def append_manifest_entries(candidates)
+  return if candidates.empty?
+
+  Dir.chdir(ROOT) do
+    document = Yerba.parse_file(File.basename(MANIFEST))
+
+    candidates.each do |candidate|
+      document["apps"] << {
+        "name" => candidate.name,
+        "repo" => candidate.repo,
+        "license" => candidate.license,
+        "license_file" => nil,
+        "redistributable" => candidate.redistributable
+      }
+    end
+
+    document.save!(apply: true)
+  end
+end
+
+def command_remove(argv)
+  keep = false
+  move_to = nil
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus remove [options] APP [APP...]"
+    parser.on("--keep-checkout", "Deregister the app but leave apps/<name> on disk") { keep = true }
+    parser.on("--move-to DIR", "Move the checkout to DIR instead of deleting it") { |value| move_to = File.expand_path(value, Dir.pwd) }
+  end.parse!(argv)
+
+  apps = load_apps(argv)
+  raise CommandError, "usage: corpus remove [options] APP [APP...]" if apps.empty? || argv.empty?
+
+  apps.each do |app|
+    if move_to
+      destination = File.join(move_to, app.name)
+      raise CommandError, "#{destination} already exists" if File.exist?(destination)
+
+      FileUtils.mkdir_p(move_to)
+      FileUtils.mv(app.dir, destination)
+      puts "#{Color.yellow("moved")} #{app.name} -> #{destination}"
+    elsif !keep
+      git!("submodule", "deinit", "-f", "--", app.path)
+    end
+
+    git!("rm", "--cached", "-q", "--", app.path)
+    git?("config", "-f", ".gitmodules", "--remove-section", "submodule.#{app.path}")
+    git!("add", "--", ".gitmodules")
+
+    unless keep || move_to
+      FileUtils.rm_rf(File.join(ROOT, ".git", "modules", app.path))
+      FileUtils.rm_rf(app.dir)
+    end
+
+    puts "#{Color.red("removed")} #{app.name}#{Color.dim(keep ? " (checkout kept)" : "")}"
+  end
+
+  puts Color.yellow("Remove the corresponding entries from corpus.yml before committing.")
+
+  0
+end
+
+def command_extract(argv)
+  out = File.join(ROOT, "erb")
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus extract [options] [APP...]"
+    parser.on("--out DIR", "Output directory (default: erb/)") { |value| out = File.expand_path(value, Dir.pwd) }
+  end.parse!(argv)
+
+  incremental = argv.any?
+
+  apps = load_apps(argv).select(&:cloned?)
+  included, excluded = apps.partition(&:redistributable?)
+
+  raise CommandError, "no cloned, redistributable apps to extract" if included.empty?
+
+  manifest_path = File.join(out, "MANIFEST.json")
+  previous = (JSON.parse(File.read(manifest_path)) if incremental && File.exist?(manifest_path))
+
+  if previous
+    entries = previous["apps"] || {}
+    prior_excluded = previous["excluded"] || []
+
+    apps.each { |app| FileUtils.rm_rf(File.join(out, app.name)) }
+    excluded.each { |app| entries.delete(app.name) }
+  else
+    FileUtils.rm_rf(out)
+    FileUtils.mkdir_p(out)
+
+    entries = {}
+    prior_excluded = []
+  end
+
+  total = 0
+
+  included.each do |app|
+    files = app.erb_files
+    next if files.empty?
+
+    files.each do |file|
+      source = File.join(app.dir, file)
+      target = File.join(out, app.name, file)
+
+      FileUtils.mkdir_p(File.dirname(target))
+      FileUtils.cp(source, target)
+    end
+
+    if app.license_file && File.file?(File.join(app.dir, app.license_file))
+      FileUtils.cp(File.join(app.dir, app.license_file), File.join(out, app.name, File.basename(app.license_file)))
+    end
+
+    entries[app.name] = {
+      "repo" => app.repo,
+      "url" => app.url,
+      "branch" => app.branch,
+      "sha" => app.head_sha,
+      "license" => app.license,
+      "license_file" => app.license_file,
+      "files" => files.size
+    }
+
+    total += files.size
+    puts "#{Color.green("extract")} #{app.name} #{Color.dim("#{files.size} file(s)")}"
+  end
+
+  exclusions = prior_excluded.reject { |entry| apps.any? { |app| app.name == entry["name"] } }
+  exclusions += excluded.map { |app| { "name" => app.name, "reason" => app.note || "not redistributable" } }
+  exclusions.sort_by! { |entry| entry["name"].to_s.downcase }
+
+  entries = entries.sort_by { |name, _| name.downcase }.to_h
+  corpus_total = entries.values.sum { |entry| entry["files"].to_i }
+
+  File.write(
+    manifest_path,
+    JSON.pretty_generate({
+      "generated_by" => "bin/corpus extract",
+      "apps" => entries,
+      "total_files" => corpus_total,
+      "excluded" => exclusions
+    }) + "\n"
+  )
+
+  bytes = Dir.glob("#{out}/**/*").select { |path| File.file?(path) }.sum { |path| File.size(path) }
+
+  if incremental
+    puts "\n#{Color.bold(total.to_s)} file(s) re-extracted from #{apps.size} app(s); corpus now #{Color.bold(corpus_total.to_s)} .erb file(s) across #{entries.size} app(s) (#{(bytes / 1024.0 / 1024).round(1)} MB)"
+  else
+    puts "\n#{Color.bold(corpus_total.to_s)} .erb file(s) from #{Color.bold(entries.size.to_s)} app(s) -> #{out} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
+  end
+
+  puts Color.yellow("Excluded (not redistributable): #{excluded.map(&:name).join(", ")}") if excluded.any?
+
+  0
+end
+
+README = File.join(ROOT, "README.md")
+STATS_START = "<!-- corpus:stats:start -->"
+STATS_END = "<!-- corpus:stats:end -->"
+
+def corpus_stats
+  apps = load_apps
+  manifest = JSON.parse(File.read(File.join(ROOT, "erb", "MANIFEST.json")))
+  extracted = manifest["apps"] || {}
+
+  bytes = Dir.glob(File.join(ROOT, "erb", "**", "*.erb")).sum { |path| File.size(path) }
+
+  {
+    applications: apps.size,
+    extracted_apps: extracted.size,
+    extracted_files: extracted.values.sum { |entry| entry["files"].to_i },
+    excluded_apps: apps.count { |app| !app.redistributable? },
+    megabytes: (bytes / 1024.0 / 1024).round
+  }
+end
+
+def render_stats(stats)
+  [
+    "| | |",
+    "| --- | --- |",
+    "| Applications and engines | **#{stats[:applications]}** |",
+    "| `.erb` files in `erb/` | **#{format("%d", stats[:extracted_files]).gsub(/(\d)(?=(\d{3})+\z)/, "\\1,")}** from #{stats[:extracted_apps]} apps |",
+    "| Size of `erb/` | ~#{stats[:megabytes]} MB |",
+    "| Excluded pending license review | #{stats[:excluded_apps]} apps |"
+  ].join("\n")
+end
+
+def command_stats(argv)
+  write = false
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus stats [options]"
+    parser.on("--write", "Update the generated block in README.md in place") { write = true }
+  end.parse!(argv)
+
+  stats = corpus_stats
+  block = render_stats(stats)
+
+  unless write
+    puts block
+    return 0
+  end
+
+  readme = File.read(README)
+
+  unless readme.include?(STATS_START) && readme.include?(STATS_END)
+    raise CommandError, "README.md is missing the #{STATS_START} / #{STATS_END} markers"
+  end
+
+  updated = readme.sub(
+    /#{Regexp.escape(STATS_START)}.*?#{Regexp.escape(STATS_END)}/m,
+    "#{STATS_START}\n\n#{block}\n\n#{STATS_END}"
+  )
+
+  if updated == readme
+    puts "README.md already up to date."
+  else
+    File.write(README, updated)
+    puts Color.green("Updated the stats block in README.md.")
+  end
+
+  0
+end
+
+COMMANDS = {
+  "clone" => method(:command_clone),
+  "update" => method(:command_update),
+  "status" => method(:command_status),
+  "stats" => method(:command_stats),
+  "list" => method(:command_list),
+  "add" => method(:command_add),
+  "remove" => method(:command_remove),
+  "extract" => method(:command_extract),
+  "drift" => method(:command_drift)
+}.freeze
+
+USAGE = <<~TEXT
+  usage: corpus <command> [options] [APP...]
+
+  Commands:
+    clone     Clone the apps that are not checked out yet (ERB-only by default)
+    update    Move each pin to the tip of its tracked branch
+    status    Show each app's pin, checkout state, and drift
+  stats     Print corpus totals, or refresh the generated block in README.md
+    drift     Report which pins are behind their branch (no checkout needed)
+    list      List apps with repo, branch, .erb count, and license
+    add       Add a new app as a submodule and stub its manifest entry
+    remove    Remove an app's submodule and checkout
+    extract   Copy the .erb files into erb/ with a provenance manifest
+
+  Run `corpus <command> --help` for command-specific options.
+TEXT
+
+def main(argv)
+  command = argv.shift
+
+  if command.nil? || ["-h", "--help", "help"].include?(command)
+    puts USAGE
+    return command.nil? ? 1 : 0
+  end
+
+  handler = COMMANDS[command]
+
+  unless handler
+    warn "unknown command: #{command}\n\n#{USAGE}"
+    return 1
+  end
+
+  handler.call(argv)
+rescue CommandError => error
+  warn Color.red("error: #{error.message}")
+  1
+rescue OptionParser::ParseError => error
+  warn Color.red("error: #{error.message}")
+  1
+rescue Interrupt
+  warn "\ninterrupted"
+  130
+end
+
+exit main(ARGV) if $PROGRAM_NAME == __FILE__

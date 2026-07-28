@@ -1,0 +1,113 @@
+/*!
+  * domready (c) Dustin Diaz 2014 - License MIT
+  */
+!function (name, definition) {
+
+  if (typeof module != 'undefined') module.exports = definition()
+  else if (typeof define == 'function' && typeof define.amd == 'object') define(definition)
+  else this[name] = definition()
+
+}('domready', function () {
+
+  var fns = [], listener
+    , doc = document
+    , hack = doc.documentElement.doScroll
+    , domContentLoaded = 'DOMContentLoaded'
+    , loaded = (hack ? /^loaded|^c/ : /^loaded|^i|^c/).test(doc.readyState)
+
+
+  if (!loaded)
+  doc.addEventListener(domContentLoaded, listener = function () {
+    doc.removeEventListener(domContentLoaded, listener)
+    loaded = 1
+    while (listener = fns.shift()) listener()
+  })
+
+  return function (fn) {
+    loaded ? fn() : fns.push(fn)
+  }
+
+});
+
+/*!
+  * EFF Action Center include iframe
+  * AGPLv3
+  */
+(function() {
+  function embed(widget) {
+    var width = 500;
+    var iframe_tag = document.createElement("iframe");
+
+    window.addEventListener("message", function(event) {
+      if (event.origin == "<%= (request.ssl? ? "https://" : "http://") + request.env['HTTP_HOST'] %>") {
+        var window_height = event.data;
+        iframe_tag.height = window_height + "px";
+      }
+    }, false);
+
+
+    var embed_url = widget.getAttribute("href").split('?', 2);
+    embed_url = embed_url[0] + '/embed_iframe?' + (embed_url[1] || '');
+
+    if (typeof ac_embed !== "undefined"){
+      if("width" in ac_embed)
+        width = ac_embed.width;
+
+      if("css" in ac_embed)
+        embed_url += "&css=" + encodeURIComponent(ac_embed.css);
+
+      if("no_css" in ac_embed && ac_embed.no_css == true)
+        embed_url += "&no_css=true";
+
+      if("css_content" in ac_embed) {
+        var css_content = document.querySelector(ac_embed.css_content).innerHTML;
+        embed_url += "&css_content=" + escape(css_content);
+      }
+
+      if("button_text" in ac_embed)
+        embed_url += "&button_text=" + encodeURIComponent(ac_embed.button_text);
+
+      if("international_only" in ac_embed && ac_embed.international_only == true)
+        embed_url += "&international_only=true";
+
+      if ("non_us_option" in ac_embed && ac_embed.non_us_option == "petition")
+        embed_url += "&non_us_option=petition";
+
+      if ("location" in ac_embed)
+        embed_url += "&" + hash_params(ac_embed.location)
+
+      if ("bioguide_ids" in ac_embed)
+        embed_url += array_params("bioguide_ids", ac_embed.bioguide_ids)
+    }
+
+    iframe_tag.setAttribute("src", embed_url);
+    iframe_tag.setAttribute("frameborder", 0);
+    iframe_tag.setAttribute("width", width);
+
+    widget.parentNode.insertBefore(iframe_tag, widget);
+    widget.remove();
+  }
+
+  function array_params(key, array) {
+    return array.map(x => "&" + key + "[]=" + encodeURIComponent(x))
+                .join("");
+  }
+
+  function hash_params(obj) {
+    var str = "";
+    for (var key in obj) {
+      if (str != "") {
+        str += "&";
+      }
+      str += key + "=" + encodeURIComponent(obj[key]);
+    }
+    return str;
+  }
+
+  domready(function(){
+    var widgets = document.querySelectorAll("#action-center-widget, .action-center-widget")
+
+    for (var i=0; i < widgets.length; ++i)
+      embed(widgets[i]);
+  });
+})();

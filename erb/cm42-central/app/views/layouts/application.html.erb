@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= "#{@project.name} - " if @project %><%= t('cm-central') %></title>
+  <%= csrf_meta_tag %>
+  <%= favicon_link_tag "favicon.ico" %>
+  <%= stylesheet_link_tag :application %>
+  <%= javascript_include_tag "https://www.authy.com/form.authy.min.js" %>
+  <%= stylesheet_link_tag "https://www.authy.com/form.authy.min.css" %>
+  <%= stylesheet_link_tag "https://fonts.googleapis.com/css?family=Noto+Sans:400,700" %>
+  <%= stylesheet_link_tag "https://use.fontawesome.com/releases/v5.5.0/css/all.css" %>
+  <%= render 'shared/google_analytics'%>
+  <%= vite_client_tag %>
+  <%= vite_javascript_tag 'application' %>
+</head>
+<body class='<%= "board" if @layout_settings[:fluid] %>'
+      data-page='<%= "#{params[:controller]}.#{params[:action]}" %>'
+      data-notification-icon-url="<%= asset_url('notification.ico') %>"
+      data-favicon-icon-url="<%= asset_url('favicon.ico') %>">
+<div class="click-overlay"></div>
+<div class="content-wrapper">
+  <%= global_alert %>
+  <nav class="navbar navbar-default">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        <% if session[:current_team_slug] && current_team.try(:logo) %>
+          <a href="/" class="navbar-brand navbar-logo">
+            <%= team_logo(current_team.logo.path) %>
+          </a>
+        <% else %>
+          <a href="/" class="navbar-brand navbar-logo">
+            <%= image_tag 'logo.png', width: 32, height: 32 %>
+          </a>
+        <% end %>
+
+        <%= yield :title_bar %>
+
+        <div data-portal="velocity" class="navbar-form navbar-left navbar-search"></div>
+
+        <div class="navbar-right">
+          <div data-portal="search" class="navbar-form navbar-left navbar-search"></div>
+
+          <%= yield :right_menu %>
+
+          <%= form_tag locales_path, method: :put, class: "dropdown" do %>
+            <div class="locale-change-wrapper">
+              <%= select_tag 'locale',
+                  options_for_select(LocalesController::LOCALES, I18n.locale),
+                  class: 'btn btn-link locale-change-select' %>
+            </div>
+          <% end %>
+
+          <% if current_user %>
+            <% if current_team %>
+              <div class="dropdown">
+                <button class="btn btn-link team-dropdown" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <%= Team.model_name.human(count: 2) %>
+                  <span class="caret"></span>
+                </button>
+
+                <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="dLabel">
+                  <li class="dropdown-header">
+                    <%= session[:current_team_slug] && current_team.try(:name) || t('cm-central') %>
+                  </li>
+
+                  <% topbar_projects do |project| %>
+                    <li><%= link_to project.name, project %></li>
+                  <% end %>
+
+                  <li class="divider"></li>
+
+                  <% current_user.teams.not_archived.each do |team| %>
+                    <li><%= link_to team.name, switch_teams_path(team_slug: team.slug) %></li>
+                  <% end %>
+
+                  <% if current_team.is_admin?(current_user) %>
+                    <li class="divider"></li>
+                    <li><%= link_to t('settings'), edit_team_path(current_team) %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+
+            <div class="dropdown">
+              <button class="btn btn-link user-dropdown" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <%= current_user.name %>
+                <span class="caret"></span>
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-right" aria-labelledby="dLabel">
+                <li>
+                  <%= topbar_link t('edit'), edit_user_registration_path %>
+                </li>
+
+                <li>
+                  <%= topbar_link t('my teams'), teams_path %>
+                </li>
+
+                <% if current_user %>
+                  <li class="divider"></li>
+
+                  <li><%= link_to t('logout'), destroy_user_session_path, method: :delete %></li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <%= yield :navbar %>
+
+  <div class="main" id="main">
+    <div class="container<%= "-fluid board" if @layout_settings[:fluid] %>">
+      <%= render 'flash' %>
+      <% if current_staff_user %>
+        <%= render 'user_impersonate/header' %>
+      <% end %>
+      <%= yield %>
+    </div>
+  </div>
+</div>
+
+<div class="loading-spin">
+  <div class="spinner">
+    <span class="icons-spinner"></span>
+  </div>
+</div>
+
+<%= render 'shared/cookies_banner' %>
+
+<script>
+  window._railsEnv = "<%= Rails.env %>";
+</script>
+<%= javascript_include_tag 'i18n/translations' %>
+<%= yield :charts_data %>
+<%= cloudinary_config %>
+<script type="text/javascript">
+  I18n.defaultLocale = "<%= I18n.default_locale %>";
+  I18n.locale = "<%= I18n.locale %>";
+</script>
+</body>
+</html>

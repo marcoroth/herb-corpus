@@ -1,0 +1,117 @@
+<%
+# Copyright (C) 2011 - present Instructure, Inc.
+#
+# This file is part of Canvas.
+#
+# Canvas is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, version 3 of the License.
+#
+# Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <http://www.gnu.org/licenses/>.
+%>
+
+<% provide :page_title do %><%= join_title @context.name, @assignment.title, t(:page_title, "Peer Reviews") %><% end %>
+<%- css_bundle(:assignments_peer_review) %>
+
+<% provide :right_side do %>
+  <a href="<%= context_url(@context, :context_assignment_url, @assignment.id) %>" class='btn button-sidebar-wide'>
+    <i class="icon-arrow-left"></i>
+    <%= t 'links.back_to_assignment', "Back to Assignment" %>
+  </a>
+  <p><%= t :details, "To the left you can see the list of students for this assignment, and also
+  which student submissions (if any) they have been assigned to review." %></p>
+  <% unless @submissions.empty? %>
+    <% unless @assignment.current_submissions_and_assessors[:submissions]&.count&.zero? %>
+      <%= form_tag context_url(@context, :context_assignment_assign_peer_reviews_url, @assignment.id), {:id => "assign_peer_reviews_form" } do %>
+        <h3 style="margin-bottom: 0;" id="automatically_assign_reviews"><%= t 'titles.automatically_assign_reviews', "Automatically Assign Reviews" %></h3>
+        <p><%= t 'descriptions.automatically_assign_reviews', "You can assign peer reviews to those users who have submitted but don't already have
+        reviews assigned by clicking the button below." %></p>
+        <% if @assignment.group_category %>
+          <div>
+            <%= check_box_tag "intra_group_peer_reviews", "1", @assignment.intra_group_peer_reviews %>
+            <label for="intra_group_peer_reviews"><%= t("Allow intra-group peer reviews") %></label>
+          </div>
+        <% end %>
+        <%= hidden_field_tag :peer_review_count, @assignment.peer_review_count %>
+        <div id="reviews_per_user_container" data-count="<%= @assignment.peer_review_count %>" ></div>
+        <div class='button-container button-container-right-aligned'>
+          <button id="submit_assign_peer_reviews" type="submit" class="btn btn-large"><%= t 'buttons.assign_peer_reviews', "Assign Peer Reviews" %></button>
+        </div>
+      <% end %>
+    <% else %>
+      <h3 style="margin-bottom: 0;" id="automatically_assign_reviews"><%= t 'titles.automatically_assign_reviews', "Automatically Assign Reviews" %></h3>
+      <p><%= t 'descriptions.automatically_assign_reviews_redirect', "Peer reviews can be assigned to users who have submitted but don't already have
+      reviews assigned. To enable and configure automatically assigning peer reviews, click the button below." %></p>
+      <div id="redirect_to_edit_button" class="redirect_to_edit_button" data-courseid="<%= @context.id %>" data-assignmentid="<%= @assignment.id %>"></div>
+    <% end %>
+  <% end %>
+<% end %>
+<% js_bundle 'assignments_peer_reviews' %>
+
+<h1 class="ic-Action-header-title" style="margin-bottom: 0.75rem"><%= t :title, "%{assignment} Peer Reviews", :assignment => @assignment.title %></h1>
+<div style="margin-bottom: 2.25rem">
+  <% if @assignment.active_rubric_association? %>
+    <div class="ic-Action-header-secondary-title">
+      <%= t :overview_with_rubric, "Peer reviews will be considered complete when students have filled out the rubric for the assignment." %>
+    </div>
+  <% else %>
+    <div class="ic-Action-header-secondary-title">
+      <%= t :overview, "Peer reviews will be considered complete when students have commented
+        at least once on the page." %>
+    </div>
+  <% end %>
+</div>
+<div id="filter_peer_review"></div>
+<ul class="unstyled_list" style="margin-<%= direction('left') %>: 20px;">
+  <li style="<%= hidden unless @students.empty? %>" class="no_students_message"><%= t 'messages.no_students_found', "No Students Found" %></li>
+  <% @students.each do |student| %>
+    <% submission = @submissions.to_a.find{|s| s.user_id == student.id} %>
+    <li style="font-size: 1.2em; margin-bottom: 10px;" class="student_reviews">
+      <a
+        title="<%= submission&.has_submission? ? h(t(:submitted, "submitted")) : h(t(:not_yet_submitted, "not yet submitted")) %>"
+        href="<%= context_url(@context, :context_assignment_submission_url, @assignment.id, student.id) %>"
+      >
+        <span class="assessor_name"><%= student.last_name_first %> <% if student.pronouns %><i>(<%= student.pronouns %>)</i><% end %></span>
+        <span class="user_id student_review_id" style="display: none;"><%= student.id %></span>
+      </a>
+      <ul class="unstyled_list peer_reviews" style="padding-<%= direction('left') %>: 21px; font-size: 0.8em; width: 50%;">
+        <li class="peer_review no_requests_message" style="<%= hidden unless !submission || submission.assigned_assessments.for_active_users(@context).empty? %>"><%= t :none_assigned, "None Assigned" %></li>
+        <% if submission %>
+          <% Canvas::ICU.collate_by(submission.assigned_assessments.for_active_users(@context)) {|r| r.asset.user.sortable_name }.each do |request| %>
+            <% if (request && request.asset && request.asset.user) %>
+              <%= render :partial => 'peer_review_assignment', :locals => {:request => request} %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </ul>
+      <div style="margin-<%= direction('left') %>: 25px; font-size: 0.7em;" class="assign_box">
+        <a href="#" class="assign_peer_review_link"><%= t 'links.assign_peer_review', "Give %{student} another submission to assess", :student => student.name %> 
+          <i class="icon-add" role="presentation"></i>
+        </a>
+        <div class="form_content">
+        </div>
+      </div>
+    </li>
+  <% end %>
+</ul>
+<%= form_tag ".", {:id => "assign_peer_review_form", :style => "display: none;"} do %>
+  <select name="reviewee_id" id="reviewee_id" style="margin:0px;">
+    <option value=""><%= t 'options.select_student', "[ Select Student ]" %></option>
+    <% @students_dropdown_list.each do |student| %>
+      <option value="<%= student.id %>" class="student_<%= student.id %>"><%= student.last_name_first %></option>
+    <% end %>
+  </select>
+  <div id="reviewee_errors"></div>
+  <button type="submit" class="Button Button--small" style="margin-top:11px;"><%= t 'buttons.add', 'Add' %></button>
+<% end %>
+<a href="<%= context_url(@context, :context_assignment_assign_peer_review_url, @assignment.id, '{{ reviewer_id }}') %>" style="display: none;" class="assign_peer_review_url">&nbsp;</a>
+<ul style="display: none;">
+<%= render :partial => 'peer_review_assignment', :locals => {:request => nil} %>
+</ul>
+<%= will_paginate(@students, :style=>"margin-bottom: 1em;") %>

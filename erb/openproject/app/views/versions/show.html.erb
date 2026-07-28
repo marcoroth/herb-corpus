@@ -1,0 +1,107 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+<%=
+  render Primer::OpenProject::PageHeader.new do |header|
+    header.with_title { @version.name }
+    header.with_breadcrumbs(
+      [{ href: project_overview_path(@project.id), text: @project.name },
+       { href: project_settings_general_path(@project.id), text: I18n.t("label_project_settings") },
+       { href: project_settings_versions_path(@project.id), text: I18n.t("label_version_plural") },
+       @version.name]
+    )
+    if authorize_for(:versions, :edit)
+      header.with_action_button(
+        tag: :a,
+        mobile_icon: :pencil,
+        mobile_label: t(:button_edit),
+        size: :medium,
+        href: edit_version_path(@version),
+        aria: { label: I18n.t(:button_edit) },
+        data: { test_selector: "version-edit-button" },
+        title: I18n.t(:button_edit)
+      ) do |button|
+        button.with_leading_visual_icon(icon: :pencil)
+        t(:button_edit)
+      end
+    end
+    if authorize_for(:versions, :destroy)
+      header.with_action_button(
+        tag: :a,
+        scheme: :danger,
+        mobile_icon: :trash,
+        mobile_label: t(:button_delete),
+        size: :medium,
+        href: version_path(@version),
+        aria: { label: I18n.t(:button_delete) },
+        data: {
+          turbo_confirm: I18n.t(:text_are_you_sure),
+          turbo_method: :delete,
+          test_selector: "version-delete-button"
+        },
+        title: I18n.t(:button_delete)
+      ) do |button|
+        button.with_leading_visual_icon(icon: :trash)
+        t(:button_delete)
+      end
+    end
+    if authorize_for(:wiki, :edit) && !(@version.wiki_page_title.blank? || @version.project.wiki.nil?)
+      header.with_action_button(
+        tag: :a,
+        mobile_icon: :pencil,
+        mobile_label: t(:button_edit_associated_wikipage, page_title: truncate(@version.wiki_page_title, length: 50, separator: " ")),
+        size: :medium,
+        href: url_for({ controller: "/wiki", action: "edit", project_id: @version.project, id: @version.wiki_page_title }),
+        aria: { label: t(:button_edit_associated_wikipage, page_title: truncate(@version.wiki_page_title, length: 50, separator: " ")) },
+        title: t(:button_edit_associated_wikipage, page_title: truncate(@version.wiki_page_title, length: 50, separator: " "))
+      ) do |button|
+        button.with_leading_visual_icon(icon: :pencil)
+        t(:button_edit_associated_wikipage, page_title: truncate(@version.wiki_page_title, length: 50, separator: " "))
+      end
+    end
+    call_hook(:view_versions_show_contextual, { version: @version, project: @project })
+  end
+%>
+
+<%= render(Grids::WidgetGridComponent.new) do |grid| %>
+  <% grid.with_widget(Projects::Settings::Versions::OverviewWidgetComponent, version: @version) %>
+  <% grid.with_widget(Projects::Settings::Versions::ProgressWidgetComponent, version: @version, project: @project) %>
+  <% if @version.wiki_page %>
+    <% grid.with_widget(Projects::Settings::Versions::WikiWidgetComponent, version: @version) %>
+  <% end %>
+  <% if @issues.present? %>
+    <% grid.with_widget(Projects::Settings::Versions::RelatedIssuesWidgetComponent, version: @version, issues: @issues) %>
+  <% end %>
+  <%# The graph queries work packages by the version filter, which matches on target versions, so it is only shown when that finds any. %>
+  <% if @version.targeted_work_packages.any? %>
+    <% grid.with_widget(Projects::Settings::Versions::WorkPackagesGraphWidgetComponent, version: @version) %>
+  <% end %>
+<% end %>
+<%= call_hook :view_versions_show_bottom, version: @version %>
+
+<% html_title h(@version.name) %>

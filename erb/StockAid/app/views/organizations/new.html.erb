@@ -1,0 +1,106 @@
+<% content_for :title, "New Organization" %>
+
+<% content_for :content_size, "col-sm-9 col-md-10" %>
+
+<% content_for :content do %>
+  <div>
+    <ul class="nav nav-pills" role="tablist">
+      <li id="manual-creation-tab" role="presentation" class="<%= "active" unless showing_tab?("netsuite-import") %>"><a href="#manual-creation" aria-controls="manual-creation" role="tab" data-toggle="pill">Create</a></li>
+      <li id="netsuite-import-tab" role="presentation" class="<%= "active" if showing_tab?("netsuite-import") %>"><a href="#netsuite-import" aria-controls="netsuite-import" role="tab" data-toggle="pill">Import From NetSuite</a></li>
+    </ul>
+
+    <br />
+
+    <div class="tab-content">
+      <div role="tabpanel" class="tab-pane <%= "active" unless showing_tab?("netsuite-import") %>" id="manual-creation">
+        <%= form_for @organization, data: { guarded: true } do |f| %>
+          <fieldset id="organization_info" class="add-initial-address">
+            <div class="form-group">
+              <%= f.label :name %>
+              <%= f.text_field :name, class: "form-control", data: { guard: "required" } %>
+            </div>
+
+            <div class="form-group">
+              <%= f.label :organization_county_id, "County" %>
+              <%= f.select :organization_county_id, options_for_select(County.for_organizations.select_options), { include_blank: true }, { class: "form-control select2", data: { guard: "required", guard_required_target: "#county-error-target" } } %>
+
+              <div id="county-error-target"></div>
+            </div>
+
+            <div class="form-group">
+              <%= f.label :email %>
+              <%= f.text_field :email, class: "form-control", data: { guard: "required email" } %>
+            </div>
+
+            <div class="form-group">
+              <%= f.label :phone_number, t(:organization_phone) %>
+              <%= f.telephone_field :phone_number, class: "form-control", data: { guard: "required phoneUS" } %>
+            </div>
+
+            <div class="row">
+              <div class="col-xs-12 col-sm-9">
+                <div class="form-group">
+                  <%= f.label :external_type %>
+                  <%= f.select :external_type, options_for_select(external_types_for_select, "Organization"), { include_blank: true }, { id: "external-type", class: "required", data: { guard_required_target: "#external-type-error-target" } } %>
+
+                  <div id="external-type-error-target"></div>
+                </div>
+              </div>
+
+              <div class="col-xs-12 col-sm-3">
+                <%= render partial: "common/external_id_field", locals: { fields: f, record: @organization } %>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <%= f.label :program_ids, "Programs" %>
+              <%= f.select :program_ids,
+                           options_for_select(Program.alphabetical.pluck(:name, :id), @organization.program_ids),
+                           {},
+                           { multiple: true, class: "program form-control", data: { guard: "required", guard_required_target: "#programs-error-target" } } %>
+
+              <div id="programs-error-target"></div>
+            </div>
+          </fieldset>
+
+          <%= render partial: "organizations/new_address" %>
+          <%= f.submit "Save", class: "btn btn-primary" %>
+          <%= f.button "Save and Export to NetSuite", id: "save_and_export", class: "btn btn-primary disable-on-external-id-change", type: "submit", name: "save_and_export_organization", value: "true", data: { disable_with: "Save and Export to NetSuite" } %>
+          <%= link_to "Cancel", organizations_path, type: "button", class: "btn btn-default" %>
+        <% end %>
+      </div>
+
+      <div role="tabpanel" class="tab-pane <%= "active" if showing_tab?("netsuite-import") %>" id="netsuite-import">
+        <%= form_for @organization, url: netsuite_import_organizations_path, data: { guarded: true } do |f| %>
+          <div class="row">
+            <div class="col-xs-12 col-sm-3">
+              <div class="form-group">
+                <label for="import_from_external_id">External Id</label>
+                <input type="number" class="form-control" id="import_from_external_id" name="external_id" data-guard="required" value="<%= @organization.external_id %>" />
+              </div>
+            </div>
+
+            <div class="col-xs-12 col-sm-3">
+              <div class="form-group">
+                <%= f.label "Programs", for: "netsuite_programs" %>
+                <%= f.select :program_ids,
+                             options_for_select(Program.alphabetical.pluck(:name, :id), @organization.program_ids),
+                             {},
+                             { id: "netsuite_programs", multiple: true, class: "program form-control", data: { guard: "required", guard_required_target: "#netsuite-programs-error-target" } } %>
+
+                <div id="netsuite-programs-error-target"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-xs-12">
+              <input type="submit" class="btn btn-primary" value="Save" />
+              <%= link_to "Cancel", organizations_path, class: "btn btn-default" %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,109 @@
+<%- unless @saved -%>
+  TracksPages.page_error("<%= t('todos.error_deleting_item', :description => @todo.description) %>");
+<%- else -%>
+  TracksPages.page_inform('<%=  escape_javascript(t('todos.deleted_success')) %>');
+  TracksPages.set_page_badge(<%=@down_count%>);
+  remove_todo_from_page();
+  show_new_todo_if_todo_was_recurring();
+  activate_pending_todos();
+  update_predecessors();
+  show_empty_messages();
+<%- end -%>
+
+function show_empty_messages() {
+  <% if @old_due_empty -%>
+    $('#empty_<%=get_due_id_for_calendar(@original_item.due)%>').slideDown(1000);
+  <% end -%>
+
+  <% if todo_container_is_empty -%>
+      $('#<%=empty_container_msg_div_id%>').slideDown(1000);
+      <% if @down_count == 0 -%>
+        $('#no_todos_in_view').slideDown(1000);
+      <% end -%>
+  <% end -%>
+
+  <% if source_view_is(:deferred) && @down_count==0 -%>
+    $('#deferred_pending_container-empty-d').slideDown(100);
+  <% end -%>
+}
+
+function remove_todo_from_page() {
+  <% if update_needs_to_hide_container
+       # remove context with deleted todo
+  -%>
+       $('#<%=item_container_id(@todo)%>').fadeOut(400, function() {
+         $('#<%=dom_id(@todo)%>').remove();
+       });
+       <%= show_empty_message_in_source_container -%>
+  <% else
+       # remove only the todo
+  -%>
+       <%= show_empty_message_in_source_container %>
+       $('#<%=dom_id(@todo)%>').slideUp(400, function() {
+         $('#<%=dom_id(@todo)%>').remove();
+         <% if source_view_is :calendar
+              # in calendar view it is possible to have a todo twice on the page
+         -%>
+              $('#<%=dom_id(@todo)%>').remove();
+         <% end %>
+       });
+  <% end -%>
+}
+
+function show_new_todo_if_todo_was_recurring() {
+  <% if @todo.from_recurring_todo? -%>
+    <%  unless @new_recurring_todo.nil? || @new_recurring_todo.deferred? -%>
+      TodoItemsContainer.ensureVisibleWithEffectAppear("<%=item_container_id(@new_recurring_todo)%>");
+      var container = $('#<%=item_container_id(@new_recurring_todo)%>_items');
+      container.append(html_for_new_recurring_todo());
+      TracksPages.sort_container(container);
+      $('#<%= dom_id(@new_recurring_todo, 'line')%>').effect('highlight', {}, 2000 );
+      TracksPages.page_inform("<%=t('todos.recurring_action_deleted')%>");
+    <% else -%>
+      <% if @todo.recurring_todo.todos.active.count(:all) == 0 && @new_recurring_todo.nil? -%>
+        TracksPages.page_inform("<%=t('todos.completed_recurrence_completed')%>");
+      <% end -%>
+    <% end -%>
+  <% end -%>
+}
+
+function activate_pending_todos() {
+ <% # Activate pending todos that are successors of the deleted
+    if @saved && @pending_to_activate
+      # do not render the js in case of an error or if no todos to activate
+      @pending_to_activate.each do |t|
+        html = js_render(t, { :parent_container_type => parent_container_type })
+        # only project and tag view have a deferred/blocked container
+        if source_view_is_one_of(:project,:tag) -%>
+          $('#<%= dom_id(t) %>').fadeOut(400, function() {
+            $('#<%= dom_id(t) %>').remove();
+            var container = $('#<%= item_container_id(t) %>_items');
+            container.append("<%= html %>");
+            TracksPages.sort_container(container);
+            <%= "$('#deferred_pending_container-empty-d').show();".html_safe if @remaining_deferred_or_pending_count==0 -%>
+          });
+ <%     else -%>
+          var container = $('#<%= item_container_id(t) %>_items');
+          container.append("<%= html%>");
+          TracksPages.sort_container(container);
+ <%     end -%>
+        TodoItems.highlight_todo('#<%= dom_id(t, 'line')%>');
+ <%   end -%>
+ <% end -%>
+}
+
+function update_predecessors() {
+<%
+  if @todo_was_destroyed_from_pending_state
+    @uncompleted_predecessors.each do |p| -%>
+    if ($('#<%=item_container_id(p)%>')) {
+      $('#<%=dom_id(p)%>').html('<%=js_render(p, { :parent_container_type => parent_container_type })%>');
+    }
+<%  end
+  end
+%>
+}
+
+function html_for_new_recurring_todo() {
+  return "<%= @saved && @new_recurring_todo ? js_render(@new_recurring_todo, { :parent_container_type => parent_container_type }) : "" %>";
+}

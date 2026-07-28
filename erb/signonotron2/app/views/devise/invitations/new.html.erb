@@ -1,0 +1,104 @@
+<% content_for :title, "Create new user" %>
+<% @breadcrumbs = users_breadcrumbs %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-two-thirds">
+    <%= form_for resource, as: resource_name, url: invitation_path(resource_name), html: { method: :post } do |f| %>
+      <% if f.object.errors.any? %>
+        <%= render "govuk_publishing_components/components/error_summary", {
+          id: "error-summary",
+          title: "There was a problem with your new user",
+          items: f.object.errors.map do |error|
+            {
+              text: error.full_message,
+              href: "#user_#{error.attribute}",
+            }
+          end
+        } %>
+      <% end %>
+
+      <%= render "govuk_publishing_components/components/input", {
+        label: { text: "Name" },
+        name: "user[name]",
+        id: "user_name",
+        error_items: f.object.errors.full_messages_for(:name).map { |message| { text: message } },
+        value: f.object.name,
+        autocomplete: "off",
+      } %>
+
+      <%= render "govuk_publishing_components/components/input", {
+        label: { text: "Email" },
+        name: "user[email]",
+        id: "user_email",
+        error_items: f.object.errors.full_messages_for(:email).map { |message| { text: message } },
+        value: f.object.email,
+        autocomplete: "off",
+      } %>
+
+      <div data-module="accessible-autocomplete">
+        <%= render "govuk_publishing_components/components/select", {
+          id: "user_organisation_id",
+          name: "user[organisation_id]",
+          label: "Organisation",
+          options: options_for_organisation_select(selected_id: f.object.organisation_id)
+        } %>
+
+        <div class="govuk-button-group">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Clear selection",
+            type: "button",
+            classes: "js-autocomplete__clear-button",
+            secondary_solid: true
+          } %>
+        </div>
+      </div>
+
+      <% if policy(User).assign_role? %>
+        <%= render "govuk_publishing_components/components/select", {
+          id: "user_role",
+          name: "user[role]",
+          label: "Role",
+          hint: user_role_select_hint,
+          options: options_for_role_select(selected: f.object.role_name),
+        } %>
+      <% end %>
+
+      <div data-module="clear-selected-permissions">
+        <%= render "govuk_publishing_components/components/fieldset", {
+          legend_text: "Permissions",
+          heading_size: "l",
+        } do %>
+
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Clear selected permissions",
+            secondary_solid: true,
+            margin_bottom: 4,
+            data_attributes: {
+              action: "clear"
+            }
+          } %>
+
+          <% Doorkeeper::Application.not_api_only.map do |application| %>
+            <% options = options_for_permission_option_select(application:, user: f.object) %>
+            <%= render("govuk_publishing_components/components/option_select", {
+              title: application.name,
+              key: "user[supported_permission_ids]",
+              options_container_id: "user_application_#{application.id}_supported_permissions",
+              show_filter: options.length > 4,
+              closed_on_load: options.none? { |o| o[:checked] },
+              options: with_checked_options_at_top(options),
+            }) %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="govuk-button-group">
+        <%= render "govuk_publishing_components/components/button", {
+          text: "Create user and send email",
+        } %>
+
+        <%= link_to "Cancel", users_path, class: "govuk-link govuk-link--no-visited-state" %>
+      </div>
+    <% end %>
+  </div>
+</div>

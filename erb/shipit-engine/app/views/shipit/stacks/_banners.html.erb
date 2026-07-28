@@ -1,0 +1,94 @@
+<% if !stack.ignore_ci && !stack.ci_enabled? %>
+  <div class="banner">
+    <div class="banner__inner wrapper">
+      <div class="banner__content">
+        <h2 class="banner__title">Heads Up!</h2>
+        <p class="banner__text">
+          This stack is not configured for CI, but it currently requires a passing build to be able to deploy a commit.<br>
+          You can either <a href="https://developer.github.com/v3/repos/statuses/">configure your CI to push statuses to GitHub</a>,
+          or ignore CI and deploy any commits you want.
+        </p>
+        <%= button_to "Ignore CI", stack_path(stack, stack: {ignore_ci: true}, return_to: stack_path(stack)), method: :patch, class: 'banner__btn btn' %>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<% if stack.inaccessible? %>
+  <div class="banner banner--red">
+    <div class="banner__inner wrapper">
+      <div class="banner__content">
+        <h2 class="banner__title">This repository or branch seems to be missing!</h2>
+        <p class="banner__text">
+          <%= link_to stack.github_repo_name, github_repo_url(stack.repo_owner, stack.repo_name) %>
+          has been inaccessible for <%= time_ago_in_words(stack.inaccessible_since) %>.
+
+          This could be a permission issue, or the repo could have changed on GitHub.
+        </p>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<% if stack.locked? %>
+  <div class="banner banner--orange">
+    <div class="banner__inner wrapper">
+      <div class="banner__content">
+        <h2 class="banner__title">
+          <i class="icon icon--lock"></i>
+          Deploys were locked by <%= stack.lock_author.name %>
+          <% unless stack.locked_since.nil? %>
+            <%= timeago_tag(stack.locked_since, force: true) %>
+          <% end %>
+        </h2>
+        <p class="banner__text">
+          <%= auto_link emojify(stack.lock_reason) %>
+        </p>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<% if stack.awaiting_provision? %>
+  <div class="banner banner--orange">
+    <div class="banner__inner wrapper">
+      <div class="banner__content">
+        <h2 class="banner__title">
+          <i class="icon icon--list"></i>
+          This stack is in a queue waiting on provisioning. This may be because too many review stacks exist for this repository.
+        </h2>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<% if stack.continuous_delivery_delayed? %>
+  <div class="banner">
+    <div class="banner__inner wrapper">
+      <div class="banner__content">
+        <h2 class="banner__title">Continuous Delivery Delayed!</h2>
+        <p class="banner__text">
+          Continuous Delivery for this stack is currently paused because
+
+          <% if stack.next_commit_to_deploy %>
+            <%= link_to_if stack.deployment_checks_passed?, 'the pre-deploy checks failed', stack_commit_checks_path(stack, sha: stack.next_commit_to_deploy.sha) %>.
+          <% else %>
+            the pre-deploy checks failed.
+          <% end %>
+          You can either wait for them to pass, or trigger a deploy manually.
+        </p>
+      </div>
+    </div>
+  </div>
+<% elsif !stack.deployment_checks_passed? %>
+  <div class="banner banner--orange">
+    <div class="banner__inner wrapper">
+      <div class="banner__content">
+        <h2 class="banner__title">Stack has been locked by external system!</h2>
+        <p class = "banner__text">
+          <%= simple_format(deployment_checks_message(stack)) %>
+        </p>
+      </div>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,74 @@
+<% content_for(:page_title) { page_title("Claim #{@claim.reference} payroll details check for #{@claim.policy.short_name}") } %>
+
+<% content_for :back_link do %>
+  <%= govuk_back_link href: admin_claim_tasks_path(@claim) %>
+<% end %>
+
+<%= form_with model: @form, scope: :form, url: root_path, builder: GOVUKDesignSystemFormBuilder::FormBuilder do |f| %>
+  <%= f.govuk_error_summary %>
+<% end %>
+
+<div class="govuk-grid-row">
+  <%= render claim_summary_view, claim: @claim, heading: "Payroll details" %>
+
+  <div class="govuk-grid-column-two-thirds">
+    <h2 class="govuk-heading-l"><%= @form.task.name.humanize %></h2>
+
+    <% if @claim.personal_data_removed_at.present? %>
+      <div class="govuk-warning-text">
+        <span class="govuk-warning-text__icon" aria-hidden="true">!</span>
+        <strong class="govuk-warning-text__text">
+          This claim has had it's personal data removed.
+        </strong>
+      </div>
+    <% else %>
+    <div class="hmcts-timeline hmrc_responses">
+      <% @claim.hmrc_bank_validation_responses.each do |response| %>
+      <% bank_account_verification_response = Hmrc::BankAccountVerificationResponse.new(OpenStruct.new({code: response["code"], body: response["body"].to_json})) %>
+
+        <div class="hmcts-timeline__item">
+          <section>
+            <h3 class="govuk-body">HMRC API response during claim journey</h3>
+
+            <% if bank_account_verification_response.code == 200 %>
+              <p class="hmcts-timeline__description">Sort code: <%= sort_code_msg(bank_account_verification_response) %></p>
+              <p class="hmcts-timeline__description">Account number: <%= account_number_msg(bank_account_verification_response) %></p>
+              <p class="hmcts-timeline__description">Name: <%= name_matches_msg(bank_account_verification_response) %></p>
+            <% else %>
+              <p class="hmcts-timeline__description"><%= code_msg(bank_account_verification_response, @claim) %></p>
+            <% end %>
+
+            <details class="govuk-details" data-module="govuk-details">
+              <summary class="govuk-details__summary">
+                <span class="govuk-details__summary-text">
+                  HMRC JSON response
+                </span>
+              </summary>
+              <div class="govuk-details__text">
+                <pre><%= JSON.pretty_generate(response) %></pre>
+              </div>
+            </details>
+          </section>
+        </div>
+      <% end %>
+    </div>
+    <% end %>
+
+    <% if !@form.task.passed.nil? %>
+      <%= render "task_outcome", task: @form.task, notes: @notes do %>
+      <% end %>
+    <% elsif @claim.policy.task_available?(@form.task) %>
+      <%= render "form", task_name: "payroll_details", claim: @claim %>
+    <% else %>
+      <%= govuk_inset_text(
+        text: I18n.t(
+          "#{@claim.policy.to_s.underscore}.admin.task_questions.#{@form.task.name}.unavailable",
+        )
+      ) %>
+    <% end %>
+
+    <%= render "task_notes_section" %>
+
+    <%= render partial: "admin/task_pagination", locals: { task_pagination: @task_pagination } %>
+  </div>
+</div>

@@ -1,0 +1,227 @@
+<div class="page-header edit-registration-header">
+  <div class="row">
+    <div class="col-xs-12 col-md-10 col-md-offset-1">
+      <h1>
+        <%= t 'devise.views.edit_account' %>
+      </h1>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12 col-md-11 col-md-offset-1">
+    <i class="fa fa-angle-double-left"></i>
+    <%= link_to t('devise.views.return'), read_path, id: 'return' %>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-xs-12 col-md-10 col-md-offset-1 well">
+    <%= simple_form_for resource, :as => resource_name,
+                        :url => profile_path(locale: I18n.locale),
+                        html: {id: 'edit-profile-form', :method => :put, autocomplete: 'off'} do |f| %>
+
+      <%= f.input :current_password, as: :password_icon,
+                  placeholder: t('simple_form.placeholders.user.current_password'),
+                  input_html: {autocomplete: 'off'}, required: true %>
+
+      <hr>
+
+      <%= f.input :email, as: :email_icon, input_html: {autocomplete: 'off'} %>
+      <%= f.input :name, as: :user_icon, required: false %>
+
+      <hr>
+
+      <%= f.input :password, as: :password_icon, hint: t('simple_form.hints.user.blank_password'),
+                  label: t('devise.views.new_password'),
+                  placeholder: t('simple_form.placeholders.user.new_password'),
+                  input_html: {autocomplete: 'off'} %>
+      <%= f.input :password_confirmation, as: :password_icon,
+                  placeholder: t('simple_form.placeholders.user.password_confirmation'),
+                  input_html: {autocomplete: 'off'} %>
+
+      <hr>
+
+      <%= f.input :locale, as: :locale, required: false %>
+      <%= f.input :timezone, as: :timezone_clock_icon, required: false %>
+
+      <hr>
+
+      <div class="row">
+        <div class="col-xs-11 col-sm-12 col-xs-offset-1 col-sm-offset-0">
+          <%= f.input :kb_shortcuts_enabled, as: :boolean, wrapper: :checkbox,
+                      label: false, inline_label: t('simple_form.labels.user.kb_shortcuts_enabled') %>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="row">
+        <div class="col-xs-11 col-sm-12 col-xs-offset-1 col-sm-offset-0">
+          <%= f.input :quick_reading, as: :boolean, wrapper: :checkbox,
+                      label: false, inline_label: t('simple_form.labels.user.quick_reading') %>
+          <%= f.input :open_all_entries, as: :boolean, wrapper: :checkbox,
+                      label: false, inline_label: t('simple_form.labels.user.open_all_entries') %>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="form-group">
+        <div class="row">
+          <div class="col-xs-12 col-sm-9 col-sm-offset-3">
+            <%= button_tag id: 'edit-profile-submit', type: 'submit', class: 'btn btn-primary btn-lg' do %>
+              <i class="fa fa-save"></i> <%= t 'devise.views.update_account' %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+
+    <% end %>
+  </div>
+</div>
+
+<div class="row">
+
+  <div class="col-xs-12 col-sm-6 col-md-5 col-md-offset-1">
+    <div class="panel panel-info">
+      <div class="panel-heading">
+        <span class="lead"><%= t 'devise.views.import_subscriptions' %></span>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-xs-12 col-sm-10 col-sm-offset-1 panel-content">
+
+            <% if current_user.opml_import_job_state.state == OpmlImportJobState::RUNNING %>
+
+              <p><%= t 'devise.views.import_subscriptions_running' %></p>
+
+            <% else %>
+
+              <p>
+                <%= t 'devise.views.import_subscriptions_text' %>
+              </p>
+              <p>
+                <a id="opml-import-button"
+                   class="btn btn-primary"
+                   data-toggle="modal"
+                   data-target="#opml-import-popup">
+
+                  <i class="fa fa-magic"></i>
+
+                  <%= t 'devise.views.import_subscriptions' %>
+                </a>
+              </p>
+
+            <% end %>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xs-12 col-sm-6 col-md-5">
+    <div class="panel panel-info">
+      <div class="panel-heading">
+        <span class="lead"><%= t 'devise.views.export_subscriptions' %></span>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-xs-12 col-sm-10 col-sm-offset-1 panel-content">
+
+            <p><%= t 'devise.views.export_subscriptions_text' %></p>
+
+            <% if current_user.opml_export_job_state.state == OpmlExportJobState::SUCCESS %>
+              <%
+                 # In the unlikely case the export_date field is set to NULL, use updated_at instead (guaranteed to have a
+                 # value set by ActiveRecord)
+                 if current_user.opml_export_job_state.export_date.present?
+                   export_date = current_user.opml_export_job_state.export_date
+                 else
+                   export_date = current_user.opml_export_job_state.updated_at
+                 end
+              %>
+              <hr>
+              <p><%= t 'devise.views.export_success', export_date: l(export_date.to_date, format: :long) %></p>
+              <p>
+                <%= link_to api_opml_exports_download_path,
+                            class: 'alert-link',
+                            id: 'download-opml-export' do %>
+                  <%= t 'devise.views.export_download_1' %>
+                <% end %>
+                <%= t 'devise.views.export_download_2' %>
+              </p>
+            <% end %>
+
+            <p>
+              <%= link_to api_opml_exports_path(locale: I18n.locale),
+                          :method => :post,
+                          class: 'btn btn-primary' do %>
+                <i class="fa fa-share-square-o"></i>
+                <%= t('devise.views.export_subscriptions') %>
+              <% end %>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="row">
+
+  <div class="col-xs-12 col-sm-6 col-md-5 col-md-offset-1">
+    <div class="panel panel-info">
+      <div class="panel-heading">
+        <span class="lead"><%= t 'devise.views.reset_tours.title' %></span>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-xs-12 col-sm-10 col-sm-offset-1 panel-content">
+
+            <p>
+              <%= t 'devise.views.reset_tours.text' %>
+            </p>
+            <p>
+              <a id="reset-tours-button"
+                 class="btn btn-primary"
+                 ng-click="reset_tours()">
+
+                <i class="fa fa-graduation-cap"></i>
+
+                <%= t 'devise.views.reset_tours.title' %>
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xs-12 col-sm-6 col-md-5">
+    <div class="panel panel-danger">
+      <div class="panel-heading">
+        <span class="lead"><%= t 'devise.views.delete_account.title' %></span>
+      </div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="col-xs-12 col-sm-10 col-sm-offset-1 panel-content">
+
+            <p><%= t 'devise.views.delete_account.text' %></p>
+
+            <a id="profile-cancel-button"
+               class="btn btn-danger"
+               data-toggle="modal"
+               data-target="#profile-delete-popup">
+              <i class="fa fa-trash-o"></i>
+              <%= t('devise.views.delete_account.title') %>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,36 @@
+<%# locals: (image:, variant: nil, eager_load: true, image_options: {}, proxy: false) -%>
+<%# KEEP %>
+
+<% if variant.nil?
+  if Rails.env.local?
+    raise ArgumentError, "_image partial called without a variant — this serves the full-size blob. Pass variant: or use image_tag directly if you intentionally want full size."
+  else
+    Rails.logger.warn("[_image.erb] called without variant for blob #{image.try(:blob)&.id} — serving full-size. Fix the caller.")
+  end
+end
+%>
+
+<% width_and_height = if variant.present?
+  variant_width_and_height_html(variant)
+else
+  base_width_and_height_html(image)
+end
+%>
+
+<% image_options = image_options.merge(width_and_height) %>
+
+<% if eager_load %>
+  <% # I am not entirely sure it actually needs these classes. %>
+  <% image_options = image_options.merge({ loading: 'eager', class: "w-full h-auto #{image_options[:class]}" }) %>
+<% end %>
+
+
+<% if variant.present? %>
+  <% image = image.variant(variant) %>
+<% end %>
+
+<% if proxy %>
+  <%= image_tag(active_storage_proxy_url(image), image_options) %>
+<% else %>
+  <%= image_tag(image, image_options) %>
+<% end %>

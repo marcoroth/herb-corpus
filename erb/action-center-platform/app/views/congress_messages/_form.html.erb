@@ -1,0 +1,120 @@
+<%= form_tag(congress_message_campaign_congress_messages_path(@campaign), id: "congress-message-create") do %>
+  <div class="rep-info">
+    <p class="step2-intro">
+    <%= @campaign.extra_fields_explain_text("Your Congressmembers require this information in order to contact their offices. EFF does not store this information.") %>
+    </p>
+    <div id="errors"></div>
+    <% if @message.common_fields.any? %>
+      <h3 class="legislator-label common-fields">
+        <em>Common fields</em>
+      </h3>
+
+      <fieldset id="congressForms-common-fields">
+        <% @message.common_fields.each do |field| %>
+          <div class="form-group">
+            <%= congress_forms_field(field, @campaign, @message.common_attributes) %>
+          </div>
+        <% end %>
+      </fieldset>
+
+      <%= render "tools/save_my_info_option", info: %w(name address) %>
+    <% end %>
+
+    <% if @message.targets.length > 1 %>
+      <fieldset id="select-members">
+        <h3 class="legislator-label">
+          <em>Contact these representatives</em>
+        </h3>
+        <%= collection_check_boxes :forms, :bioguide_ids, @members, :bioguide_id, :full_name do |b| %>
+          <%= b.label { b.check_box(checked: true) + b.text } %>
+        <% end %>
+      </fieldset>
+    <% else %>
+      <%= hidden_field_tag :bioguide_id, @message.targets %>
+    <% end %>
+    <% @message.forms_minus_common_fields.each do |form| %>
+      <fieldset id="form-for-<%= form.bioguide_id %>" class="congressForms-legislator-fields">
+        <h3 class="legislator-label">
+          <em><%= CongressMember.find_by(bioguide_id: form.bioguide_id).full_name %></em>
+          <span class="customize-message-popover" data-toggle="tooltip" data-trigger="hover">?
+            <span class="tooltiptext"><%= @campaign.look_up_helper_text "Your congressmembers require this information in order to contact their offices. EFF does not store this information. 'Topics' are categories congressmembers use to sort messages they receive and are required by their offices." %></span>
+          </span>
+    
+        </h3>
+
+        <% form.fields.each do |field| %>
+          <div class="form-group">
+            <%= congress_forms_field(field, @campaign,
+                                     @message.attributes_for(form.bioguide_id),
+                                     form.bioguide_id) %>
+          </div>
+        <% end %>
+      </fieldset>
+    <% end %>
+
+    <% @defunct_members.each do |m| %>
+      <h3 class="legislator-label">
+        <em><%= m.full_name %></em>
+      </h3>
+
+      <p class="step2-intro">
+        Sorry, this legislator cannot be contacted with our tool. To message them,
+        visit <%= link_to "their website", @links[m.bioguide_id], target: "_blank"  %> instead.
+      </p>
+    <% end %>
+
+    <% unless @defunct_members.empty? %>
+      <fieldset>
+        <h3>
+          <span class="customize-message-popover" data-toggle="tooltip" data-trigger="hover">?
+            <span class="tooltiptext">Congress values personalized letters! Add a note about why this issue matters to you.</span>
+          </span>
+          Copy this message or make it unique to you:
+        </h3>
+        <div class="form-group">
+          <%= text_area_tag :message, @campaign.message,
+            class: "campaign-message form-control",
+            rows: 11, "data-original-message": @campaign.message %>
+        </div>
+      </fieldset>
+    <% end %>
+
+    <div class="submit-wrapper">
+      <input id="to-page-3" type="button" value="Next >" class="eff-button action">
+    </div>
+    <%= render "tools/loading" -%>
+  </div>
+
+  <div id="customize-message">
+    <fieldset>
+      <h3>
+        <span class="customize-message-popover" data-toggle="tooltip" data-trigger="hover">?
+          <span class="tooltiptext">Congress values personalized letters! Add a note about why this issue matters to you.</span>
+        </span>
+        Edit this message so that it is unique to you:
+      </h3>
+      <div class="form-group">
+        <%= text_area_tag :message, @campaign.message,
+          class: "campaign-message form-control",
+          rows: 11, "data-original-message": @campaign.message %>
+      </div>
+      <%= render "tools/privacy_notice" %>
+    </fieldset>
+    <div class="submit-wrapper">
+      <input type="submit" class="eff-button" value="Submit">
+      <% if current_user && current_user.privileged_role? %>
+        <input type="submit" value="Test" name="test" class="eff-button test">
+      <% end %>
+    </div>
+    <% if @campaign.enable_customization_notice? %>
+      <div class="notice down">
+        <span class="icon">!</span> <strong>Did you personalize your letter?</strong>
+        <p>Add a personal note about why this issue matters to you. Members of Congress value unique, personal letters more highly than form ones.</p>
+        <div class="actions">
+          <input type="button" class="edit" value="Edit" /> <input type="submit" value="Send" />
+        </div>
+      </div>
+    <% end %>
+    <%= render "tools/loading" -%>
+  </div>
+<% end %>

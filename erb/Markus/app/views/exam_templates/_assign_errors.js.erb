@@ -1,0 +1,84 @@
+function getFile(filename, pdfViewer) {
+  if (!filename) {
+    $('#panes-content').remove();
+    return;
+  }
+
+  $('#copy_number').val('');
+  $('#page_number').val('');
+  $('#page_number_list').empty();
+  $('#upside_down')[0].checked = false;
+  $('#info_form input[type=submit]').prop('disabled', false);
+  $('#split_page_id').val(filename.split('.')[0])
+  var path = Routes.download_error_file_course_exam_template_path(
+    <%= @current_course.id %>,
+    <%= @exam_template.id %>,
+    { file_name: filename, show_in_browser: true }
+  );
+  pdfjs.getDocument({url: path}).promise.then(function (pdfDocument) {
+    pdfViewer.setDocument(pdfDocument);
+  });
+  $('#copy_number').focus();
+}
+
+function getErrorPages(value) {
+  $('#page_number').empty();
+  if (value !== null) {
+    $.ajax({
+      method: 'GET',
+      url: 'error_pages',
+      dataType: 'json',
+      data: {
+        exam_number: value
+      },
+      success: function (data) {
+        $('#page_number').autocomplete({
+          source: data.map(function (x) { return x.toString(); }),
+          minLength: 0,
+          autoFocus: true,
+          select: function(event, ui) {
+            $('#page_number').val(ui.item.id);
+          }
+        });
+      },
+      error: function (err) {
+        console.log(err);
+      }
+    });
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  var container = document.getElementById('pdfContainer');
+  let eventBus = new pdfjsViewer.EventBus();
+  var pdfViewer = new pdfjsViewer.PDFViewer({
+    eventBus: eventBus,
+    container: container,
+  });
+  eventBus.on('pagesinit', function () {
+    pdfViewer.currentScaleValue = 'page-fit';
+  });
+
+  $('#upside_down').click(function () {
+    pdfViewer.pagesRotation = (pdfViewer.pagesRotation + 180) % 360;
+  });
+
+  $('#copy_number').on('keyup', function () {
+    getErrorPages($('#copy_number').val());
+  });
+
+  $('#info_form').on('ajax:success', function (event) {
+    let filename = event.detail[0];
+    if (filename) {
+      getFile(filename, pdfViewer);
+    } else {
+      window.location = '<%= course_assignment_exam_templates_path(@current_course, @assignment) %>';
+    }
+  });
+
+  <% if @next_error.nil? %>
+  getFile('', pdfViewer);
+  <% else %>
+  getFile('<%= "#{@next_error.id}.pdf" -%>', pdfViewer);
+  <% end %>
+});

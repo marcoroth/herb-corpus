@@ -1,0 +1,68 @@
+<%
+  image_kind = image_usage.kinds.first
+  image_usage_title = image_usage.title.downcase
+
+  hint_text = ["#{image_usage_title.articleize.upcase_first} must be at least <strong>#{image_kind.valid_width}x#{image_kind.valid_height}</strong>."]
+  unless image_usage.multiple
+    hint_text << " If you are uploading more than one #{image_usage_title}, <a class=\"govuk-link\" href=\"https://guidance.publishing.service.gov.uk/formatting-content/images-videos/formatting-images/#image-file-names\">read the image guidance</a> on using unique file names."
+  end
+%>
+
+<%= form_tag(
+      admin_edition_images_path(edition),
+      id: "#{image_usage.key}_image_upload_form",
+      multipart: true,
+      ) do %>
+  <%= render "govuk_publishing_components/components/file_upload", {
+    label: {
+      text: "Upload #{image_usage.multiple ? "images" : "image"}",
+    },
+    heading_level: 2,
+    heading_size: "l",
+    javascript: true,
+    multiple: image_usage.multiple,
+    name: "images[][image_data_attributes][file]",
+    id: "edition_images_image_data_file",
+    hint: raw(hint_text.join("")),
+    error_items: error_items,
+    accept: allowed_extensions,
+  } %>
+
+  <%= hidden_field_tag("usage", image_usage.key) %>
+
+  <% if image_usage.kinds.size > 1 %>
+    <%= render "govuk_publishing_components/components/radio", {
+      heading: "What kind of image is this?",
+      name: "image_kind",
+      items: image_usage.kinds.map do |image_kind|
+        {
+          value: image_kind.name,
+          text: image_kind.display_name,
+        }
+      end,
+    } %>
+  <% else %>
+    <%= hidden_field_tag("image_kind", image_kind.name) %>
+
+    <% if image_kind.allowed_formats.include?("svg") %>
+      <%= render "govuk_publishing_components/components/details", {
+        title: "You must use an SVG for charts and diagrams",
+      } do %>
+        SVGs allow users to magnify images without losing quality.
+        Find out <%= link_to "how to create an SVG file (opens in new tab)",
+                            "https://guidance.publishing.service.gov.uk/formatting-content/images-videos/formatting-images/#how-to-create-an-svg-file",
+                            class: "govuk-link",
+                            target: "_blank",
+                            rel: "noopener" %>.
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <div class="govuk-button-group govuk-!-margin-bottom-6">
+    <%= render "govuk_publishing_components/components/button", {
+      text: "Upload",
+      margin_bottom: 10,
+    } %>
+    <%= cancel_link %>
+  </div>
+<% end %>

@@ -1,0 +1,73 @@
+<ul class="accordion <%= 'internal-reply' if reply.internal? %> <%= 'status-reply' if reply.kind_of?(StatusReply) %>" data-accordion>
+  <li class="accordion-navigation <%= div_class %>">
+    <% if reply.is_a? SystemReply %>
+      <a href="#reply-<%=reply.id%>" class="bb text-default">
+        <div class="row collapse">
+          <div class="medium-1 column pll">
+            <%= system_gravatar class: 'avatar', size: 35 %>
+          </div>
+          <div class="medium-11 columns pll pts prl">
+            <span><%= t(:reply_by) %> <strong><%= reply.ticket.reply_from_address %></strong></span>
+            <span class="right" title="<%= l reply.created_at.in_time_zone(current_user.time_zone), format: :long %>">
+              <i class="fa fa-clock-o"></i>
+              <%= time_ago_as_phrase(reply.created_at.in_time_zone(current_user.time_zone)) %>
+            </span>
+          </div>
+        </div>
+      </a>
+    <% else %>
+      <a href="#reply-<%=reply.id%>" class="bb text-default">
+        <div class="row collapse">
+          <div class="medium-1 column pll">
+            <%= user_avatar reply.user, class: 'avatar', size: 35 %>
+          </div>
+          <div class="medium-11 columns pll pts prl">
+            <span><%= t(:reply_by) %> <strong><%= reply.user.email %></strong></span>
+            <span class="right" title="<%= l reply.created_at.in_time_zone(current_user.time_zone), format: :long %>">
+            <% if reply.attachments.count > 0 %>
+              <i class="fa fa-paperclip"></i>
+            <% end %>
+              <i class="fa fa-clock-o"></i>
+              <%= time_ago_as_phrase(reply.created_at.in_time_zone(current_user.time_zone)) %>
+            </span>
+          </div>
+        </div>
+      </a>
+    <% end %>
+    <div id="reply-<%=reply.id%>" class="content bb <%= div_class %>">
+
+    <div class="row">
+      <div class="medium-11 columns medium-push-1 mtl mbl">
+        <% if reply.raw_message_file_size.to_i > 0 %>
+          <a class="pull-right text-default" href="<%= reply_path(reply, format: :eml) %>"><%= fa_icon 'save' %></a>
+        <% end %>
+
+        <% if can?(:split_off, reply) && !reply.kind_of?(StatusReply) %>
+          <%= link_to reply_split_off_path(reply_id: reply.id), method: 'post', class: 'pull-right text-default split-off-ticket' do %>
+            <i class="fa fa-code-fork"></i>
+            <%= t :split_off_ticket %>
+          <% end %>
+        <% end %>
+
+        <% if reply.content_type == 'html' %>
+          <% if reply.is_a? SystemReply %>
+            <%= render('/shared/content_for_system_reply', reply: reply) %>
+          <% else %>
+            <%= sanitize_html(reply.content, reply.inline_files) %>
+          <% end %>
+        <% else %>
+          <pre><%= word_wrap(html_to_text(reply.content), line_width: 72) %></pre>
+        <% end %>
+
+        <% if reply.attached_files.size > 0 %>
+          <hr />
+          <ul class="attachments">
+            <%= render reply.attached_files %>
+          </ul>
+        <% end %>
+
+        <hr />
+        <%= render partial: 'shared/notified_users_list', locals: {reply: reply} %>
+    </div>
+  </li>
+</ul>

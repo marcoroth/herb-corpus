@@ -1,0 +1,67 @@
+<% doit_afficher_notice = false %>
+
+<%= render PanelComponent.new(titre: t(".titre-evaluation-positionnement"), classes: "panel--beneficiaire") do %>
+  <div class="liste-evaluations-positionnement">
+    <p class="fr-m-0"><%= t(".indication") %></p>
+    <div class="liste-evaluations-positionnement__actions">
+      <p class="liste-evaluations-positionnement__nombre-element-selectionnes fr-m-0"></p>
+      <div class="liste-evaluations-positionnement__actions__comparer">
+        <%= render BoutonDsfrComponent.new(
+          admin_comparaison_path(beneficiaire_id: resource.id),
+          type: :secondary,
+          tag: :button_with_form,
+          method: :get,
+          id: "comparer-evaluation",
+          disabled: true,
+          "data-base-url": admin_comparaison_path(beneficiaire_id: resource.id)
+        ) do %>
+          <span class='fr-icon-line-chart-line fr-icon--sm' aria-hidden='true'></span> 
+          <%= t(".action.comparer") %>
+        <% end %>
+      </div>
+    </div>
+
+    <%= render TableauComponent.new(
+      collection: restitutions_positionnement,
+      selectionnable: true,
+      class: "liste-evaluations-positionnement__tableau"
+    ) do |tableau| %>
+      <% tableau.colonne(titre: t(".created_at")) do |restitution|%>
+        <% restitution.evaluation.created_at.strftime("%d/%m/%Y") %>
+      <% end %>
+
+      <% tableau.colonne(titre: Structure.model_name.human, multiline: true) do |restitution| %>
+        <% restitution.evaluation.campagne.compte.structure&.nom %>
+      <% end %>
+
+      <% tableau.colonne(titre: t(".litteratie")) do |restitution| %>
+        <% a_fait_litteratie = restitution.evaluation.campagne.avec_positionnement?(:litteratie) %>
+        <div data-litteratie="<%= a_fait_litteratie %>">
+          <%= render(Badge::ProfilComponent.new(restitution.litteratie&.profil, :litteratie)) %>
+        </div>
+      <% end %>
+
+      <% tableau.colonne(titre: t(".numeratie")) do |restitution| %>
+        <% a_fait_numeratie = restitution.evaluation.campagne.avec_positionnement?(:numeratie) %>
+        <div data-numeratie="<%= a_fait_numeratie %>">
+          <% if restitution.numeratie&.incomplet? %>
+            <% doit_afficher_notice = true %>
+            <%= render(Evaluation::IconeIncompleteComponent.new()) %>
+          <% end %>
+          <%= render(Badge::ProfilComponent.new(restitution.numeratie&.profil, :numeratie)) %>
+        </div>
+      <% end %>
+
+      <% tableau.colonne(td_class: "col-actions tableau-boutons-action") do |restitution| %>
+        <%= render MenuActionsComponent.new(restitution.evaluation,
+          EvaluationEva::ACTIONS[:LIRE],
+          EvaluationEva::ACTIONS[:EDITER],
+          EvaluationEva::ACTIONS[:SUPPRIMER]
+        ) %>
+      <% end %>
+    <% end %>
+  </div>
+  <% if doit_afficher_notice %>
+    <%= render(Evaluation::NoticeIncompleteComponent.new()) %>
+  <% end %>
+<% end %>

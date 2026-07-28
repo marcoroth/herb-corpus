@@ -1,0 +1,225 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%=
+  render Primer::OpenProject::PageHeader.new do |header|
+    header.with_title { I18n.t(:label_permissions_report) }
+    header.with_breadcrumbs(
+      [{ href: admin_index_path, text: t("label_administration") },
+       { href: admin_settings_users_path, text: t(:label_user_and_permission) },
+       t(:label_permissions_report)]
+    )
+  end
+%>
+
+<% html_title t(:label_administration), t(:label_permissions_report) %>
+
+<% (@calls || []).select(&:failure?).each do |call| %>
+  <%= error_messages_for(call.result) %>
+<% end %>
+
+<%= primer_form_with(url: roles_path, method: :put, id: "permissions_form") do |f| %>
+  <%= hidden_field_tag "permissions[0]", "", id: nil %>
+
+  <% group_permissions_by_module(@permissions).each do |mod, mod_permissions| %>
+    <% module_name = mod.blank? ? Project.model_name.param_key : l_or_humanize(mod, prefix: "project_module_").tr(" ", "_") %>
+    <% module_title = permission_header_for_project_module(mod) %>
+    <% section_id = "#{module_name.parameterize}-section" %>
+
+    <%= render Primer::OpenProject::CollapsibleSection.new(id: section_id, display: :block, mb: 3) do |section| %>
+      <% section.with_title do %>
+        <%= module_title %>
+      <% end %>
+
+      <% section.with_additional_information do %>
+        <%=
+          check_all_links section_id do |links|
+            links.with_check_all_button do |button|
+              button.with_tooltip(text: t(".matrix_check_all_label", module: module_title))
+              t(:button_check_all)
+            end
+
+            links.with_uncheck_all_button do |button|
+              button.with_tooltip(text: t(".matrix_uncheck_all_label", module: module_title))
+              t(:button_uncheck_all)
+            end
+          end
+        %>
+      <% end %>
+
+      <% section.with_collapsible_content do %>
+        <div class="generic-table--container">
+          <div class="generic-table--results-container">
+            <table
+              class="generic-table"
+              data-controller="checkable table-highlighting">
+              <caption class="sr-only">
+                <%= t(".matrix_caption", module: module_title) %>
+              </caption>
+              <colgroup>
+                <col data-highlight="false">
+                <% @roles.size.times do |role| %>
+                  <col>
+                <% end %>
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>
+                    <div class="generic-table--sort-header-outer">
+                      <div class="generic-table--sort-header">
+                        <span>
+                          <%= t(:label_permissions) %>
+                        </span>
+                      </div>
+                    </div>
+                  </th>
+                  <% @roles.each do |role| %>
+                    <th>
+                      <div class="generic-table--sort-header-outer p-0">
+                        <div class="generic-table--sort-header">
+                          <%=
+                            render(
+                              Primer::BaseComponent.new(
+                                tag: :div,
+                                display: :flex,
+                                align_items: :center,
+                                classes: "gap-1",
+                                ml: 1,
+                                mr: 2
+                              )
+                            ) do
+                          %>
+                            <%=
+                              render(
+                                Primer::Beta::IconButton.new(
+                                  scheme: :invisible,
+                                  size: :small,
+                                  icon: :check,
+                                  tooltip_direction: :sw,
+                                  aria: {
+                                    label: t(".matrix_check_uncheck_all_in_col_label_html", module: module_title, role: role.name)
+                                  },
+                                  data: {
+                                    action: "checkable#toggleSelection",
+                                    checkable_key_param: "role",
+                                    checkable_value_param: role.id
+                                  }
+                                )
+                              )
+                            %>
+                            <%= render(Primer::Beta::Truncate.new(flex: 1)) do %>
+                              <%= role.name %>
+                              <%= render(Primer::Beta::Label.new(scheme: :secondary)) { t(:label_builtin) } if role.builtin? %>
+                            <% end %>
+                          <% end %>
+                        </div>
+                      </div>
+                    </th>
+                  <% end %>
+                </tr>
+              </thead>
+              <tbody>
+                <% mod_permissions.each do |permission| %>
+                  <% humanized_permission_name = l_or_humanize(permission.name, prefix: "permission_") %>
+                  <tr>
+                    <th scope="row" class="-min-300">
+                      <%=
+                        render(
+                          Primer::BaseComponent.new(
+                            tag: :div,
+                            display: :flex,
+                            align_items: :flex_start,
+                            classes: "gap-1",
+                            ml: 1,
+                            mr: 3
+                          )
+                        ) do
+                      %>
+                        <%=
+                          render(
+                            Primer::Beta::IconButton.new(
+                              scheme: :invisible,
+                              size: :small,
+                              icon: :check,
+                              tooltip_direction: :sw,
+                              aria: {
+                                label: t(".matrix_check_uncheck_all_in_row_label_html", permission: humanized_permission_name)
+                              },
+                              data: {
+                                action: "checkable#toggleSelection",
+                                checkable_key_param: "permission",
+                                checkable_value_param: permission.name
+                              }
+                            )
+                          )
+                        %>
+                        <%= render(OpPrimer::ExpandableTextComponent.new(flex: 1)) do %>
+                          <%= humanized_permission_name %>
+                        <% end %>
+                      <% end %>
+                    </th>
+                    <% @roles.each.with_index do |role, i| %>
+                      <td>
+                        <% if setable_permissions(role).include?(permission) %>
+                          <%=
+                            render(Primer::BaseComponent.new(tag: :div, display: :flex, align_items: :center, mx: 1)) do
+                              render(
+                                Primer::Alpha::CheckBox.new(
+                                  scheme: :array,
+                                  name: "permissions[#{role.id}]",
+                                  id: "permissions_#{role.id}_#{permission.name}", # See BUG https://github.com/primer/view_components/issues/3811
+                                  value: permission.name,
+                                  checked: role.permissions.include?(permission.name),
+                                  label: t(".matrix_checkbox_label", permission: humanized_permission_name, role: role.name),
+                                  visually_hide_label: true,
+                                  data: {
+                                    checkable_target: "checkbox",
+                                    role: role.id,
+                                    permission: permission.name
+                                  }
+                                )
+                              )
+                            end
+                          %>
+                        <% end %>
+                      </td>
+                    <% end %>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= render Roles::Save.new(f) %>
+<% end %>

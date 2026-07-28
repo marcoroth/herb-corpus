@@ -1,0 +1,88 @@
+<%= content_tag @component,
+  id: @id,
+  data: {
+    'document-id': @document.id.to_s.parameterize,
+    'document-counter': @counter,
+  },
+  itemscope: true,
+  itemtype: @document.itemtype,
+  class: classes.flatten.join(' ') do %>
+  <% if eds_restricted? %>
+    <%= render Articles::EdsRestrictedComponent.new(counter: @counter, presenter: @presenter) %>
+  <% else %>
+    <%= header %>
+    <div class="document-main-section d-flex">
+      <% # header bar for doc items in index view %>
+      <div class="col-10 pe-4">
+        <div class="documentHeader">
+          <h3 class="index_title">
+            <% if counter %>
+              <%=  content_tag :span, class: 'document-counter fw-light' do
+              t('blacklight.search.documents.counter', counter:)
+            end %>
+            <% end %>
+            <%= helpers.link_to_document document, counter:, itemprop: 'name', class: 'fw-medium' %>
+          </h3>
+        </div>
+        <div class="results-metadata-sections">
+          <div>
+            <span class="align-text-bottom me-1"><%= resource_icon %></span><%= @document.eds_publication_type || @document.eds_document_type %>
+            <span class="main-title-date"><%= main_title_date %></span>
+          </div>
+
+          <ul class='document-metadata results-metadata-section list-unstyled'>
+            <% if @document['eds_authors'].present? %>
+              <li>
+                <div class="truncate-2">
+                  <%= safe_join Array(doc_presenter.field_value(doc_presenter.configuration.index_fields['eds_authors'])), ', ' %>
+                </div>
+              </li>
+            <% end %>
+
+            <% if @document['eds_composed_title'].present? %>
+              <li class="truncate-2"><%= Array(doc_presenter.field_value(doc_presenter.configuration.index_fields['eds_composed_title'])).first %></li>
+            <% end %>
+          </ul>
+          <% if @document['eds_abstract'].present? %>
+            <dl>
+              <dt class="visually-hidden">Abstract</dt>
+              <dd>
+                <div class="truncate-3">
+                  <%= Array(doc_presenter.field_value(doc_presenter.configuration.index_fields['eds_abstract'])).first %>
+                </div>
+              </dd>
+            </dl>
+          <% end %>
+
+          <% if !@document.eds_restricted? && (@document.preferred_online_links.any? || @document.html_fulltext?) %>
+            <div class="availability-component d-inline-flex border rounded p-2 gap-3">
+              <% if @document.preferred_online_links.any? || @document.html_fulltext? %>
+                <div class="fw-semibold available-online text-nowrap">
+                Available online  <i class="bi bi-forward-fill"></i>
+                </div>
+              <% end %>
+              <ul class='document-metadata results-metadata-section list-unstyled mb-0'>
+                <% if @document.preferred_online_links.any? %>
+                  <% @document.preferred_online_links.each do |link| %>
+                    <li><%= render Articles::LinkComponent.new(link: link, document: @document) %></li>
+                  <% end %>
+                <% elsif @document.html_fulltext? %>
+                  <li><%= render Articles::LinkComponent.new(link: nil, document: @document) %></li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+        </div>
+
+      </div>
+      <div class="col-2 d-flex flex-column align-items-center">
+        <div class="d-flex flex-row gap-1 mb-3">
+          <%= render Document::TrackingBookmarkComponent.new(document:, action: view_config.document_actions[:bookmark]) %>
+          <%= render Searchworks4::SearchResult::ItemMenuComponent.new(document:) %>
+        </div>
+      </div>
+    </div>
+
+    <%= footer %>
+  <% end %>
+<% end %>

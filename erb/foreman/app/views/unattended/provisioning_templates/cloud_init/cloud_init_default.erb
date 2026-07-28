@@ -1,0 +1,85 @@
+<%#
+kind: cloud-init
+name: CloudInit default
+model: ProvisioningTemplate
+oses:
+- AlmaLinux
+- CentOS
+- CentOS_Stream
+- Fedora
+- Rocky
+- Debian
+- Ubuntu
+test_on:
+- host4dhcp
+- debian4dhcp
+- ubuntu4dhcp
+description: |
+  This template is used during image based provisioning, when the image is configured to use user-data.
+  The output is a list of cloud-init directives that cloud-init parses and uses to configures the VM
+  booted from the image. The image must have cloud-init installed in order for this to work.
+  This template accepts the following parameters:
+  - force-puppet: boolean (default=false)
+  - enable-puppetlabs-repo: boolean (default=false)
+  - enable-puppetlabs-puppet5-repo: boolean (default=false)
+  - enable-puppetlabs-puppet6-repo: boolean (default=false)
+  - enable-official-puppet7-repo: boolean (default=false)
+  - enable-official-puppet8-repo: boolean (default=false)
+  - skip-puppet-setup: boolean (default=false)
+-%>
+<%
+  rhel_compatible = @host.operatingsystem.family == 'Redhat' && @host.operatingsystem.name != 'Fedora'
+  proxy_uri = host_param('http-proxy') ? "http://#{host_param('http-proxy')}:#{host_param('http-proxy-port')}" : nil
+  puppet_enabled = !host_param_true?('skip-puppet-setup') && (host_puppet_server.present? || host_param_true?('force-puppet'))
+  chef_enabled = @host.respond_to?(:chef_proxy) && @host.chef_proxy
+-%>
+
+#cloud-config
+hostname: <%= @host.name %>
+fqdn: <%= @host %>
+manage_etc_hosts: true
+users: []
+<% if root_pass.present? -%>
+chpasswd:
+  expire: False
+  users:
+  - {name: root, password: <%= root_pass -%>}
+<% end -%>
+runcmd:
+- |
+<%= indent(2) { snippet 'fix_hosts' } -%>
+- |
+<%= indent(2) { snippet 'yum_proxy' } -%>
+- |
+<%= indent(2) { snippet 'ntp' } -%>
+<% if rhel_compatible -%>
+<% if host_param_true?('enable-epel') -%>
+- |
+<%= indent(2) { snippet 'epel' } -%>
+<% end -%>
+- |
+<%= indent(2) { snippet 'redhat_register' } -%>
+<% end -%>
+<% if @host.realm && (@host.realm.realm_type == 'FreeIPA' || @host.realm.realm_type == 'Red Hat Identity Management') -%>
+- |
+<%= indent(2) { snippet 'freeipa_register' } %>
+<% end -%>
+- |
+<%= indent(2) { snippet 'remote_execution_ssh_keys' } %>
+- |
+<%= indent(2) { snippet 'blacklist_kernel_modules' } %>
+<% if chef_enabled -%>
+- |
+<%= indent(2) { snippet 'chef_client' } %>
+<% end -%>
+<% if puppet_enabled -%>
+- |
+<% if host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-official-puppet8-repo') || host_param_true?('enable-official-puppet7-repo') || host_param_true?('enable-puppetlabs-puppet6-repo') || host_param_true?('enable-puppetlabs-puppet5-repo') -%>
+<%= indent(2) { snippet 'puppetlabs_repo' } %>
+<% end -%>
+<%= indent(2) { snippet 'puppet_setup' } %>
+<% end -%>
+phone_home:
+  url: <%= foreman_url('built') %>
+  post: []
+  tries: 10

@@ -1,0 +1,39 @@
+<%= render Public::BasicInfoComponent.new(header: @venue.name, image: @venue.fetch_image, tagline: @venue.tagline, details: [
+  { key: 'Address', value: render_markdown(@venue.address) }
+], admin_site: @admin_site) %>
+
+<div class="flex flex-col md:flex-row gap-4">
+  <div class="w-full md:w-1/2">
+    <%= render CardComponent.new(title: "Description", html_class: "mb-0") do %>
+      <%= render_markdown @venue.description %>
+    <% end %>
+  </div>
+
+  <div class="w-full md:w-1/2">
+    <% if @venue.location.present? %>
+      <%= render CardComponent.new(title: "Map", flush: true, html_class: "mb-0") do %>
+        <%= venue_map(@venue) %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<h3 class="mt-3">Shows at <%= @venue.name %></h3>
+
+<% if @current_shows.empty? %>
+  <p>There are no upcoming EUTC shows at <%= @venue.name %>.</p>
+<% else %>
+  <% items = @current_shows.collect { |event| {
+    event: event,
+    paragraphs: [
+      { content: event.date_range(true), small: true },
+      { content: event.short_blurb },
+      { content: link_to('View Details', event, class: btn_classes(:primary)), class: 'mt-auto'}
+    ] } } %>
+
+  <%= render('shared/pages/public/events_grid', items: items, col_size: 12) %>
+<% end %>
+
+<p class="mb-3"><%= link_to('View Past Shows', archives_events_url('q[venue_id_eq]' => @venue.id)) %></p>
+
+<%= render Public::GalleryComponent.new(pictures: @venue.pictures.accessible_by(current_ability, :show)) %>

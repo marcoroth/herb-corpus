@@ -1,0 +1,108 @@
+<% content_for :title, "Edit #{@user.name}" %>
+
+<% content_for :content_size, "col-sm-9 col-md-10" %>
+
+<% content_for :content do %>
+  <%= form_tag user_path(@user), method: :put, data: { live_guarded: true } do %>
+    <fieldset>
+      <% if current_user.can_update_user_details?(@user) %>
+        <div class="form-group">
+          <label for="name">Name</label>
+          <div>
+            <input id="name" name="user[name]" type="text" value="<%= @user.name %>" class="form-control" data-guard="required" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <div>
+            <input id="email" name="user[email]" type="text" value="<%= @user.email %>" class="form-control" data-guard="required email" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="primary-phone-number"><%= t :user_primary_number %></label>
+          <div>
+            <input id="primary-phone-number" name="user[primary_number]" type="text" value="<%= @user.primary_number %>" class="form-control" data-guard="required phoneUS different" data-guard-different-group="phone" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="secondary-phone-number"><%= t :user_secondary_number %></label>
+          <div>
+            <input id="secondary-phone-number" name="user[secondary_number]" type="text" value="<%= @user.secondary_number %>" class="form-control" data-guard="phoneUS different" data-guard-different-group="phone" />
+          </div>
+        </div>
+
+        <% if current_user.can_update_password?(@user) %>
+          <%= render partial: "common/password_fields", locals: { updating: true, user: @user } %>
+        <% end %>
+      <% end %>
+
+      <% if current_user.can_update_user_role?(@user) %>
+        <div class="row">
+          <% current_user.filter_organizations_with_permission_enabled(@user.organizations, :can_update_user_role_at?).each do |organization| %>
+            <div class="form-group <%= current_user.super_admin? ? "col-xs-6" : "col-xs-12" %>">
+              <label class="control-label" for="invite-role-<%= organization.id %>">Role at <%= organization.name %></label>
+              <div>
+                <select id="invite-role-<%= organization.id %>"
+                        name="roles[<%= organization.id %>]"
+                        class="form-control input-md">
+                  <option value="">Remove Access</option>
+                  <option value="none" <%= "selected" if @user.role_at(organization) == "none" %>><%= t "role.organization.none" %></option>
+                  <option value="admin" <%= "selected" if @user.role_at(organization) == "admin" %>><%= t "role.organization.admin" %></option>
+                </select>
+              </div>
+            </div>
+          <% end %>
+
+          <% if current_user.super_edit_user_access?(@user) %>
+            <div class="form-group col-xs-6">
+              <label class="control-label text-danger" for="role">StockAid Admin Role</label>
+              <div>
+                <select id="role" name="user[role]" class="form-control input-md">
+                  <option value="none" <%= "selected" if @user.role == "none" %>>None</option>
+                  <option value="report" <%= "selected" if @user.role == "report" %>>Report</option>
+                  <option value="admin" <%= "selected" if @user.role == "admin" %>>Admin (general StockAid admin)</option>
+
+                  <% if current_user.root_admin? %>
+                    <option value="root" <%= "selected" if @user.role == "root" %>>Root (full access to everything)</option>
+                  <% end %>
+                </select>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if current_user.can_subscribe_to_notifications? && current_user == @user %>
+        <% Notification::SUBSCRIPTION_TYPES.each do |sub_type, sub| %>
+          <div class="checkbox">
+            <label>
+              <%= hidden_field_tag "subscriptions[#{sub_type}]", "false" %>
+              <%= check_box_tag "subscriptions[#{sub_type}]", "true", @user.subscribed_to?(sub[:type]) %>
+              <%= sub[:label] %>
+            </label>
+          </div>
+        <% end %>
+
+        <br />
+      <% end %>
+    </fieldset>
+
+    <div>
+      <input type="submit" class="btn btn-primary" value="Save" />
+      <%= link_to "Cancel", cancel_edit_user_path, class: "btn btn-default" %>
+
+      <span class="pull-right">
+        <% if current_user.can_force_password_reset?(@user) %>
+          <%= link_to "Reset Password", reset_password_user_path(@user), method: :post, class: "btn btn-danger", data: confirm(title: "Send password reset email for: #{@user.name}") %>
+        <% end %>
+
+        <% if !@user.deleted? && current_user.can_delete_user?(@user) %>
+          <%= link_to "Delete", user_path(@user), method: :delete, class: "btn btn-danger", data: confirm(title: "Deleting User: #{@user.name}") %>
+        <% end %>
+      </span>
+    </div>
+  <% end %>
+<% end %>

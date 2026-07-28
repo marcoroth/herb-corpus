@@ -1,0 +1,134 @@
+<span class="mt-3 mr-2 inline-block h-8 shrink-0"><%= avatar_icon %></span>
+
+<div class="flex grow flex-wrap place-content-start items-center gap-2">
+  <%= viral_avatar(
+    name: @namespace.name,
+    size: @icon_size,
+    colour_string: "#{@namespace.name}-#{@namespace.id}",
+  ) %>
+
+  <% if @full_name && @namespace.parent %>
+    <span><%= @namespace.parent.full_name %> /</span>
+  <% end %>
+
+  <%= link_to(
+    namespace_path(@namespace),
+    data: top_frame_link_data,
+    class: "underline hover:decoration-2 font-semibold dark:text-white wrap-anywhere min-w-0",
+    aria: {label: I18n.t(:"components.namespace_row.contents_component.namespace_link.aria-label", namespace_type: @namespace.model_name.human.downcase, namespace_name: @namespace.name, namespace_puid: @namespace.puid) }
+  ) do %>
+    <%= highlight(
+      @namespace.name,
+      defined?(@search_params[:name_or_puid_cont]) &&
+        @search_params[:name_or_puid_cont],
+      highlighter: '<mark class="bg-primary-300 dark:bg-primary-600">\1</mark>',
+    ) %>
+  <% end %>
+
+  <%= render PuidComponent.new(puid: @namespace.puid) %>
+
+  <div class="grow">
+    <%= viral_pill(
+      text:
+        t(
+          :"members.access_levels.level_#{Member.effective_access_level(@namespace, Current.user)}",
+        ),
+      color: "transparent",
+      border: true,
+    ) %>
+  </div>
+
+  <div class="mr-2 ml-auto flex flex-col items-end">
+    <div class="flex flex-row flex-wrap gap-2 text-slate-500 dark:text-slate-400">
+      <% if @namespace.group_namespace? %>
+        <%= pathogen_link(href: namespace_path(@namespace), data: top_frame_link_data, 'aria-label': t(:"components.namespace_row.contents_component.subnamespaces.aria-label", namespace_type: @namespace.model_name.human.downcase, namespace_puid: @namespace.puid), class: "group pill-focus-reset") do |component| %>
+          <% component.with_tooltip(
+          text:
+            t(
+              :"components.namespace_row.contents_component.subnamespaces.tooltip",
+              count: @namespace.children.count,
+              namespace_name: @namespace.human_name,
+            ),
+          placement: :left,
+          tag: :div,
+        ) %>
+
+          <span class="<%= count_pill_classes(:groups) %>">
+            <%= icon Group.icon,
+          size: :sm,
+          class: "mr-0.5 text-amber-700 dark:text-amber-200" %>
+
+            <%= @namespace.children.count %>
+          </span>
+        <% end %>
+        <%= pathogen_link(href: namespace_path(@namespace), data: top_frame_link_data, 'aria-label': t(:"components.namespace_row.contents_component.projects.aria-label", namespace_type: @namespace.model_name.human.downcase, namespace_puid: @namespace.puid), class: "group pill-focus-reset") do |component| %>
+          <% component.with_tooltip(
+          text:
+            t(
+              :"components.namespace_row.contents_component.projects.tooltip",
+              count: @namespace.project_namespaces.count,
+              namespace_name: @namespace.human_name,
+            ),
+          placement: :left,
+          tag: :div,
+        ) %>
+
+          <span class="<%= count_pill_classes(:projects) %>">
+            <%= icon Project.icon,
+          size: :sm,
+          class: "mr-0.5 text-fuchsia-700 dark:text-fuchsia-200" %>
+
+            <%= @namespace.project_namespaces.count %>
+          </span>
+        <% end %>
+        <%= pathogen_link(href: helpers.group_samples_path(@namespace), data: top_frame_link_data, 'aria-label': t(:"components.namespace_row.contents_component.samples.aria-label", namespace_type: @namespace.model_name.human.downcase, namespace_puid: @namespace.puid), class: "group pill-focus-reset") do |component| %>
+          <% component.with_tooltip(
+          text:
+            t(
+              :"components.namespace_row.contents_component.samples.tooltip",
+              count: @namespace.aggregated_samples_count,
+              namespace_name: @namespace.human_name,
+            ),
+          placement: :left,
+          tag: :div,
+        ) %>
+
+          <span id="<%= "#{dom_id(@namespace)}-samples-count" %>" class="<%= count_pill_classes(:samples) %>">
+            <%= icon Sample.icon,
+          size: :sm,
+          class: "mr-0.5 text-blue-700 dark:text-blue-200" %>
+
+            <%= @namespace.aggregated_samples_count %>
+          </span>
+        <% end %>
+      <% end %>
+
+      <% if @namespace.project_namespace? %>
+        <%= pathogen_link(href: helpers.namespace_project_samples_path(@namespace.parent, @namespace.project), data: top_frame_link_data, 'aria-label': t(:"components.namespace_row.contents_component.samples.aria-label", namespace_type: @namespace.model_name.human.downcase, namespace_puid: @namespace.puid), class: "group pill-focus-reset") do |component| %>
+          <% component.with_tooltip(
+          text:
+            t(
+              :"components.namespace_row.contents_component.samples.tooltip",
+              count: @namespace.project.samples.size,
+              namespace_name: @namespace.name,
+            ),
+          placement: :left,
+          tag: :div,
+        ) %>
+
+          <span id="<%= "#{dom_id(@namespace.project)}-samples-count" %>" class="<%= count_pill_classes(:samples) %>">
+            <%= icon Sample.icon,
+          size: :sm,
+          class: "mr-0.5 text-blue-700 dark:text-blue-200" %>
+
+            <%= @namespace.project.samples.size %>
+          </span>
+        <% end %>
+      <% end %>
+    </div>
+
+    <div class="mt-1 text-xs whitespace-nowrap text-slate-500 dark:text-slate-400">
+      <%== t(:'components.namespace_row.contents_component.created_at', date: helpers.local_time(@namespace.created_at, "%b %-d, %Y")) %>
+    </div>
+  </div>
+</div>

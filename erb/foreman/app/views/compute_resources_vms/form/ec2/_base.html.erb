@@ -1,0 +1,59 @@
+<%= select_f f, :flavor_id, compute_resource.flavors, :id, :to_label, {}, :label => _('Flavor'), :label_size => "col-md-2" %>
+<%
+arch ||= nil ; os ||= nil
+images = possible_images(compute_resource, arch, os)
+%>
+
+<div id='image_selection'><%= select_f f, :image_id, images, :uuid, :name,{:include_blank => (images.empty? || images.size == 1) ? false : _('Please select an image')}, {:disabled => images.empty?, :label => _('Image'), :label_size => "col-md-2"} %></div>
+
+<%= selectable_f f, :availability_zone, compute_resource.zones, {:include_blank => _("No preference")}, :label => _('Availability zone'), :label_size => "col-md-2" %>
+
+<div id='subnet_selection'>
+  <% if compute_resource.subnets.any? %>
+    <%= select_f f, :subnet_id, compute_resource.subnets, :subnet_id, :cidr_block,
+    {:include_blank => true},
+    {:label => _("Subnet"), :label_size => "col-md-2", :onchange => "tfm.computeResource.ec2.vpcSelected(this);"} %>
+  <% end %>
+
+  <% groups, vpc_sg_hash, subnet_vpc_hash = security_groups_selectable(compute_resource, f) %>
+
+  <% if groups %>
+    <%= selectable_f f, :security_group_ids, groups, {},
+    { :multiple => true, :label => _("Security groups"), :label_size => "col-md-2", :disabled => !(@host.nil? || @host.ip.empty?),
+      :data => {
+        :security_groups => vpc_sg_hash,
+        :subnets => subnet_vpc_hash
+      },
+      :class => 'security_group_ids without_select2'
+    }
+  %>
+<% end %>
+
+  <%= selectable_f f, :managed_ip, {_("Public")=>'public', _("Private")=>'private'}, {}, { :label => _("Managed IP"), :label_size => "col-md-2" } %>
+</div>
+
+<% if controller_name != "compute_attributes" %>
+  <div class="row">
+    <% tag = compute_resource.new_tag %>
+    <%= label_tag(:tags, _("Tags"), :class => 'col-md-2 control-label') %>
+    <div class="col-md-6">
+      <table id="ec2_tags" class="<%= table_css_classes %>">
+        <thead>
+          <th><%= _('Key') %></th>
+          <th><%= _('Value') %></th>
+          <% if new_vm %>
+            <th><%= _('Actions') %></th>
+          <% end %>
+        </thead>
+        <tbody>
+          <%= f.fields_for :tags, f.object.load_tags do |fields| %>
+            <%= render "compute_resources_vms/form/ec2/ec2_tag", f: fields, new_vm: new_vm %>
+          <% end %>
+        </tbody>
+      </table>
+      <% if new_vm %>
+       <%= link_to_add_fields('+ ' + _("Add tag"), f, :tags, "compute_resources_vms/form/ec2/ec2_tag", { :target => '#ec2_tags tbody', object: [tag], locals: { new_vm: new_vm } }) %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <%= favicon_link_tag 'wca.ico' %>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" href='<%= asset_path("android-touch-icon.png") %>'/>
+  <link rel="apple-touch-icon" href='<%= asset_path("apple-touch-icon.png") %>'/>
+
+  <meta name="og:image" content='<%= asset_url("og-wca_logo.png") %>'/>
+
+  <meta name="description" content="The World Cube Association governs competitions for mechanical puzzles that are operated by twisting groups of pieces, commonly known as 'twisty puzzles'. The most famous of these puzzles is the Rubik's Cube, invented by professor Rubik from Hungary. A selection of these puzzles are chosen as official events of the WCA.">
+
+  <title><%= full_title(yield(:title)) %></title>
+  <%# NOTE: we need to create our global wca object first, because it's used in our non-webpack application.js %>
+  <script>
+    window.wca = {
+      currentLocale: '<%= I18n.locale %>',
+    };
+  </script>
+
+  <% if session.delete(:should_reset_jwt) %>
+    <script>
+      localStorage.removeItem("jwt");
+    </script>
+  <% end %>
+
+  <%#
+    Our sprockets assets. Loaded first, because our js packs below contains the
+    css overriding stuff imported in sprockets!
+  %>
+  <% css_assets = (@all_css_assets || "").split(",").uniq.unshift("application") %>
+  <% css_assets.each do |a| %>
+    <%= stylesheet_link_tag a, media: 'all' %>
+  <% end %>
+
+  <% add_to_packs("lodash_utils") %>
+
+  <%#
+    Our webpack packs (automatically split in chunks).
+    Always *prepend* application, so that we load jquery first.
+    We can't just add_to_packs application, because the yielded block will be
+    evaluated first, and any pack added (like schedule) will be loaded before application.
+    These javascript packs *do* include the css imported in them!
+  %>
+  <% packs_to_prepend = ["application", "global_styles", "i18n"] %>
+
+  <% packs_to_include = @all_packs.split(",").uniq.unshift(*packs_to_prepend) %>
+  <%= javascript_pack_tag *packs_to_include, defer: false %>
+  <% stylesheets_to_include = filter_css_packs(*packs_to_include) %>
+  <%= stylesheet_pack_tag *stylesheets_to_include %>
+
+  <% js_assets = (@all_js_assets || "").split(",").uniq %>
+  <%# This loads fullCalendar/moment's locale files %>
+  <% if I18n.locale != :en %>
+    <% js_assets = js_assets.unshift("locales/#{I18n.locale.downcase}.js") %>
+  <% end %>
+  <% js_assets = js_assets.unshift("application") %>
+  <% js_assets.each do |a| %>
+    <%= javascript_include_tag a %>
+  <% end %>
+
+  <% if content_for? :robots_head %>
+    <%= yield :robots_head %>
+  <% end %>
+
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+  <%= auto_discovery_link_tag(:rss, rss_url(format: :xml)) %>
+  <% if EnvConfig.WCA_LIVE_SITE? %>
+    <script data-ad-client="ca-pub-8682718775826560" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+    <!-- New Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QB1H9R123K"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      window.wca.gtag = gtag;
+      gtag('js', new Date());
+      gtag('config', 'G-QB1H9R123K', { 'anonymize_ip': true });
+      // as per https://developers.google.com/tag-platform/security/guides/consent?consentmode=advanced
+      //   this is being overridden by the `cookies-eu-acknowledged` event listener of our cookie banner
+      const consentValue = '<%= current_user&.cookies_acknowledged? ? 'granted' : 'denied' %>';
+      gtag('consent', 'default', {
+        'ad_storage': consentValue,
+        'ad_user_data': consentValue,
+        'ad_personalization': consentValue,
+        'analytics_storage': consentValue,
+      });
+    </script>
+  <% end %>
+</head>
+<body data-rails-controller-name="<%= controller_name %>" data-rails-controller-action-name="<%= action_name %>" class="<%= "watermark" if Rails.env.production? && !EnvConfig.WCA_LIVE_SITE? %>">
+
+  <% hide_wca_navbars = yield(:hide_wca_navbars).present? %>
+  <% if !hide_wca_navbars %>
+    <%= render 'layouts/navigation' %>
+  <% end %>
+
+  <main>
+    <%= render 'layouts/flash' %>
+
+    <%= yield %>
+  </main>
+
+  <% if !hide_wca_navbars %>
+    <%= render 'layouts/footer' %>
+  <% end %>
+  <%= render 'cookies_eu/consent_banner' unless current_user&.cookies_acknowledged? %>
+</body>
+</html>

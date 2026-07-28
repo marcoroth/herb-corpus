@@ -1,0 +1,42 @@
+<% active_tab = @current_tab_context || edition.default_tab %>
+<% on_document_tab = local_assigns.fetch(:on_document_tab, true) %>
+
+<%= form_for form_url_for_edition(edition), as: :edition, html: { class: edition_form_classes(edition), multipart: true }, data: { module: "EditionForm LocaleSwitcher", "rtl-locales": Locale.right_to_left.collect(&:to_param) } do |form| %>
+  <% if !edition.editable? %>
+    <fieldset class="app-view-edit-edition__read-only" disabled="disabled">
+  <% end %>
+
+  <div class="<%= "right-to-left" if edition.rtl? %>">
+    <%= form.hidden_field :lock_version %>
+    <%= form.hidden_field :configurable_document_type, value: edition.configurable_document_type %>
+    <%= hidden_field_tag :current_tab, active_tab if edition.defines_tabs? %>
+
+    <% if on_document_tab %>
+      <%= render "document_form_fields", form:, edition: %>
+    <% else %>
+      <%= render ConfigurableContentBlocks::DefaultObject.new(
+        edition,
+        edition.type_instance.form(active_tab).merge("root" => true),
+        ConfigurableContentBlocks::Path.new,
+      ) %>
+    <% end %>
+
+    <% if edition.editable? %>
+      <% if on_document_tab %>
+        <%= standard_edition_publishing_controls(form, edition) %>
+      <% else %>
+        <div class="govuk-button-group">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Save",
+            value: "save",
+            name: "save",
+          } %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% if !edition.editable? %>
+    </fieldset>
+  <% end %>
+<% end %>

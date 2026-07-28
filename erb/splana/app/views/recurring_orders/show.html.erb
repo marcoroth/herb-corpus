@@ -1,0 +1,94 @@
+<% content_for :page_title, @recurring_order.name %>
+<% content_for :page_subtitle, "Dauerauftrag" %>
+
+<div class="container-fluid">
+  <%= render PageHeaderComponent.new(subtitle: yield(:page_subtitle), button_text: "Bearbeiten", button_url: edit_recurring_order_path(@recurring_order)) do |header| %>
+    <% header.with_labeled_avatar(title: @recurring_order.client&.name, description: "Kunde", user: @recurring_order.client, size: 'md') %>
+
+    <%= header.with_body_content do |tabs| %>
+      <%= render RecurringOrderYearsComponent.new(recurring_order: @recurring_order) %>
+    <% end %>
+  <% end %>
+
+  <div class="row">
+    <div class="col-12">
+
+      <div class="row">
+        <% @recurring_order.recurring_order_executions.each do |execution| %>
+          <div class="col-4">
+
+            <%= render CardComponent.new do |card| %>
+              <%= card.with_body do %>
+                <div class="row align-items-center">
+                  <div class="col">
+                    <h3 class="card-title mb-2 name">
+                      <%= link_to execution, execution %>
+                    </h3>
+                    <p class="card-text small text-muted">
+                      <%= execution.appointment_series.map(&:appointments).flatten.count %> Serientermine<br/>
+                      <%= execution.appointments.count %> Einzeltermine
+                    </p>
+                  </div>
+
+                  <div class="col-auto">
+                    <div class="dropdown">
+                      <a href="#" class="dropdown-ellipses dropdown-toggle" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fe fe-more-vertical"></i>
+                      </a>
+                      <div class="dropdown-menu dropdown-menu-right">
+                        <%= link_to "Anzeigen", execution, class: 'dropdown-item' %>
+                        <%= link_to "Bearbeiten", edit_recurring_order_execution_path(execution), class: 'dropdown-item' %>
+                        <%= link_to "Neuer Termin", new_appointment_path(source_id: execution.id, source_type: "RecurringOrderExecution", client_id: execution.client.id, name: execution.recurring_order.name, group_id: execution.group_id), class: 'dropdown-item' %>
+                        <%= link_to "Ausführung Löschen", recurring_order_execution_path(execution), class: 'dropdown-item', data: { turbo_confirm: "Willst du die Ausführung und alle Termine wirklich löschen?", turbo_method: :delete } %>
+                      </div>
+                    </div>
+                  </div>
+                </div><br>
+
+                <div class="row align-items-center">
+                  <div class="col">
+                    <div class="row align-items-center no-gutters text-muted small">
+                      <div class="col-auto">
+                        <div class="mr-2">
+                          <% if execution.current? %><span class="text-success">●</span><% end %>
+                          <% if execution.past? %><span class="text-warning">●</span><% end %>
+                          <% if execution.upcoming? %><span class="text-info">●</span><% end %><br>
+                        </div>
+                      </div>
+                      <div class="col">
+                        <%= execution.date_range %>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-auto">
+                    <%= render AvatarGroupComponent.new(users: execution.group&.users) %>
+                  </div>
+                </div>
+
+              <% end %>
+            <% end %>
+
+          </div>
+        <% end %>
+      </div>
+
+      <% if @recurring_order.recurring_order_executions.empty? %>
+        <%= link_to new_recurring_order_execution_path(recurring_order_id: @recurring_order.id, start_date: @next_start_date, end_date: @next_end_date), style: "color: inherit" do %>
+          <div class="col-12">
+            <div class="card card-inactive tw-bg-white">
+              <div class="card-body text-center">
+                <h1>Ausführung <%= (Date.current + 1.year).year %> planen?</h1>
+                <p class="text-muted">Willst du die erste Ausführung für das Jahr <%= (Date.current + 1.year).year %> planen?</p>
+                <div>
+                  <%= link_to "Erste Ausführung planen", new_recurring_order_execution_path(recurring_order_id: @recurring_order.id), class: 'btn btn-primary tw-mt-6' %>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+
+    </div>
+
+  </div>
+</div>

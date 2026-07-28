@@ -1,0 +1,63 @@
+<%= link_to playlist_cover(@playlist, variant: :playlist_card),
+  user_playlist_path(@playlist.user, @playlist), class: 'small_cover', data: { "playlist-target": "smallCover", "turbo-frame": "playlist-track" }, style: ('display:none;' unless @asset) %>
+<h1 class="<%= 'cover' unless @asset %>">
+  <%= @playlist.title %>
+</h1>
+<h2>
+  <span class="by">by</span> <%= link_to @user.name, user_home_path(@user) %>   <% if authorized? %>
+  <span class="parentheses">(</span> <%= link_to edit_user_playlist_path(@playlist.user, @playlist),
+    class: 'edit_playlist', :title => 'edit this playlist' do %>
+    edit
+  <% end %> <span class="parentheses">)</span>
+<% end %>
+</h2>
+
+<ul class="tracklist">
+<% @playlist.tracks.each do |track| %>
+  <li data-tracklist-target="track"
+    class="<%= 'active' if first_active_track?(track, @asset) %>"
+    <%= tag.attributes(data: track_descriptor_data(track.asset,
+      url: user_show_track_in_playlist_path(@user, @playlist, track.asset, format: :mp3),
+      page_url: user_show_track_in_playlist_path(@user, @playlist, track.asset),
+      image: playlist_cover_url(@playlist, variant: :playlist_card).to_s)) %>>
+
+  <!-- Play button plays via the persistent player -->
+  <%= link_to user_show_track_in_playlist_path(@user, @playlist, track.asset, format: :mp3),
+    class: 'play_button', data: { "action": "click->tracklist#play", percy_ignore: true } do %>
+    <i class="icon_play"></i>
+  <% end %>
+
+  <!-- Track title switches the track details frame -->
+  <%= link_to user_show_track_in_playlist_path(@user, @playlist, track.asset),
+     class: 'position_name_time', data: { "turbo-frame": "playlist-track", "turbo-action": "advance" } do %>
+    <span class="track_position">
+      <%= "%02d" % track.position %>.
+    </span>
+    <span class="track_name">
+      <%= track.name %>
+    </span>
+    <span class='time_text'><%= track.asset.length %></span>
+  <% end %>
+  </li>
+<% end %>
+</ul>
+
+<div class="sidebar_downloads"
+  data-playlist-target="sidebarDownloads"
+  style="<%= 'display:none' unless @asset %>">
+  <ul class="downloads_links">
+  </ul>
+
+  <ul class="external_links">
+    <% [:link1, :link2, :link3].collect do |link| %>
+      <% if valid_link = @playlist.send(link) %>
+        <% if external_link_for(valid_link) %>
+        <li>
+          <%= external_link_for(valid_link) %>
+        </li>
+        <% end %>
+      <% end %>
+    <% end %>
+  </ul>
+</div>
+

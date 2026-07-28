@@ -1,0 +1,149 @@
+<%= turbo_refreshes_with method: :morph, scroll: :preserve %>
+
+<%= render Viral::PageHeaderComponent.new(title: @group.name, id: @group.puid) do |component| %>
+  <%= component.icon do %>
+    <%= viral_avatar(
+      name: @group.name,
+      colour_string: "#{@group.name}-#{@group.id}",
+      size: :large,
+    ) %>
+  <% end %>
+
+  <%= component.with_buttons do %>
+    <% if @allowed_to[:create_subgroup_or_project] %>
+      <%= link_to t(:"groups.show.create_subgroup_button"),
+      new_group_path(parent_id: @group.id),
+      class: "button button-default" %>
+      <%= link_to t(:"groups.show.create_project_button"),
+      new_project_path(group_id: @group.id),
+      class: "button button-primary" %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<div class="container mx-auto">
+  <%# Header with group context (always visible at top) %>
+  <div class="sr-only" aria-live="polite"><%= t(:"groups.show.screen_reader_context", group_name: @group.name) %></div>
+
+  <%# Main dashboard grid - stacked layout %>
+  <div class="grid min-h-0 grid-cols-1 gap-6">
+    <%# Information Section %>
+    <section aria-labelledby="groups-dashboard-info-title" class="flex min-h-0 flex-col">
+      <div class="flex flex-col rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
+        <header class="mb-6">
+          <h2
+            id="groups-dashboard-info-title"
+            class="flex items-start gap-3 text-xl font-semibold text-slate-900 dark:text-white"
+          >
+            <span
+              aria-hidden="true"
+              class="flex items-center justify-center rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30"
+            >
+              <%= icon(:info, class: "h-5 w-5 text-indigo-600 dark:text-indigo-400") %>
+            </span>
+
+            <%= t(:"groups.show.information.title") %>
+          </h2>
+        </header>
+
+        <div class="flex-1"><%= render GroupsDashboard::InformationComponent.new(group: @group) %></div>
+      </div>
+    </section>
+
+    <%# Main Content Section %>
+    <section class="flex min-h-0 flex-col">
+      <div
+        class="
+          flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700
+          dark:bg-slate-800
+        "
+      >
+        <div class="min-h-0 flex-1">
+          <%= render Pathogen::Tabs.new(
+            id: "groups-show-tabs",
+            label: t("groups.show.tabs.label"),
+            default_index: @tab_index,
+            sync_url: true
+          ) do |tabs| %>
+            <% tabs.with_tab(
+              id: "subgroups_and_projects_tab",
+              label: t("groups.show.tabs.subgroups_and_projects"),
+              selected: @tab == "subgroups_and_projects",
+            ) %>
+
+            <% tabs.with_tab(
+              id: "shared_namespaces_tab",
+              label: t("groups.show.tabs.shared_namespaces"),
+              selected: @tab == "shared_namespaces",
+            ) %>
+
+            <% tabs.with_lazy_panel(
+              id: "subgroups_and_projects_panel",
+              tab_id: "subgroups_and_projects_tab",
+              frame_id: "subgroups_and_projects_content",
+              src_path: group_path(@group),
+              selected: @tab == "subgroups_and_projects"
+            ) do %>
+              <% if @has_namespaces %>
+                <div class="mb-2 flex justify-end">
+                  <%= render SearchComponent.new(
+                    query: @q,
+                    url: group_path(@group),
+                    search_attribute: :name_or_puid_cont,
+                    label: t("common.controls.search"),
+                    placeholder: t("groups.show.search.placeholder"),
+                    total_count: @pagy.count,
+                    class: "max-sm:grow",
+                    value: @q.name_or_puid_cont,
+                    data: {
+                    },
+                    as: :subgroups_and_projects_q,
+                  ) %>
+                </div>
+              <% end %>
+
+              <%= render "groups/subgroups_and_projects",
+              locals: {
+                namespaces: @namespaces,
+                has_namespaces: @has_namespaces,
+              } %>
+            <% end %>
+
+            <% tabs.with_lazy_panel(
+              id: "shared_namespaces_panel",
+              tab_id: "shared_namespaces_tab",
+              frame_id: "shared_namespaces_content",
+              src_path: group_path(@group, tab: "shared_namespaces"),
+              selected: @tab == "shared_namespaces"
+            ) do %>
+              <% if @has_namespaces %>
+                <div class="mb-2 flex justify-end">
+                  <%= render SearchComponent.new(
+                    query: @q,
+                    url: group_path(@group),
+                    search_attribute: :name_or_puid_cont,
+                    label: t('common.controls.search'),
+                    placeholder: t("groups.show.search.placeholder"),
+                    total_count: @pagy.count,
+                    class: "max-sm:grow",
+                    value: @q.name_or_puid_cont,
+                    data: {},
+                    as: :shared_namespaces_q
+                  ) do %>
+                    <input type="hidden" name="tab" value="shared_namespaces">
+                  <% end %>
+                </div>
+              <% end %>
+
+              <%= render "groups/shared_namespaces",
+              locals: {
+                namespaces: @namespaces,
+                has_namespaces: @has_namespaces,
+              } %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

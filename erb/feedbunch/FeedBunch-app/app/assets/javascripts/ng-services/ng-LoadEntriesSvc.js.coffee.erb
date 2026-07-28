@@ -1,0 +1,222 @@
+########################################################
+# AngularJS service to read entries in a feed or folder
+########################################################
+
+angular.module('feedbunch').service 'loadEntriesSvc',
+['$rootScope', '$timeout', 'csrfTokenSvc', 'timerFlagSvc', 'openFolderSvc',
+'entriesPaginationSvc', 'openEntrySvc', 'feedsFoldersTimerSvc', 'favicoSvc', 'lazyLoadingSvc', 'startPageSvc',
+'findSvc', 'changeUnreadCountSvc', 'highlightedEntrySvc',
+($rootScope, $timeout, csrfTokenSvc, timerFlagSvc, openFolderSvc,
+entriesPaginationSvc, openEntrySvc, feedsFoldersTimerSvc, favicoSvc, lazyLoadingSvc, startPageSvc,
+findSvc, changeUnreadCountSvc, highlightedEntrySvc)->
+
+  # Maximum number of entries in each page.
+  # This MUST match the entries page size set in the server!
+  entries_page_size = 25
+
+  # Constants for the different operations the web worker can perform
+  LOAD_FEED_ENTRIES = 'load_feed_entries'
+  LOAD_FOLDER_ENTRIES = 'load_folder_entries'
+
+  # CSRF token
+  token = csrfTokenSvc.get_token()
+
+  # Web worker to load entries
+  worker = new Worker '<%= asset_path 'workers/load_entries_worker' %>'
+  worker.onmessage = (e) ->
+    if e.data.status == 200 || e.data.status == 304
+      if e.data.operation == LOAD_FEED_ENTRIES
+        feed_entries_loaded e.data.params, e.data.response
+      else if e.data.operation == LOAD_FOLDER_ENTRIES
+        folder_entries_loaded e.data.params, e.data.response
+    else if e.data.status == 401 || e.data.status == 422
+      $window.location.href = '/login'
+    else
+      if e.data.operation == LOAD_FEED_ENTRIES
+        feed_entries_loading_error e.data.params, e.data.status
+      else if e.data.operation == LOAD_FOLDER_ENTRIES
+        folder_entries_loading_error e.data.params, e.data.status
+    $rootScope.$digest()
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Operations after entries of a feed have been loaded
+  #--------------------------------------------
+  feed_entries_loaded = (params, response)->
+    # Check that the entries received are the expected ones
+    # If receiving the first page of entries, entries list must be empty. This ensures that the first page of entries
+    # appears only once even if the user clicks rapidly on the feed link.
+    page = entriesPaginationSvc.get_entries_page()
+    if $rootScope.current_feed?.id == params.feed_id && page == params.page && (page != 1 || $rootScope.entries.length == 0)
+      entriesPaginationSvc.set_busy false
+
+      # If entries list is empty, populate it with received entries and highlight first entry.
+      # Otherwise concatenate the received page of entries to the list of entries.
+      if !$rootScope.entries || $rootScope.entries?.length == 0
+        $rootScope.entries = response.slice()
+        highlightedEntrySvc.reset()
+      else
+        $rootScope.entries = $rootScope.entries.concat response.slice()
+
+      # Set correct state (open or closed) for new entries, based on user configuration
+      openEntrySvc.add_entries response.slice()
+
+      # If the user has selected the "open all entries by default" option, lazy load images
+      if $rootScope.open_all_entries
+        $timeout ->
+          lazyLoadingSvc.load_viewport_images()
+        , 250
+
+      feed = findSvc.find_feed params.feed_id
+      # If less than a full page of entries is received, this is the last page of entries available.
+      if response.length < entries_page_size
+        entriesPaginationSvc.set_more_entries_available false
+        correct_feed_unread_counts feed
+      else if entriesPaginationSvc.is_first_page()
+        # After loading the first page of entries, load a second one to ensure the list is fully populated
+        load_feed_entries feed
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Operations after loading entries from a single feed finishes with an error
+  #--------------------------------------------
+  feed_entries_loading_error = (params, status)->
+    entriesPaginationSvc.set_busy false
+    entriesPaginationSvc.set_more_entries_available false
+    if status == 404
+      feed = findSvc.find_feed params.feed_id
+      correct_feed_unread_counts feed
+      if entriesPaginationSvc.is_first_page()
+        entriesPaginationSvc.set_error_no_entries true
+        feed.unread_entries = 0
+    else
+      startPageSvc.show_start_page()
+      timerFlagSvc.start 'error_loading_entries'
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Operations after entries of a folder have been loaded
+  #--------------------------------------------
+  folder_entries_loaded = (params, response)->
+    # Check that the entries received are the expected ones
+    # If receiving the first page of entries, entries list must be empty. This ensures that the first page of entries
+    # appears only once even if the user clicks rapidly on the folder link.
+    page = entriesPaginationSvc.get_entries_page()
+    if $rootScope.current_folder?.id == params.folder_id && page == params.page && (page != 1 || $rootScope.entries.length == 0)
+
+      entriesPaginationSvc.set_busy false
+
+      # If entries list is empty, populate it with received entries and highlight first entry.
+      # Otherwise concatenate the received page of entries to the list of entries.
+      if !$rootScope.entries || $rootScope.entries?.length == 0
+        $rootScope.entries = response.slice()
+        highlightedEntrySvc.reset()
+      else
+        $rootScope.entries = $rootScope.entries.concat response.slice()
+
+      # Set correct state (open or closed) for new entries, based on user configuration
+      openEntrySvc.add_entries response.slice()
+
+      # If the user has selected the "open all entries by default" option, lazy load images
+      if $rootScope.open_all_entries
+        $timeout ->
+          lazyLoadingSvc.load_viewport_images()
+        , 250
+
+      folder = findSvc.find_folder params.folder_id
+      # If less than a full page of entries is received, this is the last page of entries available.
+      if response.length < entries_page_size
+        entriesPaginationSvc.set_more_entries_available false
+        correct_folder_unread_counts folder
+      else if entriesPaginationSvc.is_first_page()
+        # After loading the first page of entries, load a second one to ensure the list is fully populated
+        load_folder_entries folder
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Operations after loading entries from a folder finishes with an error
+  #--------------------------------------------
+  folder_entries_loading_error = (params, status)->
+    entriesPaginationSvc.set_busy false
+    entriesPaginationSvc.set_more_entries_available false
+    if status == 404
+      folder = findSvc.find_folder params.folder_id
+      correct_folder_unread_counts folder
+      if entriesPaginationSvc.is_first_page()
+        entriesPaginationSvc.set_error_no_entries true
+    else
+      startPageSvc.show_start_page()
+      timerFlagSvc.start 'error_loading_entries'
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Validations and setup that runs every time entries are loaded.
+  # Returns true if the load process can continue, false if it must be cancelled.
+  #--------------------------------------------
+  load_entries_setup = ->
+    # If a 404 has been received in a previous page (no more entries available), do nothing
+    return false if !entriesPaginationSvc.more_entries_available()
+
+    # Reset the timer that updates feeds every minute
+    feedsFoldersTimerSvc.reset_refresh_timer()
+    # Increment the results page
+    entriesPaginationSvc.increment_entries_page()
+    # Indicate that AJAX request/response cycle is busy so no more calls are done until finished
+    entriesPaginationSvc.set_busy true
+
+    return true
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Load entries in the feed passed as argument.
+  #--------------------------------------------
+  load_feed_entries = (feed)->
+    return if load_entries_setup() == false
+
+    url = "/api/feeds/#{feed.id}/entries.json"
+    worker.postMessage {operation: LOAD_FEED_ENTRIES, token: token, feed_id: feed.id, include_read: $rootScope.show_read, page: entriesPaginationSvc.get_entries_page()}
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: After all entries in a feed have been received, set the unread count for the feed
+  # to the number of unread entries actually present.
+  #--------------------------------------------
+  correct_feed_unread_counts = (feed)->
+    entries = findSvc.find_feed_unread_entries feed
+    if entries
+      changeUnreadCountSvc.set_feed_count feed, entries.length
+    else
+      changeUnreadCountSvc.set_feed_count feed, 0
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: Load entries in the folder passed as argument.
+  #--------------------------------------------
+  load_folder_entries = (folder)->
+    return if load_entries_setup() == false
+
+    url = "/api/folders/#{folder.id}/entries.json"
+    worker.postMessage {operation: LOAD_FOLDER_ENTRIES, token: token, folder_id: folder.id, include_read: $rootScope.show_read, page: entriesPaginationSvc.get_entries_page()}
+
+  #--------------------------------------------
+  # PRIVATE FUNCTION: After retrieving entries in a folder, set to zero the unread count of
+  # feeds for which no entries have been received.
+  #--------------------------------------------
+  correct_folder_unread_counts = (folder)->
+    feeds = findSvc.find_folder_feeds folder
+    if feeds && feeds?.length > 0
+      for f in feeds
+        correct_feed_unread_counts f
+
+  service =
+
+    #---------------------------------------------
+    # Load a page of entries for the currently selected feed or folder
+    #---------------------------------------------
+    read_entries_page: ->
+      # The fill block is reset to zero height on each entries page load. This fill block is only
+      # necessary for the autoscroll when opening an entry to work correctly (positioning the open entry at the top of
+      # the list), the rest of the time its height should be zero.
+      $('#entries-fill-block').height 0
+
+      current_feed = $rootScope.current_feed
+      current_folder = $rootScope.current_folder
+      if current_feed
+        load_feed_entries current_feed
+      else if current_folder
+        load_folder_entries current_folder
+
+  return service
+]

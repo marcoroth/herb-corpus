@@ -1,0 +1,167 @@
+<%=
+  helpers.content_controller "poll-for-changes",
+                             poll_for_changes_url_value: check_for_updates_project_meeting_path(@meeting.project, @meeting),
+                             poll_for_changes_interval_value: check_for_updates_interval
+  helpers.body_controller "keep-scroll-position"
+
+  component_wrapper do
+    render(
+      Primer::OpenProject::PageHeader.new(
+        test_selector: "meeting-page-header",
+        state: @state,
+        data: page_header_data_attributes
+      )
+    ) do |header|
+      header.with_title do |title|
+        title.with_editable_form(
+          model: @meeting,
+          update_path: update_title_project_meeting_path(@project, @meeting),
+          cancel_path: cancel_edit_project_meeting_path(@project, @meeting),
+          label: Meeting.human_attribute_name(:title),
+          placeholder: Meeting.human_attribute_name(:title)
+        )
+        if @meeting.template?
+          "#{@meeting.title} (#{I18n.t(:label_template)})"
+        elsif @series.present?
+          concat render(Primer::Beta::Text.new) { @meeting.title }
+          concat render(Primer::Beta::Text.new(color: :subtle)) { " (#{format_date(@meeting.start_time)})" }
+        else
+          @meeting.title
+        end
+      end
+      header.with_breadcrumbs(breadcrumb_items)
+      header.with_description(underlined_links: false) { render(Meetings::HeaderInfolineComponent.new(@meeting)) }
+      if finish_setup_enabled?
+        header.with_action_button(**action_button_params) do |button|
+          button.with_leading_visual_icon(icon: :check)
+          action_button_label
+        end
+      end
+
+      if create_from_template_enabled?
+        header.with_action_button(**create_from_template_button_params) do |button|
+          button.with_leading_visual_icon(icon: :plus)
+          I18n.t("label_meeting")
+        end
+      end
+
+      if can_start_presentation?
+        header.with_action_button(
+          tag: :a,
+          scheme: :secondary,
+          mobile_label: I18n.t("meeting.presentation_mode.button_present"),
+          mobile_icon: :play,
+          size: :medium,
+          data: { turbo_method: :post },
+          href: start_project_meeting_presentation_path(@project, @meeting)
+        ) do |button|
+          button.with_leading_visual_icon(icon: :play)
+          I18n.t("meeting.presentation_mode.button_present")
+        end
+      end
+
+      header.with_action_menu(
+        menu_arguments: {},
+        button_arguments: { icon: "kebab-horizontal",
+                            "aria-label": t("label_meeting_actions"),
+                            classes: "hide-when-print",
+                            test_selector: "op-meetings-header-action-trigger" }
+      ) do |menu|
+        if @meeting.editable? && !@series
+          menu.with_item(
+            label: edit_label,
+            href: edit_project_meeting_path(@project, @meeting),
+            content_arguments: {
+              data: { "turbo-stream": true }
+            }
+          ) do |item|
+            item.with_leading_visual_icon(icon: :pencil)
+          end
+        end
+
+        unless @meeting.template?
+          if copy_enabled?
+            menu.with_item(
+              label: copy_label,
+              href: copy_project_meeting_path(@project, @meeting),
+              content_arguments: {
+                data: { turbo_stream: true }
+              }
+            ) do |item|
+              item.with_leading_visual_icon(icon: :duplicate)
+            end
+          end
+
+          menu.with_item(
+            label: t(:label_icalendar_download),
+            href: ics_download_path
+          ) do |item|
+            item.with_leading_visual_icon(icon: :download)
+          end
+
+          if send_emails?
+            menu.with_item(
+              label: t("meeting.label_mail_all_participants"),
+              href: notify_project_meeting_path(@project, @meeting),
+              form_arguments: { method: :post, data: { turbo: "false" } }
+            ) do |item|
+              item.with_leading_visual_icon(icon: :mail)
+            end
+          end
+
+          menu.with_item(
+            label: t("meeting.label_export_pdf"),
+            tag: :a,
+            href: generate_pdf_dialog_project_meeting_path(@project, @meeting),
+            content_arguments: {
+              "data-controller": "async-dialog"
+            },
+            value: ""
+          ) do |item|
+            item.with_leading_visual_icon(icon: :"op-pdf")
+          end
+        end
+
+        menu.with_item(
+          label: t(:label_history),
+          tag: :a,
+          href: history_project_meeting_path(@project, @meeting),
+          content_arguments: {
+            "data-controller": "async-dialog"
+          },
+          value: ""
+        ) do |item|
+          item.with_leading_visual_icon(icon: :clock) # or :check TBD
+        end
+
+        if delete_enabled?
+          menu.with_item(
+            label: delete_label,
+            scheme: :danger,
+            href: delete_dialog_project_meeting_path(@project, @meeting),
+            tag: :a,
+            content_arguments: {
+              data: { controller: "async-dialog" }
+            }
+          ) do |item|
+            item.with_leading_visual_icon(icon: :trash)
+          end
+        end
+
+        if delete_series_enabled?
+          menu.with_item(
+            label: I18n.t(:label_recurring_meeting_series_delete),
+            href: delete_dialog_project_recurring_meeting_path(@project, @meeting.recurring_meeting),
+            scheme: :danger,
+            tag: :a,
+            content_arguments: {
+              data: { controller: "async-dialog" }
+            }
+          ) do |item|
+            item.with_leading_visual_icon(icon: :trash)
+          end
+        end
+      end
+    end
+  end
+%>

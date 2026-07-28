@@ -1,0 +1,84 @@
+<div id="existing_image_area" class="dialog_area" <%= 'style="display:none;"'.html_safe if @image.errors.any? %>>
+  <%= render '/refinery/admin/search', :url => refinery.insert_admin_images_path(params.to_unsafe_h.dup.except('image')) %>
+  <input type="hidden" name="selected_image" id="selected_image" />
+  <div id="existing_image_area_content" class="clearfix">
+    <% if @images.any? %>
+      <ul class="clearfix">
+        <% @images.each do |image| -%>
+          <%= content_tag :li, class: ('selected' if @image_id == image.id) do %>
+            <%= image_fu(image, '106x106#c',
+              alt: image.title,
+              title: image.title,
+              id: dom_id(image),
+              data: {
+                id: image.id,
+                **thumbnail_urls(image)[:data]
+              })-%>
+
+            <% if image.crops.any? %>
+              <div class="crops">
+                <ul class="clearfix">
+                  <% image.crops.each do |crop| %>
+                    <%= content_tag :li, class: ('selected' if @image_id == image.id) do %>
+                      <%= image_fu(crop, '106x106>',
+                          alt: crop.parent.alt,
+                          title: crop.parent.title,
+                          id: "image_#{crop.id}",
+                          data: {
+                            id: crop.id,
+                            **thumbnail_urls(crop)[:data]
+                          }) %>
+                    <% end %>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+          <% end %>
+        <% end %>
+      </ul>
+    <% elsif searching? %>
+      <%= t('no_results', :scope => 'refinery.admin.search') %>
+    <% end %>
+  </div>
+
+  <%= will_paginate @images, :params => params.to_unsafe_h.dup.merge(:action => "insert") %>
+
+  <div id="existing_image_area_crops" class="clearfix"></div>
+
+  <% unless @app_dialog or @images.empty? %>
+    <div id="existing_image_size_area" class="clearfix">
+      <input type="hidden" name="selected_image_size" id="selected_image_size" />
+      <p>
+        <input type="checkbox" id="wants_to_resize_image" name="wants_to_resize_image" value="1" checked="checked" />
+        <label for="wants_to_resize_image" class="stripped" style="font-weight: bold;">
+          <%= t('.resize_image') %>
+        </label>
+      </p>
+
+      <%= select :resize, nil, nil, { prompt: t('.select_resize') }, { id: 'resize'} do %>
+        <%
+          Refinery::Images.user_image_sizes.sort_by { |key, geometry| geometry.to_i }.each_with_index do |(size, pixels), index|
+            safe_pixels = pixels.to_s.gsub(/[<>=]/, '')
+            # (parndt): ' selected' if size.to_s == 'medium' is not very generic, but I
+            # can't think of a decent way of making it so for even sets (e.g. 2,4,6,8,etc image sizes).
+        %>
+          <%= content_tag :option,
+                          "#{size} image (#{safe_pixels})",
+                          value: size.to_s.parameterize,
+                          id: "image_dialog_size_#{index}",
+                          data: { geometry: pixels, size: size.to_s.parameterize },
+                          selected: (true if size.to_s == 'medium')
+          %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= render '/refinery/admin/form_actions', :f => nil,
+             :cancel_url => '',
+             :submit_button_text => t('.button_text'),
+             :hide_submit => @images.empty?,
+             :hide_cancel => false,
+             :hide_delete => true,
+             :cancel_title => nil if @app_dialog or @images.any? or searching? %>
+</div>

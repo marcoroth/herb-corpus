@@ -1,0 +1,81 @@
+<% content_for :head do %>
+  <%= javascript_tag nonce: true do %>
+    document.addEventListener('DOMContentLoaded', () => {
+      <% if @assignment.is_peer_review? %>
+        window.submissionTable = makePeerReviewTable(document.getElementById('submission-table'),
+          {
+            assignment_id: <%= @assignment.id %>,
+            course_id: <%= @current_course.id %>,
+            can_manage: <%= allowed_to? :manage? %>,
+          }
+        );
+      <% else %>
+        window.submissionTable = makeSubmissionTable(document.getElementById('submission-table'),
+          {
+            assignment_id: <%= @assignment.id %>,
+            course_id: <%= @current_course.id %>,
+            show_grace_tokens: <%= @assignment.submission_rule.type == 'GracePeriodSubmissionRule' %>,
+            show_sections: <%= @current_course.sections.exists? %>,
+            is_timed: <%= @assignment.is_timed %>,
+            is_scanned_exam: <%= @assignment.scanned_exam? %>,
+            release_with_urls: <%= @assignment.release_with_urls %>,
+            can_collect: <%= allowed_to? :manage? %>,
+            can_view_assigned_submissions_only: <%= @current_role.ta? && allowed_to?(:manage?) %>,
+            initial_show_assigned_submissions_only: <%= @current_role.ta? %>,
+            can_run_tests: <%= allowed_to?(:view_test_options?, @assignment) %>,
+            defaultFiltered: [{ id: '<%= params[:filter_by] %>', value: '<%= params[:filter_value] %>' }]
+          }
+        );
+      <% end %>
+    });
+  <% end %>
+<% end %>
+
+<% content_for :title do %>
+  <% if @assignment.is_peer_review? %>
+    <%= PeerReview.model_name.human.pluralize %>: <%= sanitize(@assignment.parent_assignment.short_identifier) %>
+  <% else %>
+    <%= "#{Submission.model_name.human.pluralize}: #{sanitize(@assignment.short_identifier)}" %>
+  <% end %>
+  <div class='title-help'>
+    <p>
+      <% if @current_role.ta? %>
+        <%= t('submissions.help.browse.tas') %>
+      <% else %>
+        <%= t('submissions.help.browse.instructors') %>
+      <% end %>
+    </p>
+  </div>
+<% end %>
+
+<% @heading_buttons = [] %>
+
+<% unless @assignment.is_peer_review? %>
+  <% if @current_role.instructor? %>
+    <% @heading_buttons += [
+      { link_text: t('submissions.repo_list'),
+        link_path: download_repo_list_course_assignment_submissions_path(@current_course, @assignment)},
+      { link_text: t('submissions.repo_checkout_file', type: 'HTTPS'),
+        link_path: download_repo_checkout_commands_course_assignment_submissions_path(@current_course, @assignment, url_type: :https)}
+    ] %>
+    <% if allowed_to?(:view?, with: KeyPairPolicy)
+      @heading_buttons += [
+        { link_text: t('submissions.repo_checkout_file', type: 'SSH'),
+          link_path: download_repo_checkout_commands_course_assignment_submissions_path(@current_course, @assignment, url_type: :ssh)}
+      ]
+      end %>
+    <% @heading_buttons += [{ link_text: t('submissions.submission_summary'),
+                              link_path: download_summary_course_assignment_submissions_path(@current_course, @assignment) }] %>
+  <% end %>
+<% end %>
+
+<% content_for :additional_headings do %>
+  <% if @current_role.ta? %>
+    <span class='menu_bar'></span>
+    <%= t('submissions.how_many_marked_in_collected',
+          num_marked: @assignment.get_num_marked(@current_role.id),
+          num_collected: @assignment.get_num_collected(@current_role.id)) %>
+  <% end %>
+<% end %>
+
+<div id='submission-table'></div>

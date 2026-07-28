@@ -1,0 +1,144 @@
+<%# -- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++# %>
+
+<%=
+  render(
+    OpPrimer::BorderBoxTableComponent::InternalBoxComponent.new(
+      id: container_id,
+      classes: container_class,
+      role: :table,
+      aria: { label: mobile_title, colcount: column_count },
+      list_arguments: { tag: :div, role: :rowgroup },
+      test_selector:
+    )
+  ) do |component|
+%>
+  <% component.with_header(role: :rowgroup) do %>
+    <%=
+      render(
+        Primer::BaseComponent.new(
+          tag: :div,
+          color: :muted,
+          classes: [grid_class, "#{grid_class}--has-mobile-header"],
+          role: :row
+        )
+      ) do
+        render(
+          Primer::Beta::Text.new(
+            classes: "#{grid_class}__mobile-header",
+            font_weight: :semibold,
+            role: :columnheader,
+            aria: { colspan: column_count }
+          )
+        ) { mobile_title }
+      end
+    %>
+    <%=
+      render(
+        Primer::BaseComponent.new(
+          tag: :div,
+          color: :muted,
+          classes: [grid_class, "#{grid_class}--has-headers"],
+          role: :row
+        )
+      ) do
+    %>
+      <% headers.each.with_index do |(name, args), index| %>
+        <%=
+          render(
+            Primer::Beta::Text.new(
+              classes: header_classes(name),
+              font_weight: :semibold,
+              role: :columnheader,
+              aria: { colindex: index + 1 }
+            )
+          ) { args[:caption] }
+        %>
+      <% end %>
+
+      <% if has_actions? %>
+        <%=
+          render(
+            Primer::BaseComponent.new(
+              classes: header_action_class,
+              tag: :span,
+              role: :columnheader,
+              aria: { colindex: column_count }
+            )
+          ) do
+        %>
+          <%= render(Primer::Beta::Text.new(classes: "sr-only")) { t(:label_actions) } %>
+          <%= action_row_header_content %>
+        <% end %>
+      <% end %>
+    <% end %>
+   <% end %>
+
+  <% if rows.empty? %>
+    <%
+      component.with_row(scheme: :default, tag: :div, role: :row) do
+        render(Primer::BaseComponent.new(tag: :div, role: :cell, aria: { colspan: column_count })) do
+          render_blank_slate
+        end
+      end
+    %>
+  <% else %>
+    <%
+      rows.each do |row|
+        row_instance = row_class.new(row: row, table: self)
+        component.with_row(
+          scheme: row_instance.scheme,
+          tag: :div,
+          id: row_instance.row_css_id,
+          classes: [grid_class, row_instance.row_css_class],
+          data: row_instance.row_data,
+          role: :row
+        ) do
+          render(row_instance)
+        end
+      end
+    %>
+  <% end %>
+
+    <% if has_footer? %>
+      <%
+        component.with_footer(role: :rowgroup) do
+          render(Primer::BaseComponent.new(tag: :div, color: :muted, classes: grid_class, role: :row)) do
+            render(Primer::BaseComponent.new(tag: :div, role: :cell, aria: { colspan: column_count })) do
+              footer
+            end
+          end
+        end
+      %>
+    <% end %>
+  <% end %>
+
+<% if paginated? %>
+  <%= helpers.pagination_links_full rows, **pagination_params %>
+<% end %>

@@ -1,0 +1,90 @@
+<% environment = GovukPublishingComponents::AppHelpers::Environment.current_acceptance_environment %>
+
+<% content_for :head do %>
+  <meta name="govuk:components_gem_version" content="<%= GovukPublishingComponents::VERSION %>">
+  <meta name="govuk:user-id" content="<%= current_user&.anonymous_user_id %>">
+  <meta name="govuk:user-created-at" content="<%= current_user&.created_at&.to_date %>">
+  <meta name="govuk:user-organisation-name" content="<%= current_user&.gds_editor? ? "Government Digital Service" : "nil" %>">
+  <meta name="govuk:user-role" content="<%= current_user&.role %>">
+  <meta name="govuk:format" content="<%= "#{action_name}-#{controller_name}" %>">
+  <meta name="govuk:content-id" content=<%= @edition.present? ? "#{@edition.id}" : "nil" %>>
+  <%= javascript_include_tag "domain-config" %>
+  <%= javascript_include_tag "govuk_publishing_components/load-analytics" %>
+  <%= javascript_include_tag "es6-components", type: "module" %>
+<% end %>
+
+<% sanitized_title = sanitize((yield(:page_title).presence || yield(:title))) %>
+
+<%= render "govuk_publishing_components/components/layout_for_admin", {
+  product_title: "Publisher",
+  browser_title: yield(:page_title),
+  environment: environment,
+  head: yield(:head),
+} do %>
+
+  <div data-module="ga4-page-view-tracking" data-attributes='<%= track_analytics_data_on_load(sanitized_title) %>'></div>
+
+  <%#= render partial: "/shared/maintenance_banner" %>
+
+  <%= render "govuk_publishing_components/components/skip_link" %>
+
+  <%= render "govuk_publishing_components/components/layout_header", {
+    product_name: "Publisher",
+    environment: environment,
+    navigation_items: navigation_items(is_editor: current_user.govuk_editor?, path: request.path, user_name: current_user.name),
+    data_attributes: {
+      module: "ga4-link-tracker",
+      ga4_link: '{ "event_name": "navigation", "type": "generic_link" }',
+      ga4_no_copy: true,
+    },
+  } %>
+
+  <div class="govuk-width-container">
+    <% if content_for?(:back_link) %>
+      <%= render "govuk_publishing_components/components/back_link", { href: yield(:back_link) } %>
+    <% end %>
+
+    <main
+      id="main-content"
+      class="govuk-main-wrapper govuk-main-wrapper--auto-spacing"
+      role="main"
+      data-module="ga4-form-setup ga4-index-section-setup ga4-event-tracker"
+      data-ga4-do-not-redact
+      data-ga4-no-copy="true"
+      data-ga4-tool-name="<%= @resource ? @resource.format.underscore.humanize : "Publisher" %>"
+    >
+      <%= render "shared/flash", flash: flash %>
+
+      <% if content_for?(:error_summary) %>
+        <div class="govuk-grid-row">
+          <div class="govuk-grid-column-two-thirds">
+            <%= yield(:error_summary) %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if yield(:title).present? %>
+        <div class="govuk-grid-row">
+          <div class="govuk-grid-column-two-thirds">
+            <%= render "govuk_publishing_components/components/heading", {
+              text: yield(:title),
+              context: yield(:title_context),
+              margin_bottom: 6,
+              font_size: "xl",
+              heading_level: 1,
+            } %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= yield %>
+    </main>
+  </div>
+
+  <%= render "govuk_publishing_components/components/layout_footer", {
+    navigation: footer_items(is_editor: current_user.govuk_editor?),
+    data_attributes: {
+      ga4_no_copy: true,
+    },
+  } %>
+<% end %>

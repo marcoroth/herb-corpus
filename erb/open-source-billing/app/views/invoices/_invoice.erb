@@ -1,0 +1,45 @@
+<%
+   no_record_message = t('views.invoices.no_invoice_msg')
+   if params[:status] == "archived" || @action == "recovered from archived" ||  @action == "deleted from archived"
+     no_record_message = t('views.invoices.no_archived_msg')
+   elsif params[:status] == "deleted" || @action == "recovered from deleted"
+     no_record_message = t('views.invoices.no_deleted_msg')
+   end
+%>
+<%= hidden_field_tag :direction, params[:direction] %>
+<%= hidden_field_tag :sort, params[:sort] %>
+<% if  @invoices.length > 0 %>
+    <% @invoices.each do |invoice| %>
+        <tr>
+          <td class="align_center">
+            <%= check_box_tag "invoice_ids[]", invoice.id, false, :id => "invoice_#{invoice.id}" %>
+          </td>
+          <td class="align_center">
+            <%= link_to(invoice.invoice_number, invoice_path(invoice), :class => "invoices_link #{'deleted_entry' if invoice.deleted?}") %>
+          </td>
+          <td class="align_left text-overflow-class" data-overflow-rows="2" ><%=  invoice.client.try(:organization_name).blank??  invoice.unscoped_client.try(:organization_name) : invoice.client.organization_name %></td>
+          <td class="align_right"><%= "#{number_to_currency(invoice.invoice_total, unit: invoice.currency.present? ? invoice.currency.code : "$")}" %></td>
+          <td class="align_center"><%= link_to invoice.invoice_date, "/invoices/preview?inv_id=#{invoice.encrypted_id}", :target => "_blank" rescue "" %></td>
+          <td class="align_center"><%= invoice.due_date rescue "" %></td>
+          <td class="align_center <%= invoice.status %>" title="<%= invoice.tooltip %>">
+            <span><%= invoice.status %></span></td>
+          <td class="align_center"> <span><%= invoice.inv_type %> </span> </td>
+          <td class="align_center">
+            <% if invoice.deleted_at.nil? and !invoice.invoice_type.eql?("ProjectInvoice") %>
+                <%= link_to t('.edit', :default => t("helpers.links.edit")),
+                            edit_invoice_path(invoice) %>
+            <% else %>
+                <%= link_to t('views.common.recover', :default => t("helpers.links.recover")),
+                            "javascript:;", class: "single-recover-link" if params[:status] == "deleted" %>
+            <% end %>
+          </td>
+        </tr>
+    <% end %>
+
+<% else %>
+    <tr>
+      <td colspan="8">
+        <div class="no_record_container"><%= no_record_message %></div>
+      </td>
+    </tr>
+<% end %>

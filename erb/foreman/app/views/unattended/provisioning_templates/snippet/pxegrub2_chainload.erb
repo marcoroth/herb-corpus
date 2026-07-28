@@ -1,0 +1,110 @@
+<%#
+kind: snippet
+name: pxegrub2_chainload
+model: ProvisioningTemplate
+snippet: true
+description: |
+  In Foreman's typical PXE workflow, managed hosts are configured to always boot from network and inventory build flag dictates if they should boot into installer (build is on) or boot from local drive (build is off). This template first tries to load different GRUB2 configuration files from local ESP, then to chainload EFI binaries from ESP.
+
+  This will only be needed when provisioned hosts are set to boot from network, typically EFI firmware implementations overrides boot order after new OS installation. This behavior can be set in EFI, or "efi_bootentry" host parameter can be set to "previous" to override boot order back to previous (network) setting. See efibootmgr_netboot snippet for more info.
+-%>
+<%
+  paths = [
+    '/EFI/Microsoft/boot/bootmgfw.efi'
+  ]
+  config_paths = [
+    '/EFI/fedora/grub.cfg',
+    '/EFI/redhat/grub.cfg',
+    '/EFI/centos/grub.cfg',
+    '/EFI/rocky/grub.cfg',
+    '/EFI/almalinux/grub.cfg',
+    '/EFI/debian/grub.cfg',
+    '/EFI/ubuntu/grub.cfg',
+    '/EFI/sles/grub.cfg',
+    '/EFI/opensuse/grub.cfg',
+  ]
+-%>
+insmod part_gpt
+insmod fat
+insmod chain
+
+echo "VMWare hosts with QuickBoot feature enabled may not find the local ESP"
+echo "partition due to not initializing all the EFI devices. To address this,"
+echo "use an up-to-date grub2 (*) version and include the "connectefi scsi" statement"
+echo "as provided below. If you're using an older grub2 version or"
+echo "the "connectefi" option isn't recognized by your grub2, grub2 will print a error"
+echo "like 'can't find command connectefi' but the boot process will continue."
+echo "For hosts, you can omit this by adding a (global) parameter to 'grub2-connectefi=false'."
+echo "For the default GRUB2 script, you can omit this by setting the"
+echo "default_connectefi_option below to 'false'."
+echo "Valid values of 'grub2-connectefi' parameter: false, scsi, pciroot"
+echo
+echo "Virtual or physical hosts using Software RAID for the ESP partition may try"
+echo "booting on the Software RAID, which will fail. To workaround, upgrade to the"
+echo "latest grub2 (*) and add "--efidisk-only" argument to the "search" command in"
+echo "the grub2_chainload template."
+echo
+echo "(*) grub2-efi-x64-2.02-122.el8 (upstream doesn't have the patches yet)"
+echo
+<%=
+  default_connectefi_option = 'scsi'
+  connectefi_option = @host ? host_param('grub2-connectefi', default_connectefi_option) : default_connectefi_option
+  connectefi_option = nil if connectefi_option == 'false'
+  "connectefi #{connectefi_option}" if connectefi_option
+%>
+
+menuentry 'Loading system from ESP' --id local {
+<%
+  config_paths.each do |config_path|
+-%>
+  echo "Trying <%= config_path %>"
+  unset chroot
+  # add --efidisk-only when using Software RAID
+  search --file --no-floppy --set=chroot <%= config_path %>
+  if [ -f ($chroot)<%= config_path %> ]; then
+    configfile ($chroot)<%= config_path %>
+  fi
+<%
+  end
+  paths.each do |path|
+-%>
+  echo "Trying <%= path %> "
+  unset chroot
+  # add --efidisk-only when using Software RAID
+  search --file --no-floppy --set=chroot <%= path %>
+  if [ -f ($chroot)<%= path %> ]; then
+    chainloader ($chroot)<%= path %>
+    echo "Found <%= path %> at $chroot, attempting to chainboot it..."
+    sleep 2
+    boot
+  fi
+<%
+  end
+-%>
+  echo "Partition with known EFI file not found, you may want to drop to grub shell"
+  echo "and investigate available files updating 'pxegrub2_chainload' template and"
+  echo "the list of known filepaths for probing. Available devices are:"
+  echo
+  ls
+  echo
+  echo "If you cannot see the HDD, make sure the drive is marked as bootable in EFI and"
+  echo "not hidden. Boot order must be the following:"
+  echo "1) NETWORK"
+  echo "2) HDD"
+  echo
+  echo "The system will poweroff in 2 minutes or press ESC to poweroff immediately."
+  sleep -i 120
+  halt
+}
+
+menuentry 'Chainload into BIOS bootloader on first disk' --id local_chain_legacy_hd0 {
+  set root=(hd0,0)
+  chainloader +1
+  boot
+}
+
+menuentry 'Chainload into BIOS bootloader on second disk' --id local_chain_legacy_hd1 {
+  set root=(hd1,0)
+  chainloader +1
+  boot
+}

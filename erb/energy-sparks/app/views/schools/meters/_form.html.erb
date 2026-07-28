@@ -1,0 +1,128 @@
+<p><%= t('schools.meters.form.title') %></p>
+<%= form_for [school, meter] do |form| %>
+  <%= render 'shared/errors', subject: meter, subject_name: 'meter' %>
+
+  <div class="form-group">
+    <%= form.label :mpan_mprn, t('schools.meters.form.meter_point_number') %>
+    <% if disabled_for_pseudo_meter?(meter) && current_user.admin? %>
+      <span class='badge text-bg-warning'>
+        <%= t('schools.meters.form.editing_disabled_for_pseudo_meters') %>
+      </span>
+    <% end %>
+    <%= form.text_field :mpan_mprn, class: 'form-control', disabled: disabled_for_pseudo_meter?(meter) %>
+  </div>
+  <div class="form-group">
+    <%= form.label :name, t('schools.meters.form.name') %>
+    <%= form.text_field :name, class: 'form-control' %>
+  </div>
+  <div class="form-group">
+    <%= form.label :meter_serial_number, t('schools.meters.form.serial_number') %>
+    <%= form.text_field :meter_serial_number, class: 'form-control' %>
+  </div>
+  <div class="form-group">
+    <%= form.label :meter_type, t('schools.meters.form.type') %>
+    <% if disabled_for_pseudo_meter?(meter) && current_user.admin? %>
+      <span class='badge text-bg-warning'>
+        <%= t('schools.meters.form.editing_disabled_for_pseudo_meters') %>
+      </span>
+    <% end %>
+    <% Meter::CREATABLE_METER_TYPES.each do |meter_type| %>
+      <div class="form-check">
+        <%= form.radio_button :meter_type, meter_type, class: 'form-check-input',
+                                                       disabled: disabled_for_pseudo_meter?(meter) %>
+        <%= form.label "meter_type_#{meter_type.to_sym}", t("schools.meters.creatable_meter_types.#{meter_type}"),
+                       class: 'form-check-label col-form-label-sm' %>
+      </div>
+    <% end %>
+  </div>
+
+  <% if current_user.admin? %>
+    <h3><%= t('schools.meters.show.admin_details') %></h3>
+
+    <div class="form-group">
+      <%= form.label :meter_system, t('schools.meters.form.meter_system') %>
+      <%= form.select(:meter_system, Meter.meter_systems.keys.map do |meter_system|
+                                       [I18n.t("meter.meter_system.#{meter_system}"), meter_system]
+                                     end, { include_blank: false }, class: 'form-control') %>
+    </div>
+    <div class="form-group">
+      <%= form.label :data_source_id, t('schools.meters.form.data_source') %>
+      <%= form.select(:data_source_id, DataSource.all.order(:name).collect do |d|
+                                         [d.name, d.id]
+                                       end, { include_blank: true }, class: 'form-control') %>
+    </div>
+    <div class="form-group">
+      <%= form.label :supplier_id, t('schools.meters.form.supplier') %>
+      <%= form.select(:supplier_id, Supplier.all.by_name.collect do |d|
+                                      [d.name, d.id]
+                                    end, { include_blank: true }, class: 'form-control') %>
+    </div>
+    <div class="form-group">
+      <%= form.label :procurement_route_id, t('schools.meters.form.procurement_route') %>
+      <%= form.select(:procurement_route_id, ProcurementRoute.all.order(:organisation_name).collect do |p|
+                                               [p.organisation_name, p.id]
+                                             end, { include_blank: true }, class: 'form-control') %>
+    </div>
+    <div class="form-group">
+      <%= form.label :admin_meter_status, 'Admin meter status' %>
+      <%= form.select(:admin_meter_statuses_id, AdminMeterStatus.all.order(:label).collect do |d|
+                                                  [d.label, d.id]
+                                                end, { include_blank: true }, class: 'form-control') %>
+    </div>
+    <div class="form-group">
+      <%= form.label :manual_reads, t('schools.meters.index.manual_reads') %>
+      <%= form.check_box :manual_reads %>
+    </div>
+    <div class="form-group">
+      <%= form.label(:gas_unit, 'Gas unit') %>
+      <%= form.select(:gas_unit, options_for_gas_unit, { include_blank: 'Not set' }, class: 'form-control') %>
+      <small class="form-text text-muted">For gas meters only.  Only applies if the feed config "convert to kwh"
+        field has been set to "meter" by developers.</small>
+    </div>
+
+  <% end %>
+
+  <% if show_dcc_fields %>
+    <h3><%= t('schools.meters.show.dcc_information') %></h3>
+    <div class="form-group">
+      <p class="alert alert-warning"><%= t('schools.meters.form.admin_only_features_for_n3rgy_integration') %></p>
+
+      <div class="form-group">
+        <%= form.label :dcc_meter, t('schools.meters.form.dcc_smart_meter') %>
+        <%= form.select(:dcc_meter, options_for_dcc_meters, { include_blank: false }, class: 'form-control') %>
+
+        <small class="form-text text-muted">
+          <%= t('schools.meters.form.leave_this_blank_message') %>
+        </small>
+      </div>
+    </div>
+
+    <h3>Perse Metering</h3>
+    <div class="form-group">
+      <div>
+        <%= form.label(:perse_api, 'Perse API') %>
+        <%= form.select(:perse_api, options_for_perse_api, { include_blank: true }, class: 'form-control') %>
+        <small class="form-text text-muted">Setting this will enable loading readings data from Perse</small>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="actions">
+    <% submit_label = if action_name == 'edit'
+                        t('schools.meters.form.update_meter')
+                      else
+                        t('schools.meters.form.create_meter')
+                      end %>
+    <%= form.submit submit_label, class: 'btn btn-primary' %>
+  </div>
+<% end %>
+
+<script>
+  const defaults = <%= meter_defaults_json(@school, 'meter_data_source_id', 'meter_procurement_route_id',
+                                           'meter_admin_meter_statuses_id') %>
+  $("input[type='radio'][name='meter[meter_type]']").change(function () {
+    defaults[$("input[type='radio'][name='meter[meter_type]']:checked").val()].forEach((item) => {
+      document.getElementById(item.id).value = item.value
+    })
+  })
+</script>

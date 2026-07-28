@@ -1,0 +1,159 @@
+<% content_for :title, "Edit Order #{@order.id}" %>
+
+<% content_for :content do %>
+  <%= render partial: "orders/order_row_template" %>
+
+  <input type="hidden" id="data-categories" data-value="<%= Category.to_json %>" />
+  <input type="hidden" id="data-organizations" data-value="<%= [@order.organization.to_json].to_json %>" />
+  <input type="hidden" id="data-order" data-value="<%= @order.to_json %>" />
+  <input type="hidden" id="data-valid-carriers" data-value="<%= TrackingDetail.valid_carriers.to_json %>" />
+
+  <div class="hidden-print">
+    <%# Used by allowedProgram guard to verify the organization has access to the items %>
+    <input type="hidden" id="order_organization_id" value="<%= @order.organization_id %>" />
+
+    <%= form_for @order, method: :patch, data: { live_guarded: true } do |f| %>
+      <h4>Status: <b><%= @order.status.titleize %></b></h4>
+      <%= render partial: "order_header", locals: { order: @order } %>
+      <% if @order.order_uneditable? %>
+        <%= render partial: "order_table", locals: { order: @order, include_sku: true } %>
+      <% else %>
+        <%= render partial: "editable_order_table" %>
+      <% end %>
+      <%= render partial: "order_survey_answers", locals: { order: @order } %>
+      <%= render partial: "order_buttons", locals: { order: @order } %>
+    <% end %>
+  </div>
+
+  <%# Printed Document %>
+  <div class="visible-print-block">
+    <div class="row">
+      <div class="col-xs-6">
+        <img width="250px" class="img-responsive" src="<%= path_to_image("header-logo.png") %>" />
+        <p>
+          <%= Rails.application.config.contact_street_address_line %><br/>
+          <%= Rails.application.config.contact_city_line %><br/>
+          Phone: <%= Rails.application.config.contact_phone %><br/>
+          Website: <%= Rails.application.config.external_site %>
+        </p>
+      </div>
+
+      <div class="col-xs-6">
+        <h2>PACKING SLIP</h2>
+        <p>Date: <%= Time.zone.now.strftime("%m/%d/%Y") %></p>
+        <p>Organization ID: <%= @order.unscoped_organization.id %></p>
+
+        <% if @order.submitted? %>
+          <p>Order Value: <%= number_to_currency(@order.value, precision: 2) %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-xs-6">
+        <h2>Ship To:</h2>
+        <p>
+          <%= @order.ship_to_name %><br/>
+          <%= @order.unscoped_organization.name %><br/>
+          <%= @order.ship_to_address %>
+        </p>
+      </div>
+
+      <% if @order.notes.present? %>
+        <div class="col-xs-6">
+          <h4>Notes:</h4>
+          <p><%= @order.notes %></p>
+        </div>
+      <% end %>
+    </div>
+
+    <div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Order Date</th>
+            <th>Order Number</th>
+            <th>Contact Name</th>
+            <th>Contact Number</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td><%= @order.order_date.strftime("%m/%d/%Y") %></td>
+            <td><%= @order.id %></td>
+            <td><%= @order.user.name %></td>
+            <td><%= @order.user.primary_number %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Item Description</th>
+            <th>Qty Requested</th>
+            <th>Qty Shipped</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <% @order.order_details.select(&:include_in_packing_slip?).each do |od| %>
+            <tr class="order-detail <%= order_detail_quantity_class(od) %>">
+              <td class="sku"><%= od.item.sku %></td>
+              <td class="description"><%= od.item.description %></td>
+              <td class="requested-quantity"><%= od.requested_quantity %></td>
+              <td class="quantity">
+                <%= od.quantity %>
+                <%= "*" if od.requested_differs_from_quantity? %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if @order.order_details.any?(&:requested_differs_from_quantity?) %>
+      <p>
+        <small>* Indicates quantity shipped differs from quantity requested.</small>
+      </p>
+    <% end %>
+
+    <div class="return-label avoid-page-break">
+      <div class="col-xs-8 col-xs-offset-2">
+        <h3>RETURN LABEL</h3>
+        <hr class="dashed" />
+      </div>
+
+      <div class="panel panel-default col-xs-8 col-xs-offset-2">
+        <div class="panel-body">
+          <div class="col-xs-12">
+            From:
+
+            <div class="from-address">
+              <%= @order.ship_to_name %><br/>
+              <%= @order.unscoped_organization.name %><br/>
+              <%= @order.ship_to_address %>
+            </div>
+          </div>
+          <div class="pull-right col-xs-8 col-xs-offset-4">
+            <h3>
+              To:
+
+              <div class="to-address">
+                Shipping &amp; Receiving<br />
+                ATTN: Order #<%= @order.id %><br />
+                <%= Rails.application.config.contact_street_address_line %><br />
+                <%= Rails.application.config.contact_city_line %><br />
+                Phone: <%= Rails.application.config.contact_phone %>
+              </div>
+            </h3>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>

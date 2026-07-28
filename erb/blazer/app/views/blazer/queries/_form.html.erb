@@ -1,0 +1,228 @@
+<% if @query.errors.any? %>
+  <div class="alert alert-danger"><%= @query.errors.full_messages.first %></div>
+<% end %>
+
+<% @variable_params = @query.persisted? ? variable_params(@query) : nested_variable_params(@query) %>
+
+<div id="app" class="hide">
+  <%= form_for @query, url: (@query.persisted? ? query_path(@query, params: @variable_params) : queries_path(params: @variable_params)), html: {autocomplete: "off"} do |f| %>
+    <div class="row">
+      <div id="statement-box" class="col-xs-8">
+        <div class= "form-group">
+          <%= f.hidden_field :statement %>
+          <div id="editor-container">
+            <div id="editor"><%= @query.statement %></div>
+          </div>
+        </div>
+        <div class="form-group text-right" style="margin-bottom: 8px;">
+          <div class="pull-left" style="margin-top: 8px;">
+            <%= link_to "Back", :back %>
+            <a id="docs-link" target="_blank" style="margin-left: 40px;">Docs</a>
+            <a id="schema-link" target="_blank" style="margin-left: 40px;">Schema</a>
+          </div>
+
+          <%= f.select :data_source, Blazer.data_sources.map { |_, ds| [ds.name, ds.id] }, {}, class: ("hide" if Blazer.data_sources.size <= 1), style: "width: 140px;" %>
+          <div id="tables" style="display: inline-block; width: 250px; margin-right: 10px;">
+            <select id="table_names" style="width: 240px;" placeholder="Preview table"></select>
+          </div>
+          <a id="run-button" class="btn btn-info" style="vertical-align: top; width: 70px;">Run</a>
+          <a id="cancel-button" class="btn btn-danger hide" style="vertical-align: top; width: 70px;">Cancel</a>
+        </div>
+      </div>
+      <div class="col-xs-4">
+        <div class="form-group">
+          <%= f.label :name %>
+          <%= f.text_field :name, class: "form-control" %>
+        </div>
+        <div class="form-group">
+          <%= f.label :description %>
+          <%= f.text_area :description, placeholder: "Optional", style: "height: 80px;", class: "form-control" %>
+        </div>
+        <div class="form-group text-right">
+          <%= f.submit "For Enter Press", class: "hide" %>
+          <% if @query.persisted? %>
+            <%= link_to "Delete", query_path(@query), method: :delete, "data-confirm" => "Are you sure?", class: "btn btn-danger" %>
+            <%= f.submit "Fork", class: "btn btn-info" %>
+          <% end %>
+          <%= f.submit @query.persisted? ? "Update" : "Create", class: "btn btn-success" %>
+        </div>
+        <% if @query.persisted? %>
+          <% dashboards_count = @query.dashboards.count %>
+          <% checks_count = @query.checks.count %>
+          <% words = [] %>
+          <% words << pluralize(dashboards_count, "dashboard") if dashboards_count > 0 %>
+          <% words << pluralize(checks_count, "check") if checks_count > 0 %>
+          <% if words.any? %>
+            <div class="alert alert-info">
+              Part of <%= words.to_sentence %>. Be careful when editing.
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div id="results">
+    <p id="loading" class="text-muted hide">Loading...</p>
+    <div id="results-html"></div>
+  </div>
+</div>
+
+<%= javascript_tag nonce: true do %>
+  <%= blazer_js_var "variableParams", @variable_params %>
+  <%= blazer_js_var "previewStatement", Blazer.data_sources.to_h { |k, v| [k, (v.preview_statement rescue "")] } %>
+
+  const app = document.getElementById("app")
+  const statement = document.getElementById("query_statement")
+  const docsLink = document.getElementById("docs-link")
+  const schemaLink = document.getElementById("schema-link")
+  const tableSelect = document.getElementById("table_names")
+  const dsSelect = document.getElementById("query_data_source")
+  const runButton = document.getElementById("run-button")
+  const cancelButton = document.getElementById("cancel-button")
+  const results = document.getElementById("results-html")
+  const loading = document.getElementById("loading")
+  let editor
+  let tablesXhr
+
+  function getSQL() {
+    const selectedText = editor.getSelectedText()
+    const text = selectedText.length < 10 ? editor.getValue() : selectedText
+    return text.replace(/\n/g, "\r\n")
+  }
+
+  function startRunning() {
+    hide(runButton)
+    results.replaceChildren()
+    results.classList.remove("query-error")
+    hide(results)
+    show(cancelButton)
+    show(loading)
+  }
+
+  function stopRunning() {
+    hide(cancelButton)
+    hide(loading)
+    show(runButton)
+    show(results)
+  }
+
+  function run(e) {
+    startRunning()
+    cancelAllQueries()
+
+    const runData = {statement: getSQL(), data_source: dsSelect.value, variables: variableParams}
+
+    runQuery(runData, function (data) {
+      stopRunning()
+      renderResults(results, data)
+    }, function (message) {
+      stopRunning()
+      results.classList.add("query-error")
+      results.textContent = message
+    })
+  }
+
+  function cancel(e) {
+    stopRunning()
+    cancelAllQueries()
+  }
+
+  function updateDataSource() {
+    const dataSource = dsSelect.value
+
+    docsLink.setAttribute("href", Routes.docs_queries_path({data_source: dataSource}))
+    schemaLink.setAttribute("href", Routes.schema_queries_path({data_source: dataSource}))
+
+    tableSelect.tomselect.clearOptions()
+
+    if (tablesXhr) {
+      tablesXhr.abort()
+    }
+
+    tablesXhr = new AbortController()
+
+    getJSON(Routes.tables_queries_path({data_source: dataSource}), function (data) {
+      const newOptions = []
+      for (const table of data) {
+        if (typeof table === "object") {
+          newOptions.push({text: table.table, value: table.value})
+        } else {
+          newOptions.push({text: table, value: table})
+        }
+      }
+      tableSelect.tomselect.clearOptions()
+      tableSelect.tomselect.addOption(newOptions)
+      tableSelect.tomselect.refreshOptions(false)
+    }, tablesXhr)
+  }
+
+  function adjustHeight() {
+    // https://stackoverflow.com/questions/11584061/
+    let lines = editor.getSession().getScreenLength()
+    if (lines < 9) {
+      lines = 9
+    }
+
+    editor.container.style.height = ((lines + 1) * 16).toString() + "px"
+    editor.resize()
+  }
+
+  function showEditor() {
+    editor = ace.edit("editor")
+    editor.setTheme("ace/theme/twilight")
+    editor.getSession().setMode("ace/mode/sql")
+    editor.setOptions({
+      enableBasicAutocompletion: false,
+      enableSnippets: false,
+      enableLiveAutocompletion: false,
+      highlightActiveLine: false,
+      fontSize: 12,
+      minLines: 10
+    })
+    editor.renderer.setShowGutter(true)
+    editor.renderer.setPrintMarginColumn(false)
+    editor.renderer.setPadding(10)
+    editor.getSession().setUseWrapMode(true)
+    editor.commands.addCommand({
+      name: "run",
+      bindKey: {win: "Ctrl-Enter",  mac: "Command-Enter"},
+      exec: function (editor) {
+        run()
+      },
+      readOnly: false // false if this command should not apply in readOnly mode
+    })
+    // fix command+L
+    editor.commands.removeCommands(["gotoline", "find"])
+
+    editor.getSession().on("change", function () {
+      statement.value = editor.getValue()
+      adjustHeight()
+    })
+    adjustHeight()
+    editor.focus()
+  }
+
+  runButton.addEventListener("click", run)
+  cancelButton.addEventListener("click", cancel)
+
+  new TomSelect(tableSelect, {
+    onChange: function (table) {
+      editor.setValue(previewStatement[dsSelect.value].replace("{table}", table), 1)
+      run()
+      this.clear(true)
+      this.blur()
+    }
+  })
+
+  new TomSelect(dsSelect, {
+    onChange: function() {
+      updateDataSource()
+      this.blur()
+    }
+  })
+
+  updateDataSource()
+  showEditor()
+  show(app)
+<% end %>

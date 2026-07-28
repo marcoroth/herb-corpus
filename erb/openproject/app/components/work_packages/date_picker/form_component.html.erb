@@ -1,0 +1,124 @@
+<%=
+  primer_form_with(
+    model: work_package,
+    url: submit_path,
+    id: form_id,
+    data: { "work-packages--date-picker--preview-target": "form" },
+    html: { autocomplete: "off" }
+  ) do |f|
+    flex_layout do |body|
+      body.with_row(mb: 3) do
+        flex_layout(classes: "wp-datepicker-dialog--form-block", align_items: :flex_end, justify_content: :space_between) do |first_row|
+          first_row.with_column do
+            render(Primer::Alpha::FormControl.new(label: I18n.t("work_packages.datepicker_modal.mode.title"))) do |component|
+              component.with_input do
+                render(
+                  Primer::Alpha::SegmentedControl.new(
+                    "aria-label": I18n.t("work_packages.datepicker_modal.mode.title"),
+                    test_selector: "op-datepicker-modal--scheduling"
+                  )
+                ) do |control|
+                  control.with_item(
+                    tag: :a,
+                    icon: :pin,
+                    href: dialog_content_with(schedule_manually: true),
+                    data: {
+                      qa_selected: schedule_manually
+                    },
+                    test_selector: "op-datepicker-modal--scheduling_manual",
+                    label: I18n.t("work_packages.datepicker_modal.mode.manual"),
+                    selected: schedule_manually
+                  )
+                  control.with_item(
+                    tag: :a,
+                    icon: "op-auto-date",
+                    href: dialog_content_with(schedule_manually: false),
+                    data: {
+                      qa_selected: !schedule_manually
+                    },
+                    test_selector: "op-datepicker-modal--scheduling_automatic",
+                    label: I18n.t("work_packages.datepicker_modal.mode.automatic"),
+                    selected: !schedule_manually
+                  )
+                end
+              end
+            end
+          end
+
+          if show_date_form
+            first_row.with_column(mb: 1) do
+              render(
+                Primer::Alpha::CheckBox.new(
+                  name: "work_package[ignore_non_working_days]",
+                  id: "work_package_ignore_non_working_days",
+                  label: I18n.t("work_packages.datepicker_modal.ignore_non_working_days.title"),
+                  checked: !work_package.ignore_non_working_days,
+                  disabled: disabled_checkbox?,
+                  test_selector: "op-datepicker-modal--ignore-non-working-days",
+                  value: 0,
+                  unchecked_value: 1,
+                  data: { "work-packages--date-picker--preview-target": "fieldInput",
+                          action: "work-packages--date-picker--preview#markFieldAsTouched " \
+                                  "work-packages--date-picker--preview#inputChanged " \
+                                  "work-packages--date-picker--preview#setIgnoreNonWorkingDays" }
+                )
+              )
+            end
+          end
+        end
+      end
+
+      if show_date_form
+        body.with_row(mb: 2) do
+          render(
+            WorkPackages::DatePicker::DateFormComponent.new(
+              work_package:,
+              schedule_manually:,
+              is_milestone: milestone?,
+              focused_field:,
+              triggering_field:,
+              touched_field_map:,
+              date_mode:,
+              disabled: disabled?
+            )
+          )
+        end
+        body.with_row do
+          render(
+            WorkPackages::DatePicker::HiddenValuesForm.new(
+              f,
+              work_package:,
+              is_milestone: milestone?,
+              schedule_manually:,
+              touched_field_map:
+            )
+          )
+        end
+
+        body.with_row("aria-hidden": true, classes: "wp-datepicker-dialog--date-picker-instance") do
+          helpers.angular_component_tag "opce-wp-date-picker-instance",
+                                        inputs: {
+                                          start_date: work_package.start_date,
+                                          due_date: work_package.due_date,
+                                          ignore_non_working_days: work_package.ignore_non_working_days,
+                                          schedule_manually:,
+                                          is_schedulable: !disabled?,
+                                          is_milestone: milestone?,
+                                          date_mode:,
+                                          start_date_field_id: "work_package_start_date",
+                                          due_date_field_id: "work_package_due_date",
+                                          duration_field_id: "work_package_duration"
+                                        }
+        end
+      else
+        body.with_row do
+          render(Primer::Beta::Blankslate.new(border: true)) do |component|
+            component.with_visual_icon(icon: :book, size: :medium)
+            component.with_heading(tag: :h2) { I18n.t("work_packages.datepicker_modal.blankslate.title") }
+            component.with_description { I18n.t("work_packages.datepicker_modal.blankslate.description") }
+          end
+        end
+      end
+    end
+  end
+%>

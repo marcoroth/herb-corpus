@@ -1,0 +1,239 @@
+<% content_for :head do %>
+  <%= javascript_include_tag 'create_assignment', nonce: true %>
+  <%= render partial: 'boot', formats: [:js], handlers: [:erb] %>
+  <%= render partial: 'shared/navigation_warning',
+             formats: [:js],
+             handlers: [:erb] %>
+<% end %>
+
+<%= form_for [@current_course, @assignment] do |f| %>
+  <%= f.fields_for :assignment_properties do |ap_f| %>
+
+    <label class='required'><%= t('required_fields') %></label>
+
+    <%# Assignment properties %>
+    <fieldset>
+      <legend>
+        <span><%= t('menu.properties') %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.properties_html') %>
+        </p>
+      </div>
+
+      <div class="inline-labels">
+        <%= f.label :short_identifier,
+                    Assignment.human_attribute_name(:short_identifier),
+                    class: 'required' %>
+        <%= f.text_field :short_identifier,
+                         pattern: '[a-zA-Z0-9\-_]+',
+                         size: 35,
+                         maxlength: 30,
+                         required: true,
+                         readonly: !@assignment.new_record? %>
+
+        <%= f.label :description,
+                    Assignment.human_attribute_name(:description),
+                    class: 'required' %>
+        <%= f.text_field :description,
+                         size: 35,
+                         required: true %>
+
+        <%= f.label :parent_assessment_id, Assignment.human_attribute_name(:parent_assignment), class: 'required' %>
+        <% if @assignment.new_record? %>
+          <%= f.select :parent_assessment_id,
+                       options_from_collection_for_select(
+                         @assignments.where(parent_assignment: nil),
+                         'id',
+                         'short_identifier'
+                       ),
+                       { include_blank: false } %>
+        <% else %>
+          <span><%= @assignment.parent_assignment.short_identifier %></span>
+          <%= f.hidden_field :parent_assessment_id %>
+        <% end %>
+
+        <%= f.label :message %>
+        <%= f.text_area :message,
+                        cols: 65,
+                        rows: 8 %>
+
+        <%= f.label :due_date,
+                    Assignment.human_attribute_name(:due_date),
+                    class: 'required' %>
+        <%= f.text_field :due_date,
+                         value: @assignment.due_date.nil? ? '' :
+                                  l(@assignment.due_date, format: :flatpickr),
+                         size: 35,
+                         required: true,
+                         placeholder: t('time.format_string.placeholder') %>
+
+        <% unless @sections.empty? %>
+          <%= ap_f.label :section_due_dates_type, Assignment.human_attribute_name(:section_due_dates_type) %>
+          <span>
+            <%= ap_f.check_box :section_due_dates_type %>
+          </span>
+        <% end %>
+        <%= f.label :is_hidden, Assignment.human_attribute_name(:is_hidden) %>
+        <span>
+          <%= f.label :is_hidden, I18n.t('assignments.section_hidden.hidden'), value: 'true' %>
+          <%= f.radio_button :is_hidden, true %>
+          <%= f.label :is_hidden, I18n.t('assignments.section_hidden.visible'), value: 'false' %>
+          <%= f.radio_button :is_hidden, false %>
+          (<%= I18n.t('assignments.section_hidden.hidden_option') %>)
+        </span>
+      </div>
+      <% unless @sections.empty? %>
+        <div id='assessment_section_properties_information'
+             class='<%= 'no-display' unless @assignment.section_due_dates_type %>'>
+          <p class='information'>
+            <%= t('assignments.form.section_due_dates_info_html') %>
+          </p>
+          <div class='assessment_section_properties_form table'>
+            <table>
+              <thead>
+              <tr>
+                <th><%= Section.model_name.human %></th>
+                <th><%= Assignment.human_attribute_name(:due_date) %></th>
+                <th><%= I18n.t('assignments.section_hidden.hidden') %></th>
+              </tr>
+              </thead>
+              <tbody>
+              <%= f.fields_for :assessment_section_properties,
+                               @assessment_section_properties do |due_date_f| %>
+                <tr>
+                  <% obj = due_date_f.object %>
+                  <td><%= obj.section.name %></td>
+                  <td>
+                    <%= due_date_f.text_field :section_id, class: 'hidden' %>
+                    <%= due_date_f.text_field :due_date,
+                                              class: 'assessment_section_properties_input',
+                                              value: obj.due_date.nil? ? '' :
+                                                       l(obj.due_date, format: :flatpickr) %>
+                  </td>
+                  <td>
+                    <div class="section-visibility-options">
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, '' %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.default'), value: '' %>
+                      </div>
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, false %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.visible'), value: 'false' %>
+                      </div>
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, true %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.hidden'), value: 'true' %>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
+    </fieldset>
+
+    <%# Group properties %>
+    <fieldset>
+      <legend>
+        <span><%= t('assignments.form.group_properties') %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.assignment_type_html') %>
+        </p>
+      </div>
+
+      <% if @assignment.new_record? && @clone_assignments.size > 0 %>
+        <p id='persist_groups_assignment_style'>
+          <%= check_box_tag :persist_groups %>
+          <%= label_tag :persist_groups, t('assignments.form.persist_groups_from') %>
+          <%= select_tag :persist_groups_assignment,
+                         options_for_select(@clone_assignments.map { |a| [a.short_identifier, a.id] }),
+                         disabled: true %>
+        </p>
+      <% end %>
+      <p id='is_group_assignment_style' class='inline-labels'>
+        <%= label_tag :is_group_assignment,
+                      Assignment.human_attribute_name(:allow_groups) %>
+        <%= check_box_tag :is_group_assignment, true,
+                          @assignment.student_form_groups ||
+                            @assignment.group_max > 1 %>
+      </p>
+      <fieldset class='group_properties nested-fieldset'>
+        <div id='group_properties'>
+          <div class='inline-labels'>
+            <%= ap_f.label :student_form_groups,
+                           Assignment.human_attribute_name(:student_form_groups) %>
+            <%= ap_f.check_box :student_form_groups %>
+
+            <%= ap_f.label :group_min,
+                           Assignment.human_attribute_name(:group_min) %>
+            <%= ap_f.number_field :group_min,
+                                  min: 1,
+                                  max: 999 %>
+            <%= ap_f.label :group_max,
+                           Assignment.human_attribute_name(:group_max) %>
+            <%= ap_f.number_field :group_max,
+                                  min: 1,
+                                  max: 999 %>
+
+            <%= ap_f.label :group_name_autogenerated,
+                           Assignment.human_attribute_name(:group_name_autogenerated) %>
+            <%= ap_f.check_box :group_name_autogenerated %>
+          </div>
+        </div>
+      </fieldset>
+    </fieldset>
+
+    <%# Submission rules %>
+    <fieldset id='submission_rule_fields'>
+      <legend>
+        <span><%= SubmissionRule.model_name.human %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.submission_rules') %>
+        </p>
+      </div>
+
+      <%= f.fields_for :submission_rule do |rule| %>
+        <p>
+          <%= rule.radio_button :type,
+                                'NoLateSubmissionRule',
+                                checked: true,
+                                id: 'no_late_submission_rule' %>
+          <%= label_tag 'no_late_submission_rule',
+                        NoLateSubmissionRule.human_attribute_name(:form_description) %>
+        </p>
+      <% end %>
+    </fieldset>
+
+    <p>
+      <%= f.submit t(:save),
+                   data: { disable_with: t('working') } %>
+    </p>
+  <% end %>
+<% end %>
+
+<% if action_name == "edit" %>
+  <% has_groups = @assignment.groups.length != 0 %>
+  <%= button_to t(:delete),
+                course_assignment_path(@current_course, @assignment),
+                {
+                  data: { confirm: I18n.t("assignments.deletion_confirmation") },
+                  method: 'delete',
+                  class: has_groups ? nil : 'danger-button',
+                  form_class: 'display-inline-block',
+                  title: has_groups ? I18n.t('assignments.assignment_has_groupings') :
+                           I18n.t('helpers.submit.delete', model: Assignment.model_name.human),
+                  disabled: has_groups
+                } %>
+<% end %>

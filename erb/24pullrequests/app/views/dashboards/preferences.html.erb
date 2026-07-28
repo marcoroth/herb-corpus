@@ -1,0 +1,81 @@
+<div class="title-block">
+  <% if current_user.needs_setup? %>
+    <h1 class="block-title">
+      <%= t("welcome", user: current_user.nickname) %>
+    </h1>
+    <%= t("preferences.setup_help") %>
+  <% else %>
+    <h1 class="block-title">
+      <%= t("preferences.title", user: current_user.nickname) %>
+    </h1>
+  <% end %>
+</div>
+<div class="row">
+  <%= simple_form_for current_user, :url => update_preferences_path, wrapper: :bootstrap3_horizontal, defaults: {right_column_html: {class: "col-md-8"}, label_html: {class: "col-md-4"} }, :html => {:class => 'block form-horizontal', :role => "form"}  do |form| %>
+    <div class="col-md-6 col-md-offset-3">
+      <p>
+        <%= t("preferences.frequency_message") %>
+      </p>
+      <% if current_user.email_frequency.present? %>
+        <small>
+          <%= link_to t("preferences.delete"), delete_dashboard_path, :class => 'pull-right' %>
+        </small>
+      <% end %>
+      <p>
+        <em>
+          <%= t("preferences.information") %>
+        </em>
+      </p>
+      <%= form.input :email_frequency, :label => t("preferences.form.email_frequency"), :collection => [[t("preferences.form.never"), 'none'], [t("preferences.form.daily"), 'daily'], [t("preferences.form.weekly"), 'weekly']], :selected => (form.object.email_frequency || 'daily') %>
+      <% if current_user.email.present? && !current_user.confirmed? && !current_user.errors[:email].any? %>
+        <%= form.input :email, hint: t("preferences.hint.confirm_email") %>
+      <% else %>
+        <%= form.input :email, :label => t("preferences.form.email") %>
+      <% end %>
+      <p>
+        <%= t("preferences.ignore_organisations") %>
+      </p>
+      <%= form.input :ignored_organisations_string, label: t("preferences.ignored_organisations"), placeholder: "e.g. 24pullrequests, alphagov", input_html: {class: "pull-left"} %>
+      <p>
+        <%= t("preferences.time_zone_message") %>
+      </p>
+      <div class="form-group string optional user_time_zone">
+        <label class="string optional control-label col-md-4" for="user_time_zone"><%= t("preferences.time_zone") %></label>
+        <div class="col-md-8"><%= form.time_zone_select :time_zone %></div>
+      </div>
+    </div>
+    <div class="col-md-12">
+      <h2 class="text-center">
+        <%= t("preferences.languages") %>
+      </h2>
+      <div class="row">
+        <% Project::LANGUAGES.in_groups(2, false) do |main_col| %>
+          <div class="col-xs-12 col-sm-6">
+            <% main_col.in_groups(3, false) do |col_form| %>
+              <div class="col-xs-12 col-md-4">
+                <%= form.simple_fields_for :skills, col_form.map{|l| Skill.new(:language => l)} do |skill_form| %>
+                  <% language = skill_form.object.language %>
+                  <div class="col-md-12">
+                    <label class="language-checkbox">
+                      <%= skill_form.check_box :language, {:id => language, :checked => current_user.skills.map(&:language).include?(language)}, language %>
+                      <%= language %>
+                    </label>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col-sm-12 text-center">
+        <% if current_user.needs_setup? %>
+          <%= form.button :submit, t("preferences.save_and_continue") %>
+        <% else %>
+          <%= form.button :submit, t("preferences.save") %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

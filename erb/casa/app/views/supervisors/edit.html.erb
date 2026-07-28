@@ -1,0 +1,94 @@
+<div class="col-md-6">
+  <div class="title mb-30 mt-30">
+    <h1>Editing Supervisor</h1>
+  </div>
+</div>
+<div class="card-style">
+  <div class="card-body">
+    <%= form_with(model: @supervisor, as: :supervisor, url: supervisor_path(@supervisor), method: :patch) do |form| %>
+      <%= render "/shared/error_messages", resource: @supervisor %>
+      <%= render "/shared/edit_form", resource: @supervisor, f: form %>
+      <p>
+        <%= render "/shared/invite_login", resource: @supervisor %>
+      </p>
+
+      <div>
+        <% if current_user.casa_admin? || current_user.supervisor? %>
+          <div class="form-group">
+            <%= form.label :monthly_learning_hours_report, "Receive Monthly Learning Hours Report" %>
+            <%= form.check_box :monthly_learning_hours_report %>
+          </div>
+        <% end %>
+      </div>
+
+      <p>
+        <%= render "manage_active", user: @supervisor %>
+      </p>
+      <div class="actions">
+        <% if policy(@supervisor).update_supervisor_email? || policy(@supervisor).update_supervisor_name? %>
+          <div class="actions mb-10">
+            <%= button_tag(
+            type: "submit",
+            class: "btn-sm main-btn primary-btn btn-hover"
+          ) do %>
+              <i class="lni lni-checkmark-circle mr-10"></i> Submit
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <br>
+    <% end %>
+  </div>
+</div>
+<% button_text = @all_volunteers_ever_assigned.nil? ? "Include unassigned" : "Hide unassigned" %>
+<% volunteer_title = @unassigned_volunteer_count == 0 ? "Assigned Volunteers" : "All Volunteers" %>
+<% content_for :table_title do %>
+  <h3><%= volunteer_title %></h3>
+  <% if @supervisor_has_unassigned_volunteers %>
+    <%= button_to button_text,
+                  edit_supervisor_path(@supervisor),
+                  params: { include_unassigned: @all_volunteers_ever_assigned.nil? },
+                  method: :get,
+                  class: "main-btn primary-btn-outline btn-hover my-3" %>
+  <% end %>
+<% end %>
+<% content_for :table_body do %>
+  <tbody>
+    <% (@all_volunteers_ever_assigned || @supervisor.volunteers).each do |volunteer| %>
+      <tr>
+        <td><%= link_to volunteer.display_name, edit_volunteer_path(volunteer) %></td>
+        <td><%= volunteer.email %></td>
+        <% if button_text == "Hide unassigned" %>
+          <td>
+            <%= volunteer.has_supervisor? ? volunteer.supervisor.display_name : "No One" %>
+          </td>
+        <% end %>
+        <td>
+          <% if volunteer.supervised_by?(@supervisor) %>
+            <div class="action">
+              <%= button_to "Unassign",
+                            unassign_supervisor_volunteer_path(volunteer),
+                            method: :patch,
+                            class: "text-danger" %>
+              <i class="lni lni-ban text-danger"></i>
+            </div>
+          <% else %>
+            Unassigned
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+<% end %>
+<%=
+  render(
+  "shared/manage_volunteers",
+  assignable_obj: SupervisorVolunteer,
+  assign_action: supervisor_volunteers_path(supervisor_id: @supervisor.id),
+  available_volunteers: @available_volunteers,
+  select_id: 'supervisor_volunteer_volunteer_id',
+  select_name: 'supervisor_volunteer[volunteer_id]',
+  show_assigned_volunteers: @supervisor_has_unassigned_volunteers || @supervisor.volunteers.any?,
+  button_text: button_text
+  )
+%>

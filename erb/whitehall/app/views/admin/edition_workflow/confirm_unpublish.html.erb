@@ -1,0 +1,232 @@
+<% content_for :page_title, "#{@edition.title}: Withdraw or unpublish" %>
+<% content_for :title, "Withdraw or unpublish" %>
+<% content_for :context, @edition.title %>
+<% content_for :error_summary, render(Admin::ErrorSummaryComponent.new(object: @unpublishing)) %>
+
+<%
+  unpublish_reasons = {
+    withdrawn: {
+      id: UnpublishingReason::Withdrawn.id,
+      value: UnpublishingReason::Withdrawn,
+      label: "Withdraw: no longer current government policy/activity",
+    },
+    published_in_error: {
+      id: UnpublishingReason::PublishedInError.id,
+      value: UnpublishingReason::PublishedInError,
+      label: "Unpublish: published in error",
+    },
+    consolidated: {
+      id: UnpublishingReason::Consolidated.id,
+      value: UnpublishingReason::Consolidated,
+      label: "Unpublish: consolidated into another GOV.UK page",
+    },
+    archived: {
+      id: UnpublishingReason::Archived.id,
+      value: UnpublishingReason::Archived,
+      label: "Unpublish: archived via the National Archives",
+    },
+  }
+
+  withdrawal_public_explanation_field = render("components/govspeak_editor", {
+    label: {
+      text: "Public explanation",
+      bold: true,
+    },
+    hint: "This is shown on the live site",
+    name: "unpublishing[explanation]",
+    id: "withdrawal_explanation",
+    value: @unpublishing.explanation,
+    error_items: errors_for(@unpublishing.errors, :explanation),
+    data_attributes: {
+      image_ids: @edition.images.map { |img| img[:id] }.to_json,
+      attachment_ids: @edition.allows_attachments? ? @edition.attachments.map(&:id) : [],
+      alternative_format_provider_id: (@edition.alternative_format_provider_id || current_user.organisation.try(:id)),
+    },
+  })
+%>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-two-thirds" data-module="unpublish-display-conditions">
+    <%= render "govuk_publishing_components/components/radio", {
+      name: "unpublishing_reason",
+      heading: "Do you want to unpublish or withdraw this document?",
+      description: sanitize('Learn more about withdrawing and unpublishing content on our <a href="https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/plan-manage-content/retire-content/" class="govuk-link" target="_blank">publishing guide</a>.'),
+      items: [
+        {
+          value: unpublish_reasons[:published_in_error][:id],
+          text: unpublish_reasons[:published_in_error][:label],
+          checked: @unpublishing.unpublishing_reason == unpublish_reasons[:published_in_error][:value],
+        },
+        {
+          value: unpublish_reasons[:consolidated][:id],
+          text: unpublish_reasons[:consolidated][:label],
+          checked: @unpublishing.unpublishing_reason == unpublish_reasons[:consolidated][:value],
+        },
+        {
+          value: unpublish_reasons[:withdrawn][:id],
+          text: unpublish_reasons[:withdrawn][:label],
+          checked: @unpublishing.unpublishing_reason == unpublish_reasons[:withdrawn][:value],
+        },
+        :or,
+        {
+          value: unpublish_reasons[:archived][:id],
+          text: unpublish_reasons[:archived][:label],
+          checked: @unpublishing.unpublishing_reason == unpublish_reasons[:archived][:value],
+        },
+      ],
+    } %>
+
+    <div class="app-view-unpublish-withdrawal__form-wrapper js-app-view-unpublish-withdraw-form__withdrawal">
+      <%= form_for @unpublishing, url: unpublish_admin_edition_path(@edition, lock_version: @edition.lock_version) do |form| %>
+        <%= hidden_field_tag "unpublishing[unpublishing_reason_id]", unpublish_reasons[:withdrawn][:id] %>
+
+        <% if @previous_withdrawals.any? %>
+          <%
+            items = @previous_withdrawals.map do |withdrawal|
+              {
+                value: withdrawal.id,
+                text: absolute_date(withdrawal.unpublished_at),
+                hint_text: withdrawal.explanation,
+                checked: (params["previous_withdrawal_id"] == withdrawal.id.to_s),
+              }
+            end
+
+            items << :or
+
+            items << {
+              value: "new",
+              text: "This is a new withdrawal",
+              conditional: withdrawal_public_explanation_field,
+              checked: (params["previous_withdrawal_id"] == "new"),
+            }
+          %>
+          <%= render "govuk_publishing_components/components/radio", {
+            name: "previous_withdrawal_id",
+            heading: "Do you need to reuse a previous withdrawal?",
+            description: sanitize("
+              <p class=\"govuk-body\">You should only reuse a previous withdrawal date and public explanation if you have:</p>
+              <ul class=\"govuk-list govuk-list--bullet\">
+                <li>updated file attachments to mark them ‘withdrawn’</li>
+                <li>made a minor edit, for example fixing a broken link</li>
+                <li>fixed an error or mistake in the content which existed when it was originally withdrawn</li>
+              </ul>
+            "),
+            items: items,
+            error_items: errors_for(@unpublishing.errors, :previous_withdrawal_id),
+          } %>
+        <% else %>
+          <%= withdrawal_public_explanation_field %>
+        <% end %>
+        <div class="govuk-button-group govuk-!-margin-bottom-6">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Withdraw",
+            destructive: true,
+          } %>
+
+          <%= link_to("Cancel", [:admin, @edition], class: "govuk-link govuk-link--no-visited-state") %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="app-view-unpublish-withdrawal__form-wrapper js-app-view-unpublish-withdraw-form__published-in-error">
+      <%= form_for @unpublishing, url: unpublish_admin_edition_path(@edition, lock_version: @edition.lock_version) do |form| %>
+        <%= hidden_field_tag "unpublishing[unpublishing_reason_id]", unpublish_reasons[:published_in_error][:id] %>
+
+        <%= render "govuk_publishing_components/components/input", {
+          label: {
+            text: "Alternative URL",
+            bold: true,
+          },
+          name: "unpublishing[alternative_url]",
+          id: "published_in_error_alternative_url",
+          value: @unpublishing.alternative_url,
+          error_items: errors_for(@unpublishing.errors, :alternative_url),
+        } %>
+        <%= render "alternative_url_constraints" %>
+        <%= render "govuk_publishing_components/components/checkboxes", {
+          name: "unpublishing[redirect]",
+          items: [
+            {
+              label: "Redirect to URL automatically?",
+              value: 1,
+              checked: @unpublishing.redirect,
+            },
+          ],
+        } %>
+
+        <%= render "components/govspeak_editor", {
+          label: {
+            text: "Public explanation",
+            bold: true,
+          },
+          hint: "This is shown on the live site",
+          name: "unpublishing[explanation]",
+          id: "published_in_error_explanation",
+          value: @unpublishing.explanation,
+          error_items: errors_for(@unpublishing.errors, :explanation),
+          data_attributes: {
+            image_ids: @edition.images.map { |img| img[:id] }.to_json,
+            attachment_ids: @edition.allows_attachments? ? @edition.attachments.map(&:id) : [],
+            alternative_format_provider_id: (@edition.alternative_format_provider_id || current_user.organisation.try(:id)),
+          },
+        } %>
+
+        <div class="govuk-button-group govuk-!-margin-bottom-6">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Unpublish",
+            destructive: true,
+          } %>
+
+          <%= link_to("Cancel", [:admin, @edition], class: "govuk-link govuk-link--no-visited-state") %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="app-view-unpublish-withdrawal__form-wrapper js-app-view-unpublish-withdraw-form__consolidated">
+      <%= form_for @unpublishing, url: unpublish_admin_edition_path(@edition, lock_version: @edition.lock_version) do |form| %>
+        <%= hidden_field_tag "unpublishing[unpublishing_reason_id]", unpublish_reasons[:consolidated][:id] %>
+
+        <%= render "govuk_publishing_components/components/input", {
+          label: {
+            text: "Alternative URL",
+            bold: true,
+          },
+          id: "consolidated_alternative_url",
+          name: "unpublishing[alternative_url]",
+          hint: "This will be automatically redirected",
+          value: @unpublishing.alternative_url,
+          error_items: errors_for(@unpublishing.errors, :alternative_url),
+        } %>
+        <%= render "alternative_url_constraints" %>
+
+        <div class="govuk-button-group govuk-!-margin-bottom-6">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Unpublish",
+            destructive: true,
+          } %>
+
+          <%= link_to("Cancel", [:admin, @edition], class: "govuk-link govuk-link--no-visited-state") %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="app-view-unpublish-withdrawal__form-wrapper js-app-view-unpublish-withdraw-form__archived">
+      <%= form_for @unpublishing, url: unpublish_admin_edition_path(@edition, lock_version: @edition.lock_version) do |form| %>
+        <%= hidden_field_tag "unpublishing[unpublishing_reason_id]", unpublish_reasons[:archived][:id] %>
+
+        <p class="govuk-body">
+          This document <a class="govuk-link" href="https://https://www.webarchive.nationalarchives.gov.uk/<%= @unpublishing.archived_url %>">must be live on the National Archives website</a> to select this reason. The URL to the National Archives website will be determined automatically based on the URL of the document.
+        </p>
+
+        <div class="govuk-button-group govuk-!-margin-bottom-6">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Unpublish",
+            destructive: true,
+          } %>
+
+          <%= link_to("Cancel", [:admin, @edition], class: "govuk-link govuk-link--no-visited-state") %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

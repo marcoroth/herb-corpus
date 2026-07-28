@@ -1,0 +1,199 @@
+<%= turbo_refreshes_with method: :morph, scroll: :preserve %>
+
+<%= turbo_stream_from @workflow_execution %>
+
+<%= turbo_frame_tag "export_dialog" %>
+<%= turbo_frame_tag "edit_dialog" %>
+<%= turbo_frame_tag "workflow_execution_dialog" %>
+
+<%= render Viral::PageHeaderComponent.new(title: turbo_frame_tag('we_name_header') do @workflow_execution.name.blank? ? @workflow_execution.workflow.name :
+   @workflow_execution.name end, id: @workflow_execution.id, id_color: find_pill_color_for_state(@workflow_execution.state)) do |component| %>
+  <% component.with_buttons do %>
+    <div class="mb-2 flex flex-col space-y-2 @lg:justify-between @lg:space-x-1 @xl:flex-row">
+      <% if @allowed_to[:export_data] %>
+        <% if @workflow_execution.completed? %>
+          <%= button_to t("projects.workflow_executions.show.create_export_button"),
+          new_data_export_path,
+          params: {
+            export_type: "analysis",
+            analysis_type: "project",
+            namespace_id: @namespace.id,
+            workflow_execution_id: @workflow_execution.id,
+            single_workflow: true,
+          },
+          method: :get,
+          data: {
+            turbo_stream: true,
+          },
+          class: "button button-default w-full" %>
+        <% else %>
+          <%= button_to t("projects.workflow_executions.show.create_export_button"),
+          new_data_export_path,
+          params: {
+            export_type: "analysis",
+            analysis_type: "project",
+            namespace_id: @namespace.id,
+            workflow_execution_id: @workflow_execution.id,
+            single_workflow: true,
+          },
+          method: :get,
+          data: {
+            turbo_stream: true,
+          },
+          class:
+            "button button-default w-full pointer-events-none cursor-not-allowed bg-slate-100 text-slate-600 dark:bg-slate-600 dark:text-slate-300",
+          disabled: true %>
+        <% end %>
+      <% end %>
+
+      <% if @workflow_execution.cancellable? && @allowed_to[:cancel] %>
+        <%= button_to t("common.actions.cancel"),
+        cancel_namespace_project_workflow_execution_path(
+          @namespace.parent,
+          @namespace.project,
+          @workflow_execution.id,
+        ),
+        data: {
+          turbo_method: :put,
+          turbo_confirm:
+            t("projects.workflow_executions.show.cancel_button_confirmation"),
+        },
+        method: :put,
+        class: "button button-default w-full" %>
+      <% end %>
+
+      <% if @allowed_to[:update] %>
+        <%= button_to t("common.actions.edit"),
+        edit_namespace_project_workflow_execution_path(
+          @namespace.parent,
+          @namespace.project,
+          @workflow_execution,
+        ),
+        data: {
+          turbo_stream: true,
+        },
+        method: :get,
+        class: "button button-default w-full" %>
+      <% end %>
+
+      <% if @workflow_execution.deletable? && @allowed_to[:destroy] %>
+        <%= button_to t("common.actions.remove"),
+        destroy_confirmation_namespace_project_workflow_execution_path(
+          @namespace.parent,
+          @namespace.project,
+          @workflow_execution,
+        ),
+        data: {
+          turbo_stream: true,
+        },
+        method: :get,
+        class: "button button-default w-full" %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+
+<%= render Pathogen::Tabs.new(
+  id: "workflow-executions-tabs",
+  label: t(:".tabs.label"),
+  default_index: @tab_index,
+  sync_url: true
+) do |tabs| %>
+  <% tabs.with_tab(
+    id: "summary-tab",
+    label: t(:"workflow_executions.show.tabs.summary"),
+    selected: @tab == "summary",
+  ) %>
+
+  <% tabs.with_tab(
+    id: "params-tab",
+    label: t(:"workflow_executions.show.tabs.params"),
+    selected: @tab == "params",
+  ) %>
+
+  <% tabs.with_tab(
+    id: "samplesheet-tab",
+    label: t(:"workflow_executions.show.tabs.samplesheet"),
+    selected: @tab == "samplesheet",
+  ) %>
+
+  <% tabs.with_tab(
+    id: "files-tab",
+    label: t(:"workflow_executions.show.tabs.files"),
+    selected: @tab == "files",
+  ) %>
+
+  <% tabs.with_lazy_panel(
+    id: "summary-panel",
+    tab_id: "summary-tab",
+    frame_id: "summary-panel-content",
+    src_path: namespace_project_workflow_execution_path(
+      @namespace.parent,
+      @namespace.project,
+      @workflow_execution,
+      tab: "summary"
+    ),
+    selected: @tab == "summary"
+  ) do %>
+    <%= render partial: "workflow_executions/summary" %>
+  <% end %>
+
+  <% tabs.with_lazy_panel(
+    id: "params-panel",
+    tab_id: "params-tab",
+    frame_id: "params-panel-content",
+    src_path: namespace_project_workflow_execution_path(
+      @namespace.parent,
+      @namespace.project,
+      @workflow_execution,
+      tab: "params"
+    ),
+    selected: @tab == "params"
+  ) do %>
+    <%= render partial: "workflow_executions/params" %>
+  <% end %>
+
+  <% tabs.with_lazy_panel(
+    id: "samplesheet-panel",
+    tab_id: "samplesheet-tab",
+    frame_id: "samplesheet-panel-content",
+    src_path: namespace_project_workflow_execution_path(
+      @namespace.parent,
+      @namespace.project,
+      @workflow_execution,
+      tab: "samplesheet"
+    ),
+    selected: @tab == "samplesheet"
+  ) do %>
+    <%= render partial: "workflow_executions/samplesheet" %>
+  <% end %>
+
+  <% tabs.with_lazy_panel(
+    id: "files-panel",
+    tab_id: "files-tab",
+    frame_id: "files-panel-content",
+    src_path: namespace_project_workflow_execution_path(
+      @namespace.parent,
+      @namespace.project,
+      @workflow_execution,
+      tab: "files"
+    ),
+    selected: @tab == "files"
+  ) do %>
+    <%= render partial: "workflow_executions/files",
+    locals: {
+      allowed_to: @allowed_to,
+      pagy: @pagy,
+      q: @q,
+      search_url:
+        namespace_project_workflow_execution_path(
+          @namespace.parent,
+          @namespace.project,
+          @workflow_execution,
+        ),
+      attachments: @attachments,
+      workflow_execution: @workflow_execution,
+      has_attachments: @has_attachments,
+    } %>
+  <% end %>
+<% end %>

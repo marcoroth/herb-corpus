@@ -1,0 +1,40 @@
+<%#
+kind: job_template
+name: Install errata by search query - Katello Ansible Default
+job_category: Katello via Ansible
+description_format: 'Install errata %{Errata search query}'
+feature: katello_errata_install_by_search
+provider_type: Ansible
+template_inputs:
+- name: Errata search query
+  description: Filter criteria for errata to be installed. IMPORTANT- If left blank, the job will attempt to install all applicable errata.
+  input_type: user
+  required: false
+%>
+
+<% advisory_ids = @host.advisory_ids(search: input("Errata search query")) -%>
+<% render_error(N_("No errata matching given search query")) if !input("Errata search query").blank? && advisory_ids.blank? -%>
+# RESOLVED_ERRATA_IDS=<%= advisory_ids.join(',') %>
+
+<%= snippet_if_exists(template_name + " custom pre") %>
+<% if @host.operatingsystem.family == 'Suse' -%>
+<%= render_template('Run Command - Ansible Default', :command => "zypper -n install -t patch #{advisory_ids.join(' ')}") %>
+<% else -%>
+<% advisories = advisory_ids.map { |e| "--advisory=#{e}" }.join(' ') -%>
+---
+- hosts: all
+  tasks:
+<%= indent(4) { snippet('check_bootc_status') } %>
+    - name: Install errata via dnf for image mode machines
+      shell:
+        cmd: 'dnf -y --transient update-minimal <%= advisories %>'
+      register: out
+      when: is_bootc_host
+    - name: Install errata normally
+      shell:
+        cmd: 'yum -y update-minimal <%= advisories %>'
+      register: out
+      when: not is_bootc_host
+    - debug: var=out
+<% end -%>
+<%= snippet_if_exists(template_name + " custom post") %>

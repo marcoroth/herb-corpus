@@ -1,0 +1,103 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% helpers.content_controller "admin--hierarchy-item" %>
+
+<%=
+  component_wrapper(tag: "turbo-frame", class: "custom-fields-hierarchy-page--wrapper", refresh: :morph, data: { turbo_action: :advance }) do
+    render(Primer::Alpha::Layout.new(stacking_breakpoint: :md, overflow: :hidden, h: :full, classes: "custom-fields-hierarchy-page")) do |content|
+      content.with_main(overflow: :auto) do
+        flex_layout do |container|
+          container.with_row do
+            render(Primer::OpenProject::SubHeader.new) do |subheader|
+              subheader.with_action_button(
+                tag: :a,
+                scheme: :primary,
+                leading_icon: :plus,
+                label: t(:label_item),
+                href: new_item_path
+              ) do
+                I18n.t(:label_item)
+              end
+            end
+          end
+
+          container.with_row(mb: 3) do
+            render(Primer::Beta::BorderBox.new) do |box|
+              box.with_header { item_header }
+
+              if children.empty?
+                box.with_row do
+                  render(Primer::Beta::Blankslate.new(test_selector: "op-custom-fields--hierarchy-items-blankslate")) do |component|
+                    component.with_visual_icon(icon: blank_icon)
+
+                    component.with_heading(tag: :h3).with_content(I18n.t(blank_header_text))
+                    component.with_description { I18n.t(blank_description_text) }
+                    component.with_primary_action(href: new_item_path) do |button|
+                      button.with_leading_visual_icon(icon: :plus)
+                      I18n.t(:label_item)
+                    end
+                  end
+                end
+              else
+                children.each do |item|
+                  drag_controls = if item.persisted?
+                                    {
+                                      "data-controller": "admin--hierarchy-item",
+                                      "data-action": "dragstart->admin--hierarchy-item#dragstart
+                                                  dragenter->admin--hierarchy-item#dragenter
+                                                  dragleave->admin--hierarchy-item#dragleave
+                                                  dragend->admin--hierarchy-item#dragend
+                                                  drop->admin--hierarchy-item#drop",
+                                      "data-hierarchy-item-id": item.id,
+                                      "data-sort-order": item.sort_order,
+                                      "data-frame-id": Admin::CustomFields::Hierarchy::ItemsComponent.wrapper_key,
+                                      "data-move-url": move_custom_field_item_url(root.custom_field_id, item),
+                                      "data-index-url": custom_field_item_url(root.custom_field_id, item.parent)
+                                    }
+                                  else
+                                    {}
+                                  end
+
+                  box.with_row(**drag_controls) do
+                    render Admin::CustomFields::Hierarchy::ItemComponent.new(item: item, custom_field: root.custom_field)
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+
+      content.with_sidebar(row_placement: :start, col_placement: :start, border: true, border_bottom: 0, p: 3, overflow: :auto, classes: "custom-fields-hierarchy-page--sidebar") do
+        render Admin::CustomFields::Hierarchy::TreeViewComponent.new(custom_field: root.custom_field, active_item: model)
+      end
+    end
+  end
+%>

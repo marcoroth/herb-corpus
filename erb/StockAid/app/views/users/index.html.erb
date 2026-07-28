@@ -1,0 +1,100 @@
+<% content_for :title, "Users" %>
+
+<% content_for :content do %>
+  <%= render partial: "users/tabs", locals: { export: true } %>
+
+  <script type="text/x-tmpl" id="users-additional-organization-row-template">
+    <tr class="additional-organization-row {%= o.rowClass %}">
+      <td></td>
+      <td></td>
+      <td></td>
+      <td><a data-href="{%= o.organization.href %}">{%= o.organization.name %}</a></td>
+      <td>{%= o.organization.role %}</td>
+
+      <% if current_user.super_admin? %>
+        <td></td>
+      <% end %>
+
+      <% if current_user.can_force_password_reset? %>
+        <td></td>
+      <% end %>
+    </tr>
+  </script>
+
+  <div class="row">
+    <div class="col-xs-12">
+      <div class="table-responsive">
+        <table class="table table-hover table-manual-striped data-table users-table" cellspacing="0">
+          <thead>
+            <tr>
+              <th class="sort-asc">Name</th>
+              <th>Email</th>
+              <th><%= t :user_primary_number %></th>
+              <th>Organization Name</th>
+              <th>Organization Role</th>
+
+              <% if current_user.super_admin? %>
+                <td>Last Login</td>
+              <% end %>
+
+              <% if current_user.can_force_password_reset? %>
+                <th></th>
+              <% end %>
+            </tr>
+          </thead>
+          <tbody>
+            <% @users.each do |user| %>
+              <% user_organizations = current_user.filter_organizations_with_permission_enabled(user.organizations, :can_update_user_at?).to_a %>
+
+              <tr class="user <%= cycle "odd-row", "even-row" %>" data-href="<%= edit_user_path(user) %>" <%= "data-has-additional-organizations".html_safe if user_organizations.size > 1 %> data-additional-organizations="<%= additional_organizations_json(user, user_organizations) %>">
+                <td><%= user.name %></td>
+                <td><%= user.email %></td>
+                <td><%= user.primary_number %></td>
+
+                <td>
+                  <% if user_organizations.empty? && user.super_admin? %>
+                    <em>All Organizations</em>
+                  <% else %>
+                    <% user_organizations.each_with_index do |organization, index| %>
+                      <% if index == 0 %>
+                        <%= link_to organization.name, edit_organization_path(organization, redirect_to: "users") %>
+                      <% else %>
+                        <span style="display: none;"><%= organization.name %></span>
+                      <% end %>
+                    <% end %>
+                  <% end %>
+                </td>
+
+                <td>
+                  <% if user_organizations.empty? %>
+                    <%= t user.role, scope: "role.user" %>
+                  <% else %>
+                    <% user_organizations.each_with_index do |organization, index| %>
+                      <% if index == 0 %>
+                        <%= t user.role_at(organization), scope: "role.organization" %>
+                      <% else %>
+                        <span style="display: none;"><%= t user.role_at(organization), scope: "role.organization" %></span>
+                      <% end %>
+                    <% end %>
+                  <% end %>
+                </td>
+
+                <% if current_user.super_admin? %>
+                  <td><%= current_sign_in_date_for(user) %></td>
+                <% end %>
+
+                <% if current_user.can_force_password_reset? %>
+                  <td>
+                    <% if current_user.can_force_password_reset?(user) %>
+                      <%= link_to "Reset Password", reset_password_user_path(user), method: :post, class: "btn btn-xs btn-danger", data: confirm(title: "Send password reset email for: #{user.name}") %>
+                    <% end %>
+                  </td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+<% end %>

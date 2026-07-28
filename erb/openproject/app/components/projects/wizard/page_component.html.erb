@@ -1,0 +1,75 @@
+<%= render(
+      StepWizard::PageLayoutComponent.new(
+        data: {
+          controller: "projects--wizard",
+          action: "focusin->projects--wizard#handleFieldFocus"
+        }
+      )
+    ) do |layout| %>
+  <%=
+    title = project_creation_wizard_name(@project)
+    layout.with_page_header do
+      render(Primer::OpenProject::PageHeader.new) do |header|
+        header.with_title { title }
+        header.with_breadcrumbs(
+          [{ href: project_overview_path(@project.id), text: @project.name },
+           title]
+        )
+
+        header.with_action_icon_button(
+          tag: :a,
+          icon: :x,
+          mobile_icon: :x,
+          label: header_button_title,
+          size: :medium,
+          href: project_path(project),
+          aria: { label: header_button_title },
+          title: header_button_title
+        )
+      end
+    end
+  %>
+
+  <%= layout.with_wizard_content do %>
+    <%=
+      grid_layout("op-projects-wizard", tag: :div) do |page|
+        page.with_area("sidebar") do
+          render(
+            Projects::Wizard::SidebarComponent.new(
+              project:,
+              custom_fields_by_section:,
+              current_section:
+            )
+          )
+        end
+
+        page.with_area("main") do
+          render(
+            Projects::Wizard::FormComponent.new(
+              project:,
+              section: current_section,
+              custom_fields: custom_fields_by_section[current_section]
+            )
+          )
+        end
+
+        page.with_area("help") do
+          first_custom_field = custom_fields_by_section[current_section].first
+          render(Projects::Wizard::HelpTextComponent.new(first_custom_field))
+        end
+      end
+    %>
+  <% end %>
+  <%=
+    layout.with_footer do
+      render(
+        Projects::Wizard::FooterComponent.new(
+          form_identifier: "project-wizard-form",
+          project:,
+          custom_fields_by_section:,
+          current_step: custom_fields_by_section.keys.index(current_section) || 0
+        )
+      )
+    end
+  %>
+<% end %>

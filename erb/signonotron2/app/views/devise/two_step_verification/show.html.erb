@@ -1,0 +1,66 @@
+<% content_for :title, two_step_verification_page_title %>
+
+<% @breadcrumbs = account_breadcrumbs %>
+
+<% if flash[:invalid_code].present? %>
+  <% content_for :error_summary do %>
+    <%= render "govuk_publishing_components/components/error_summary", {
+      title: "There is a problem",
+      items: [{ text: flash[:invalid_code], href: "#enter-code" }],
+    } %>
+  <% end %>
+<% end %>
+
+<% if current_user.has_2sv? %>
+  <%= render "govuk_publishing_components/components/warning_text", {
+    text: "Setting up a new phone will replace your existing one. You will only be able to sign in with your new phone."
+  } %>
+<% end %>
+
+<%= render "govuk_publishing_components/components/lead_paragraph", {
+  text: "Make your Signon account more secure by setting up 2-step verification. You’ll need to install an app on your phone which will generate a verification code to enter when you sign in."
+} %>
+
+<h2 class="govuk-heading-m">1. Install a verification app on your phone</h2>
+
+<p class="govuk-body">
+    Install a verification app from the app store on your phone - for
+    example, Google Authenticator or Microsoft Authenticator.
+</p>
+
+<h2 class="govuk-heading-m">2. Scan the QR code using your app</h2>
+
+<p class="govuk-body">In your app add a new account and scan the QR code:</p>
+
+<div class="qr-code-container govuk-!-width-one-half">
+  <%= qr_code_svg(user: current_user, otp_secret_key: @otp_secret_key) %>
+</div>
+
+<details class="govuk-details" data-module="govuk-details">
+  <summary class="govuk-details__summary">
+    <span class="govuk-details__summary-text">
+      If you cannot use a QR code
+    </span>
+  </summary>
+  <div class="govuk-details__text">
+    You can enter a code instead. This is sometimes called a set-up key, a secret key, or an activation key. Enter this code when asked: <%= @otp_secret_key%>
+  </div>
+</details>
+
+<h2 id="enter-code" class="govuk-heading-m">3. Enter the verification code shown in the app</h2>
+
+<%= form_tag two_step_verification_path, method: :put do %>
+  <%= hidden_field_tag :otp_secret_key, @otp_secret_key%>
+
+  <%= two_factor_code_input(error_message: flash[:invalid_code]) %>
+
+  <div class="govuk-button-group">
+    <%= render "govuk_publishing_components/components/button", {
+      text: current_user.has_2sv? ? "Finish replacing your phone" : "Finish set up",
+    } %>
+
+    <% unless current_user.has_2sv? %>
+      <%= link_to "Cancel", root_path, class: "govuk-link govuk-link--no-visited-state" %>
+    <% end %>
+  </div>
+<% end %>

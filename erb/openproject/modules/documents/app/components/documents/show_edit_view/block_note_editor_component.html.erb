@@ -1,0 +1,90 @@
+<%#
+  -- copyright
+  OpenProject is an open source project management software.
+  Copyright (C) the OpenProject GmbH
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License version 3.
+
+  OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+  Copyright (C) 2006-2013 Jean-Philippe Lang
+  Copyright (C) 2010-2013 the ChiliProject Team
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License
+  as published by the Free Software Foundation; either version 2
+  of the License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+  See COPYRIGHT and LICENSE files for more details.
+
+  ++#
+%>
+
+<%
+  helpers.content_controller(
+    "documents--init-yjs-provider",
+    "documents--init-yjs-provider-hocuspocus-url-value": Setting.collaborative_editing_hocuspocus_url,
+    "documents--init-yjs-provider-token-payload-value": token_payload,
+    "documents--init-yjs-provider-document-name-value": resource_url,
+    "documents--init-yjs-provider-token-expires-in-seconds-value": token_expires_in_seconds,
+    "documents--init-yjs-provider-refresh-url-value": refresh_token_url
+  )
+%>
+
+<%=
+  render(
+    Documents::ShowEditView::PageLayoutComponent.new(
+      left_panel_arguments: { classes: "op-document-view--main op-document-view--editor" },
+      right_panel_arguments: { classes: "op-document-view--sidebar" },
+      header_arguments: { classes: "op-document-view--header" },
+      classes: "op-document-view"
+    )
+  ) do |layout|
+    layout.with_header do
+      render Documents::ShowEditView::PageHeaderComponent.new(document, project:, state:)
+    end
+
+    layout.with_tab(name: I18n.t("activerecord.models.document"), show_left: true) do
+      tag.div(
+        data: {
+          controller: "documents--editor-connection",
+          action: "documents:connection-error@window->documents--editor-connection#showError " \
+                  "documents:connection-recovery@window->documents--editor-connection#showEditor"
+        }
+      ) do
+        safe_join(
+          [
+            tag.div(
+              render(Documents::ShowEditView::ConnectionErrorNoticeComponent.new(document)),
+              hidden: true,
+              data: { "documents--editor-connection-target": "error" }
+            ),
+            tag.div(data: { "documents--editor-connection-target": "editor" }) do
+              primer_form_with(
+                model: document,
+                url: document_path(document),
+                method: :patch,
+                data: { turbo: false }
+              ) do |form|
+                render Documents::BlockNoteEditorForm.new(form, token_payload:, readonly:)
+              end
+            end
+          ]
+        )
+      end
+    end
+
+    layout.with_tab(name: t(:label_attachment_plural), active: true) do
+      render Documents::ShowEditView::AttachmentsSidePanelComponent.new(document, readonly:)
+    end
+  end
+%>

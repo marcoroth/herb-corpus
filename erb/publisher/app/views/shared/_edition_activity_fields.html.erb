@@ -1,0 +1,86 @@
+<div class="modal-dialog">
+  <div class="modal-content">
+  <header class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3 class="modal-title"><%= title %></h3>
+  </header>
+
+  <%= form_builder.fields_for(inline ? "activity_#{activity}_attributes" : :activity) do |activity_fields| %>
+    <div class="modal-body">
+      <%= activity_fields.hidden_field :request_type, value: activity %>
+
+      <% if activity == :skip_review %>
+        <p class="alert alert-warning">You should only skip review in exceptional circumstances, for example if you're the only person responding to an emergency out of hours call.</p>
+      <% end %>
+      
+      <% if activity == :request_review %>
+        <p class="help-block">Explain what changes you did or did not make and why. <% if current_user.govuk_editor? %>Include a link to the relevant Zendesk ticket and Jira card.<% end %> If you’ve added an edition note already, you do not need to add another one.</p>
+        <% if current_user.govuk_editor? %>
+          <p class="help-block">Read the <a href="https://gov-uk.atlassian.net/l/cp/dwn06raQ" rel="noreferrer noopener" target="_blank">guidance on writing good change notes on the GOV.UK wiki (opens in a new tab)</a>.</p>
+        <% end %>
+      <% end %>
+
+      <% if activity == :send_fact_check %>
+        <div class="form-group">
+          <span class="form-label">
+            <%= activity_fields.label :email_addresses %>
+          </span>
+          <span class="form-wrapper">
+            <%= activity_fields.text_field :email_addresses, class: "form-control" %>
+            <span class="help-block">You can enter multiple email addresses if you comma separate them as follows: <code>fact-checker-one@example.com, fact-checker-two@example.com</code>.</span>
+          </span>
+        </div>
+
+        <%= activity_fields.label :customised_message do %>
+          Customised message<abbr title="required">*</abbr>
+        <% end %>
+        <textarea id="edition_activity_send_fact_check_attributes_customised_message"
+                  name="edition[activity_send_fact_check_attributes][customised_message]"
+                  class="form-control" cols="60" rows="14"><%= render :template => "event_mailer/request_fact_check", formats: [:text] %></textarea>
+      <% elsif activity == :resend_fact_check %>
+        <% latest_status_action = form_builder.object.latest_status_action %>
+        <% if latest_status_action&.is_fact_check_request? %>
+          <%= activity_fields.label :email_addresses %>
+          <p class="form-control-static"><%= latest_status_action.email_addresses %></p>
+
+          <%= activity_fields.label :customised_message %>
+          <div class="form-control-static"><%= format_and_auto_link_plain_text(latest_status_action.customised_message) %></div>
+        <% end %>
+      <% else %>
+        <div class="form-group">
+          <span class="form-label">
+            <%= activity_fields.label :comment %>
+          </span>
+          <span class="form-wrapper">
+            <%= activity_fields.text_area :comment, cols: 60, rows: 6, class: "form-control" %>
+          </span>
+        </div>
+      <% end %>
+
+      <% if activity == :schedule_for_publishing %>
+        <%= activity_fields.label :publish_at do %>
+          Publish at <abbr title="required">*</abbr>
+        <% end %>
+        <div class="form-inline">
+          <%= activity_fields.time_select :publish_at, {}, { class: "date form-control" } %>
+          &mdash;
+          <%= activity_fields.date_select :publish_at,
+                                          { order: [:day, :month, :year],
+                                            default: Date.tomorrow,
+                                            start_year: Time.zone.today.year,
+                                            end_year: Time.zone.today.year.next },
+                                          { class: "date form-control" } %>
+        </div>
+      <% end %>
+      <p class="help-block add-top-margin remove-bottom-margin">
+        <i class="glyphicon glyphicon-exclamation-sign add-right-margin"></i>Changes you’ve made to this edition will also be saved.
+      </p>
+    </div>
+
+    <footer class="modal-footer remove-top-margin">
+      <a href="#" class="btn btn-default" data-dismiss="modal">Cancel</a>
+      <%= (inline ? form_builder : activity_fields).submit(title, class: "btn btn-success") %>
+    </footer>
+    </div>
+  <% end %>
+</div>

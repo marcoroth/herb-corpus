@@ -1,0 +1,54 @@
+<%#
+name: Host - Last Checkin
+snippet: false
+template_inputs:
+- name: Interval
+  required: true
+  input_type: user
+  description: An interval after which host is considered inactive, e.g. "5 hours",
+    "3 days", "1 month"
+  advanced: false
+  value_type: plain
+  default: 5 hours
+  hidden_value: false
+- name: Host filter
+  required: false
+  input_type: user
+  description: A search syntax used for further host filtering. It's automatically
+    appended to the interval condition if specified.
+  advanced: false
+  value_type: search
+  resource_type: Host
+  hidden_value: false
+- name: Include unknown
+  required: true
+  input_type: user
+  description: Should the host be included in the report if the host does not have
+    any last checkin information
+  options: "true\r\nfalse"
+  advanced: false
+  value_type: plain
+  default: 'true'
+  hidden_value: false
+model: ReportTemplate
+description: |
+  This report lists hosts that haven't checked in in the specified interval (by default
+  5 hours). By default it also includes hosts we don't have last check information for.
+  The check in is based on the subscription manager communication.
+require:
+- plugin: katello
+￼ version: 3.16.0
+-%>
+<%- include_unknown_search = input('Include unknown') == 'true' ? ' or null? last_checkin' : '' %>
+<%- search = "(last_checkin < \"#{input('Interval')} ago\"#{include_unknown_search})" -%>
+<%- search += "and #{input('Host filter')}" if input('Host filter').present? -%>
+<%- report_headers('Name', 'IP', 'IPv6', 'Last Checkin') -%>
+<%- load_hosts(search: search, preload: [ :subscription_facet, :interfaces ]).each_record do |host| -%>
+<%-   report_row(
+        'Name': host.name,
+        'IP': host.ip,
+        'IPv6': host.ip6,
+        'Last Checkin': last_checkin(host).to_s,
+      ) -%>
+<%- end -%>
+<%= report_render order: 'Last Checkin' -%>

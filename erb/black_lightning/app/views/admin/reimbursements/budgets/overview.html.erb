@@ -1,0 +1,140 @@
+<p class="mb-3">
+  <%= link_to "← All budgets", admin_reimbursements_budgets_path, class: "text-sm text-primary underline" %>
+</p>
+
+<p class="mb-3 text-gray-600">
+  Every budget grouped by nominal code, with a subtotal per code and a grand total. Expense and
+  income budgets are totalled separately, since adding spend to income gives a figure that is
+  neither. Expected outturn is the greater of the current projection and what's already been
+  spent or committed, so the number never drops below reality; it is left blank on income lines,
+  where the same figure would read as best-case income instead.
+</p>
+
+<%
+  money = ->(amount) { reimbursements_money(amount) }
+  expected_tip = "The greater of the current projection and what's already been spent or " \
+                 "committed, so the number never drops below reality. Blank on income lines."
+%>
+
+<%= render CardComponent.new(title: "Budgets by nominal code", flush: true) do %>
+  <div class="table-scroll">
+    <table class="table table-hover table-sticky-head">
+      <thead>
+        <tr>
+          <th scope="col">Budget</th>
+          <th scope="col">Type</th>
+          <th scope="col" class="text-right">Initial</th>
+          <th scope="col" class="text-right">Projected</th>
+          <th scope="col" class="text-right">Committed</th>
+          <th scope="col" class="text-right">Pipeline</th>
+          <th scope="col" class="text-right">Paid (portal)</th>
+          <th scope="col" class="text-right">EUSA actual</th>
+          <th scope="col" class="text-right" title="<%= expected_tip %>">Expected outturn</th>
+        </tr>
+      </thead>
+      <% @rollups.each do |rollup| %>
+        <tbody>
+          <tr class="bg-gray-50">
+            <th scope="rowgroup" colspan="9" class="text-left font-semibold py-2">
+              Nominal code <%= rollup.code %>
+            </th>
+          </tr>
+          <% rollup.rows.each do |budget| %>
+            <tr>
+              <td>
+                <%= link_to budget.name.presence || "-",
+                      edit_admin_reimbursements_budget_path(budget.record_id),
+                      class: "text-primary underline" %>
+                <% unless budget.active %>
+                  <span class="text-gray-400 text-xs">(hidden)</span>
+                <% end %>
+              </td>
+              <td><%= budget.budget_type %></td>
+              <td class="text-right"><%= money.(budget.initial_budget) %></td>
+              <td class="text-right"><%= money.(budget.projected_amount) %></td>
+              <td class="text-right"><%= money.(budget.committed_amount) %></td>
+              <td class="text-right"><%= money.(budget.pipeline_amount) %></td>
+              <td class="text-right"><%= money.(budget.paid_portal_amount) %></td>
+              <td class="text-right"><%= money.(budget.eusa_actual_amount) %></td>
+              <td class="text-right"><%= money.(budget.expected_outturn) %></td>
+            </tr>
+          <% end %>
+          <%# One subtotal per budget type in the group: a code holding both an
+              expense and an income budget has no single meaningful subtotal. %>
+          <% rollup.by_type.each do |subtotal| %>
+            <%= render "rollup_row", rollup: subtotal,
+                  label: "Subtotal #{rollup.code} (#{subtotal.budget_type})" %>
+          <% end %>
+        </tbody>
+      <% end %>
+      <tfoot>
+        <% @grand_total.by_type.each do |total| %>
+          <%= render "rollup_row", rollup: total,
+                label: "Grand total (#{total.budget_type} budgets)",
+                row_class: "border-t-2 border-gray-400 font-semibold" %>
+        <% end %>
+      </tfoot>
+    </table>
+  </div>
+<% end %>
+
+<%= render CardComponent.new(title: "Actuals not attributed to any budget", html_class: "mt-4") do %>
+  <p class="text-sm text-gray-600 mb-3">
+    EUSA ledger rows that are linked to neither an expense nor a budget, so no line above
+    counts them. That includes rows on a nominal code that <em>does</em> have a budget: a
+    budget only counts the actuals reconciled to it, because several budgets can share one
+    code. Offsetting pairs are left out, since an accrual and its reversal net to zero.
+    Link each row on the Reconcile page, or convert a debit into an expense, so it stops
+    showing here.
+  </p>
+
+  <% if @unattributed_by_code.empty? %>
+    <p class="py-2 text-center text-gray-600">
+      Every EUSA actual is attributed to a budget.
+    </p>
+  <% else %>
+    <div class="table-scroll">
+      <table class="w-full text-sm table-sticky-head">
+        <thead>
+          <tr class="text-left text-gray-500 border-b border-gray-200">
+            <th scope="col" class="py-2 pr-3">Date</th>
+            <th scope="col" class="py-2 pr-3">Narrative</th>
+            <th scope="col" class="py-2 pr-3">Ref</th>
+            <th scope="col" class="py-2 pr-3">Type</th>
+            <th scope="col" class="py-2 text-right">Amount</th>
+          </tr>
+        </thead>
+        <% @unattributed_by_code.each do |code, actuals| %>
+          <tbody>
+            <tr class="bg-gray-50">
+              <th scope="rowgroup" colspan="5" class="text-left font-semibold py-2">
+                Nominal code <%= code %>
+                <span class="font-normal text-gray-600">
+                  (net <%= reimbursements_money(reimbursements_actuals_net(actuals)) %>)
+                </span>
+              </th>
+            </tr>
+            <% actuals.each do |actual| %>
+              <% debit = actual.debit&.positive? %>
+              <tr class="border-b border-gray-100">
+                <td class="py-2 pr-3 whitespace-nowrap"><%= reimbursements_date(actual.date) %></td>
+                <td class="py-2 pr-3"><%= actual.narrative.presence || "-" %></td>
+                <td class="py-2 pr-3"><%= actual.ref.presence || "-" %></td>
+                <td class="py-2 pr-3"><%= debit ? "Debit" : (actual.credit&.positive? ? "Credit" : "-") %></td>
+                <td class="py-2 text-right"><%= reimbursements_money(debit ? actual.debit : actual.credit) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        <% end %>
+        <tfoot>
+          <tr class="border-t-2 border-gray-400 font-semibold">
+            <td colspan="4" class="py-2 text-right">Total unattributed (debits less credits)</td>
+            <td class="py-2 text-right">
+              <%= reimbursements_money(reimbursements_actuals_net(@unattributed_by_code.values.flatten)) %>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+<% end %>

@@ -1,0 +1,34 @@
+<%= fields_for :note do |f| %>
+  <%= label_tag 'assignment_id', Assignment.model_name.human %>
+  <%= select_tag 'assignment_id',
+                 options_from_collection_for_select(@assignments,
+                                                    :id,
+                                                    :short_identifier) %>
+  <%= f.label :noteable_id, Group.model_name.human %>
+  <%= f.select :noteable_id, @groupings.collect { |p| [p.group_name_with_student_user_names,p.id] } %>
+<% end %>
+
+<%= javascript_tag nonce: true do %>
+  (function() {
+    const domContentLoadedCB = function() {
+      $('#assignment_id').on("change", (evt) => {
+        document.getElementById('working').style.display = '';
+        document.getElementById('new-note-save').disabled = true;
+        $.ajax({
+            url:  Routes.new_update_groupings_course_notes_path(<%= @current_course.id %>, evt.target.value),
+            type: 'POST',
+            data: $(evt.target).serialize() + '&authenticity_token=' + AUTH_TOKEN
+        }).done(function() {
+            document.getElementById('working').style.display = 'none';
+            document.getElementById('new-note-save').disabled = false;
+        });
+      })
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", domContentLoadedCB);
+    } else {
+      domContentLoadedCB()
+    }
+  })();
+<% end %>

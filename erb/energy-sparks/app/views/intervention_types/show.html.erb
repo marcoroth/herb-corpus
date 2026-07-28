@@ -1,0 +1,42 @@
+<% cache_if current_user.nil?, [@intervention_type, I18n.locale], expires_in: 1.hour do %>
+  <% content_for :page_title do %>
+    <%= @intervention_type.name %>
+  <% end %>
+  <% content_for :header do %>
+    <%= render Tasks::Header.new(task: @intervention_type) %>
+  <% end %>
+  <% content_for :rightcol do %>
+    <%= render 'shared/tasks/rightcol/download_links', task: @intervention_type %>
+    <%= render 'shared/tasks/rightcol/category', task: @intervention_type %>
+    <%= render 'shared/tasks/rightcol/programmes', task: @intervention_type %>
+  <% end %>
+  <% if current_user_school && @intervention_type.actions_for_school(current_user_school).any? %>
+    <%= render 'shared/tasks/prompts/previous_records',
+               recordings: @intervention_type.actions_for_school(current_user_school),
+               resource_type: :intervention,
+               school: current_user_school %>
+  <% end %>
+  <% if current_user.nil? %>
+    <%= render 'shared/tasks/prompts/login_to_record', task: @intervention_type %>
+  <% end %>
+  <% if can?(:create, Observation) && @available_schools_for_user.present? %>
+    <% if @available_schools_for_user.one? %>
+      <%= render 'shared/tasks/prompts/score', task: @intervention_type,
+                                               url: new_school_intervention_path(
+                                                 @available_schools_for_user.first,
+                                                 intervention_type_id: @intervention_type.id
+                                               ),
+                                               school: @available_schools_for_user.first %>
+    <% else %>
+      <%= render 'shared/tasks/prompts/score_for_group', task: @intervention_type,
+                                                         url: for_school_intervention_type_path(@intervention_type),
+                                                         schools: @available_schools_for_user %>
+    <% end %>
+  <% end %>
+  <h3 class="pt-0"><%= t('common.labels.overview') %></h3>
+  <%= @intervention_type.description %>
+  <% if can?(:edit, @intervention_type) %>
+    <p><%= admin_button edit_admin_intervention_type_path(@intervention_type),
+                        classes: 'btn btn-default' %></p>
+  <% end %>
+<% end %>

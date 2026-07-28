@@ -1,0 +1,74 @@
+# Absences
+
+Cette fonctionnalité permet de gérer les absences de vos membres et d'automatiquement déduire les <%= Basket.model_name.human(count: 2).downcase %> absents de vos livraisons. Vos membres peuvent annoncer leurs absences directement depuis leur espace membre. Vous pouvez également ajouter des absences pour vos membres en tant qu'admin ([Autre > Absences](/absences)).
+
+## Configuration {#configuration}
+
+Une fois cette fonctionnalité supplémentaire activée dans [vos paramètres](/settings#organization_features_input), [de multiples réglages](/settings#absence) sont disponibles.
+
+## Facturation {#billing}
+
+Par défaut, les <%= Basket.model_name.human(count: 2).downcase %> marqués comme absents et non délivrés sont facturés. Il est conseillé aux membres de trouver une connaissance pour récupérer leur <%= Basket.model_name.human.downcase %> à leur place. Dans [les paramètres](/settings#absence), vous pouvez également choisir de ne pas les facturer. Le système s'occupera alors automatiquement d'[ajuster la facturation](/handbook/billing#price-change) de l'abonnement.
+
+## Déplacement de <%= Basket.model_name.human(count: 2).downcase %> {#basket-shift}
+
+Il est possible de déplacer la livraison d'un <%= Basket.model_name.human.downcase %> durant une absence vers une autre livraison. Cela permet aux membres de compenser leurs absences sans changer le nombre de <%= Basket.model_name.human(count: 2).downcase %> facturés.
+
+Côté admin, il suffit de modifier un <%= Basket.model_name.human.downcase %> marqué comme absent depuis la page de l'abonnement et de choisir une autre date de livraison. Le contenu du <%= Basket.model_name.human.downcase %> (compléments inclus) sera alors automatiquement déplacé vers le <%= Basket.model_name.human.downcase %> choisi.
+
+Côté membre, le déplacement de <%= Basket.model_name.human(count: 2).downcase %> n'est pas possible par défaut. Pour activer cette fonctionnalité, vous avez la possibilité de [modifier les paramètres](/settings#absence) suivants:
+
+- **Nombre de déplacements permis** : afin de limiter, si vous le souhaitez, le nombre de déplacements possibles par les membres.
+- **Délai pour les déplacements** : afin de limiter, si vous le souhaitez, les déplacements possibles dans le temps.
+
+Si l'absence est annulée, le contenu du <%= Basket.model_name.human.downcase %> sera automatiquement restitué à sa livraison d'origine.
+
+> Le déplacement de <%= Basket.model_name.human(count: 2).downcase %> est possible uniquement pour les absences facturées. Les absences incluses (non facturées) ne peuvent pas être déplacées.
+
+### Template de newsletter
+
+Lorsqu'un <%= Basket.model_name.human.downcase %> a reçu des déplacements, vous pouvez afficher un rappel dans [vos templates de newsletter](/newsletter_templates) en utilisant les variables `basket.shifted` et `basket.shifts`:
+
+~~~ liquid
+{% if basket.shifted %}
+  {% highlight %}
+    <p><strong>📣 Rappel important!</strong></p>
+    <p>Vous avez <strong>{{ basket.quantity }} <%= Basket.model_name.human(count: 2).downcase %></strong> à récupérer cette semaine:</p>
+    <ul>
+      <li>Votre <%= Basket.model_name.human.downcase %> habituel</li>
+      {% for shift in basket.shifts %}
+        <li><%= Basket.model_name.human %> reporté du {{ shift.old_delivery_date }}</li>
+      {% endfor %}
+    </ul>
+  {% endhighlight %}
+{% endif %}
+~~~
+
+## Absences incluses {#absence-included}
+
+Il est possible de configurer un nombre d'absences incluses dans l'abonnement. Ces absences sont alors automatiquement déduites et non-facturées dès le début de l'abonnement. Le système marquera provisoirement les dernières livraisons de l'abonnement comme absentes, en attendant que le membre fixe ces absences sur des dates précises. Les absences supplémentaires seront facturées ou non selon le mode choisi dans [vos paramètres](/settings#absence).
+
+> Le nombre d'absences incluses est paramétré au niveau d'un [cycle de livraison](/handbook/deliveries#delivery-cycles), afin de proposer des abonnements avec un nombre d'absences incluses (et donc de livraisons) sur [votre formulaire d'inscription](<%= new_members_member_url(subdomain: Current.org.members_subdomain) %>).
+
+### Mode de fin d'année {#absence-included-mode}
+
+Lorsque les membres n'utilisent pas toutes leurs absences incluses à la fin de leur abonnement, les absences restantes restent provisoirement marquées sur les dernières livraisons. Pour gérer cette situation, vous pouvez configurer un **mode de fin d'année** dans [les paramètres](/settings#absence) :
+
+**Absence provisoire respectée**
+
+C'est le mode par défaut. Les absences provisoires ne seront pas livrées. Les membres recevront un email de rappel et pourront ensuite choisir de forcer une livraison depuis leur compte s'ils souhaitent recevoir des <%= Basket.model_name.human(count: 2).downcase %> qui étaient marqués comme provisoirement absents.
+
+Ce mode est utile lorsque vous préférez que les absences non utilisées restent des absences par défaut, en donnant aux membres la possibilité de demander une livraison si nécessaire.
+
+**Livraison des absences restantes**
+
+Dans ce mode, les absences incluses non utilisées verront leur livraison forcée et facturée lors du rappel. Les membres reçoivent un email de rappel et peuvent annoncer une absence pour les refuser avant que la livraison n'ait pas lieu et ne soit pas facturée.
+
+Ce mode est utile lorsque vous préférez que les membres reçoivent leurs <%= Basket.model_name.human(count: 2).downcase %> par défaut, évitant ainsi la confusion des membres qui se présentent en attendant un <%= Basket.model_name.human.downcase %> qui n'a pas été préparé.
+
+### Email de rappel {#absence-included-reminder}
+
+Un email de rappel est envoyé aux membres ayant des absences incluses non utilisées un nombre configurable de semaines avant la première absence provisoire (par défaut : 4 semaines). Cela donne aux membres le temps d'agir selon le mode choisi :
+
+- **En mode "Absence provisoire respectée"** : Forcer une livraison s'ils souhaitent recevoir des <%= Basket.model_name.human(count: 2).downcase %> qui étaient marqués comme provisoirement absents.
+- **En mode "Livraison des absences restantes"** : Annoncer une absence pour refuser les livraisons qu'ils ne souhaitent pas.

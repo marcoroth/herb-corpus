@@ -1,0 +1,329 @@
+<%# locals: () -%>
+<%= form_with url: '/search', method: :get, html: { aria: {label: "Search"} }, class: "search-form" do |f| %>
+  <div class="boxline">
+    <%= f.text_field "q", { aria: { label: "Search query" }, value: @search.q, size: 40, autocapitalize: :off, type: "search" }.
+      merge(@search.q.present? ? {} : { :autofocus => "autofocus" }) %>
+    <input type="submit" value="Search">
+  </div>
+
+  <fieldset class="radio-group-container">
+    <legend>Search</legend>
+    <div class="radio-group">
+      <label><%= f.radio_button "what", "stories", checked: @search.what == :stories %> Stories</label>
+      <label><%= f.radio_button "what", "comments", checked: @search.what == :comments %> Comments</label>
+    </div>
+  </fieldset>
+
+  <fieldset class="radio-group-container">
+    <legend>Order By</legend>
+    <div class="radio-group">
+      <label><%= f.radio_button "order", "newest", checked: @search.order == :newest %> Newest</label>
+      <label><%= f.radio_button "order", "relevance", checked: @search.order == :relevance %> Relevance</label>
+      <label><%= f.radio_button "order", "score", checked: @search.order == :score %> Score</label>
+    </div>
+  </fieldset>
+<% end %>
+
+<% if @search.results_count > -1 %>
+  <div class="box searchresults">
+    <details <%= "open" if @search.results_count == 0 %>>
+      <summary>
+        <span class="heading"><%= @search.results_count %> result<%= @search.results_count == 1 ? "" : "s" %> for </span>
+        <span class="searchq"><%= @search.q %></span>
+      </summary>
+
+      <% if @search.invalid_because %>
+        <div class="flash-error"><%= @search.invalid_because %></div>
+      <% end %>
+
+      <p>
+      Search query parsed to:
+      </p>
+      <dl class="search_parse">
+        <%
+          @search.parse_tree.each do |node|
+            type, value = node.first
+
+            case type
+          when :commenter %>
+          <dt><span class="searchq">commenter:<%= value %></span></dt>
+          <dd>Comment by: <%= link_to value, user_path(value) %></dd>
+        <% when :domain %>
+          <dt><span class="searchq">domain:<%= value %></span></dt>
+          <dd>Domain: <%= link_to value, domain_path(value) %></dd>
+        <% when :submitter %>
+          <dt><span class="searchq">submitter:<%= value %></span></dt>
+          <dd>Story submitted by: <%= link_to value, user_path(value) %></dd>
+        <% when :tag %>
+          <dt><span class="searchq">tag:<%= value %></span></dt>
+          <dd>Tag: <%= link_to value, tag_path(value) %></dd>
+        <% when :title %>
+          <dt><span class="searchq">title:<%= @search.flatten_title(value) %></span></dt>
+          <dd>Title: <%= @search.flatten_title(value) %></dd>
+        <% when :url %>
+          <dt><span class="searchq">url:<%= value %></span></dt>
+          <dd>URL: <%= value %></dd>
+        <% when :user %>
+          <dt><span class="searchq">@<%= value %></span></dt>
+          <dd><%= @search.searched_model.name %> by: <%= link_to value, user_path(value) %></dd>
+        <% when :negated %>
+        <% when :quoted %>
+          <dt><span class="searchq">"<%= value.pluck(:term).join(" ") %>"</span></dt>
+          <dd>
+            Quote: <span class="searchq">"<%= @search.strip_operators(value.pluck(:term).join(" ")) %>"</span>
+            <% if !value.to_s.include?(' ') %>
+              <br>Quoting a single word is redundant, terms are exact.
+            <% end %>
+            <% if value.pluck(:term).join(" ").to_s != @search.strip_operators(value.pluck(:term).join(" ")) %>
+              <br>Punctuation that might have been taken as a <a href="https://mariadb.com/kb/ru/full-text-index-overview/#in-boolean-mode">SQL search operator</a> was stripped.
+            <% end %>
+          </dd>
+        <% when :term %>
+          <dt><span class="searchq"><%= value %></span></dt>
+          <dd>
+            Term: <span class="searchq"><%= @search.strip_short_terms(@search.strip_operators(value)) %></span>
+            <% if value.to_s != @search.strip_operators(value) %>
+              <br>Punctuation that might have been taken as a <a href="https://mariadb.com/kb/ru/full-text-index-overview/#in-boolean-mode">SQL search operator</a> was stripped.
+            <% end %>
+            <% if value.to_s != @search.strip_short_terms(value) %>
+              <br>Terms must be at least 4 characters long.
+              <% if value.to_s.downcase =~ /\b(d\b|go\b|ml\b|c([+][+]|\b)?)/ %>
+                <% lang = $& %>
+                <br>For the
+                <% if value.to_s.downcase =~ /\bgo\b/ %>
+                  terribly-named
+                <% end %>
+                language, use <span class="searchq">tag:<%= lang %></span>
+              <% end %>
+              <% if value.to_s.downcase =~ /\b(ai|ml)\b/ %>
+                <br>Use <span class="searchq">tag:ai</span> for artificial intelligence/machine learning
+              <% end %>
+            <% end %>
+          </dd>
+        <% when :shortword %>
+          <dt><span class="searchq"><%= value %></span></dt>
+          <dd>
+            Shortword: <span class="searchq"><%= value %></span>
+              <br>Terms must be at least 3 characters long.
+              If you're searching for a phrase, use quotes, like <span class="searchq">"Files are hard"</span>.
+          </dd>
+        <% when :stopword %>
+          <dt><span class="searchq"><%= value %></span></dt>
+          <dd>
+            Stopword: <span class="searchq"><%= value %></span>
+            <br>A <a href="https://mariadb.com/kb/en/full-text-index-stopwords/#innodb-stopwords">very common word</a> was excluded by the search engine
+            If you're searching for a phrase, use quotes, like <span class="searchq">"zombo com"</span>.
+            (Odd limitation: MariaDB still ignores stopwords when they're the first word in a quote.)
+          </dd>
+        <% when :catchall %>
+          <dt><span class="searchq"><%= value %></span></dt>
+          <dd>
+            Catchall: <span class="searchq"><%= @search.strip_operators(value) %></span>
+            If you were trying to use a search operator, it wasn't recognized.
+          </dd>
+        <% else %>
+          <dt>oops</dt>
+          <dd>Implementer forgot to handle a search case, please file a bug with your search terms.</dd>
+        <% end %>
+      <% end %>
+      </dl>
+    </details>
+  </div>
+
+  <% if @search.what == :stories %>
+    <ol class="stories list">
+      <% @results.each do |story| %>
+<%#heinous_inline_partial(stories/_listdetail.html.erb)%>
+<%# Do not edit, the content before /heinous_inline_partial comes from the named partial %>
+<%# locals: (story:) -%>
+
+<%# remember: _singledetail replicates a lot of this for the single-story view %>
+
+<%#
+  The h-entry, u-report-of, u-url and h-card css classes are necessary
+  for the webmentions support. http://microformats.org/wiki/h-entry
+
+  This has apparently useless <span> tags explained in a comment in CSS
+  around .negative_1 in CSS (introduced same commit as this comment).
+%>
+<li id="story_<%= story.short_id %>" data-shortid="<%= story.short_id %>"
+class="story <%= story.current_upvoted? ? "upvoted" : "" %>
+<%= story.current_flagged? ? "flagged" : "" %>
+<%= story.negativity_class %>
+<%= story.is_hidden_by_cur_user ? "hidden" : "" %>
+<%= story.is_saved_by_cur_user ? "saved" : "" %>
+<%= story.is_deleted? ? "deleted" : "" %>">
+<div class="story_liner h-entry">
+  <div class="voters">
+    <%= link_to (story.show_score_to_user?(@user) ? story.score : '~'),
+                (@user ? '': login_path), :class => "upvoter" %>
+  </div>
+  <div class="details">
+    <span role="heading" aria-level="1" class="link h-cite u-repost-of">
+      <% if story.can_be_seen_by_user?(@user) %>
+        <a class="u-url" href="<%= Routes.url_or_comments_path(story) %>" rel="ugc <%= story.send_referrer? ? '' : 'noreferrer' %>"><%= story.title %></a>
+      <% end %>
+      <% if story.is_gone? %>
+        [Story removed by <%= story.is_moderated? ? "moderator" : "submitter" %>]
+      <% end %>
+    </span>
+    <% if story.stories_count > 0 %>
+      <span class="merge" aria-label="<%= story.stories_count + 1 %> stories merged"><%= story.stories_count + 1 %></span>
+    <% elsif story.merged_story_id %>
+      <span class="merge">merged</span>
+    <% end %>
+    <% if story.markeddown_description.present? %>
+      <a
+        aria-label="<%= "Description text for: #{story.title}" %>"
+        class="description_present"
+        title="<%= truncate(story.description, :length => 500) %>"
+        href="<%= Routes.title_path story %>">&#x2636;</a>
+    <% end %>
+    <% if story.can_be_seen_by_user?(@user) %>
+      <span class="tags">
+        <% story.tags.each do |tag| %>
+          <%= tag_link(tag) %>
+        <% end %>
+      </span>
+      <% if story.origin.present? %>
+        <%= link_to story.origin.identifier, origin_path(story.origin), class: 'domain' %>
+      <% elsif story.domain.present? %>
+        <%= link_to story.domain.domain, domain_path(story.domain), class: 'domain' %>
+      <% end %>
+    <% end %>
+
+    <% if story.can_be_seen_by_user?(@user) && @user&.show_story_previews? %>
+      <% if (sc = story.description_or_story_text()).present? %>
+        <details class="story_content">
+          <summary><%= sc %></summary>
+        </details>
+      <% end %>
+    <% end %>
+
+    <div class="byline">
+      <%= inline_avatar_for @user, story.user %>
+      <% if story.previewing %>
+        <% if story.user_is_author? %>
+          <span> authored by </span>
+        <% else %>
+          <span> via </span>
+        <% end %>
+
+        <%= styled_user_link story.user, story, class: ['u-author', 'h-card'] %>
+        <span> just now </span>
+      <% else %>
+        <% if story.user_is_author? %>
+          <span> authored by </span>
+        <% else %>
+          <span> via </span>
+        <% end %>
+        <%= styled_user_link story.user, story, class: ['u-author', 'h-card'] %>
+
+        <%= how_long_ago_label(story.created_at) %>
+
+        <% if story.is_editable_by_user?(@user) %>
+          <%= divider_tag %>
+          <a href="<%= edit_story_path(story.short_id) %>" class="<%= story.has_suggestions? ? "story_has_suggestions" : "" %>">edit</a>
+        <% end %>
+        <% if @user&.is_moderator? %>
+          <%= divider_tag %>
+          <a href="<%= edit_mod_story_path(story.short_id) %>" class="<%= story.has_suggestions? ? "story_has_suggestions" : "" %>">mod edit</a>
+        <% end %>
+        <% if story.can_have_suggestions_from_user?(@user) %>
+          <%= divider_tag %><%= link_to "suggest", new_story_suggestion_path(story.short_id),
+            :class => "suggester" %>
+        <% end %>
+        <% if !story.is_gone? && @user %>
+          <% if @user && story.current_flagged? %>
+            <%= divider_tag %><a class="flagger">unflag (<%=
+              Vote::STORY_REASONS[story.current_vote[:reason]].to_s.downcase %>)</a>
+          <% elsif @user && @user.can_flag?(story) %>
+            <%= divider_tag %>
+            <span class="dropdown_parent">
+              <a class="flagger">flag</a>
+            </span>
+          <% end %>
+          <%= divider_tag %>
+          <%= form_with :class => "hider", url: story.is_hidden_by_cur_user ? story_unhide_path(story.short_id) : story_hide_path(story.short_id) do |form| %>
+            <%= form.submit story.is_hidden_by_cur_user ? "unhide" : "hide", :class => "btn-link" %>
+          <% end %>
+          <%= divider_tag %>
+          <%= form_with :class => "saver", url: story.is_saved_by_cur_user ? story_unsave_path(story.short_id) : story_save_path(story.short_id) do |form| %>
+            <%= form.submit story.is_saved_by_cur_user ? "unsave" : "save", :class => "btn-link" %>
+          <% end %>
+
+        <% end %>
+        <% if story.url.present? && (!story.is_gone? || @user.try(:is_moderator?))  %>
+          <%= divider_tag %>
+          <label for="caches_<%= story.short_id %>" class="caches" tabindex="0">caches</label>
+        <% end %>
+        <% if !story.is_gone? || @user.try(:is_moderator?) %>
+          <span class="comments_label">
+            <%= divider_tag %>
+            <a role="heading" aria-level="2" href="<%= Routes.title_path story %>">
+            <% if story.comments_count == 0 %>
+              no comments
+            <% else %>
+              <%= story.comments_count %> <%= 'comment'.pluralize(story.comments_count) %>
+            <% end %>
+            </a>
+          </span>
+        <% end %>
+      <% end %>
+    </div>
+    <% if story.url.present? && (!story.is_gone? || @user.try(:is_moderator?)) %>
+      <input id="caches_<%= story.short_id %>" class="caches_button" type="checkbox">
+      <div class="caches-dropdown">
+        <a href="<%= story.archiveorg_url %>">Archive.org</a>
+        <%= divider_tag %>
+        <a href="<%= story.ghost_url %>">Ghostarchive</a>
+      </div>
+    <% end %>
+  </div>
+</div>
+<a href="<%= Routes.title_path story %>" class="mobile_comments <%= story.comments_count == 0 ? "zero" : "" %>" style="display: none;">
+  <span><%= story.comments_count %></span>
+</a>
+</li>
+
+<%#/heinous_inline_partial(stories/_listdetail.html.erb)%>
+      <% end %>
+    </ol>
+  <% elsif @search.what == :comments %>
+    <ol class="comments comments1">
+      <% @results.each do |res| %>
+        <li><%= render "comments/comment", :comment => res, :show_story => true %></li>
+      <% end %>
+    </ol>
+  <% end %>
+
+  <% if @search.results_count > @search.per_page %>
+    <div class="page_link_buttons">
+      Page:
+
+      <% page_numbers_for_pagination(@search.page_count, @search.page).each do |p| %>
+        <% if p.is_a?(Integer) %>
+          <%= link_to p, search_path(@search.to_param.merge(page: p)), class: (@search.page == p ? 'cur' : '') %>
+        <% else %>
+          <span>...</span>
+        <% end %>
+      <% end %>
+    </div>
+  <% elsif @search.results_count == 1 %>
+    <div class="page_link_buttons">
+      <p>Hapax legomenon</p>
+    </div>
+  <% end %>
+<% else %>
+  <div class="help">
+    <label>Search hints:</label>
+    <ul>
+      <li>Search terms are required. Use quote marks if you want <span class="searchq">"words together"</span></li>
+      <li>Terms are exact, so <span class="searchq">code</span> doesn't match <span class="searchq">coder</span> or <span class="searchq">coding</span>. You can approximate stemming with <span class="searchq">cod*</span></li>
+      <li>Search titles with <span class="searchq">title:kernel</span> or <span class="searchq">title:"linux kernel"</span></li>
+      <li>Search by domain with <span class="searchq">domain:example.com</span></li>
+      <li>Search by story submitter with <span class="searchq">submitter:alice</span> or by comment author with <span class="searchq">commenter:bob</span></li>
+      <li>Search by <%= link_to 'tag', tags_path %> with <span class="searchq">tag:meta</span></li>
+    </ul>
+  </div>
+<% end %>

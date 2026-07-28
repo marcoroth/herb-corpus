@@ -1,0 +1,132 @@
+<%=
+  component_wrapper(class: "work-packages-activities-tab-journals-new-component") do
+    flex_layout(data: { test_selector: "op-work-package-journal-form" }) do |new_form_container|
+      new_form_container.with_row(
+        display: button_row_display_value,
+        data: {
+          "#{editor_stimulus_controller}-target": "buttonRow"
+        }
+      ) do
+        flex_layout(justify_content: :space_between) do |button_row|
+          button_row.with_column(classes: "work-packages-activities-tab-journals-new-component--input-trigger-column", mr: 2) do
+            render(
+              Primer::Beta::Button.new(
+                text_align: :left,
+                scheme: :default,
+                size: :medium,
+                block: true,
+                data: {
+                  action: "click->#{editor_stimulus_controller}#showForm dragover->#{editor_stimulus_controller}#showForm",
+                  test_selector: "op-open-work-package-journal-form-trigger"
+                }
+              )
+            ) do
+              render(Primer::Beta::Text.new(color: :muted, font_weight: :normal)) { t("activities.work_packages.activity_tab.label_type_to_comment") }
+            end
+          end
+          button_row.with_column do
+            render(
+              Primer::Beta::IconButton.new(
+                scheme: :default,
+                icon: :"paper-airplane",
+                "aria-label": t("activities.work_packages.activity_tab.label_submit_comment"),
+                disabled: true
+              )
+            )
+          end
+        end
+      end
+
+      new_form_container.with_row(
+        display: form_row_display_value,
+        data: { "#{editor_stimulus_controller}-target": "formRow" }
+      ) do
+        primer_form_with(
+          id: "work-package-journal-form-element",
+          model: journal,
+          method: :post,
+          data: {
+            turbo: true,
+            turbo_stream: true,
+            "#{editor_stimulus_controller}-target": "form",
+            test_selector: "op-work-package-journal-form-element"
+          },
+          url: work_package_activities_path(work_package_id: work_package.id)
+        ) do |f|
+          flex_layout do |form_container|
+            form_container.with_row(
+              classes: "work-packages-activities-tab-journals-new-component--ck-editor-column",
+              mb: 3
+            ) do
+              render(
+                Primer::Forms::FormList.new(
+                  WorkPackages::ActivitiesTab::Journals::HiddenForm.new(f, filter:, last_server_timestamp:),
+                  WorkPackages::ActivitiesTab::Journals::NotesForm.new(f)
+                )
+              )
+            end
+
+            form_container.with_row(flex_layout: true, justify_content: adding_internal_comment_allowed? ? :space_between : :flex_end) do |form_container_row|
+              if adding_internal_comment_allowed?
+                form_container_row.with_column(flex_layout: true, align_items: :center) do |internal_comment_container|
+                  internal_comment_container.with_column(mr: 2, test_selector: "op-work-package-journal-internal-comment-checkbox") do
+                    render(WorkPackages::ActivitiesTab::Journals::InternalNoteForm.new(f))
+                  end
+
+                  internal_comment_container.with_column(
+                    display: :none,
+                    data: { "#{internal_comment_stimulus_controller}-target": "learnMoreLink" },
+                    pb: 1
+                  ) do
+                    helpers.static_link_to(:enterprise_features, :internal_comments,
+                                           label: I18n.t(:label_learn_more))
+                  end
+                end
+              end
+
+              form_container_row.with_column(flex_layout: true, align_items: :center) do |submit_container|
+                submit_container.with_column(mr: 2) do
+                  render(
+                    Primer::Beta::Button.new(
+                      scheme: :secondary,
+                      size: :medium,
+                      data: { action: "click->#{editor_stimulus_controller}#closeEditor" }
+                    )
+                  ) do
+                    t("activities.work_packages.activity_tab.label_dismiss_comment")
+                  end
+                end
+
+                submit_container.with_column do
+                  render(WorkPackages::ActivitiesTab::Journals::Submit.new(f, label: I18n.t("button_submit")))
+                end
+              end
+            end
+
+            form_container.with_row do
+              render(EnterpriseEdition::BannerComponent.new(:internal_comments, dismissable: true, i18n_scope: "ee.upsell.internal_comments_inline", mt: 4))
+            end
+          end
+        end
+      end
+    end
+  end
+%>
+
+<% if adding_internal_comment_allowed? %>
+  <%=
+    render(
+      Primer::OpenProject::DangerDialog.new(
+        title: I18n.t("activities.work_packages.activity_tab.internal_comment_confirmation.title"),
+        confirm_button_text: I18n.t("activities.work_packages.activity_tab.internal_comment_confirmation.confirm_button_text"),
+        data: confirm_dialog_data_attributes,
+        test_selector: "op-work-package-internal-comment-confirmation-dialog"
+      )
+    ) do |dialog|
+      dialog.with_confirmation_message do |message|
+        message.with_heading(tag: :h2) { I18n.t("activities.work_packages.activity_tab.internal_comment_confirmation.title") }
+        message.with_description_content(I18n.t("activities.work_packages.activity_tab.internal_comment_confirmation.description"))
+      end
+    end
+  %>
+<% end %>

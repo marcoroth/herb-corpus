@@ -1,0 +1,99 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%=
+  widget_wrapper do |container|
+    if can_view_members?
+      if members_by_role.any?
+        flex_layout(style: "gap: var(--base-size-8, 8px)") do |flex|
+          spacer_component = Primer::Beta::Text.new(mr: 1).with_content(", ")
+
+          members_by_role.each do |role_data|
+            flex.with_row do
+              render(Primer::Beta::Text.new(font_weight: :semibold)) { role_data[:role].name }
+            end
+
+            flex.with_row(mb: 2) do
+              concat render(
+                Users::AvatarComponent
+                  .with_collection(
+                    role_data[:members],
+                    size: :mini,
+                    link: false,
+                    show_name: true,
+                    spacer_component:
+                  )
+              )
+
+              if role_data[:has_more]
+                concat render(
+                  Primer::Beta::Link.new(
+                    href: project_members_path(@project, role_id: role_data[:role].id),
+                    ml: 1,
+                    font_weight: :semibold,
+                    classes: "op-principal"
+                  ).with_content(t(".x_more", count: role_data[:remaining]))
+                )
+              end
+            end
+          end
+
+          container.with_footer(test_selector: "members-widget-footer") do
+            render Primer::Beta::Link.new(href: project_members_path(@project)) do
+              t(".view_all_members")
+            end
+          end
+        end
+      else
+        render(Primer::Beta::Blankslate.new(test_selector: "members-widget-empty")) do |component|
+          component.with_visual_icon(icon: :person)
+          component.with_heading(tag: :h3).with_content(title)
+          component.with_description { I18n.t("grids.widgets.empty") }
+
+          if can_manage_members?
+            component.with_primary_action(
+              href: project_members_path(@project),
+              scheme: :secondary,
+              test_selector: "members-widget-add-button"
+            ) do |button|
+              button.with_leading_visual_icon(icon: :plus)
+              t("activerecord.models.member")
+            end
+          end
+        end
+      end
+
+    else
+      render(Primer::Beta::Blankslate.new(test_selector: "members-widget-no-permission")) do |component|
+        component.with_heading(tag: :h3).with_content(title)
+        component.with_description { t("grids.widgets.not_available") }
+      end
+    end
+  end
+%>

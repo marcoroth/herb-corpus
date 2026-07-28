@@ -1,0 +1,112 @@
+<%
+# Copyright (C) 2011 - present Instructure, Inc.
+#
+# This file is part of Canvas.
+#
+# Canvas is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, version 3 of the License.
+#
+# Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <http://www.gnu.org/licenses/>.
+%>
+
+<% add_crumb t(:sis_import_crumb, "SIS Import") %>
+<% set_active_tab "sis_import" %>
+<% provide :page_title do %><%= t(:page_title, "SIS Import") %>
+<% end %>
+
+<div>
+  <h1><%= t(:title, "SIS Import") %></h1>
+  <% if can_do(@account, @current_user, :import_sis) %>
+    <div class="sis_messages" style="<%= hidden %>">
+      <div class="ui-state-error sis_error_message" style="padding: 0.5em 1em"></div>
+      <%= link_to t(:try_import_again_link, "Try import again"), account_sis_import_path %>
+    </div>
+
+    <div class="form" style="<%= hidden if @current_batch && @current_batch.importing? %>">
+      <p class="instruction"><%= mt(:select_file_instructions,
+                                    "Select the CSV or zip file that you want imported.  \n" +
+                                        "For a description of how to generate these files, [please see this documentation](%{url}).",
+                                    :url => "/doc/api/file.sis_csv.html") %></p>
+      <div id="attachment_mount"></div>
+    </div>
+  <% end %>
+
+  <div id="sis_importer"></div>
+  <div class="progress_bar_holder" style="<%= hidden unless @current_batch && @current_batch.importing? %> margin-top: 10px;">
+    <div class="copy_progress"></div>
+    <div class="progress_message"><%= t(:import_started_message, "The import process has started! This can take a while if there is a lot to import. You can leave the page and come back.") %></div>
+  </div>
+
+  <div id="import_log_holder" style="<%= hidden %>">
+    <h2><%= t(:import_log_title, "Import Progress Log") %></h2>
+    <div id="import_log"></div>
+  </div>
+
+  <% pending_batch_count = @account.sis_batches.needs_processing.count %>
+  <% pending_batch_count -= 1 if @current_batch && @current_batch.created? %>
+  <% if pending_batch_count > 0 %>
+    <div class="pending_batches" style="margin-top: 20px">
+      <h2><%= t(:pending_batches_title, "Pending Batches") %></h2>
+      <p><%= t(:pending_batches_count, {:one => "%{count} batch waiting to be processed.", :other => "%{count} batches waiting to be processed."}, :count => pending_batch_count) %></p>
+    </div>
+  <% end %>
+
+  <% if show_last_batch %>
+    <div class="last_batch" style="margin-top: 20px;">
+      <h2><%= t(:last_batch_title, "Last Batch") %></h2>
+      <p><%= t(:started_at_message, "Started: %{started_at}", :started_at => datetime_string(@last_batch.created_at)) %>
+        <br/>
+        <% if @last_batch.diffing_data_set_identifier %>
+        <p><%= t("Data Set Identifier: %{data_set_id}", data_set_id: @last_batch.diffing_data_set_identifier) %></p>
+        <% if @last_batch.data[:diffed_against_sis_batch_id] %>
+          <p><%= t("Incremental update successfully generated against a previous SIS Import.") %></p>
+        <% end %>
+      <% end %>
+      <% if @last_batch.workflow_state == 'imported' %>
+        <%= t(:imported_message, "All SIS data was successfully imported.") %>
+        <%= print_counts @last_batch %>
+      <% elsif @last_batch.workflow_state == 'imported_with_messages' %>
+        <%= t(:imported_with_messages_message, "The SIS data was imported but with these messages:") %>
+        <% if @last_batch.errors_attachment_id %>
+          <p><%= t('Download the complete list of errors and warnings here.') %>
+          <%= link_to "<i class='icon-download'></i>".html_safe,
+                      file_download_url(@last_batch.errors_attachment,
+                                        download: '1',
+                                        download_frd: '1'),
+                      'aria-label' => t('Download errors_attchment'),
+                      'title' => t('Download errors_attchment') %></p>
+        <% end %>
+        <%= print_messages(@last_batch) %>
+        <%= print_counts @last_batch %>
+      <% elsif @last_batch.workflow_state == 'failed' %>
+        <%= t(:import_failed_message, "There was an error importing your SIS data.") %>
+      <% elsif @last_batch.workflow_state == 'failed_with_messages' %>
+        <%= t(:import_failed_with_messages_message, "The import failed with these messages:") %>
+        <% if @last_batch.errors_attachment_id %>
+          <p><%= t('Download the complete list of errors and warnings here.') %>
+            <%= link_to "<i class='icon-download'></i>".html_safe,
+                        file_download_url(@last_batch.errors_attachment,
+                                          download: '1',
+                                          download_frd: '1'),
+                        'aria-label' => t('Download errors_attchment'),
+                        'title' => t('Download errors_attchment') %></p>
+        <% end %>
+        <%= print_messages(@last_batch) %>
+      <% elsif @last_batch.workflow_state == 'aborted' %>
+        <%= t('The previous SIS batch was aborted') %>
+        <%= print_messages(@last_batch) %>
+      <% end %>
+      </p>
+    </div>
+  <% end %>
+
+</div>
+
+<% js_bundle :sis_import %>

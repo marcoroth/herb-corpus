@@ -1,0 +1,224 @@
+<h2><%= t('assignments.assignment_information') %></h2>
+
+<div class='block-content'>
+  <% if @assignment.message %>
+    <%= markdown @assignment.message %>
+  <% end %>
+  <% if @assignment.is_timed %>
+    <%= render partial: 'timed_due_info' %>
+  <% else %>
+    <p>
+      <strong><%= Assignment.human_attribute_name(:due_date) %></strong>:
+      <%= I18n.l(@assignment.section_due_date(@current_role.try(:section))) %>
+    </p>
+    <% unless @grouping&.extension.nil? %>
+      <p>
+        <%= I18n.t('assignments.deadline_with_extension',
+                   extension_deadline: I18n.l(@grouping&.due_date)) %>
+      </p>
+    <% end %>
+  <% end %>
+
+  <% if @assignment.display_grader_names_to_students && !@grouping.nil? %>
+    <p><%= t('graders.assigned_graders') %>:
+      <% if @grouping.ta_memberships.exists? %>
+        <% @grouping.ta_memberships.each do |ta| %>
+          <%= ta.user.last_name %>
+        <% end -%>
+      <% else -%>
+        <%= t('graders.no_grader_assigned') %>
+      <% end -%>
+    </p>
+  <% end %>
+
+  <% unless @assignment.submission_rule.type == "NoLateSubmissionRule" || @grouping&.extension&.apply_penalty == false %>
+    <h3><%= SubmissionRule.model_name.human.capitalize %></h3>
+    <p><%= @assignment.submission_rule.class.human_attribute_name(:description) unless @assignment.is_timed %></p>
+
+    <ul>
+      <% if @grouping.nil? %>
+        <% if @assignment.group_max > 1 && @assignment.submission_rule.type == "GracePeriodSubmissionRule" %>
+          <li><%= t('grace_period_submission_rules.no_group_yet') %></li>
+        <% end %>
+      <% elsif !@assignment.is_timed || !@grouping.start_time.nil? %>
+        <% acc = 0 %>
+        <% if @assignment.submission_rule.type == "GracePeriodSubmissionRule" %>
+          <% remaining_credits = @grouping.available_grace_credits %>
+          <% used_credits = 0 %>
+          <% @assignment.submission_rule.periods.each do |p| %>
+            <% unless remaining_credits <= 0 %>
+              <% acc += p.hours %>
+              <% remaining_credits -= 1 %>
+              <% used_credits += 1 %>
+              <li>
+                <%= t('grace_period_submission_rules.detailed_message_html', count: used_credits, interval: acc ) %>
+                <%= "(" + I18n.l(@grouping.due_date + acc.hours) + ")" %>
+              </li>
+            <% end %>
+          <% end %>
+          <%# Relative remaining grace credits for the grouping %>
+          <li>
+            <strong>
+              <%= t('grace_period_submission_rules.deadline_html') %>:
+            </strong>
+            <%= I18n.l(@grouping.due_date + acc.hours) %>
+          </li>
+        <% else %>
+          <li>
+            <strong>
+              <%= t('penalty_period_submission_rules.deadline_html') %>:
+            </strong>
+            <% @assignment.submission_rule.periods.each { |p| acc += p.hours } %>
+            <% if @grouping.nil? %>
+              <%= I18n.l(@assignment.section_due_date(@current_role.try(:section)) + acc.hours) %>
+            <% else %>
+              <%= I18n.l(@grouping.due_date + acc.hours) %>
+            <% end %>
+          </li>
+        <% end %>
+      <% end %>
+
+      <%# Cannot assign Grace Period without first assigning a group. %>
+      <% unless @grouping.nil? && @assignment.submission_rule.type == "GracePeriodSubmissionRule" %>
+        <% if @assignment.submission_rule.type == "GracePeriodSubmissionRule" %>
+          <% unless @grouping.nil? %>
+            <li>
+              <% if @grouping.student_membership_number > 1 %>
+                <%= t('grace_period_submission_rules.group_credits_html',
+                      available_grace_credits: @grouping.available_grace_credits) %>
+              <% else %>
+                <%= t('grace_period_submission_rules.individual_credits_html',
+                      available_grace_credits: @grouping.available_grace_credits) %>
+              <% end %>
+            </li>
+          <% end %>
+        <% elsif @assignment.submission_rule.type == "PenaltyDecayPeriodSubmissionRule" %>
+          <% suffix = @assignment.submission_rule.penalty_type || ExtraMark::PERCENTAGE %>
+          <% @assignment.submission_rule.periods.each do |p| %>
+            <% if p == @assignment.submission_rule.periods.first %>
+              <li><%= t("penalty_decay_period_submission_rules.details_message_first_#{suffix}",
+                        deduction: p.deduction, interval: p.interval, hours: p.hours) %> </li>
+            <% else %>
+              <li><%= t("penalty_decay_period_submission_rules.details_message_other_#{suffix}",
+                        deduction: p.deduction, interval: p.interval, hours: p.hours) %> </li>
+            <% end %>
+          <% end %>
+        <% elsif @assignment.submission_rule.type == "PenaltyPeriodSubmissionRule" %>
+          <% deduction = hours = 0 %>
+          <% @assignment.submission_rule.periods.each do |p| %>
+            <% deduction += p.deduction %>
+            <% hours += p.hours %>
+            <% suffix = @assignment.submission_rule.penalty_type || ExtraMark::PERCENTAGE %>
+            <li><%= t("penalty_period_submission_rules.details_message_#{suffix}" ,
+                      hours: hours, deduction: deduction) %> </li>
+          <% end %>
+        <% end %>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if @assignment.group_max == 1 %>
+    <h3><%= t('groups.student_interface.group_properties') %></h3>
+    <p><%= t('groups.student_interface.students_work_alone') %></p>
+  <% end %>
+  <% unless @grouping.nil? %>
+    <% if allowed_to?(:access_repo?, @grouping) %>
+      <h3><%= t('groups.student_interface.url_repository') %></h3>
+      <div class='sub_block'>
+        HTTPS: <code><%= @grouping.group.repository_external_access_url %></code>
+        <button class="copy-url-button" data-clipboard-text="<%= @grouping.group.repository_external_access_url %>">
+          <i class="fa-solid fa-copy"></i>
+        </button>
+        <% if allowed_to?(:view?, with: KeyPairPolicy) %>
+          <br>
+          SSH: <code><%= @grouping.group.repository_ssh_access_url %></code>
+          <button class="copy-url-button" data-clipboard-text="<%= @grouping.group.repository_ssh_access_url %>">
+            <i class="fa-solid fa-copy"></i>
+          </button>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+  <% unless @assignment.starter_file_updated_at.nil? || @grouping.nil? %>
+    <% if allowed_to?(:download_starter_file?, @grouping) %>
+      <h3><%= I18n.t('assignments.starter_file.title').downcase.capitalize %></h3>
+      <p><%= I18n.t('assignments.starter_file.provided') %></p>
+      <p><%= I18n.t('assignments.starter_file.changed_at',
+                    changed_date: I18n.l(@assignment.starter_file_updated_at)) %></p>
+      <p>
+        <%= button_to t(:download_the, item: t('assignments.starter_file.title')),
+                      download_starter_file_course_assignment_groups_path(@current_course, @assignment),
+                      method: 'get' %>
+      </p>
+      <%# Display the URL of this group's repository if applicable %>
+      <% if allowed_to?(:access_repo?, @grouping) %>
+        <p>
+          <%= button_to t('assignments.starter_file.populate_repo'),
+                        populate_repo_with_starter_files_course_assignment_groups_path(
+                          course_id: @assignment.course_id,
+                          assignment_id: @assignment.id
+                        ),
+                        { method: :patch,
+                          data: { confirm: t('assignments.starter_file.populate_repo_confirm'),
+                                  disable_with: t(:please_wait) } } %>
+        </p>
+      <% end %>
+    <% end %>
+  <% end %>
+  <% if !peer_review && (!@assignment.is_timed || !@grouping&.start_time.nil? || @grouping&.past_collection_date?) %>
+    <h3><%= Submission.model_name.human.pluralize %></h3>
+    <% if @grouping.nil? %>
+      <p><%= t('submissions.student.no_submission') %></p>
+    <% else %>
+      <% unless @grouping.is_valid? %>
+        <p class='warning'>
+          <i class="fa-solid fa-warning icon-left"></i>
+          <%= t('submissions.student.invalid_group_cannot_submit') %>
+        </p>
+      <% end %>
+      <ul>
+        <li><%= link_to t('submissions.student.files_submitted', count: @num_submitted_files),
+                        file_manager_course_assignment_submissions_path(course_id: @assignment.course_id,
+                                                                        assignment_id: @assignment.id) %>
+        </li>
+        <% if @num_submitted_files > 0 %>
+          <li>
+            <%= t('submissions.student.last_revision_date') %>
+            <%= l(@last_modified_date) %>
+          </li>
+        <% end %>
+      </ul>
+
+      <% if @assignment.assignment_files.length > 0 %>
+        <h3><%= Assignment.human_attribute_name(:assignment_files) %></h3>
+        <ul>
+          <% @assignment.assignment_files.each do |assignment_file| %>
+            <li><%= assignment_file.filename %></li>
+          <% end %>
+        </ul>
+        <p>
+          <% text = t('submissions.student.missing_required_files', count: @num_missing_assignment_files) %>
+          <% if @num_missing_assignment_files > 0 %>
+            <strong><%= text %></strong>
+          <% else %>
+            <%= text %>
+          <% end %>
+        </p>
+      <% end %>
+    <% end %>
+<% end %>
+</div>
+
+<%= javascript_tag nonce: true do %>
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('.copy-url-button').forEach(button => {
+      button.addEventListener('click', () => {
+        navigator.clipboard.writeText(button.dataset.clipboardText).then(() => {
+          var flashDiv = document.getElementsByClassName("success")[0];
+          var contents = flashDiv.getElementsByClassName("flash-content")[0] || flashDiv;
+          contents.innerHTML = "<p><%= t('groups.student_interface.copied_to_clipboard') %></p>";
+          flashDiv.style.display = "block";
+        });
+      });
+    });
+  });
+<% end %>

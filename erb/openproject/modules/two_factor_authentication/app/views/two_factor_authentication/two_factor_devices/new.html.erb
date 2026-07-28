@@ -1,0 +1,40 @@
+<% html_title(t(:label_my_account), t("two_factor_authentication.devices.add_new")) -%>
+
+<%=
+  render(Primer::OpenProject::PageHeader.new) do |header|
+    header.with_title(test_selector: "two_factor_authentication_new_device_header_title") { t("two_factor_authentication.devices.add_new") }
+    header.with_breadcrumbs(
+      [
+        { href: my_account_path, text: t(:label_my_account) },
+        { href: my_security_path, text: t(:label_my_security) },
+        nested_breadcrumb_element(t("two_factor_authentication.devices.#{@device_type}.title"), t("two_factor_authentication.devices.add_new"))
+      ],
+      selected_item_font_weight: :normal
+    )
+  end
+%>
+
+<%= error_messages_for "device" %>
+
+<% device_form_class = case @device_type
+                       when :sms     then TwoFactorAuthentication::Devices::SmsDeviceForm
+                       when :totp    then TwoFactorAuthentication::Devices::TotpDeviceForm
+                       when :webauthn then TwoFactorAuthentication::Devices::WebauthnDeviceForm
+                       end %>
+<% if device_form_class %>
+  <%= settings_primer_form_with(
+        model: @device,
+        scope: :device,
+        url: { action: :register },
+        autocomplete: "off",
+        data: {
+          controller: "two-factor-authentication",
+          challenge_url: optional_webauthn_challenge_url,
+          device_type: @device_type,
+          action: "submit->two-factor-authentication#onCreateDevice"
+        }
+      ) do |form| %>
+    <%= hidden_field_tag "key", @device_type %>
+    <%= render(device_form_class.new(form, index_path:)) %>
+  <% end %>
+<% end %>

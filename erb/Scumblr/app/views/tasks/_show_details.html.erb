@@ -1,0 +1,74 @@
+<h3 class="section_header">Details</h3>
+<table>
+  <tbody>
+    <tr>
+      <td class="header">Name</td>
+      <td>
+        <%= @task.name %>
+      </td>
+    </tr>
+    <tr>
+      <td class="header">Task Type</td>
+      <td>
+        <%= @task.task_type_name %>
+      </td>
+    </tr>
+    <tr>
+      <td class="header">Enabled</td>
+      <td>
+        <%= @task.enabled %>
+      </td>
+    </tr>
+    <tr>
+      <td class="header">Group</td>
+      <td>
+        <%= @task.group %>
+      </td>
+    </tr>
+    <% if @task.description.to_s.strip != "" %>
+      <tr>
+        <td><b>Description: </b></td>
+        <td><%= simple_format(h(@task.description), {}, {wrapper_tag: "div"})  %></td>
+      </tr>
+    <% end %>
+    <% (@task[:options] || []).each do |key, val| %>
+      <% if key.to_s == "saved_result_filter" and val.to_s != "" %>
+        <tr>
+          <td ><b><%= key.to_s.gsub(/_/, ' ').split.map(&:capitalize)*' ' %></b></td>
+          <td><%= simple_format(h(SavedFilter.where(id: val.to_i).first.name), {}, {wrapper_tag: "div"}) %></td>
+        </tr>
+      <% elsif val.to_s != "" %>
+        <tr>
+          <td ><b><%= key.to_s.gsub(/_/, ' ').split.map(&:capitalize)*' ' %></b></td>
+          <td><%= simple_format(h(val), {}, {wrapper_tag: "div"}) %></td>
+        </tr>
+      <% end %>
+    <% end %>
+    <% if @task.metadata.present? %>
+      <% (@task.metadata.try(:keys) || []).each do |key| %>
+        <% begin %>
+          <%= render partial: "tasks/metadata/#{key}_row"  %>
+        <% rescue ActionView::MissingTemplate => exception %>
+
+        <% rescue => exception %>
+
+          <% Event.create(action: "Error", source: "tasks/metadata/#{key}_row" , eventable_type: "Task", eventable_id: @task.id, details: "Error while rendering row partial for key: #{key}" + "\n" + "#{exception.message}: #{exception.backtrace}}") %>
+
+        <% end %>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+
+
+<% if @task.metadata.present? %>
+  <% (@task.metadata.try(:keys) || []).each do |key| %>
+    <% begin %>
+      <%= render partial: "tasks/metadata/#{key}_details"  %>
+    <% rescue ActionView::MissingTemplate => exception %>
+
+    <% rescue => exception %>
+      <% Event.create(action: "Error", source: "tasks/metadata/#{key}_details" , eventable_type: "Task", eventable_id: @task.id, details: "Error while rendering details partial for key: #{key}" + "\n" + "#{exception.message}: #{exception.backtrace}}") %>
+    <% end %>
+  <% end %>
+<% end %>

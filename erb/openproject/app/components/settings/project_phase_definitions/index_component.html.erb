@@ -1,0 +1,119 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%=
+  component_wrapper do
+    flex_layout(data: wrapper_data_attributes) do |flex|
+      flex.with_row do
+        render EnterpriseEdition::BannerComponent.new(
+          :customize_life_cycle,
+          variant: :medium,
+          image: "enterprise/project-lifecycle.png",
+          mb: 3
+        )
+      end
+
+      if allowed_to_customize_life_cycle?
+        flex.with_row do
+          render(Primer::OpenProject::SubHeader.new(collapsed_search: false)) do |subheader|
+            subheader.with_filter_input(
+              name: "border-box-filter",
+              label: t("settings.project_phase_definitions.filter.label"),
+              visually_hide_label: true,
+              placeholder: t("settings.project_phase_definitions.filter.label"),
+              leading_visual: {
+                icon: :search,
+                size: :small
+              },
+              show_clear_button: true,
+              data: {
+                action: "input->projects--settings--border-box-filter#filterLists",
+                "projects--settings--border-box-filter-target": "filter"
+              }
+            )
+
+            subheader.with_action_button(
+              scheme: :primary,
+              leading_icon: :plus,
+              label: I18n.t("settings.project_phase_definitions.label_add_description"),
+              tag: :a,
+              href: new_admin_settings_project_phase_definition_path
+            ) do
+              I18n.t("settings.project_phase_definitions.label_add")
+            end
+          end
+        end
+      end
+
+      flex.with_row do
+        render(border_box_container(mb: 3, data: drop_target_config)) do |component|
+          component.with_header(font_weight: :bold) do
+            flex_layout(justify_content: :space_between, align_items: :center) do |header_container|
+              header_container.with_column do
+                render(Primer::Beta::Text.new(font_weight: :bold)) do
+                  I18n.t("settings.project_phase_definitions.section_header")
+                end
+              end
+            end
+          end
+          if definitions.empty?
+            component.with_row do
+              render(Primer::Beta::Text.new(color: :subtle)) do
+                t("settings.project_phase_definitions.non_defined")
+              end
+            end
+          else
+            definitions.each do |definition|
+              component.with_row(
+                data: {
+                  "projects--settings--border-box-filter-target": "searchItem",
+                  test_selector: "project-phase-definition",
+                  **draggable_item_config(definition)
+                }
+              ) do
+                render(
+                  Settings::ProjectPhaseDefinitions::RowComponent.new(
+                    definition,
+                    first?: definition == definitions.first,
+                    last?: definition == definitions.last
+                  )
+                )
+              end
+            end
+          end
+        end
+      end
+      flex.with_row(display: :none, data: { "projects--settings--border-box-filter-target": "noResultsText" }) do
+        render Primer::Beta::Text.new do
+          I18n.t("js.autocompleter.notFoundText")
+        end
+      end
+    end
+  end
+%>

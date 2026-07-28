@@ -1,0 +1,267 @@
+<% delete_perm = has_permission?("Postgres:delete", @pg) %>
+
+<% if @edit_perm %>
+  <div class="p-6">
+    <div class="md:flex md:items-center md:justify-between pb-2 lg:pb-4">
+      <div class="min-w-0 flex-1">
+        <h3 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-2xl sm:tracking-tight">
+          Maintenance Window
+        </h3>
+      </div>
+    </div>
+    <div class="overflow-hidden rounded-lg shadow ring-1 ring-black ring-opacity-5 bg-white divide-y divide-gray-200">
+      <div class="px-4 py-5 sm:p-6">
+        <% form(action: "#{path(@pg)}/set-maintenance-window", method: :post) do %>
+          <div class="space-y-4">
+            <div class="grid grid-cols-12 gap-6">
+              <div class="col-span-12 sm:col-span-7">
+                <%== part(
+                    "components/form/select",
+                    name: "maintenance_window_start_at",
+                    placeholder: "No Maintenance Window",
+                    options: PostgresResource.maintenance_hour_options,
+                    label: "Maintenance Window:",
+                    selected: @pg.maintenance_window_start_at
+                  ) %>
+              </div>
+              <div class="col-span-12 sm:col-span-5 flex justify-end items-end">
+                <%== part("components/form/submit_button", text: "Set") %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <% if @project.get_ff_postgres_init_script %>
+    <div class="p-6">
+      <div class="md:flex md:items-center md:justify-between pb-2 lg:pb-4">
+        <div class="min-w-0 flex-1">
+          <h3 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-2xl sm:tracking-tight">
+            Initialization Script
+          </h3>
+        </div>
+      </div>
+      <div class="overflow-hidden rounded-lg shadow ring-1 ring-black ring-opacity-5 bg-white divide-y divide-gray-200">
+        <% form_elements = [
+              {name: "init_script", type: "textarea", required: "", placeholder: "Enter script to run on database creation"}
+          ]
+
+@option_tree, @option_parents = PostgresResource.generate_postgres_options(@project, flavor: @flavor, location: @location)
+
+pre_selected_values = {
+  "flavor" => @pg.flavor,
+  "location" => @location.ubid,
+  "family" => Option::POSTGRES_SIZE_OPTIONS[@pg.target_vm_size].family,
+  "size" => @pg.target_vm_size,
+  "storage_size" => @pg.target_storage_size_gib,
+  "ha_type" => @pg.ha_type,
+  "init_script" => @pg.init_script&.init_script
+} %>
+
+        <%== render(
+  "components/form/resource_creation_form",
+  locals: {
+    action: "#{path(@pg)}/patch",
+    form_elements:,
+    pre_selected_values:,
+    option_tree: @option_tree,
+    option_parents: @option_parents,
+    mode: "update"
+  }
+) %>
+      </div>
+    </div>
+  <% end %>
+<% end %>
+<!-- Cancel Storage Auto-Scale -->
+<% if @edit_perm && @pg.can_cancel_storage_auto_scale? %>
+  <div class="p-6">
+    <div class="md:flex md:items-center md:justify-between pb-2 lg:pb-4">
+      <div class="min-w-0 flex-1">
+        <h3 class="text-2xl font-bold leading-7 text-orange-600 sm:truncate sm:text-2xl sm:tracking-tight">
+          Storage Auto-Scale In Progress
+        </h3>
+      </div>
+    </div>
+    <div class="overflow-hidden rounded-lg shadow ring-1 ring-orange-300 bg-orange-50 divide-y divide-orange-200">
+      <div class="px-4 py-5 sm:p-6">
+        <% form(action: "#{path(@pg)}/cancel-storage-auto-scale", method: :post) do %>
+          <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-base font-semibold leading-6 text-gray-900">Cancel automatic storage scale-up</h3>
+              <div class="mt-2 text-sm text-gray-600">
+                <p>A storage scale-up operation was triggered due to high disk utilization. The system is currently
+                  provisioning new servers. You can cancel this operation before the failover begins.</p>
+                <p class="mt-2 font-medium text-orange-700">Warning: If you cancel, automatic scale-up will not be re-triggered until disk usage drops below 80%
+                  and rises again.</p>
+              </div>
+            </div>
+            <div class="mt-5 sm:ml-6 sm:mt-0 sm:flex sm:flex-shrink-0 sm:items-center">
+              <div class="col-span-12 sm:col-span-2 flex justify-end items-end">
+                <%== part("components/form/submit_button", text: "Cancel Scale-Up", extra_class: "bg-orange-600 hover:bg-orange-500") %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% end %>
+<!-- Danger Zone -->
+<% if @edit_perm || delete_perm %>
+  <div class="p-6">
+    <div class="md:flex md:items-center md:justify-between pb-2 lg:pb-4">
+      <div class="min-w-0 flex-1">
+        <h3 class="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-2xl sm:tracking-tight">
+          Danger Zone
+        </h3>
+      </div>
+    </div>
+    <div class="overflow-hidden rounded-lg shadow ring-1 ring-black ring-opacity-5 bg-white divide-y divide-gray-200">
+      <!-- Promote Read Replica -->
+      <% if @edit_perm && @pg.read_replica? %>
+        <div class="px-4 py-5 sm:p-6">
+          <% form(action: "#{path(@pg)}/promote-read-replica", method: :post) do %>
+            <div class="sm:flex sm:items-center sm:justify-between">
+              <div>
+                <h3 class="text-base font-semibold leading-6 text-gray-900">Promote PostgreSQL read replica database</h3>
+                <div class="mt-2 text-sm text-gray-500">
+                  <p>This action will promote the read replica database to become an independent primary database. The
+                    database will stop replicating permanently. It will be offline momentarily, and all connections
+                    will be dropped.</p>
+                </div>
+              </div>
+              <div id="postgres-replica-promote-<%=@pg.ubid %>" class="mt-5 sm:ml-6 sm:mt-0 sm:flex sm:flex-shrink-0 sm:items-center">
+                <div class="col-span-12 sm:col-span-2 flex justify-end items-end">
+                  <%== part("components/form/submit_button", text: "Promote", extra_class: "promote-btn") %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <!-- Add AAAA DNS Record -->
+      <% if @edit_perm && @pg.can_add_aaaa_record? %>
+        <div class="px-4 py-5 sm:p-6">
+          <% form(action: "#{path(@pg)}/add-aaaa-record", method: :post) do %>
+            <div class="sm:flex sm:items-center sm:justify-between">
+              <div>
+                <h3 class="text-base font-semibold leading-6 text-gray-900">Add IPv6 (AAAA) DNS record</h3>
+                <div class="mt-2 text-sm text-gray-500">
+                  <p>This action will add an IPv6 (AAAA) DNS record for this PostgreSQL database. This enables
+                    connections over IPv6.</p>
+                </div>
+              </div>
+              <div id="postgres-aaaa-<%=@pg.ubid %>" class="mt-5 sm:ml-6 sm:mt-0 sm:flex sm:flex-shrink-0 sm:items-center">
+                <div class="col-span-12 sm:col-span-2 flex justify-end items-end">
+                  <%== part("components/form/submit_button", text: "Add AAAA Record", extra_class: "add-aaaa-btn") %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <!-- Reset password -->
+      <% if @edit_perm && !@pg.read_replica? %>
+        <div class="px-4 py-5 sm:p-6">
+          <% form(action: "#{path(@pg)}/reset-superuser-password", method: :post) do %>
+            <div class="space-y-4">
+              <div>
+                <h3 class="text-base font-semibold leading-6 text-gray-900">Reset superuser password</h3>
+              </div>
+              <div class="grid grid-cols-12 gap-6">
+                <div class="col-span-12 sm:col-span-5">
+                  <%== part(
+                      "components/form/text",
+                      label: "New password",
+                      name: "password",
+                      type: "password",
+                      attributes: {
+                        required: true
+                      },
+                      extra_class: "reset-superuser-password-new-password"
+                    ) %>
+                </div>
+                <div class="col-span-12 sm:col-span-5">
+                  <%== part(
+                      "components/form/text",
+                      label: "New password (repeat)",
+                      name: "repeat_password",
+                      type: "password",
+                      attributes: {
+                        required: true
+                      },
+                      extra_class: "reset-superuser-password-new-password-repeat"
+                    ) %>
+                </div>
+                <div class="col-span-12 sm:col-span-2 flex justify-end items-end">
+                  <%== part("components/form/submit_button", text: "Reset") %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <% if @edit_perm %>
+        <!-- Restart Card -->
+        <div class="px-4 py-5 sm:p-6">
+          <% form(action: "#{path(@pg)}/restart", method: :post) do %>
+            <div class="sm:flex sm:items-center sm:justify-between">
+              <div>
+                <h3 class="text-base font-semibold leading-6 text-gray-900">Restart PostgreSQL database</h3>
+                <div class="mt-2 text-sm text-gray-500">
+                  <p>This action will restart the PostgreSQL database. The database will be offline momentarily, and all
+                    connections will be dropped.</p>
+                </div>
+              </div>
+              <div id="postgres-restart-<%=@pg.ubid %>" class="mt-5 sm:ml-6 sm:mt-0 sm:flex sm:flex-shrink-0 sm:items-center">
+                <div class="col-span-12 sm:col-span-2 flex justify-end items-end">
+                  <%== part("components/form/submit_button", text: "Restart", extra_class: "restart-btn") %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        <div class="px-4 py-5 sm:p-6">
+          <% form(action: "#{path(@pg)}/recycle", method: :post) do %>
+            <div class="sm:flex sm:items-center sm:justify-between">
+              <div>
+                <h3 class="text-base font-semibold leading-6 text-gray-900">Failover PostgreSQL database</h3>
+                <div class="mt-2 text-sm text-gray-500">
+                  <p>Will recycle primary of PostgreSQL database.</p>
+                </div>
+              </div>
+              <div id="postgres-recycle-<%=@pg.ubid %>" class="mt-5 sm:ml-6 sm:mt-0 sm:flex sm:flex-shrink-0 sm:items-center">
+                <div class="col-span-12 sm:col-span-2 flex justify-end items-end">
+                  <%== part("components/form/submit_button", text: "Recycle") %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        <div class="px-4 py-5 sm:p-6">
+          <% form(action: "#{path(@pg)}/rename", method: :post) do %>
+            <%== part("components/rename_object_input", object: @pg, type: "PostgreSQL database", text: "Renaming a PostgreSQL database changes the connection info, so doing so requires updating your applications.") %>
+          <% end %>
+        </div>
+      <% end %>
+      <!-- Delete Card -->
+      <% if delete_perm %>
+        <div class="px-4 py-5 sm:p-6">
+          <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-base font-semibold leading-6 text-gray-900">Delete PostgreSQL database</h3>
+              <div class="mt-2 text-sm text-gray-500">
+                <p>This action will permanently delete this PostgreSQL database.</p>
+              </div>
+            </div>
+            <div id="postgres-delete-<%=@pg.ubid %>" class="mt-5 sm:ml-6 sm:mt-0 sm:flex sm:flex-shrink-0 sm:items-center">
+              <%== part("components/delete_button", url: path(@pg), confirmation: @pg.name) %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

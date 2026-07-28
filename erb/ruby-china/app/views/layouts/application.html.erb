@@ -1,0 +1,109 @@
+<!--
+   _   _                      _                 _
+  | | | |                    | |               | |
+  | |_| | ___  _ __ ___   ___| | __ _ _ __   __| |
+  |  _  |/ _ \| '_ ` _ \ / _ \ |/ _` | '_ \ / _` |
+  | | | | (_) | | | | | |  __/ | (_| | | | | (_| |
+  \_| |_/\___/|_| |_| |_|\___|_|\__,_|_| |_|\__,_|
+  ------------------------------------------------
+            https://github.com/ruby-china/homeland
+
+  - Ruby:  <%= RUBY_VERSION %><%= "-p#{RUBY_PATCHLEVEL}" if defined? RUBY_PATCHLEVEL %>
+  - Rails: <%= Rails.version %>
+  - Homeland: <%= Homeland.version %>
+-->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme" content="<%= user_theme %>">
+    <meta name="locale" content="<%= user_locale %>">
+    <title><%= content_for?(:title) ? yield(:title) : Setting.app_name %></title>
+    <meta name="apple-mobile-web-app-capable" content="no">
+    <meta content='True' name='HandheldFriendly'>
+    <link rel="alternate" type="application/rss+xml" title="Subscribe" href="<%= main_app.feed_topics_url %>">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#171717">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <%= stylesheet_pack_tag "front", "data-turbolinks-track": "reload" %>
+    <%= stylesheet_pack_tag "turbolinks-app", 'data-turbolinks-track': 'reload' if turbolinks_app? %>
+    <%= yield :stylesheets %>
+    <%= javascript_pack_tag "application",  defer: false %>
+    <%= yield :javascripts %>
+    <%= action_cable_meta_tag %>
+    <%= csrf_meta_tag %>
+    <%= raw Setting.custom_head_html %>
+    <meta name="twitter:card" content="summary">
+    <meta property="twitter:title" content="<%= @content_title || Setting.app_name %>">
+    <meta name="generator" content="Homeland <%= Homeland.version %>" />
+    <% if @content_description %>
+      <meta property="twitter:description" content="<%= @content_description %>">
+    <% end %>
+    <% if current_user %>
+      <meta name="current-user" data-user-id="<%= current_user.id %>" data-user-login="<%= current_user.login %>" data-user-name="<%= current_user.name %>" data-user-email="<%= current_user.email %>" data-user-avatar-url="<%= current_user.avatar? ? current_user.avatar.url(:md) : current_user.letter_avatar_url(96) %>">
+    <% end %>
+  </head>
+  <body class="page-<%= controller_name %><%= ' infinite-scroll' if turbolinks_app? %>" data-controller-name="<%= controller_name %>">
+    <div class="flex items-stretch header navbar navbar-expand-md">
+      <div class="container relative z-50 flex flex-wrap items-center px-3 mx-auto xl:px-0 md:flex-nowrap">
+        <div class="navbar-header" data-turbolinks-permanent>
+          <%= raw Setting.navbar_brand_html %>
+        </div>
+        <button id="navbar-toggler" class="navbar-toggler" type="button">
+          <span class="flex items-center justify-center"><i class="fa fa-bars"></i></span>
+        </button>
+        <div id="main-navbar"  class="items-center flex-1 hidden md:flex grow basis-full md:basis-auto">
+          <%= yield :header %>
+          <%= render "shared/navbar" %>
+        </div>
+        <div class="navbar-right">
+          <form class="form-search active" action="/search" method="GET">
+            <i class="fa btn-search fa-search"></i>
+            <input type="text" name="q" value="<%= params[:q] %>" placeholder="<%= t("common.search") %>"></input>
+          </form>
+          <%= render "shared/usernav" %>
+        </div>
+     </div>
+  </div>
+  <%= yield :sub_navbar %>
+  <div id="main" class="container md:px-3">
+    <%= render AlertComponent.new %>
+    <%= content_for?(:main) ? yield(:main) : yield %>
+  </div>
+  <% if !mobile? %>
+    <footer class="footer" id="footer" data-turbolinks-permanent>
+      <div class="container mx-auto">
+        <%= raw Setting.footer_html %>
+      </div>
+    </footer>
+  <% end %>
+  <% if mobile? %>
+    <script type="text/javascript">
+      App.mobile = true;
+    </script>
+  <% end %>
+  <script type="text/javascript" data-turbolinks-eval="false">
+    App.root_url = "<%= main_app.root_url %>";
+    App.asset_url = "<%= Setting.upload_url -%>";
+    App.twemoji_url = "<%= Twemoji.configuration.asset_root %>";
+    App.locale = "<%= I18n.locale %>";
+    <% if current_user %>
+      App.current_user_id = <%= current_user.id %>;
+    <% end %>
+    <% if turbolinks_app? %>
+      App.turbolinks = true;
+    <% end %>
+    <% if ENV["ACTIONCABLE_DISABLE"].present? %>
+      App.cable = null;
+    <% end %>
+  </script>
+  <%= yield :scripts %>
+  <script>
+    ga('create', '<%= Setting.google_analytics_key %>', 'auto');
+    ga('require', 'displayfeatures');
+    ga('send', 'pageview');
+  </script>
+  <div class="zoom-overlay"></div>
+</body>
+</html>

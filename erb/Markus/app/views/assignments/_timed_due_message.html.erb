@@ -1,0 +1,48 @@
+<% due_date = assignment.section_due_date(@current_role&.section)
+   start_time = assignment.section_start_time(@current_role&.section)
+   simple ||= false %>
+<% if grouping&.start_time.nil? %>
+  <% if simple %>
+    <p>
+      <%= I18n.t('assignments.timed.start_end_time_instructions',
+                  start_time: I18n.l(start_time),
+                  end_time: I18n.l(due_date)) %>
+    </p>
+  <% elsif Time.current > due_date %>
+    <p><%= I18n.t('assignments.timed.past_end_time') %></p>
+  <% elsif Time.current < start_time %>
+    <p><%= I18n.t('assignments.timed.before_start_time') %></p>
+  <% else %>
+    <p>
+      <% duration = assignment.duration + (grouping&.extension&.time_delta || 0)
+         parts = AssignmentProperties.duration_parts(duration)
+         duration_string = ["#{parts[:hours]} #{I18n.t('durations.hours', count: parts[:hours])}",
+                            "#{parts[:minutes]} #{I18n.t('durations.minutes', count: parts[:minutes])}"].join(', ') %>
+      <% if grouping&.extension.nil? %>
+        <%= I18n.t('assignments.timed.before_start_instructions', duration_string: duration_string) %>
+      <% else %>
+        <% ext_parts = AssignmentProperties.duration_parts(grouping.extension.time_delta)
+           extension_string = [
+             "#{ext_parts[:hours]} #{I18n.t('durations.hours', count: ext_parts[:hours])}",
+             "#{ext_parts[:minutes]} #{I18n.t('durations.minutes', count: ext_parts[:minutes])}"
+           ].join(', ') %>
+        <%= I18n.t('assignments.timed.before_start_instructions_extension',
+                   duration_string: duration_string, extension_string: extension_string) %>
+      <% end %>
+    </p>
+  <% end %>
+  <% unless simple %>
+    <%= form_with url: start_timed_assignment_course_assignment_path(@current_course, assignment.id),
+                  method: 'put', local: true do |f| %>
+      <%= f.submit I18n.t('assignments.timed.start_button'),
+                   disabled: !allowed_to?(:start_timed_assignment?, assignment),
+                   data: { confirm: t('assignments.timed.start_confirmation') } %>
+    <% end %>
+  <% end %>
+<% else %>
+  <p><strong><%= I18n.t('assignments.timed.started_on') %></strong> <%= I18n.l(grouping.start_time) %></p>
+  <p>
+    <strong><%= Assignment.human_attribute_name(:due_date) %></strong>:
+    <%= I18n.l(grouping.due_date) %>
+  </p>
+<% end %>

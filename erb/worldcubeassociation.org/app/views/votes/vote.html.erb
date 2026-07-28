@@ -1,0 +1,65 @@
+<% provide(:title, "Vote in poll ##{@poll.id}") %>
+
+<div class="container">
+
+  <% if @poll.over? %>
+    <%= alert :danger do %>
+      Poll is closed. Check out the <%= link_to "results", polls_results_path(@poll) %>.
+    <% end %>
+  <% elsif @poll.confirmed? || current_user.can_create_poll? %>
+
+    <% if @poll.confirmed? %>
+      <%= alert :info do %>
+        Voting closes in <%= distance_of_time_in_words_to_now(@poll.deadline) %>, on <%= wca_local_time(@poll.deadline) %>.
+      <% end %>
+    <% else %>
+      <%= alert :danger do %>
+        This is just a preview! You can confirm this poll <%= link_to "here", edit_poll_path %>.
+      <% end %>
+    <% end %>
+
+    <h3><%=md @poll.question %></h3>
+    <%=md @poll.comment %>
+
+    <% if !@vote.new_record? %>
+      <%= alert :warning do %>
+        <p>You have already voted for this poll!</p><p>You can edit your vote below</p>
+      <% end %>
+    <% end %>
+
+    <%= simple_form_for @vote do |f| %>
+      <%= f.input :poll_id, :as => :hidden, :input_html => { :value => @poll.id } %>
+
+      <% type = @poll.multiple ? "checkbox" : "radio" %>
+      <% @poll.poll_options.each do |option| %>
+        <span class="checkbox">
+          <label>
+            <%= tag("input", type: type,
+                    name: "vote[poll_option_ids][]",
+                    value: option.id,
+                    checked: option.in?(@vote.poll_options)) %>
+            <%=md option.description %>
+          </label>
+        </span>
+      <% end %>
+
+      <% if @poll.confirmed? %>
+        <%= f.input :comment, required: false %>
+      <% end %>
+
+      <%= link_to polls_path, class: "btn btn-default" do %>
+        <%= ui_icon("undo") %> Back to Polls
+      <% end %>
+
+      <% if @poll.confirmed? %>
+        <button type="submit" class="btn btn-success">
+          <%= !@vote.new_record? ? "Update vote" : "Vote" %>
+        </button>
+      <% end %>
+
+    <% end %>
+
+  <% else %>
+    <%= alert "Voting is not open." %>
+  <% end %>
+</div>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>">
+  <head>
+    <title><%= page_title %></title>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" name="viewport">
+    <meta name="google-site-verification" content="AuesbWQ9MCDMmC1lbDlw25RJzyqWOcDYpuaCjgPxEZY" />
+    <link rel="apple-touch-icon" href="/apple-touch-icons/apple-touch-icon.png" />
+    <% ["57x57", "72x72", "76x76", "114x114","120x120", "144x144", "152x152", "180x180"].each do |size| %>
+      <link rel="apple-touch-icon" sizes="<%= size %>" href="/apple-touch-icons/apple-touch-icon-<%= size %>.png" />
+    <% end %>
+    <link rel="mask-icon" href="/rubygems_logo.svg" color="#e9573f">
+    <link rel="fluid-icon" href="/fluid-icon.png"/>
+    <link rel="search" type="application/opensearchdescription+xml" title="<%=t :title %>" href="/opensearch.xml">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    <%= stylesheet_link_tag("application", "preload_links_header" => true) %>
+    <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+    <link href='https://fonts.googleapis.com/css?family=Roboto:100&amp;subset=greek,latin,cyrillic,latin-ext' rel='stylesheet' type='text/css'>
+    <%= render "layouts/feeds" %>
+    <%= csrf_meta_tag %>
+    <%= yield :head %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="<%= 'body--index' if request.path_info == '/' %>" data-controller="nav" data-nav-expanded-class="mobile-nav-is-expanded">
+    <!-- Top banner -->
+    <% if content_for?(:banner) %>
+      <div class="banner">
+        <%= yield :banner %>
+      </div>
+    <% end %>
+
+    <!-- Policies acknowledgment banner -->
+    <%= render "layouts/policies_acknowledgement" if show_policies_acknowledge_banner?(current_user) %>
+
+    <header class="header <%= 'header--interior' if request.path_info != '/' %>" data-nav-target="header collapse">
+      <div class="l-wrap--header">
+        <%= link_to(root_path, title: 'RubyGems', class: 'header__logo-wrap', data: { nav_target: "logo" }) do %>
+          <span class="header__logo" data-icon="⬡">⬢</span>
+          <span class="t-hidden">RubyGems</span>
+        <% end %>
+        <a class="header__club-sandwich" href="#" data-action="nav#toggle focusin->nav#focus mousedown->nav#mouseDown click@window->nav#hide">
+          <span class="t-hidden">Navigation menu</span>
+        </a>
+
+        <div class="header__nav-links-wrap">
+          <%= render "layouts/search" unless current_page?(root_path) || current_page?(advanced_search_path) %>
+
+          <nav class="header__nav-links" data-controller="dropdown">
+            <% if signed_in? %>
+              <a href="<%= profile_path(current_user.display_id) %>" class="header__nav-link mobile__header__nav-link">
+                <span><%= current_user.name %></span>
+                <%= avatar 80, "user_gravatar", theme: :dark %>
+              </a>
+            <% end %>
+
+            <%= link_to t('.footer.releases'), news_url, class: "header__nav-link #{active_status(news_path)}" %>
+            <%= link_to t('.footer.blog'), "https://blog.rubygems.org", class: "header__nav-link" %>
+
+            <%- if request.path_info == '/gems' %>
+              <%= link_to "Gems", rubygems_path, class: "header__nav-link is-active" %>
+            <%- else %>
+              <%= link_to "Gems", rubygems_path, class: "header__nav-link" %>
+            <%- end %>
+
+            <%= link_to t('.footer.guides'), "https://guides.rubygems.org", class: "header__nav-link" %>
+
+            <% if signed_in? %>
+              <a href="<%= profile_path(current_user.display_id) %>" class="header__nav-link desktop__header__nav-link">
+                <span><%= current_user.name %></span>
+                <%= avatar 80, "user_gravatar", theme: :dark %>
+              </a>
+              <a href="#" class="header__popup-link" data-icon="▼" data-action="dropdown#toggle click@window->dropdown#hide">
+                <span class="t-hidden">More items</span>
+              </a>
+              <div class="header__popup__nav-links hidden" data-dropdown-target="menu" >
+                <%= link_to t('.header.settings'), edit_settings_path, class: "header__nav-link" %>
+                <%= link_to t('.header.dashboard'), dashboard_path, class: "header__nav-link" %>
+                <%= link_to t('.header.edit_profile'), edit_profile_path, class: "header__nav-link" %>
+                <%= link_to t('sign_out'), sign_out_path, method: :delete, class: "header__nav-link" %>
+              </div>
+            <% else %>
+              <%= link_to t('sign_in'), sign_in_path, class: "header__nav-link #{'is-active' if request.path_info == '/sign_in'}" %>
+              <% if Clearance.configuration.allow_sign_up? %>
+                <%= link_to t('sign_up'), sign_up_path, class: "header__nav-link #{'is-active' if request.path_info == '/sign_up'}" %>
+              <% end %>
+            <% end %>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <% flash.each do |name, msg| %>
+      <div id="flash-border" class="flash">
+        <div class="flash-wrap">
+          <div id="flash_<%= name %>" class="l-wrap--b"><span><%= flash_message(name, msg) %></span></div>
+        </div>
+      </div>
+    <% end %>
+
+    <% if content_for?(:fold) %>
+      <div class="fold">
+        <%= yield :fold %>
+      </div>
+    <% end %>
+
+    <main class="<%= 'main--interior' if request.path_info != '/' %>" data-nav-target="collapse">
+      <% if request.path_info != '/' %>
+        <div class="l-wrap--b">
+          <% if @title %>
+            <h1 class="t-display page__heading">
+              <%= content_for_title @title, @title_url %>
+
+              <% if @subtitle %>
+                <i class="page__subheading"><%= @subtitle %></i>
+              <% end %>
+            </h1>
+          <% end %>
+          <%= yield :title %>
+          <%= yield %>
+        </div>
+      <% else %>
+        <%= yield %>
+      <% end %>
+    </main>
+
+    <footer class="footer" data-nav-target="collapse">
+      <div class="l-wrap--footer">
+        <div class="l-overflow">
+          <div class="nav--v l-col--r--pad">
+            <%= link_to t('.footer.status'), "https://status.rubygems.org", class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.uptime'), "https://uptime.rubygems.org", class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.source_code'), "https://github.com/rubygems/rubygems.org", class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.data'), page_path("data"), class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.statistics'), stats_path, class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.contribute'), "https://guides.rubygems.org/contributing/", class: "nav--v__link--footer" %>
+            <%- if request.path_info == '/pages/about' %>
+              <%= link_to t('.footer.about'), page_path("about"), class: "nav--v__link--footer is-active" %>
+            <%- else %>
+              <%= link_to t('.footer.about'), page_path("about"), class: "nav--v__link--footer" %>
+            <%- end %>
+            <%= mail_to "support@rubygems.org", t('.footer.help'), class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.api'), "https://guides.rubygems.org/rubygems-org-api", class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.policies'), policies_path, class: "nav--v__link--footer" %>
+            <%= link_to t('.footer.support_us'), page_path("supporters"), class: "nav--v__link--footer" %>
+            <%- if request.path_info == '/pages/security' %>
+              <%= link_to t('.footer.security'), page_path("security"), class: "nav--v__link--footer is-active" %>
+            <%- else %>
+              <%= link_to t('.footer.security'), page_path("security"), class: "nav--v__link--footer" %>
+            <%- end %>
+          </div>
+          <div class="l-colspan--l colspan--l--has-border">
+            <div class="footer__about">
+              <p>
+                <%= t('footer_about_html',
+                  publish_docs: "https://guides.rubygems.org/publishing/",
+                  install_docs: "https://guides.rubygems.org/command-reference/#gem-install",
+                  api_docs: "https://guides.rubygems.org/rubygems-org-api/",
+                  gem_list: rubygems_path,
+                  contributing_docs: "https://guides.rubygems.org/contributing/"
+                  ) %>
+              </p>
+              <p>
+                <%= t('footer_sponsors_html', supporters_page: page_path("supporters")) %>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer__sponsors">
+        <a class="footer__sponsor footer__sponsor__ruby_central" href="https://rubycentral.org/open-source/" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.operated_by") %>
+          <span class="t-hidden">Ruby Central</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__dockyard" href="https://dockyard.com/ruby-on-rails-consulting" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.designed_by") %>
+          <span class="t-hidden">DockYard</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__aws" href="https://aws.amazon.com/" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.hosted_by") %>
+          <span class="t-hidden">AWS</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__dnsimple" href="https://dnsimple.link/resolving-rubygems" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.resolved_with") %>
+          <span class="t-hidden">DNSimple</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__datadog" href="https://www.datadoghq.com/" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.monitored_by") %>
+          <span class="t-hidden">Datadog</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__fastly" href="https://www.fastly.com/customers/ruby-central" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.gems_served_by") %>
+          <span class="t-hidden">Fastly</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__honeybadger" href="https://www.honeybadger.io/" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.monitored_by") %>
+          <span class="t-hidden">Honeybadger</span>
+        </a>
+        <a class="footer__sponsor footer__sponsor__mend" href="https://mend.io/" target="_blank" rel="noopener">
+          <%= t("layouts.application.footer.secured_by") %>
+          <span class="t-hidden">Mend.io</span>
+        </a>
+      </div>
+      <div class="footer__language_selector">
+        <% I18n.available_locales.each do |language| %>
+          <div class="footer__language">
+            <%= link_to I18n.t(:locale_name, locale: language), url_for(locale: language, only_path: true), class: "nav--v__link--footer" %>
+          </div>
+        <% end %>
+      </div>
+    </footer>
+    <%= yield :javascript %>
+    <script type="text/javascript" defer src="https://www.fastly-insights.com/insights.js?k=3e63c3cd-fc37-4b19-80b9-65ce64af060a"></script>
+  </body>
+</html>

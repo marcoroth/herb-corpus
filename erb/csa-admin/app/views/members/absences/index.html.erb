@@ -1,0 +1,68 @@
+<h1><%= Absence.model_name.human(count: 2) %></h1>
+
+<%= render "basket_shifts_notice" %>
+
+<section>
+  <h2><%= t(".form_title") %></h2>
+
+  <% if Current.org.absence_extra_text.present? %>
+    <div class="trix-content mt-2"><%= Current.org.absence_extra_text %></div>
+  <% end %>
+
+  <% unless Current.org.absence_extra_text_only? %>
+    <% if Current.org.absences_billed? %>
+      <p class="mt-2"><%= t(".explanation_billed") %></p>
+    <% end %>
+  <% end %>
+
+  <%= simple_form_for [ :members, @absence ], html: { class: "mt-8" } do |f| %>
+    <div class="space-y-6">
+      <div class="flex flex-col gap-4 md:flex-row">
+        <%= f.input :started_on, as: :date, html5: true,
+            input_html: {
+              min: Absence.min_started_on,
+              max: (Absence.max_ended_on - 1.day),
+            } %>
+
+        <%= f.input :ended_on, as: :date, html5: true,
+            input_html: {
+              min: (Absence.min_started_on + 1.day),
+              max: Absence.max_ended_on,
+            } %>
+      </div>
+
+      <%= f.input :note, input_html: { rows: 2 } %>
+    </div>
+
+    <div class="actions"><%= f.button :submit, t(".submit") %></div>
+  <% end %>
+
+  <% absences_included = current_member.current_or_future_membership&.absences_included %>
+
+  <% if absences_included&.positive? %>
+    <p class="explanation">
+      <%= t(".absences_included_explanation_html", count: absences_included) %>
+    </p>
+  <% end %>
+</section>
+
+<% @present_or_future_absences = current_member.absences.present_or_future.includes(:baskets) %>
+
+<% if @present_or_future_absences.any? %>
+  <section>
+    <h2><%= t(".present_or_future_absences") %></h2>
+
+    <ul class="mt-2 w-full space-y-1">
+      <%= render @present_or_future_absences %>
+    </ul>
+  </section>
+<% end %>
+
+<% @past_absences = current_member.absences.during_year(Current.fiscal_year).past.order("ended_on DESC") %>
+
+<% if @past_absences.any? %>
+  <section>
+    <h2><%= t(".past_absences") %></h2>
+    <ul class="mt-2 w-full space-y-1"><%= render @past_absences %></ul>
+  </section>
+<% end %>

@@ -1,0 +1,111 @@
+<%=
+  flex_layout do |flex|
+    if visible?
+      flex.with_row(flex_layout: true, justify_content: :space_between, align_items: :center, classes: "relation-row--info-line") do |row|
+        row.with_column do
+          render(WorkPackages::InfoLineComponent.new(work_package: related_work_package))
+        end
+
+        if should_render_action_menu?
+          row.with_column do
+            render(Primer::Alpha::ActionMenu.new(test_selector: action_menu_test_selector)) do |menu|
+              menu.with_show_button(
+                icon: "kebab-horizontal",
+                "aria-label": I18n.t(:label_relation_actions),
+                scheme: :invisible,
+                ml: 2
+              )
+
+              if should_render_edit_option?
+                menu.with_item(
+                  label: I18n.t(:label_relation_edit),
+                  href: edit_path,
+                  test_selector: edit_button_test_selector,
+                  content_arguments: {
+                    data: { turbo_stream: true }
+                  }
+                ) do |item|
+                  item.with_leading_visual_icon(icon: :pencil)
+                end
+              end
+
+              menu.with_item(
+                label: I18n.t(:label_relation_delete),
+                scheme: :danger,
+                href: destroy_path,
+                form_arguments: {
+                  method: :delete,
+                  data: {
+                    turbo_confirm: t("text_are_you_sure"),
+                    turbo_stream: true,
+                    update_work_package: true
+                  }
+                },
+                test_selector: delete_button_test_selector
+              ) do |item|
+                item.with_leading_visual_icon(icon: :trash)
+              end
+            end
+          end
+        end
+      end
+
+      flex.with_row(mb: 2, classes: "relation-row--subject") do
+        render(
+          Primer::Beta::Link.new(
+            href: work_package_path(related_work_package),
+            color: :default,
+            underline: false,
+            font_size: :normal,
+            font_weight: :bold
+          )
+        ) { related_work_package.subject }
+      end
+
+      if should_display_description?
+        flex.with_row(mb: 2) do
+          render(Primer::Beta::Text.new(font_size: :small, color: :muted)) { format_text(relation, :description) }
+        end
+      end
+    else
+      flex.with_row(mb: 2) do
+        render(Primer::Beta::Text.new(font_weight: :bold, color: :muted)) { I18n.t("work_package_relations_tab.relations.ghost_relation_title") }
+      end
+      flex.with_row(flex_layout: true, align_items: :center, color: :muted, mb: 2) do |ghost_description_row|
+        ghost_description_row.with_column(mr: 1) do
+          render(Primer::Beta::Octicon.new(icon: "alert"))
+        end
+        ghost_description_row.with_column do
+          render(Primer::Beta::Text.new) { I18n.t("work_package_relations_tab.relations.ghost_relation_description") }
+        end
+      end
+    end
+
+    # Show dates for both visible and ghost relation
+    if should_display_dates_row?
+      flex.with_row(flex_layout: true, align_items: :center, color: :muted, mb: 2) do |dates_row|
+        if precedes? && lag_present?
+          dates_row.with_column(mr: 1) { render(Primer::Beta::Octicon.new(icon: "arrow-both")) }
+          dates_row.with_column(mr: 2) { render(Primer::Beta::Text.new) { lag_as_text(relation.lag) } }
+        end
+
+        dates_row.with_column(mr: 1) do
+          render(Primer::Beta::Octicon.new(icon: helpers.work_package_dates_icon(related_work_package)))
+        end
+        dates_row.with_column do
+          render(Primer::Beta::Text.new) { helpers.work_package_formatted_dates(related_work_package) }
+        end
+
+        if follows?
+          if lag_present?
+            dates_row.with_column(ml: 2, mr: 1) { render(Primer::Beta::Octicon.new(icon: "arrow-both")) }
+            dates_row.with_column(mr: 1) { render(Primer::Beta::Text.new) { lag_as_text(relation.lag) } }
+          end
+          if closest?
+            dates_row.with_column(ml: 2, mr: 1) { render(Primer::Beta::Label.new(scheme: :primary, inline: true)) { I18n.t("work_package_relations_tab.relations.label_closest") } }
+          end
+        end
+      end
+    end
+  end
+%>

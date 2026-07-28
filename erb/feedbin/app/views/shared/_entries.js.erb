@@ -1,0 +1,71 @@
+var callback = function() {
+    <% if @entries.length == 0 %>
+        var entries = "<%= j render partial: "entries/no_entry" %>";
+    <% else %>
+        var entries = "<%= j render partial: "entries/entry", collection: @entries, cached: -> (entry) { [entry, entry.feed.custom_icon, entry.feed.favicon, "v6"] } %>";
+    <% end %>
+
+    <% if @append %>
+        feedbin.appendEntries(entries);
+    <% else %>
+        feedbin.updateEntries(entries);
+    <% end %>
+
+    <% if @entry_class %>
+        $('.entries .entry-summary').addClass("<%= @entry_class %>");
+    <% end %>
+
+    <% if @page_query %>
+        feedbin.updatePager("<%= j will_paginate(@page_query, params: @anchor ? { page_anchor: @anchor } : {}) %>");
+    <% else %>
+        feedbin.updatePager("");
+    <% end %>
+
+    <% if @search %>
+        const custom = new CustomEvent("show-search-controls", {detail: {
+          query: "<%= @escaped_query %>",
+          savedSearchPath: "<%= @saved_search_path %>",
+          message: "<%= @search_message %>"
+        }})
+        window.dispatchEvent(custom)
+
+        var dialog = "<%= j render Dialog::NewSavedSearch.new(saved_search: @saved_search) %>";
+        var existingSearch = $("template[data-dialog-id=<%= Dialog::NewSavedSearch.dom_id %>]");
+        if (existingSearch.length > 0) {
+          existingSearch.replaceWith(dialog);
+        } else {
+          $("body").append(dialog)
+        }
+    <% end %>
+
+    <% if @all_unread %>
+        var unreads = <%= @entries.map {|entry| {id: entry.id, feed_id: entry.feed_id, published: entry.published.to_i}}.to_json.html_safe %>;
+        feedbin.updateUnreads(<%= @all_unread ? "true" : "false" %>, unreads)
+    <% end %>
+
+    feedbin.formatEntries()
+    feedbin.preloadEntries(<%= @entries.map{ |entry| entry.id }.to_json.html_safe %>, <%= @force_preload ? "true" : "false" %>);
+    feedbin.markReadData.date = "<%= j last_unread_date %>";
+    <% if @type %>
+    feedbin.viewType = "<%= @type %>";
+    <% else %>
+    feedbin.viewType = null;
+    <% end %>
+    $('.entries [data-behavior~=entries_target]').attr('data-entry-type', "<%= @type %>")
+
+    try {
+      feedbin.loadMore();
+    } catch (e) {
+    }
+}
+
+if (feedbin.panelScrollComplete) {
+  callback();
+} else {
+    var interval = setInterval(function() {
+        if (feedbin.panelScrollComplete) {
+            clearInterval(interval);
+            callback();
+        }
+    }, 10);
+}

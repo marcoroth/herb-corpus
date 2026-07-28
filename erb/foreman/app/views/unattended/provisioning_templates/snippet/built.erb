@@ -1,0 +1,64 @@
+<%#
+kind: snippet
+name: built
+model: ProvisioningTemplate
+snippet: true
+description: |
+  Sends 'built' request to exit build mode for the host, that finished the provisioning.
+  Used from most of provisioning and finish templates.
+  Only use in multi-line shell context.
+  Tries curl, if not found then wget and finally wget from busybox (limited options).
+-%>
+<%
+  endpoint = @endpoint || 'built'
+  method = @method || 'POST'
+  url = foreman_url(endpoint)
+
+  # Force HTTPS for Global Registration (when port 80 is blocked)
+  url = force_url_https(url) if @force_https
+
+  built_https = url.start_with?('https')
+  curl_opts = ["-H 'Content-Type: text/plain'"]
+  curl_opts << "--fail"
+  wget_opts = ["--header 'Content-Type: text/plain'"]
+  if @body_file
+    curl_opts << "--data @#{@body_file}"
+    wget_opts << "--body-file=#{@body_file}"
+  elsif @post_data
+    curl_opts << "--data '#{@post_data}'"
+    wget_opts << "--body-data='#{@post_data}'"
+  end
+  if not host_param('http-proxy')
+    curl_opts << '--noproxy \*'
+    wget_opts << '--no-proxy'
+  end
+-%>
+<% if built_https -%>
+SSL_CA_CERT=$(mktemp)
+cat << EOF > $SSL_CA_CERT
+<%= foreman_server_ca_cert %>
+EOF
+<%
+  curl_opts << "--cacert $SSL_CA_CERT"
+  wget_opts << "--ca-certificate $SSL_CA_CERT"
+-%>
+<% end -%>
+if [ -x /usr/bin/curl ]; then
+  /usr/bin/curl -o /dev/null <%= curl_opts.join(' ') %> --silent '<%= url %>'
+elif [ -x /usr/bin/wget ]; then
+  /usr/bin/wget -q -O /dev/null --method <%= method %> <%= wget_opts.join(' ') %> '<%= url %>'
+else
+  wget -q -O /dev/null --header 'Content-Type: text/plain' '<%= url %>'
+fi
+FINAL_STATUS=$?
+
+if [ -x "$(command -v subscription-manager)" ] ; then
+  subscription-manager facts --update
+  SUB_MAN_STATUS=$?
+
+  if [ $FINAL_STATUS -eq 0 ]; then
+    FINAL_STATUS=$SUB_MAN_STATUS
+  fi
+fi
+
+(exit $FINAL_STATUS);

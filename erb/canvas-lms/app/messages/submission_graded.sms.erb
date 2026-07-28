@@ -1,0 +1,32 @@
+<%
+  # For discussion checkpoints, use the parent assignment instead of the sub-assignment
+  # to ensure correct assignment IDs and URLs in notifications
+  assignment = asset.assignment
+  assignment = assignment.parent_assignment if assignment.checkpoint? && assignment.parent_assignment
+
+  tag = ''
+  if asset.assignment.is_a?(SubAssignment)
+    tag = case asset.assignment.sub_assignment_tag
+            when CheckpointLabels::REPLY_TO_TOPIC
+              t('Reply To Topic')
+            when CheckpointLabels::REPLY_TO_ENTRY
+              t('Reply To Entry')
+            else
+              ''
+          end
+  end
+  assignment_title = "#{assignment.title} #{tag}".strip
+%>
+<% if send_student_names(asset, user) %>
+<%= t "%{assignment} has been graded for %{name}.", :assignment => assignment_title, name: asset.user.name %>
+<% else %>
+<%= t :sms_body, "%{assignment} has been graded.", :assignment => assignment_title, :context => assignment.context.name %>
+<% end %>
+<% if asset.score && user.try(:send_scores_in_emails?, assignment.context) %>
+  <% if assignment.restrict_quantitative_data?(user)%>
+    <%=t :grade, "grade: %{letter_grade}", :letter_grade => assignment.score_to_grade(asset.score, asset.grade, force_letter_grade: true)%>
+  <% else %>
+    <%= t :score, "score: %{score} out of %{total}", :score => asset.score, :total => (assignment.points_possible || t(:not_applicable, "N/A")) %>
+  <% end %>
+<% end %>
+

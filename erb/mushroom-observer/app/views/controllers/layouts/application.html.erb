@@ -1,0 +1,78 @@
+<%
+@css_theme = css_theme(@user)
+
+html_class = (Rails.env == "test") ? "" : "scroll-behavior-smooth"
+ctrlr_action = "#{controller.controller_name}__#{controller.action_name}"
+theme = "theme-#{@css_theme.underscore.dasherize}"
+location_format = "location-format-#{@user&.location_format || "postal"}"
+logged_in = @user ? "logged-in-user" : "no-user"
+body_class = class_names(ctrlr_action, theme, location_format, logged_in)
+# These execute AFTER the template!
+default_container_class
+default_column_classes
+default_content_padding
+content_classes = class_names(yield(:container_class), yield(:content_padding))
+%>
+<!DOCTYPE html>
+<html class="<%= html_class %>">
+
+  <head>
+    <%= render(partial: "application/app/head") %>
+  </head>
+
+  <body class="<%= body_class %>" data-controller="lazyload tooltip">
+    <% if Rails.env == "production" %>
+      <%= render(partial: "application/app/gtm_iframe") %>
+    <% end %>
+
+    <div id="main_container" class="px-sm-3"
+       data-controller="nav links" data-nav-target="container">
+
+      <%= render(partial: "application/app/banners") %>
+
+      <div class="row row-offcanvas row-offcanvas-left"
+         data-nav-target="offcanvas">
+
+        <%= render(Components::ApplicationSidebar.new(
+          user: @user,
+          browser: browser,
+          request: request,
+          in_admin_mode: in_admin_mode?,
+          languages: @languages
+        )) %>
+
+        <div id="right_side" class="col-xs-12 col-md-10">
+          <%= render(partial: "application/top_nav") %>
+          <%= render(partial: "application/app/page_flash") %>
+          <%= render(partial: "application/content/header") %>
+
+          <main id="content" class="<%= content_classes %>"
+              data-controller="lightgallery">
+
+            <%# unless @user&.verified? %>
+            <%# render(Components::LoginLayout.new) %>
+            <%# end %>
+
+            <!--MAIN_PAGE_CONTENT-->
+            <%= yield %>
+            <!--/MAIN_PAGE_CONTENT-->
+
+            <%= render(Components::TranslatorsCredit.new) %>
+          </main><!-- #content -->
+
+        </div>
+        <!-- #right_side -->
+      </div>
+      <!-- .row-offcanvas -->
+    </div>
+    <!-- #main_container -->
+
+    <!--PROGRESS SPINNER -->
+    <%= render(Components::ModalProgressSpinner.new) %>
+    <!--TURBO CONFIRM MODAL -->
+    <%= render(Components::ModalConfirm.new) %>
+    <%= render(partial: "application/app/media_query_tests") %>
+    <%= render(partial: "application/app/javascript_footer") %>
+  </body>
+
+</html>

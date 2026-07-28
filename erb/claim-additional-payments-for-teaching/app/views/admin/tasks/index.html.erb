@@ -1,0 +1,103 @@
+<% content_for(:page_title) { page_title("Claim #{@claim.reference} checks for #{@claim.policy.short_name}") } %>
+
+<% content_for :back_link do %>
+  <%= govuk_back_link href: claims_backlink_path %>
+<% end %>
+
+<% if @banner_messages.any? %>
+  <%= render partial: "banner", locals: { messages: @banner_messages } %>
+<% end %>
+
+<% if @claim.attributes_flagged_by_risk_indicator.any? %>
+  <div class="govuk-warning-text">
+    <span class="govuk-warning-text__icon" aria-hidden="true">!</span>
+    <strong class="govuk-warning-text__text">
+      <span class="govuk-visually-hidden">Warning</span>
+      <p class="govuk-!-margin-top-0">
+      </p>
+    </strong>
+  </div>
+<% end %>
+
+<div class="govuk-grid-row">
+  <%= render claim_summary_view, claim: @claim %>
+</div>
+
+<div class="govuk-grid-row">
+  <div class="govuk-tabs">
+    <h2 class="govuk-tabs__title">Contents</h2>
+
+    <%= render "admin/claims/tabs", claim: @claim %>
+
+    <div class="govuk-tabs__panel">
+      <ol class="app-task-list">
+        <% @claim_checking_tasks.applicable_task_objects.each_with_index do |object, index| %>
+          <li>
+            <h2 class="app-task-list__section">
+              <span class="app-task-list__section-number"><%= index + 1 %>. </span> <%= I18n.t(:name, scope: [:admin, :tasks, object.locale_key]) %>
+            </h2>
+
+            <ul class="app-task-list__items">
+              <li class="app-task-list__item <%= object.name %>">
+                <span class="app-task-list__task-name">
+                  <%= govuk_link_to I18n.t("#{@claim.policy.locale_key}.admin.tasks.#{object.locale_key}.title", default: :"admin.tasks.#{object.locale_key}.title"), admin_claim_task_path(claim_id: @claim.id, name: object.name) %>
+                </span>
+                <%= task_status_tag(@claim, object.name) %>
+              </li>
+            </ul>
+          </li>
+        <% end %>
+
+        <li>
+          <h2 class="app-task-list__section">
+            <span class="app-task-list__section-number"><%= @claim_checking_tasks.applicable_task_names.size + 1 %>. </span> Decision
+          </h2>
+          <ul class="app-task-list__items">
+            <li class="app-task-list__item">
+              <span class="app-task-list__task-name">
+                <% if @claim.decisions.active.exists? %>
+                  <%= govuk_link_to "Approve or reject this claim", admin_claim_decisions_path(@claim) %>
+                <% else %>
+                  <%= govuk_link_to "Approve or reject this claim", new_admin_claim_decision_path(@claim) %>
+                <% end %>
+              </span>
+              <% if @claim.held? %>
+                <strong class="govuk-tag app-task-list__task-completed govuk-tag--warning">On Hold</strong>
+              <% elsif (@claim.qa_completed? && @claim.previous_decision&.approved?) || @claim.latest_decision&.approved? %>
+                <strong class="govuk-tag app-task-list__task-completed">Approved</strong>
+                <% elsif (@claim.qa_completed? && @claim.previous_decision&.rejected?) || @claim.latest_decision&.rejected? %>
+                <strong class="govuk-tag app-task-list__task-completed govuk-tag--alert">Rejected</strong>
+              <% end %>
+            </li>
+          </ul>
+        </li>
+
+        <% if @claim.qa_required? %>
+          <li>
+            <h2 class="app-task-list__section">
+              <span class="app-task-list__section-number"><%= @claim_checking_tasks.applicable_task_names.size + 2 %>. </span> Quality assurance decision
+            </h2>
+            <ul class="app-task-list__items">
+              <li class="app-task-list__item">
+                <span class="app-task-list__task-name">
+                  <% if @claim.qa_completed? %>
+                    <%= govuk_link_to "Approve or reject quality assurance of this claim", admin_claim_decisions_path(@claim, qa: true) %>
+                  <% else %>
+                    <%= govuk_link_to "Approve or reject quality assurance of this claim", new_admin_claim_decision_path(@claim, qa: true) %>
+                  <% end %>
+                </span>
+                <% unless @claim.awaiting_qa? %>
+                  <% if @claim.latest_decision&.approved? %>
+                    <strong class="govuk-tag app-task-list__task-completed">Approved</strong>
+                  <% elsif @claim.latest_decision&.rejected? %>
+                    <strong class="govuk-tag app-task-list__task-completed govuk-tag--alert">Rejected</strong>
+                  <% end %>
+                <% end %>
+              </li>
+            </ul>
+          </li>
+        <% end %>
+      </ol>
+    </div>
+  </div>
+</div>

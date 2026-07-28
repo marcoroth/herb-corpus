@@ -1,0 +1,64 @@
+<div>
+  <h3><%= _('Content Sync') %></h3>
+
+  {{ syncStatusText(syncState, syncStatus) }}
+  <div ng-show="syncState.is(syncState.SYNCING, syncState.SYNC_TRIGGERED, syncState.CANCEL_TRIGGERED, syncState.RECLAIMING_SPACE, syncState.RECLAIM_SPACE_TRIGGERED, syncState.FAILURE)">
+    {{ syncTask.progressbar.value || 0 | number: 0 }}%
+    <a href="<%= @task_search_url %>" target="_self">
+      <div ng-class="{ active: isTaskInProgress(syncTask) }" class="progress progress-striped">
+        <span uib-progressbar
+          animate="false"
+          value="syncTask.progressbar.value || 0"
+          type="{{ progressbarType(syncTask) }}"></span>
+      </div>
+    </a>
+  </div>
+
+  <div>
+    <span translate>Last sync:</span> {{ syncStatus.last_sync_time }}
+  </div>
+
+  <br>
+  <div ng-hide="syncStatus === undefined || syncStatus.unsyncable_content_types.length == 0">
+    <span translate>
+      Pulp plugin missing for synchronizable content types: <b>{{ syncStatus.unsyncable_content_types.join(", ") }}.</b><br />
+      Repositories containing these content types will not be synced.
+    </span>
+  </div>
+
+  <div ng-show="syncState.is(syncState.SYNCING, syncState.SYNC_TRIGGERED, syncState.CANCEL_TRIGGERED, syncState.RECLAIMING_SPACE, syncState.RECLAIM_SPACE_TRIGGERED)">
+    <a ng-click="cancelSync()" class="btn btn-default" ng-disabled="!syncState.is(syncState.SYNCING, syncState.RECLAIMING_SPACE)">
+      <span translate>Cancel Sync</span>
+    </a>
+  </div>
+  <div class="dropdown" ng-hide="syncState.is(syncState.SYNCING, syncState.SYNC_TRIGGERED, syncState.CANCEL_TRIGGERED, syncState.RECLAIMING_SPACE, syncState.RECLAIM_SPACE_TRIGGERED)">
+    <button class="btn btn-default dropdown-toggle" type="button" id="syncDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+      Synchronize
+      <span class="caret"></span>
+    </button>
+    <ul class="dropdown-menu" aria-labelledby="syncDropdown">
+      <li>
+        <a ng-click="syncCapsule(false)">
+          <span translate>
+            <strong>Optimized Sync</strong>
+            <p>Optimized Sync is a standard sync, optimized for speed by bypassing any unneeded steps.</p>
+          </span>
+        </a>
+      </li>
+      <li>
+        <a ng-click="syncCapsule(true)">
+          <span translate><strong>Complete Sync</strong></span>
+          <p> A Complete Sync will sync repositories even if the upstream metadata appears to have no change.<br>
+              Complete Sync is only relevant for yum/deb repositories and will take longer than an optimized sync.</p>
+        </a>
+      </li>
+      <li>
+        <a ng-click="reclaimSpace()" ng-hide="syncStatus.download_policy != 'on_demand'">
+          <span translate><strong>Reclaim Space</strong></span>
+          <p translate> Delete cached content units from an "On Demand" Smart Proxy.</p>
+          <p translate> Storage used by deleted repositories will be reclaimed during the next orphan cleanup run.</p>
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>

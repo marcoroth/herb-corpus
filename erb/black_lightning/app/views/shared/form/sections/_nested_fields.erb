@@ -1,0 +1,44 @@
+<%# locals: (f:, partial_name:, association_name:, display_link_to_add: true, container_class: nil, wrapper_class: nil, sortable: false, collection: nil) %>
+<%# KEEP %>
+<%# Pass `collection:` to render a custom set of records (e.g. one grouped representative per user)
+    instead of the bare association. Omit it to keep the default behaviour. %>
+
+<% if f.object.errors[association_name].present? then %>
+  <p id="<%= association_name %>_errors" class="p-4 rounded border mb-4 bg-danger/10 border-danger/30 text-danger">
+    <%= f.error association_name %>
+  </p>
+<% end %>
+
+<% data_controllers = sortable ? "nested-form sortable" : "nested-form" %>
+<div data-controller="<%= data_controllers %>">
+  <div class="<%= container_class %> mb-3">
+    <%= f.simple_fields_for(*[ association_name, collection ].compact) do |nested_f| %>
+      <% wrapper_data = { new_record: nested_f.object.new_record? } %>
+      <% wrapper_data[:sortable_item] = true if sortable %>
+      <%= content_tag :div, class: "nested-form-wrapper #{wrapper_class}", data: wrapper_data do %>
+        <%= render partial_name, f: nested_f %>
+        <%= nested_f.hidden_field :_destroy %>
+      <% end %>
+    <% end %>
+
+    <div data-nested-form-target="target" class="hidden"></div>
+  </div>
+
+  <template data-nested-form-target="template">
+    <% association_class = f.object.class.reflect_on_association(association_name).klass %>
+    <%= f.simple_fields_for(association_name, association_class.new, child_index: "NEW_RECORD") do |nested_f| %>
+      <% wrapper_data = { new_record: true } %>
+      <% wrapper_data[:sortable_item] = true if sortable %>
+      <%= content_tag :div, class: "nested-form-wrapper #{wrapper_class}", data: wrapper_data do %>
+        <%= render partial_name, f: nested_f %>
+        <%= nested_f.hidden_field :_destroy %>
+      <% end %>
+    <% end %>
+  </template>
+
+  <% if display_link_to_add %>
+    <div class="mt-2">
+      <%= link_to_add f, association_name, div_html_class: wrapper_class %>
+    </div>
+  <% end %>
+</div>

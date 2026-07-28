@@ -1,0 +1,82 @@
+<%#
+  -- copyright
+  OpenProject is an open source project management software.
+  Copyright (C) the OpenProject GmbH
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License version 3.
+
+  OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+  Copyright (C) 2006-2013 Jean-Philippe Lang
+  Copyright (C) 2010-2013 the ChiliProject Team
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License
+  as published by the Free Software Foundation; either version 2
+  of the License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+  See COPYRIGHT and LICENSE files for more details.
+
+  ++#
+%>
+
+<%=
+  if Setting.real_time_text_collaboration_enabled?
+    settings_primer_form_with(scope: :settings, action: :update, method: :patch) do |f|
+      render_inline_settings_form(f) do |form|
+        form.html_content do
+          if some_unwritable_settings?
+            render(Primer::Alpha::Banner.new(icon: :info)) do
+              I18n.t("documents.admin.collaboration_settings.banner.#{none_writable_settings? ? 'none_writable' : 'some_unwritable'}")
+            end
+          end
+        end
+
+        form.text_field(
+          name: :collaborative_editing_hocuspocus_url,
+          label: I18n.t("documents.admin.collaboration_settings.hocuspocus_server_url.label"),
+          required: true,
+          input_width: :large,
+          caption: I18n.t("documents.admin.collaboration_settings.hocuspocus_server_url.caption"),
+          validation_message: validation_message_for(:collaborative_editing_hocuspocus_url)
+        )
+
+        form.text_field(
+          name: :collaborative_editing_hocuspocus_secret,
+          label: I18n.t("documents.admin.collaboration_settings.hocuspocus_server_secret.label"),
+          required: true,
+          input_width: :large,
+          caption: I18n.t("documents.admin.collaboration_settings.hocuspocus_server_secret.caption"),
+          type: :password,
+          value: nil, # IMPORTANT: Don't expose the secret in the form
+          placeholder: Setting.collaborative_editing_hocuspocus_secret.present? ? "••••••••••••••••" : nil
+        )
+
+        form.submit unless none_writable_settings?
+      end
+    end
+  else
+    render(
+      Primer::Beta::Blankslate.new(border: true, test_selector: "collaboration-settings-disabled-notice")
+    ) do |component|
+      component.with_visual_icon(icon: :pencil)
+      component.with_heading(tag: :h2).with_content(I18n.t("documents.admin.enable_text_collaboration.heading"))
+      component.with_description { I18n.t("documents.admin.enable_text_collaboration.description") }
+
+      component.with_primary_action(
+        label: I18n.t("documents.admin.enable_text_collaboration.primary_action"),
+        href: url_helpers.admin_settings_document_collaboration_settings_path,
+        data: { turbo_method: :post }
+      ).with_content(I18n.t("documents.admin.enable_text_collaboration.primary_action"))
+    end
+  end
+%>

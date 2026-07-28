@@ -1,0 +1,62 @@
+<%# locals: (f:) %>
+
+<div data-controller="slug-generator">
+  <%= f.input :name, input_html: {
+        id: 'event_name',
+        data: { 'slug-generator-target': 'name', action: 'input->slug-generator#nameChanged' }
+      } %>
+
+  <%= f.input :tagline %>
+
+  <%= f.input :slug, input_html: {
+        id: 'event_slug',
+        data: { 'slug-generator-target': 'slug', action: 'input->slug-generator#slugChanged' }
+      } %>
+</div>
+
+<%= f.input :start_date, start_year: Rails.configuration.start_year, end_year: max_end_year %>
+
+<%= f.input :end_date, start_year: Rails.configuration.start_year, end_year: max_end_year %>
+
+<%= f.association :venue, collection: Venue.all, label_method: :name, required: true %>
+
+<%= f.input :author, collection: Event.author_name_list, allow_custom_input: true %>
+
+<%= f.input :company_name, collection: Company.internal_first.pluck(:name), allow_custom_input: true,
+      hint: 'Society or company that put on this event. Type to select an existing entry or enter a new name. New societies will be flagged for admin review.' %>
+
+<%= f.input :price %>
+
+<% unless f.object.is_a? Season %>
+  <% if f.object.persisted? %>
+    <%= f.association :season, collection: f.object.simultaneous_seasons, label_method: :name %>
+  <% else %>
+    <p>You can add a season after adding the event.</p>
+  <% end %>
+<% end %>
+
+<%= f.association :proposal, collection: f.object.possible_proposals, label_method: :show_title %>
+
+<%= f.input :is_public, hint: 'Display this event on the publicly visible part of the website?' %>
+
+<%= render 'admin/events/event_tags_form_section', f: f %>
+
+<%= render 'shared/form/file_field', f: f, field_name: :image, hint: 'This is the image that appears in the slideshow on the frontpage, and as the header image on your event page. The apect ratio should be approximately 48/25.' %>
+
+<%= render Admin::MdEditorComponent.new(f: f, field: :publicity_text) %>
+
+<%= render Admin::MdEditorComponent.new(f: f, field: :content_warnings) %>
+
+<%= render Admin::MdEditorComponent.new(f: f, field: :members_only_text) %>
+
+<%= render(Admin::Form::GalleryComponent.new(f: f)) %>
+
+<%= render Admin::Form::AttachmentsComponent.new(f: f) %>
+
+<%= render Admin::Form::VideoLinksComponent.new(f: f) %>
+
+<%= render(CollapsibleSectionComponent.new(title: 'Pretix Widget Configuration', html_class: "mb-4")) do %>
+    <%= f.input :pretix_shown, hint: 'Display the Pretix widget for this event.' %>
+    <%= f.input :pretix_slug_override, hint: ' Leave blank to use the slug for this event as the Pretix slug' %>
+    <%= f.input :pretix_view, collection: ['list','week','month'], default: 'list', hint: "See Pretix's documentation for examples" %>
+<% end %>

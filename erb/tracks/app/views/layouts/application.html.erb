@@ -1,0 +1,51 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <%= stylesheet_link_tag @user_theme, :media => "all" %>
+    <%= stylesheet_link_tag "print", :media => "print" %>
+    <%= javascript_include_tag "application" %>
+    <%= csrf_meta_tags %>
+    <script type="text/javascript">
+      var SOURCE_VIEW = '<%=j @source_view %>';
+      var AUTH_TOKEN = '<%=j raw(protect_against_forgery? ? form_authenticity_token.inspect : "") %>'
+      var TAG_NAME = '<%=j @tag_name ? @tag_name : "" %>'
+      var GROUP_VIEW_BY = '<%=j @group_view_by ? @group_view_by : "" %>'
+      var defaultContexts = <%= default_contexts_for_autocomplete.html_safe rescue '{}' %>;
+      var defaultTags = <%= default_tags_for_autocomplete.html_safe rescue '{}' %>;
+      var dateFormat = '<%=j date_format_for_date_picker %>';
+      var weekStart = '<%=j current_user.prefs.week_starts %>';
+      function relative_to_root(path) { return '<%= root_url %>'+path; };
+      <% if current_user.prefs.refresh != 0 -%>
+        setup_auto_refresh(<%= current_user.prefs["refresh"].to_i*60000 %>);
+      <% end -%>
+      <% unless controller.controller_name == 'feed' or session['noexpiry'] == "on" -%>
+        setup_periodic_check("<%=url_for(:controller => "login", :action => "check_expiry")%>", 5*60);
+      <% end -%>
+      setup_periodic_check("<%=check_deferred_todos_path(:format => 'js')%>", 10*60, 'POST');
+      <%= generate_i18n_strings %>
+    </script>
+    <%= javascript_tag_for_i18n_datepicker %>
+    <%= favicon_link_tag 'favicon.ico' %>
+    <%= favicon_link_tag 'apple-touch-icon.png', :rel => 'apple-touch-icon', :type => 'image/png' %>
+    <%= auto_discovery_link_tag(:rss, {:controller => "todos", :action => "index", :format => 'rss', :token => "#{current_user.token}"}, {:title => t('layouts.next_actions_rss_feed')}) %>
+    <link rel="search" type="application/opensearchdescription+xml" title="Tracks" href="<%= search_plugin_path(:format => :xml) %>" />
+    <title><%= @page_title %></title>
+  </head>
+
+  <body>
+    <div class="bootstrap">
+      <%= render partial: "shared/navbar" %>
+    </div>
+
+    <div class="legacy-ui <%= controller.controller_name %>">
+      <%= render_flash %>
+
+      <div id="content" class="<%= controller.controller_name %>">
+        <%= yield %>
+      </div>
+
+      <%= render :partial => "shared/footer" %>
+   </div><!-- .legacy-ui -->
+  </body>
+</html>

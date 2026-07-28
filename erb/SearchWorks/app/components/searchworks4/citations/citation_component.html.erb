@@ -1,0 +1,79 @@
+<%= render Searchworks4::RecordSummaryComponent.new(presenter:) %>
+
+<div class="modal-body" data-controller="citation-format">
+  <% unless unavailable? %>
+  <h3>Export citation</h3>
+  <ul class="list-unstyled d-flex gap-3 export-citations mb-4">
+    <% if exports_ris? %>
+      <% if eds_ris_export? %>
+        <li>
+          <%= link_to t('blacklight.tools.refworks_html'), '', onclick: "event.preventDefault(); this.nextElementSibling.submit();", role: 'menuitem', tabindex: '-1' %>
+          <%= form_tag(refworks_export_url(filter: 'RIS Format'), 'aria-hidden': true) do %>
+            <%= content_tag(:input, nil, type: :hidden, name: :ImportData, value: presenter.document.export_as_ris) %>
+          <% end %>
+        </li>
+        <li>
+          <%= link_to 'In RIS format (Zotero)',
+                    articles_ris_path(presenter.document, format: 'ris'),
+                    data: { turbo: false } %>
+        </li>
+      <% else %>
+        <li>
+          <%= link_to 'In RIS format (Zotero)',
+                    solr_document_path(presenter.document, format: 'ris'),
+                    data: { turbo: false } %>
+        </li>
+      <% end %>
+    <% end %>
+    <% if exports_endnote? %>
+      <li>
+        <%= link_to 'To EndNote',
+                  solr_document_path(presenter.document, format: 'endnote'),
+                  data: { turbo: false } %>
+      </li>
+    <% end %>
+    <% if exports_refworks? %>
+      <li>
+        <%= link_to 'To RefWorks', '', onclick: "event.preventDefault(); document.getElementById('refworks-form').submit();", class: 'refworks' %>
+        <%= form_tag(refworks_export_url, id: 'refworks-form', aria: { hidden: true }) do %>
+          <%# TODO: Remove send when Blacklight::Marc exposes this as a public method projectblacklight/blacklight-marc#64 %>
+          <%= content_tag(:input, nil, type: :hidden, name: :ImportData, value: presenter.document.send(:export_as_refworks_marc_txt)) %>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+  <% end %>
+
+  <h3>Copy citation</h3>
+
+  <% unless unavailable? || preferred_only? %>
+  <div class="row mb-3">
+    <div class="col-auto">
+      <label for="citation-format-select" class="col-form-label fw-bold">Select format</label>
+    </div>
+    <div class="col-auto">
+      <select id="citation-format-select" data-action="change->citation-format#reveal" class="form-select" style="width: unset;" aria-controls="<%= citations.keys.map { |style| "citation-format-#{style}" }.join(' ') %>">
+        <% citations.keys.each do |style| %>
+          <option value="citation-format-<%= style %>" ><%= t("searchworks.citations.styles.#{style}") %></option>
+        <% end %>
+      </select>
+    </div>
+  </div>
+  <% end %>
+
+  <% citations.each do |style, citation| %>
+    <%= tag.div class: "mb-4 bg-light p-2 citations",
+                data: { citation_format_target: "tab", controller: "copy-text"},
+                id: "citation-format-#{style}",
+                hidden: style != default_style do %>
+      <% unless unavailable? %>
+        <h5><%= t("searchworks.citations.styles.#{style}") %> <button type="button" class="btn btn-outline-primary btn-sm lh-1 ms-4" data-action="copy-text#copy">Copy</button></h5>
+      <% end %>
+      <% Array(citation).each do |cite| %>
+        <div class="mb-2" data-copy-text-target="text">
+          <%= helpers.auto_link cite %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

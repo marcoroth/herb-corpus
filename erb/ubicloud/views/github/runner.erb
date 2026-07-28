@@ -1,0 +1,170 @@
+<% @page_title = "Active Runners" %>
+
+<div class="auto-refresh hidden" data-interval="10"></div>
+
+<%== render("github/tabbar") %>
+
+<dl id="current-usages" class="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-5 lg:grid-cols-4">
+  <% [
+    ["Allocated vCPU", @allocated_vcpus, "vCPU"],
+    ["Requested vCPU", @requested_vcpus, "vCPU"],
+    ["Today", money(@today_usage)],
+    ["Last 30 Days", money(@last_30_usage)]
+  ].each do |title, value, subtitle| %>
+    <div class="overflow-hidden rounded-lg bg-white p-3 shadow sm:p-4">
+      <dt class="text-base/6 font-medium text-gray-500"><%= title %></dt>
+      <dl class="mt-1 flex items-baseline gap-x-2 font-mono">
+        <span class="text-3xl font-semibold tracking-tight text-gray-900"><%= value %></span>
+        <span class="text-sm text-gray-500"><%= subtitle %></span>
+      </dl>
+    </div>
+  <% end %>
+</dl>
+
+<% if @installation.project.reputation == "limited" && !(@installation.project.quota_available?("GithubRunnerVCpu", 0) && @installation.project.quota_available?("GithubRunnerVCpuArm", 0)) %>
+  <div class="mb-3 -mt-2 rounded-md bg-red-50 p-4 flex items-center gap-3">
+    <%== part("components/icon", name: "hero-squares-plus", classes: "h-5 w-5 text-red-400") %>
+    <h3 class="text-sm font-medium text-red-800">
+      You've reached your vCPU concurrency limit. If you need higher limits, please contact our support team at support@ubicloud.com
+    </h3>
+  </div>
+<% end %>
+
+<div class="grid gap-6">
+  <%
+    free_upgrade_badge = if @installation.free_runner_upgrade?
+      <<~CONTENT
+        <a href="#{path(@installation)}/setting">
+          <span class="rounded-full bg-green-600/10 px-2.5 py-1 text-xs/5 font-medium text-green-600">
+            You’re eligible for an exclusive <span class="font-semibold">50% off</span> premium runners until
+            <span class="font-semibold">#{@installation.free_runner_upgrade_expires_at.strftime("%B %d, %Y")}</span>
+          </span>
+        </a>
+      CONTENT
+    end
+  %>
+  <%== part(
+    "components/table_card",
+    headers: ["Repository", "Runner", "Workflow Job", "", ""],
+    rows:
+      @runners.map do |runner|
+        os = runner.label_data["boot_image"].match(/(ubuntu-\d{2})\d{2}/)[1]
+        family = runner.vm&.family || runner.label_data["family"]
+        [
+          [
+            [[
+              [runner.repository_name, {link: runner.repository_url}],
+              runner.workflow_job&.[]("head_branch")
+            ], {}],
+            [[
+              [runner.ubid, {link: runner.runner_url}],
+              [<<~CONTENT, {escape: false}],
+                <div class="flex gap-1">
+                  <div class="rounded-md px-2 text-xs font-medium leading-5 bg-slate-100 text-slate-800">#{runner.label_data["vcpus"]} vCPU</div>
+                  <div class="rounded-md px-2 text-xs font-medium leading-5 #{(family == "premium") ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-800"}">#{family}</div>
+                  <div class="rounded-md px-2 text-xs font-medium leading-5 bg-slate-100 text-slate-800">#{runner.label_data["arch"]}</div>
+                  <div class="rounded-md px-2 text-xs font-medium leading-5 bg-slate-100 text-slate-800">#{os}</div>
+                </div>
+              CONTENT
+            ], {}],
+            if (workflow_job = runner.workflow_job)
+              [[
+                [workflow_job["workflow_name"].to_s, {link: runner.run_url}],
+                [workflow_job["name"].to_s, {link: runner.job_url}],
+              ], {}]
+            elsif runner.ready_at
+              [
+                  [
+                    "Waiting for GitHub to assign a job",
+                    "Ready for #{format_time_diff(runner.ready_at, Time.now)}"
+                  ], {}
+                ]
+            elsif runner.strand && runner.strand.label == "wait_concurrency_limit"
+                [
+                  [
+                    "Reached your concurrency limit",
+                    "Waiting for #{format_time_diff(runner.created_at, Time.now)}"
+                  ], {}
+                ]
+            elsif runner.strand && runner.strand.label == "apply_custom_label_quota"
+              [
+                [
+                  "Checking concurrency quota for custom labels",
+                  "Waiting for #{format_time_diff(runner.created_at, Time.now)}"
+                ], {}
+              ]
+            else
+                [
+                  [
+                    "Provisioning an ephemeral virtual machine",
+                    "Waiting for #{format_time_diff(runner.created_at, Time.now)}"
+                  ], {}
+                ]
+            end,
+            if (job = runner.workflow_job)
+              [
+                [
+                  "Running for #{format_time_diff(Time.parse(job["started_at"]), Time.now)}",
+                  "Started in #{format_time_diff(Time.parse(job["created_at"]), Time.parse(job["started_at"]))}"
+                ], {}
+              ]
+            else
+              ""
+            end,
+            [
+              "delete_button",
+              {
+                component: {
+                  url: "#{@project.path}/github/#{@installation.ubid}/runner/#{runner.ubid}",
+                  text: nil,
+                  icon: "hero-x-circle",
+                  confirmation_message: "Are you sure to terminate this runner?\nThis will cancel its current job and permanently delete all its data.",
+                  attributes: {
+                    "title" => "Terminate",
+                  }
+                },
+                extra_class: "text-right"
+              }
+            ]
+          ],
+          { id: "runner-#{runner.ubid}" }
+        ]
+      end,
+    empty_state: <<~EMPTY
+      <div class="text-center empty-state">
+        #{part("components/icon", name: "hero-rocket-launch", classes: "mx-auto h-12 w-12 text-gray-400")}
+        <h3 class="mt-2 text-xl font-semibold text-gray-900">No active runners</h3>
+        <div class="mt-4 mx-auto max-w-sm rounded-lg bg-gray-50 p-4 text-left text-sm">
+          <ol class="space-y-3 text-gray-600">
+            <li class="flex gap-3">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-medium text-orange-600">1</span>
+              <span>Change <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-rose-500 font-mono">runs-on</code> in your workflow file to a Ubicloud label like <code class="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-rose-500 font-mono">ubicloud-standard-2</code></span>
+            </li>
+            <li class="flex gap-3">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-medium text-orange-600">2</span>
+              <span>Commit and push the change to your repository</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-medium text-orange-600">3</span>
+              <span>Trigger your workflow to start a runner</span>
+            </li>
+          </ol>
+        </div>
+        <div class="mt-4 mx-auto max-w-sm rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 flex items-center justify-between gap-3">
+          <div class="text-left">
+            <span class="text-sm font-medium text-gray-900">Need more options?</span>
+            <div class="mt-1.5 flex gap-1.5">
+              <span class="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">More vCPU</span>
+              <span class="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">arm64</span>
+              <span class="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200">Premium</span>
+            </div>
+          </div>
+          <a href="https://www.ubicloud.com/docs/github-actions-integration/runner-types" target="_blank" class="text-sm font-medium text-orange-600 whitespace-nowrap">
+            Explore <span aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+        <div class="mt-3">#{free_upgrade_badge}</div>
+      </div>
+    EMPTY
+  ) %>
+</div>

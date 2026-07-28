@@ -1,0 +1,115 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% html_title(t(:label_search)) -%>
+<% content_for :header_tags do %>
+  <%= call_hook :search_index_head %>
+<% end %>
+
+<%=
+  render(Primer::OpenProject::PageHeader.new) do |header|
+    title =
+      case search_params[:scope]
+      when "all"
+        t("global_search.title.all_projects", search_term: @question)
+      when "current_project"
+        t("global_search.title.current_project", search_term: @question, project_name: @project.name)
+      else
+        if @project
+          t("global_search.title.project_and_subprojects", search_term: @question, project_name: @project.name)
+        else
+          t("global_search.title.all_projects", search_term: @question)
+        end
+      end
+
+    header.with_title { title }
+    header.with_breadcrumbs(
+      [
+        ({ href: project_overview_path(@project.id), text: @project.name } if @project),
+        title
+      ].compact
+    )
+
+    header.with_tab_nav(label: nil, test_selector: "search-tabs") do |tab_nav|
+      search_types.each do |name|
+        tab_nav.with_tab(
+          test_selector: "search-tab-#{name}",
+          selected: search_params[:filter] == name,
+          href: search_path(project_id: @project, filter: name, q: @question, scope: search_params[:scope])
+        ) { |t| t.with_text { OpenProject::GlobalSearch.tab_name(name) } }
+      end
+
+      tab_nav.with_tab(
+        test_selector: "search-tab-all",
+        selected: search_params[:filter].blank?,
+        href: search_path(project_id: @project, q: @question, scope: search_params[:scope])
+      ) { |t| t.with_text { OpenProject::GlobalSearch.tab_name("all") } }
+    end
+  end
+%>
+
+<% if params[:filter] == "work_packages" %>
+  <%= angular_component_tag "opce-global-search-work-packages",
+                            inputs: {
+                              searchTerm: @question,
+                              scope: search_params[:scope],
+                            } %>
+
+<% else %>
+  <h3><%= t(:label_result_plural) %> (<%= @results_count&.values&.sum || 0 %>)</h3>
+
+  <% if @results.present? %>
+
+    <%= render partial: "pagination", locals: { pagination_previous_date: @pagination_previous_date, pagination_next_date: @pagination_next_date } %>
+
+    <dl id="search-results">
+      <% @results.each do |e| %>
+        <dt class="<%= e.event_type %>">
+
+          <% event_type = e.event_type == "meeting" ? "meetings" : e.event_type %>
+          <% event_type = "budget" if e.event_type == "budget" %>
+          <% event_type = "forums" if e.event_type == "reply" %>
+          <%= icon_wrapper("icon-context icon-#{event_type}", e.event_name) %>
+
+          <% if e.project != @project %>
+            <span class="project"><%= e.project %></span>
+            <span> - </span>
+          <% end %>
+
+          <%= link_to highlight_tokens(truncate(e.event_title, escape: false, length: 255), @tokens, text_on_not_found: true), with_notes_anchor(e, @tokens) %>
+        </dt>
+        <dd>
+          <span class="description"><%= highlight_tokens_in_event(e, @tokens) %></span>
+          <span class="author"><%= format_time(e.event_datetime) %></span>
+        </dd>
+      <% end %>
+    </dl>
+  <% end %>
+  <%= render partial: "pagination", locals: { pagination_previous_date: @pagination_previous_date, pagination_next_date: @pagination_next_date } if params[:work_packages].blank? %>
+<% end %>

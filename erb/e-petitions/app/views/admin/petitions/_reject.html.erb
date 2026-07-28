@@ -1,0 +1,53 @@
+<div class="petition-rejection-controls">
+  <%= javascript_tag(nonce: true) do %>
+    var rejection_descriptions = <%= raw json_escape(rejection_descriptions.to_json) %>;
+    var hidden_rejections = <%= raw json_escape(hidden_rejections.to_json) %>;
+
+    $().ready(function() {
+      // Ensure that we get the onchange event when the users uses the keyboard
+      // Details: http://bit.ly/iZx9nh
+      $('#petition_rejection_code').keyup(function() {
+        this.blur();
+        this.focus();
+      });
+
+      $('#petition_rejection_code').change(function() {
+        $('#rejection_preview').show();
+        $('#rejection_preview .content').html(rejection_descriptions[$(this).val()]);
+
+        if (hidden_rejections[$(this).val()]) {
+          $('#hide-petition-option').hide();
+        } else {
+          $('#hide-petition-option').show();
+        }
+      });
+    });
+  <% end -%>
+
+  <%= f.fields_for :rejection, f.object.rejection || f.object.build_rejection do |r| %>
+    <%= form_row for: [r.object, :code] do %>
+      <%= r.label :code, 'Rejection reason', class: 'form-label' %>
+      <%= error_messages_for_field r.object, :code %>
+      <%= r.select :code, rejection_reasons, { include_blank: "-- Select a rejection code --" }, class: 'form-control' %>
+    <% end %>
+
+    <div id="rejection_preview" class="reject-flash-notice" style="display: none;">
+      <strong>We’ll send this standard text to the petition creator:</strong>
+      <div class="content"></div>
+    </div>
+
+    <%= form_row for: [r.object, :details] do %>
+      <%= r.label :details, 'Additional details (optional)', class: 'form-label' %>
+      <%= error_messages_for_field r.object, :details %>
+      <%= r.text_area :details, rows: 8, cols: 70, class: 'form-control' %>
+    <% end %>
+
+    <%= form_row for: [r.object, :hidden], id: 'hide-petition-option' do %>
+      <div class="multiple-choice">
+        <%= r.check_box :hidden, tabindex: increment %>
+        <%= r.label :hidden, 'Hide this petition from the public' %>
+      </div>
+      <%= error_messages_for_field r.object, :hidden %>
+    <% end %>
+  <% end %>
+</div>

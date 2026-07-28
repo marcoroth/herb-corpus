@@ -1,0 +1,143 @@
+<%
+# Copyright (C) 2012 - present Instructure, Inc.
+#
+# This file is part of Canvas.
+#
+# Canvas is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, version 3 of the License.
+#
+# Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <http://www.gnu.org/licenses/>.
+%>
+
+<%
+  css_bundle :otp_login
+  @headers = false
+  add_body_class "full-width modal body--login-confirmation"
+  provide :page_title, t("Multi-Factor Authentication")
+%>
+
+<div id="modal-box" class="ic-Login-confirmation">
+  <header class="ic-Login-confirmation__header">
+    <%= image_tag("login/canvas-logo@2x.png", class:"ic-Login-confirmation__logo", alt:"Canvas by Instructure") %>
+  </header>
+  <div class="ic-Login-confirmation__content">
+    <h2 class="ic-Login-confirmation__headline"><%= t("Multi-Factor Authentication") %></h2>
+    <% if configuring? %>
+      <div>
+        <% if @current_user.mfa_settings(pseudonym_hint: @current_pseudonym) == :required %>
+          <p><%= t("You are required to set up Multi-Factor Authentication.") %></p>
+        <% end %>
+        <% otp_via_sms_message = otp_via_sms_in_us_region? ? mt(<<~MESSAGE) : ""
+          The device can be a code generator or a mobile phone that receives text messages.
+          **Using an authenticator app is strongly recommended for enhanced security.**
+          MESSAGE
+        %>
+        <%= mt(<<~BODY, otp_via_sms_message:)
+            Multi-Factor Authentication (MFA) enhances security by requiring a physical device and your Canvas login password.
+            %{otp_via_sms_message}
+
+            Configure MFA by scanning the QR code with a Time-based One-Time Password (TOTP) app on iPhone or Android
+            (e.g., Google Authenticator, Microsoft Authenticator, Authy). After setup, print backup codes from your profile
+            page if your primary MFA device is unavailable.
+          BODY
+        %>
+        <div class="content-box">
+          <div class="grid-row <%= otp_via_sms_in_us_region? ? "otp-login__grid-row-divider" : "center-xs" %>">
+            <div class="<%= otp_via_sms_in_us_region? ? "col-xs-12 col-sm-12 col-md-6" : "col-xs-12" %>">
+              <h3><%= t("Use Authenticator App") %></h3>
+              <%
+                provisioning_uri = ROTP::TOTP.new(session[:pending_otp_secret_key]).provisioning_uri("#{@domain_root_account.name} Canvas- #{@current_pseudonym.unique_id}")
+                qr_code = RQRCode::QRCode.new(provisioning_uri, level: :l)
+              %>
+              <div class="otp-qr-code">
+                <img src="data:image/png;base64,<%= Base64.encode64(qr_code.as_png(module_px_size: 4).to_s).strip %>" alt="<%= t("Time-based one-time password (TOTP) QR code") %>">
+              </div>
+              <p class="<%= "otp-login__text-align--xs-center" if otp_via_sms_in_us_region? %>">
+                <strong><%= t("Secret Key:") %></strong>
+                <br>
+                <span class="otp-login__secret-key"><%= session[:pending_otp_secret_key] %></span>
+              </p>
+            </div>
+            <% if otp_via_sms_in_us_region? %>
+              <div class="col-xs-12 col-sm-12 col-md-6">
+                <h3><%= t("Use SMS") %></h3>
+                <p><%= t("Only US mobile numbers are supported.") %></p>
+                <% ccs = @current_user.communication_channels.sms.unretired.map { |cc| [cc.path, cc.id] } %>
+                <% unless ccs.empty? %>
+                  <% ccs << ["<< #{t("a new mobile number")} >>", "{{id}}"] %>
+                  <%= form_for :otp_login, :url => send_otp_via_sms_path, :html => {:id => "select_phone_form", :class => "ic-Form-group ic-Form-group--horizontal"} do |f| %>
+                    <div class="ic-Form-control">
+                      <%= f.blabel :otp_communication_channel_id, en: "US Mobile Number", class: "ic-Label" %>
+                      <div class="controls">
+                        <%= f.select(:otp_communication_channel_id, ccs, { selected: @cc.try(:id) }, class: "ic-Input") %>
+                      </div>
+                    </div>
+                    <div>
+                      <button type="submit" class="Button Button--primary">
+                        <%= t("Send") %>
+                      </button>
+                    </div>
+                  <% end %>
+                <% end %>
+                <%= form_for :otp_login, url: send_otp_via_sms_path, html: { id: "new_phone_form", style: (hidden unless ccs.empty?), class: "ic-Form-group" } do |f| %>
+                  <div class="ic-Form-control">
+                    <%= f.blabel :phone_number, :en => "US Mobile Number", :class => "ic-Label" %>
+                    <div class="controls">
+                      <%= f.text_field :phone_number, :class => "ic-Input" %>
+                    </div>
+                  </div>
+                  <div>
+                    <button type="submit" class="Button Button--primary">
+                      <%= t("Send") %>
+                    </button>
+                    <% unless ccs.empty? %>
+                      <a href="#" class="Button Button--link" id="back_to_choose_number_link">
+                        <%= t("Choose an existing number") %>
+                      </a>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <% if @cc %>
+      <div>
+        <p><%= t("Please enter the verification code sent to your mobile phone number.") %></p>
+      </div>
+      <% if @cc.otp_impaired? %>
+        <div class="alert alert-warning">
+          <p><%= t("Please check your email if your SMS code does not arrive soon.") %></p>
+        </div>
+      <% end %>
+    <% else %>
+      <div>
+        <p><%= t("Please enter the verification code shown by your token.") %></p>
+      </div>
+    <% end %>
+    <%= form_for :otp_login, url: otp_login_path, html: { id: "login_form", class: "ic-Form-group" } do |f| %>
+      <div class="ic-Form-control">
+        <div class="ic-Input-group">
+          <%= f.blabel :verification_code, :en => "Verification Code", :class => "ic-Label" %>
+          <%= f.text_field :verification_code, :class => "ic-Input", :autocomplete => "off" %>
+          <button type="submit" class="Button Button--primary">
+            <%= t("Verify") %>
+          </button>
+        </div>
+      </div>
+      <div>
+        <%= f.check_box :remember_me %>
+        <%= f.label :remember_me, :en => "Remember this computer" %>
+      </div>
+    <% end %>
+  </div>
+</div>

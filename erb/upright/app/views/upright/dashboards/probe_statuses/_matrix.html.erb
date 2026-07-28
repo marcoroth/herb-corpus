@@ -1,0 +1,48 @@
+<% if probes.empty? %>
+  <div class="no-data-message">
+    No probe data available for the selected type.
+  </div>
+<% else %>
+  <div class="scrollable-x">
+    <div class="data-table" style="--cols: <%= sites.size %>">
+      <div class="data-table__header probe-status__header">
+        <div class="sticky-left">Probe</div>
+        <% sites.each do |site| %>
+          <div class="text-center"><%= site_name(site) %></div>
+        <% end %>
+      </div>
+      <% probes.each do |probe| %>
+        <div class="data-table__row probe-status__row <%= "probe-status-row--down" if probe.any_down? %>">
+          <div class="sticky-left">
+            <%= link_to upright.site_root_url(subdomain: Upright.sites.first.code, probe_type: probe.type, probe_name: probe.name), class: "data-table__probe" do %>
+              <%= probe_type_icon(probe.type) %>
+              <span><%= probe.name %></span>
+            <% end %>
+          </div>
+          <% sites.each do |site| %>
+            <% status = probe.status_for_site(site.code) %>
+            <div class="text-center <%= probe_status_css_class(status) %>" data-label="<%= site_name(site) %>">
+              <%= link_to upright.site_root_url(subdomain: site.code, probe_type: probe.type, probe_name: probe.name), class: "probe-status-cell-link" do %>
+                <% if status.nil? %>
+                  <span class="probe-status-indicator probe-status-indicator--unknown">—</span>
+                <% elsif status.stale? %>
+                  <span class="probe-status-indicator probe-status-indicator--stale">STALE</span>
+                <% elsif status.up? %>
+                  <span class="probe-status-indicator probe-status-indicator--up">UP</span>
+                <% else %>
+                  <span class="probe-status-indicator probe-status-indicator--down">
+                    <% if status.down_since_known? %>
+                      DOWN for <%= time_ago_in_words(status.down_since) %>
+                    <% else %>
+                      DOWN
+                    <% end %>
+                  </span>
+                <% end %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

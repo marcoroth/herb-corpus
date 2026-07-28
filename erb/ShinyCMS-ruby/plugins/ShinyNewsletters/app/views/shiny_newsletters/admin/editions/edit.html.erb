@@ -1,0 +1,71 @@
+<%= form_for @edition, url: shiny_newsletters.edition_path( @edition ), method: :put do |f| %>
+  <p>
+    <%= f.label :internal_name %><br>
+    <%= f.text_field :internal_name %>
+  </p>
+  <p>
+    <%= f.label :public_name %><br>
+    <%= f.text_field :public_name %>
+  </p>
+  <p>
+    <%= f.label :slug %><br>
+    <%= f.text_field :slug %>
+  </p>
+  <p>
+    <%= f.label :description %><br>
+    <%= f.text_field :description %>
+  </p>
+  <p>
+    <%= f.label :template_id, t( 'shinycms.admin.template' ) %>
+    <br><%= f.select :template_id, ShinyNewsletters::Template.pluck( :name, :id ), include_blank: '' %>
+  </p>
+  <p>
+    <%= f.label :show_on_site %>
+    <br><%= f.check_box :show_on_site %>
+  </p>
+
+  <% if current_user.can? :edit, :newsletter_templates %>
+  <p>
+    <label>Change element order
+      <br><input type="checkbox" onChange="toggleShowHandles( this.checked );">
+    </label>
+  </p>
+
+  <%= hidden_field_tag :sort_order, '', id: :sort_order %>
+  <% end %>
+
+  <table class="elements">
+    <% if current_user.can? :edit, :newsletter_templates %>
+    <tbody id="sortable">
+    <% end %>
+    <%= f.fields_for :elements do |fields| %>
+      <% this = @edition.elements[fields.index] %>
+      <%= render partial: 'element', locals: { fields: fields, id: this.id, name: this.name, element_type: this.element_type, content: :content, image: this.image } %>
+    <% end %>
+    <% if current_user.can? :edit, :newsletter_templates %>
+    </tbody>
+    <% end %>
+  </table>
+
+  <p class="top-margin">
+    <%= f.submit t( 'update' ) %>
+  </p>
+<% end %>
+
+<% unless current_user.can? :edit, :newsletter_editions %>
+  <%= form_for :new_element, name: 'new_element', url: shiny_newsletters.edition_elements_path( @edition ), method: :post do |f2| %>
+    <fieldset>
+      <legend>
+        Add an element
+      </legend>
+      <p>
+        <%= f2.text_field :name, placeholder: t( '.new_element_name' ), class: 'textshort' %>
+        <%= f2.select :element_type, element_types %>
+        <br><%= f2.text_field :content, placeholder: t( '.new_element_content' ), class: 'textlong' %>
+      </p>
+      <p>
+        <%= f2.submit t( 'add' ) %>
+      </p>
+    </fieldset>
+  <% end %>
+<% end %>

@@ -1,0 +1,73 @@
+<% error_message = t("formats.simple_smart_answer.please_answer") if @flow_state.error? %>
+<% field_id = question.title.parameterize(separator: "-") %>
+
+<%
+  ga4_attributes = {
+    event_name: "form_response",
+    type: "simple smart answer",
+    section: question.title,
+    action: "next step",
+    tool_name: content_item.title,
+  }.to_json
+%>
+
+<% if error_message %>
+  <%= render "govuk_publishing_components/components/error_summary", {
+    title: t("formats.local_transaction.error_summary_title"),
+    data_attributes: {
+      module: "ga4-auto-tracker",
+      ga4_auto: {
+        event_name: "form_error",
+        type: "simple smart answer",
+        text: error_message,
+        section: question.title,
+        action: "error",
+        tool_name: content_item.title,
+      },
+    },
+    items: [
+      {
+        text: error_message,
+        href: "\##{field_id}",
+      },
+    ],
+  } %>
+<% end %>
+
+<%= form_tag smart_answer_path_for_responses(@flow_state.completed_questions, edition: nil), method: "get", "data-module": "ga4-form-tracker" , "data-ga4-form": ga4_attributes do %>
+  <%= hidden_field_tag :edition, @edition if @edition.present? %>
+  <%= hidden_field_tag "response", "" %>
+
+  <% content_for :title do
+      simple_smart_answer_page_title(question.title)
+    end %>
+
+  <% description = render "govuk_publishing_components/components/govspeak", {} do
+    raw(question.body)
+  end if question.body %>
+
+  <%= render "govuk_publishing_components/components/radio", {
+    id: field_id,
+    description: description,
+    error_message: error_message,
+    heading_caption: content_item.title,
+    heading_size: "l",
+    heading: "#{@flow_state.current_question_number}. #{question.title}",
+    heading_level: 1,
+    name: "response",
+    items: question.options.map do |option|
+      {
+        text: option.label,
+        value: option.slug,
+        checked: option.slug == params[:previous_response],
+      }
+    end,
+  } %>
+
+  <%= render partial: "draft_fields" %>
+
+  <%= render "govuk_publishing_components/components/button", {
+    text: t("formats.simple_smart_answer.next_step"),
+    margin_bottom: true,
+  } %>
+<% end %>

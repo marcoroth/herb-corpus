@@ -1,0 +1,66 @@
+<%#
+  -- copyright
+  OpenProject is an open source project management software.
+  Copyright (C) the OpenProject GmbH
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License version 3.
+
+  OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+  Copyright (C) 2006-2013 Jean-Philippe Lang
+  Copyright (C) 2010-2013 the ChiliProject Team
+
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License
+  as published by the Free Software Foundation; either version 2
+  of the License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+  See COPYRIGHT and LICENSE files for more details.
+
+  ++#
+%>
+
+<% html_title(t(:label_document_plural), @document.title) %>
+
+<% if @document.collaborative? %>
+  <% if Setting.real_time_text_collaboration_enabled? %>
+    <% content_for :header_tags do %>
+      <%# Keep this page out of Turbo's snapshot cache: a restored snapshot rebuilds
+          the editor against a stale collaboration token and reconnects the WebSocket,
+          which the editor briefly surfaces as a spurious offline banner (STC-642). %>
+      <meta name="turbo-cache-control" content="no-cache">
+    <% end %>
+    <%=
+      render(
+        Documents::ShowEditView::BlockNoteEditorComponent.new(
+          @document,
+          project: @project,
+          token_payload: @token_payload,
+          state: @state,
+          resource_url: @resource_url,
+          token_expires_in_seconds: @token_expires_in_seconds,
+          readonly: @readonly
+        )
+      )
+    %>
+  <% else %>
+    <%=
+      render(
+        Documents::ShowEditView::CollaborationDisabledNoticeComponent.new(
+          @document, project: @project, state: :show
+        )
+      )
+    %>
+  <% end %>
+<% else %>
+  <%= render partial: "classic_show", locals: { document: @document, project: @project, attachments: @attachments } %>
+<% end %>

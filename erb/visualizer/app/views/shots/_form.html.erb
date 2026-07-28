@@ -1,0 +1,220 @@
+<div class="md:col-span-2" id="<%= dom_id(@shot) %>">
+  <%= form_with(model: @shot) do |f| %>
+    <div class="sm:overflow-hidden sm:rounded-md md:shadow">
+      <div class="flex flex-col gap-y-6 py-5 px-4 bg-white sm:p-6 dark:bg-neutral-800" data-controller="canonical-selector">
+        <div class="grid grid-cols-6 gap-6" data-controller="ey-calculator">
+          <div class="col-span-6">
+            <%= f.label :espresso_enjoyment, class: "standard-label" %>
+            <div class="flex items-center mt-1" data-controller="range">
+              <%= f.number_field :espresso_enjoyment, min: 0, max: 100, inputmode: "numeric", style: "background-color: #{enjoyment_hex(@shot.espresso_enjoyment)};", class: "text-white border-none shot-number rounded-full h-8 w-20 text-center dark:bg-neutral-800", data: { action: "input->range#update", range_target: "number" } %>
+              <%= f.range_field :espresso_enjoyment, in: 0..100, class: "shot-range ml-2 grow dark:bg-neutral-800", data: { action: "input->range#update", range_target: "range" } %>
+            </div>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <%= f.label :profile_title, class: "standard-label" %>
+            <%= f.text_field :profile_title, class: "mt-1 standard-input" %>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <%= shot_copyable_label(f, :barista) %>
+            <%= f.text_field :barista, class: "mt-1 standard-input" %>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <%= shot_copyable_label(f, :bean_weight) %>
+            <%= f.text_field :bean_weight, class: "mt-1 standard-input", data: { ey_calculator_target: "beanWeight", shot_copier_preserve_existing_value: true } %>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <%= shot_copyable_label(f, :drink_weight) %>
+            <%= f.text_field :drink_weight, class: "mt-1 standard-input", data: { ey_calculator_target: "drinkWeight", shot_copier_preserve_existing_value: true } %>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <%= shot_copyable_label(f, :grinder_model) do %>
+              <%= link_to "Manage", dropdown_values_path(kind: "grinder_model"), class: "text-sm standard-link text-neutral-500 dark:text-neutral-400" %>
+            <% end %>
+            <%= render partial: "shared/combobox", locals: { input_name: "shot[grinder_model]", hidden_input_name: "_grinder_model", selected: @shot.grinder_model, collection: DropdownValue.visible.for(@shot.user, 'grinder_model').pluck(:value), name_method: :itself, id_method: :itself, allow_custom: true} %>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <%= shot_copyable_label(f, :grinder_setting) %>
+            <%= f.text_field :grinder_setting, class: "mt-1 standard-input" %>
+          </div>
+          <% if Current.user.coffee_management_enabled? %>
+            <div class="col-span-6">
+              <div class="flex justify-between">
+                <%= f.label :coffee_bag_id, "Coffee bag", class: "standard-label" %>
+                <%= link_to "New", new_coffee_bag_path, class: "text-sm standard-link text-neutral-500 dark:text-neutral-400" %>
+              </div>
+              <%= render partial: "shared/combobox", locals: { input_name: :coffee_bag, hidden_input_name: "shot[coffee_bag_id]", selected: @shot.coffee_bag, collection: @coffee_bags, name_method: :full_display_name, preserve_order: true } %>
+            </div>
+          <% else %>
+            <div class="col-span-6" data-controller="autocomplete" data-canonical-selector-target="autocomplete" data-autocomplete-url-value="<%= autocomplete_coffee_bags_canonical_index_path %>" data-autocomplete-min-length-value="<%= CanonicalCoffeeBag::MIN_TERM_LENGTH %>" data-autocomplete-selected-class="text-white bg-oxford-blue-400 dark:bg-oxford-blue-700">
+              <%= f.label :canonical_coffee_bag_search, "Search Loffee Labs Bean Base", class: "standard-label" %>
+              <%= f.hidden_field :canonical_coffee_bag_id, data: { autocomplete_target: "hidden", canonical_selector_target: "id" } %>
+              <%= f.search_field :canonical_coffee_bag_search, value: "#{@shot.canonical_coffee_bag&.name}", class: "mt-1 standard-input", data: { autocomplete_target: "input" } %>
+              <ul class="overflow-y-auto absolute z-10 mt-2 max-h-96 bg-white rounded-md ring-1 shadow-lg list-group ring-black/5" data-autocomplete-target="results"></ul>
+            </div>
+            <div class="col-span-6 sm:col-span-3">
+              <%= shot_copyable_label(f, :bean_brand) do %>
+                <%= link_to "Manage", dropdown_values_path(kind: "bean_brand"), class: "text-sm standard-link text-neutral-500 dark:text-neutral-400" %>
+              <% end %>
+              <%= render partial: "shared/combobox", locals: { input_name: "shot[bean_brand]", hidden_input_name: "_bean_brand", selected: @shot.bean_brand, collection: DropdownValue.visible.for(@shot.user, 'bean_brand').pluck(:value), name_method: :itself, id_method: :itself, allow_custom: true, input_data: {canonical_selector_target: "roaster"} } %>
+            </div>
+            <div class="col-span-6 sm:col-span-3">
+              <%= shot_copyable_label(f, :bean_type) do %>
+                <%= link_to "Manage", dropdown_values_path(kind: "bean_type"), class: "text-sm standard-link text-neutral-500 dark:text-neutral-400" %>
+              <% end %>
+              <%= render partial: "shared/combobox", locals: { input_name: "shot[bean_type]", hidden_input_name: "_bean_type", selected: @shot.bean_type, collection: DropdownValue.visible.for(@shot.user, 'bean_type').pluck(:value), name_method: :itself, id_method: :itself, allow_custom: true, input_data: {canonical_selector_target: "coffeeBag"} } %>
+            </div>
+            <div class="col-span-6 sm:col-span-3">
+              <%= shot_copyable_label(f, :roast_date) %>
+              <%= f.text_field :roast_date, class: "mt-1 standard-input" %>
+            </div>
+            <div class="col-span-6 sm:col-span-3">
+              <%= shot_copyable_label(f, :roast_level) %>
+              <%= f.text_field :roast_level, class: "mt-1 standard-input" %>
+            </div>
+          <% end %>
+          <div class="col-span-6 sm:col-span-3">
+            <%= f.label :drink_tds, class: "standard-label" %>
+            <%= f.text_field :drink_tds, class: "mt-1 standard-input", data: { ey_calculator_target: "tds" } %>
+          </div>
+          <div class="col-span-6 sm:col-span-3">
+            <div class="flex justify-between">
+              <%= f.label :drink_ey, class: "standard-label" %>
+              <span class="text-sm cursor-pointer text-neutral-500 standard-link dark:text-neutral-400" data-action="click->ey-calculator#calculate">
+                Calculate
+              </span>
+            </div>
+            <%= f.text_field :drink_ey, class: "mt-1 standard-input", data: { ey_calculator_target: "ey" } %>
+          </div>
+        </div>
+        <% if Current.user.premium? %>
+          <div data-controller="tasting-assessment">
+            <h3 class="standard-label">Tasting assessment</h3>
+            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+              Terminology and value ranges are mostly based on the
+              <a href="https://sca.coffee/sca-news/cva-in-action-descriptive" target="_blank" class="standard-link">SCA CVA Descriptive</a>.
+            </p>
+            <div class="grid grid-cols-6 gap-6 mt-4">
+              <% Shot::TASTING_ASSESSMENT_ATTRIBUTES.each do |attribute| %>
+                <div class="col-span-6 sm:col-span-3">
+                  <%= shot_copyable_label(f, attribute, attribute.to_s.humanize) do %>
+                    <span class="hidden text-sm text-neutral-500 dark:text-neutral-400" data-tasting-assessment-target="value"><%= @shot.public_send(attribute) || 0 %></span>
+                  <% end %>
+                  <%= f.range_field attribute, in: 0..15, value: @shot.public_send(attribute) || 0, class: "mt-3 w-full accent-oxford-blue-600 dark:accent-oxford-blue-500", data: { action: "input->tasting-assessment#update", tasting_assessment_target: "slider" } %>
+                  <div class="flex justify-between px-1 text-xs text-neutral-500 dark:text-neutral-400">
+                    <span>0</span>
+                    <span>5</span>
+                    <span>10</span>
+                    <span>15</span>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          <% if Current.user.shot_metadata_fields.any? %>
+            <%= f.fields_for :metadata do |mf| %>
+              <div class="grid grid-cols-6 gap-6">
+                <% Current.user.shot_metadata_fields.each do |field| %>
+                  <div class="col-span-6 sm:col-span-3">
+                    <%= shot_copyable_label(mf, field) %>
+                    <%= mf.text_field field, value: @shot.metadata[field], class: "mt-1 standard-input" %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-neutral-700 dark:text-neutral-300">
+              You don't have any custom fields yet.
+              <%= link_to "Add some", edit_profile_path, class: "font-bold standard-link" %>!
+            </p>
+          <% end %>
+        <% else %>
+          <p class="p-3 text-sm rounded-md bg-terracotta-100/50 dark:bg-terracotta-800/10">
+            Easily manage your coffee bags, add tags, custom fields, private notes, photos, and more by
+            <%= link_to "upgrading to Premium", premium_index_path, class: "standard-link font-semibold" %>.
+          </p>
+        <% end %>
+        <% if @shot.information&.brewdata.present? %>
+          <div class="grid grid-cols-6 gap-6">
+            <%= f.fields_for :brewdata, @shot.information do |brewdata| %>
+              <% @shot.information.brewdata.each do |group, values| %>
+                <% next if group == "brewFlow" || !values.is_a?(Hash) %>
+                <% values.each do |key, value| %>
+                  <% value = brewdata_input_value(value) %>
+                  <% next unless value %>
+                  <% path = [group, key].join("/") %>
+                  <div class="col-span-6 sm:col-span-3">
+                    <%= brewdata.label path, [group, key].map { it.underscore.humanize }.join(": "), class: "standard-label" %>
+                    <%= brewdata.text_field path, value:, class: "mt-1 standard-input" %>
+                  </div>
+                <% end %>
+              <% end %>
+            <% end %>
+          </div>
+        <% end %>
+        <% if Current.user.premium? %>
+          <div id="tags_controller" data-controller="tags" data-tags-user-tags-value="<%= Current.user.tags.pluck(:name) %>">
+            <%= shot_copyable_label_tag("shot_tag_list", "shot_tag_list", "Tags") %>
+            <%= f.text_field :tag_list, class: "mt-1 standard-input", placeholder: "Add tags...", data: { tags_target: "input" } %>
+            <div class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+              Type a comma or press enter to create a tag.
+            </div>
+          </div>
+        <% end %>
+        <div>
+          <%= shot_copyable_label(f, :bean_notes) %>
+          <div class="mt-1">
+            <%= f.text_area :bean_notes, rows: 10, class: "shadow-sm font-mono focus:ring-oxford-blue-500 focus:border-oxford-blue-500 mt-1 block w-full sm:text-sm border-neutral-300 rounded-md dark:bg-neutral-800" %>
+            <div class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+              Supports
+              <a class="standard-link" target="_blank" href="https://guides.github.com/features/mastering-markdown/">GitHub Flavored Markdown</a>.
+            </div>
+          </div>
+        </div>
+        <div>
+          <%= shot_copyable_label(f, :espresso_notes) %>
+          <div class="mt-1">
+            <%= f.text_area :espresso_notes, rows: 10, class: "shadow-sm font-mono focus:ring-oxford-blue-500 focus:border-oxford-blue-500 mt-1 block w-full sm:text-sm border-neutral-300 rounded-md dark:bg-neutral-800" %>
+            <div class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+              Supports
+              <a class="standard-link" target="_blank" href="https://guides.github.com/features/mastering-markdown/">GitHub Flavored Markdown</a>.
+            </div>
+          </div>
+        </div>
+        <% if Current.user.premium? %>
+          <div>
+            <%= shot_copyable_label(f, :private_notes, "Private notes") %>
+            <div class="mt-1">
+              <%= f.text_area :private_notes, rows: 10, class: "shadow-sm font-mono focus:ring-oxford-blue-500 focus:border-oxford-blue-500 mt-1 block w-full sm:text-sm border-neutral-300 rounded-md dark:bg-neutral-800" %>
+              <div class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+                Only visible to you. Supports
+                <a class="standard-link" target="_blank" href="https://guides.github.com/features/mastering-markdown/">GitHub Flavored Markdown</a>.
+              </div>
+            </div>
+          </div>
+          <div>
+            <%= f.label :image, "Image", class: "standard-label" %>
+            <% if @shot.image.attached? && @shot.image.variable? %>
+              <div id="shot-image">
+                <%= image_tag @shot.image.variant(:display), class: "rounded-lg mt-1" %>
+                <div class="flex mt-1 mb-4 text-sm text-red-600 dark:text-red-700 hover:text-red-800 dark:hover:text-red-600">
+                  <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <%= link_to "Remove Image", [:remove_image, @shot], data: { turbo_method: :delete }, class: "standard-link text-sm" %>
+                </div>
+              </div>
+            <% end %>
+            <div class="mt-1">
+              <%= f.file_field :image, class: "standard-file-input" %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+      <div class="sticky bottom-0 z-10 p-4 backdrop-blur bg-neutral-50/70 dark:bg-neutral-700/70">
+        <div class="text-right sm:px-6">
+          <%= f.submit "Save", class: "button-terracotta py-2 px-4" %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,87 @@
+<% content_for :page_title, "Tagesplan #{I18n.t("date.day_names")[@date.wday]}, #{@date.day}. #{I18n.t("date.month_names")[@date.month]} #{@date.year}" %>
+<% content_for :page_subtitle, "Tagesplan #{@group.name}" %>
+
+<style>
+  .thing {
+    height: 200px;
+    background-image: linear-gradient(-45deg, rgb(249 250 251 / 1) 25%, transparent 25%, transparent 50%, rgb(249 250 251 / 1) 50%, rgb(249 250 251 / 1) 75%, transparent 75%, transparent);
+    background-size: 10px 10px;
+  }
+</style>
+
+<div class="main-content tw-p-2">
+  <%= render "header" %>
+
+  <div class="container-fluid">
+    <div class="row">
+
+      <div class="col-12 col-xxl-8">
+        <%= render CardComponent.new do |card| %>
+          <%= card.with_header do |header| %>
+            <%= header.with_title { "#{yield(:page_title)}" } %>
+            <%= header.with_button do %>
+              <%= link_to "Woche anzeigen", week_plan_for_group_path(@group, start_date: @previous_date, user_id: @user), class: "btn btn-sm btn-white tw-mr-3" %>
+              <%= link_to "Heute", day_plan_for_group_path(@group, start_date: Date.current, user_id: @user), class: "btn btn-sm btn-white tw-mr-3" %>
+
+              <%= link_to %(<i class="fa fa-arrow-left"></i>).html_safe, day_plan_for_group_path(@group, start_date: @previous_date, user_id: @user), class: "btn btn-sm btn-white" %>
+              <%= link_to %(<i class="fa fa-arrow-right"></i>).html_safe, day_plan_for_group_path(@group, start_date: @next_date, user_id: @user), class: "btn btn-sm btn-white" %>
+            <% end %>
+          <% end %>
+
+          <%= card.with_body do %>
+            <% grouped_group_start_times = GroupBlock.new(@group).for_blocks(UserBlock.for_day(@date)).grouped_group_start_times %>
+
+            <% if grouped_group_start_times.map(&:identical).reduce(:&) %>
+              <div>
+                <div class="tw-mb-6">
+                  <div>
+                    <div class="tw-grid tw-grid-cols-<%= @group.users.count %>">
+                      <% @group.users.each do |user| %>
+                        <div class="tw-flex tw-gap-2 tw-items-center">
+                          <div class="tw-mx-auto">
+                            <%= render AvatarComponent.new(user: user, size: "xs") %>
+                            <b><%= link_to user.name, day_plan_user_path(user, start_date: @date) %></b>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div><br>
+
+                    <div class="">
+                      <% grouped_group_start_times.each do |group_start_time| %>
+                        <% blocks = group_start_time.blocks %>
+
+                        <% if !group_start_time.identical %>
+                          <% group_start_time.user_blocks.each do |user_id, u_blocks| %>
+                            <div>
+                              <%= render partial: "groups/group_block", locals: { group: @group, blocks: u_blocks, group_start_time: group_start_time } %>
+                              <%#= render AvatarComponent.new(user: u_blocks.first.user, size: "xs") %>
+                            </div>
+                          <% end %>
+                        <% else %>
+                          <%= render partial: "groups/group_block", locals: { group: @group, blocks: blocks.first.blocks, group_start_time: group_start_time } %>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+            <% else %>
+              <div>
+                <div class="tw-grid tw-grid-cols-<%= @group.users.count %> tw-gap-x-6 tw-mb-6">
+                  <% GroupBlock.new(@group).for_blocks(UserBlock.for_day(@date)).user_block_groups.each do |user_id, block_groups| %>
+                    <%= render partial: "users/user_day_plan", locals: { user: User.find(user_id), block_groups: block_groups } %>
+                  <% end %>
+                </div>
+
+              </div>
+            <% end %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <%= render "info" %>
+    </div>
+  </div>
+</div>

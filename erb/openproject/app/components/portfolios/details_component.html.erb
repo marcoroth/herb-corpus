@@ -1,0 +1,206 @@
+<%=
+  flex_layout(**archived_style) do |flex|
+    flex.with_row(mb: 2) do
+      flex_layout(classes: "op-portfolios--details-header") do |header|
+        header.with_column(mr: 2) do
+          if archived?
+            render(Primer::Beta::Text.new(classes: "portfolio-name")) do
+              name_caption
+            end
+          else
+            render(
+              Primer::Beta::Link.new(
+                classes: "portfolio-name",
+                href: project_overview_path(@portfolio),
+                font_weight: :bold
+              )
+            ) do
+              name_caption
+            end
+          end
+        end
+
+        unless archived?
+          header.with_column(mr: 2, test_selector: "op-portfolios--status", flex_shrink: 0) do
+            render(
+              Projects::StatusButtonComponent.new(
+                user: @current_user,
+                project: @portfolio,
+                hide_help_text: true,
+                size: :small
+              )
+            )
+          end
+        end
+
+        if render_sub_status_bar?
+          header.with_column(classes: "op-portfolios--progress", flex_shrink: 0) do
+            render(
+              Primer::Beta::ProgressBar.new(
+                size: :large,
+                data: {
+                  hover_card_trigger_target: "trigger",
+                  hover_card_popover_template_id: sub_status_hover_card_id,
+                  test_selector: "op-portfolios--sub-status-bar"
+                }
+              )
+            ) do |bar|
+              sub_status_bar_contents.each do |status|
+                status => { code:, percentage: }
+
+                status_label = t("js.grid.widgets.project_status.#{code || 'not_set'}")
+
+                bar.with_item(
+                  percentage:,
+                  bg: nil, # unset default color so that we can inject our own via CSS class
+                  classes: "op-portfolios--sub-status #{helpers.project_status_css_class(code)}",
+                  aria: {
+                    label: status_label
+                  },
+                  test_selector: "op-portfolios--status-#{code || 'not_set'}",
+                  data: {
+                    percentage:
+                  }
+                )
+              end
+            end
+          end
+        end
+      end
+    end
+
+    flex.with_row(classes: "op-portfolios--description", mb: 2) do
+      if @portfolio.description.blank?
+        render(Primer::Beta::Text.new(color: :muted)) { t("create_project.blank_description") }
+      else
+        render(Primer::Beta::Text.new(classes: "line-clamp-5 lh-default")) { format_text(@portfolio.description) }
+      end
+    end
+
+    flex.with_row do
+      flex_layout(classes: "op-portfolios--details-footer") do |footer|
+        unless archived?
+          footer.with_column(mr: 3) do
+            render(
+              Primer::Beta::IconButton.new(
+                icon: currently_favorited? ? "star-fill" : "star",
+                scheme: :invisible,
+                mobile_icon: currently_favorited? ? "star-fill" : "star",
+                size: :medium,
+                tag: :a,
+                tooltip_direction: :e,
+                href: helpers.build_favorite_path(@portfolio, format: :html),
+                data: { turbo_method: currently_favorited? ? :delete : :post },
+                classes: currently_favorited? ? "op-primer--star-icon " : "",
+                label: currently_favorited? ? I18n.t(:button_unfavorite) : I18n.t(:button_favorite),
+                aria: { label: currently_favorited? ? I18n.t(:button_unfavorite) : I18n.t(:button_favorite) },
+                test_selector: "op-portfolios--favorite-button"
+              )
+            )
+          end
+
+          footer.with_column(mr: 3) do
+            concat(
+              render(
+                Primer::Beta::Octicon.new(
+                  icon: workspace_icon("program"),
+                  align_self: :center,
+                  "aria-label": t("program.count", count: all_subprograms.count),
+                  mr: 1
+                )
+              )
+            )
+            concat(
+              render(Primer::Beta::Text.new) do
+                t("program.count", count: all_subprograms.count)
+              end
+            )
+          end
+
+          footer.with_column(mr: 3) do
+            concat(
+              render(
+                Primer::Beta::Octicon.new(
+                  icon: workspace_icon("project"),
+                  align_self: :center,
+                  "aria-label": t("project.count", count: all_subprojects.count),
+                  mr: 1
+                )
+              )
+            )
+            concat(
+              render(Primer::Beta::Text.new) do
+                t("project.count", count: all_subprojects.count)
+              end
+            )
+          end
+
+          # TODO: WP-68872 render budget
+          # footer.with_column(mr: 3) do
+          #   render(
+          #     Primer::Beta::Octicon.new(
+          #       icon: "op-budget",
+          #       align_self: :center,
+          #       "aria-label": "TODO",
+          #       mr: 1
+          #     )
+          #   ) + content_tag(:span, "34,000 EUR budget - 12,000 EUR spent")
+          # end
+        end
+
+        footer.with_column do
+          render(
+            Primer::Beta::Text.new(
+              color: :muted,
+              data: { test_selector: "op-portfolios--updated-at" }
+            )
+          ) do
+            t(:label_updated_time, value: distance_of_time_in_words(Time.current, portfolio.updated_at))
+          end
+        end
+      end
+    end
+  end
+%>
+
+<%=
+  # Card that appears when hovering over the progress bar
+  if render_sub_status_bar?
+    content_tag(:template, id: sub_status_hover_card_id) do
+      flex_layout(
+        classes: "op-portfolios--popover",
+        data: {
+          test_selector: "op-portfolios--hover-card-#{portfolio.id}"
+        }
+      ) do |popover|
+        popover.with_column(mr: 3) do
+          sub_item_count = sub_statuses_with_percentages.sum { |s| s[:count] }
+
+          render(Primer::Beta::Text.new(color: :muted)) do
+            t("portfolios.index.sub_items_html", count: sub_item_count)
+          end
+        end
+
+        sub_statuses_with_percentages.each do |status|
+          status => { code:, count: }
+
+          status_label = t("js.grid.widgets.project_status.#{code || 'not_set'}")
+
+          popover.with_column(mr: 3, display: :flex) do
+            concat(content_tag(:span, "", class: "op-bubble op-bubble_mini op-bubble_squared #{helpers.project_status_css_class(code)}"))
+            concat(
+              render(Primer::Beta::Text.new(ml: 2, font_weight: :bold)) do
+                count.to_s
+              end
+            )
+            concat(
+              render(Primer::Beta::Text.new(ml: 1)) do
+                " #{status_label}"
+              end
+            )
+          end
+        end
+      end
+    end
+  end
+%>

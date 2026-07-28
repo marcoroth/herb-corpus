@@ -1,0 +1,74 @@
+<% content_for :context, @edition.title %>
+<% content_for :page_title, "Edit image details" %>
+<% content_for :title, "Edit image details" %>
+<% content_for :title_margin_bottom, 6 %>
+
+<div class="govuk-grid-row">
+  <%= form_tag [:admin, :edition, :image], id: image, multipart: true, method: :patch do %>
+    <%= hidden_field_tag("image[image_data][image_kind]", image.image_data.image_kind) %>
+      <% if @image_usage.caption_enabled? %>
+        <div class="govuk-grid-column-two-thirds">
+          <p class="govuk-body-lead">
+            You can leave any image detail blank if you do not need it.
+          </p>
+        </div>
+      <% end %>
+
+      <% if image.bitmap? %>
+        <div class="govuk-grid-column-two-thirds">
+          <p class="govuk-body-lead">
+            To crop the image, select the area you would like to show. Ensure the main focus of the image is in the centre.
+          </p>
+        </div>
+
+        <div class="govuk-grid-column-full govuk-!-margin-bottom-4">
+          <%= render "components/image_cropper", {
+            name: "image[image_data][crop_data]",
+            filename: image.filename,
+            type: image.content_type,
+            target_height: image_kind_config.valid_height,
+            target_width: image_kind_config.valid_width,
+            width: image.image_data.crop_data_width,
+            height: image.image_data.crop_data_height,
+            x: image.image_data.crop_data_x,
+            y: image.image_data.crop_data_y,
+            versions: image_kind_config.versions,
+            image:,
+            edition: @edition,
+          } %>
+        </div>
+      <% end %>
+
+      <section class="govuk-grid-column-two-thirds">
+        <% if @image_usage.caption_enabled? %>
+          <%= render "govuk_publishing_components/components/textarea", {
+            label: {
+              text: "Caption and credit (optional)",
+              heading_size: "l",
+            },
+            name: "image[caption]",
+            textarea_id: "image_caption",
+            value: image.caption,
+            rows: 2,
+            hint: raw("Name a person in a photo or add image credit. <a class='govuk-link' href='https://guidance.publishing.service.gov.uk/formatting-content/images-videos/formatting-images/#copyright-standards-and-attributing-images'>Read the image copyright standards</a>. The text appears next to the image."),
+            margin_bottom: 4,
+          } %>
+          <p class="govuk-body"><a href="https://www.gov.uk/guidance/content-design/images" class="govuk-link" target="_blank">Using informative and decorative images on GOV.UK (opens in new tab)</a></p>
+        <% else %>
+          <p class="govuk-body">Select ‘Save’ to continue.</p>
+        <% end %>
+
+        <div class="govuk-button-group govuk-!-margin-bottom-6">
+          <%= render "govuk_publishing_components/components/button", {
+            text: "Save",
+          } %>
+
+          <%= link_to("Cancel", admin_edition_images_path(@edition), class: "govuk-link govuk-link--no-visited-state") %>
+        </div>
+      </section>
+
+    <% unless image.can_be_cropped? || !image.image_data&.original_uploaded? %>
+      <%= render "image_information", edition: @edition %>
+    <% end %>
+  <% end %>
+</div>

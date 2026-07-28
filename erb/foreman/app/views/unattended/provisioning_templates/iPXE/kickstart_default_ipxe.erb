@@ -1,0 +1,34 @@
+#!gpxe
+<%#
+kind: iPXE
+name: Kickstart default iPXE
+model: ProvisioningTemplate
+oses:
+- AlmaLinux
+- CentOS
+- CentOS_Stream
+- Fedora
+- RedHat
+- Rocky
+description: |
+  The template to render iPXE installation script for kickstart based distributions
+  The output is deployed on the host's subnet TFTP proxy.
+  See https://ipxe.org/scripting for more details
+test_on:
+- host4dhcp
+- host6dhcp
+- host4and6dhcp
+- host4static
+- host6static
+-%>
+
+echo Trying to ping Gateway: ${netX/gateway}
+ping --count 1 ${netX/gateway} || echo Ping to Gateway failed or ping command not available.
+echo Trying to ping DNS: ${netX/dns}
+ping --count 1 ${netX/dns} || echo Ping to DNS failed or ping command not available.
+
+kernel <%= "#{@host.url_for_boot(:kernel)}" %> initrd=initrd.img <%= pxe_kernel_options %> <%= snippet("kickstart_kernel_options", variables: {ipxe_net: true}).strip %>
+initrd <%= "#{@host.url_for_boot(:initrd)}" %>
+imgstat
+sleep 2
+boot

@@ -1,0 +1,97 @@
+<% content_for :title, "Edit Item Stock #{@item.description}" %>
+<% content_for :tabs, render("items/tabs") %>
+
+<% content_for :content_size, "col-sm-9 col-md-10" %>
+
+<% content_for :messages do %>
+  <% if @item.deleted? %>
+    <%= render partial: "common/flash", locals: { messages: { warning: "'#{@item.description}' is deleted." } } %>
+  <% end %>
+<% end %>
+
+<% content_for :sidebar do %>
+  <%= render "common/category_nav" %>
+<% end %>
+
+<% content_for :content do %>
+  <h4>
+    Edit Item Stock
+    <%= link_to '', edit_item_path(@item), class: 'pull-right btn btn-default btn-xs glyphicon glyphicon-pencil', title: 'Edit Item' %>
+  </h4>
+  <%= form_for @item, data: { live_guarded: true } do |f| %>
+    <div class="form-group">
+      <%= f.label 'Description:', class: "control-label" %>
+      <p class="form-control-static"><%= @item.description %></p>
+    </div>
+    <div class="form-group">
+      <%= f.label 'Bins:', class: "control-label" %>
+
+      <% if @item.bins.to_a.empty? %>
+        <p class="form-control-static"><em>None.</em></p>
+      <% else %>
+        <div class="form-control-static">
+          <% @item.bins.each do |bin| %>
+            <div><%= bin.label %> - <em><%= bin.bin_location.display %></em></div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+    <div class="form-group">
+      <%= f.label 'Current Quantity In Stock:', class: "control-label" %>
+      <p class="form-control-static"><%= @item.current_quantity %></p>
+    </div>
+    <div class="form-group">
+      <%= f.label "Modify method:" %><br>
+      <% Item.selectable_edit_methods.each do |label, index| %>
+        <label class="radio-inline">
+          <input type="radio" name="item[edit_method]" value="<%= label %>" data-guard="required" data-guard-required-target="#edit-method-error" <%= "disabled" if @item.deleted? %> /> <%= label.to_s.humanize %>
+        </label>
+      <% end %>
+      <span id="edit-method-error"></span>
+    </div>
+    <div class="form-group">
+      <%= f.label 'Amount:' %>
+      <%= f.text_field :edit_amount, class: "form-control", placeholder: "Enter the number", disabled: @item.deleted?, data: { guard: "required int", guard_int_min: 0 } %>
+    </div>
+    <div class="form-group">
+      <%= f.label 'Reason for changing quantity in stock:' %><br>
+      <% Item.selectable_edit_reasons(current_user).each do |reason, index| %>
+        <label class="radio-inline">
+          <input type="radio" name="item[edit_reason]" value="<%= reason %>" data-guard="required" data-guard-required-target="#edit-reason-error" <%= "disabled" if @item.deleted? %> /> <%= reason.to_s.humanize %>
+        </label>
+      <% end %>
+      <span id="edit-reason-error"></span>
+    </div>
+    <div class="form-group">
+      <%= f.label 'Reason Details:' %>
+      <%= f.text_field :edit_source, class: "form-control", placeholder: "Explain", disabled: @item.deleted?, data: { guard: "required atLeastOneLetter" } %>
+    </div>
+
+    <%= f.submit "Save", class: "btn btn-primary", disabled: @item.deleted? %>
+    <%= link_to "Cancel", items_path(category_id: @item.category_id), type: "button", class: "btn btn-default" %>
+  <% end %>
+<% end %>
+
+<% if @item.versions.present? %>
+  <% content_for :content_2 do %>
+    <h4>Item History</h4>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>User</th>
+          <th>Event</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @item.each_history_version do |version, whodunnit| %>
+          <tr>
+            <td><%= local_time(version.created_at, "%b-%d-%Y %l:%M%P") %></td>
+            <td><%= whodunnit %></td>
+            <td><%= item_history_info(version) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+<% end %>

@@ -1,0 +1,73 @@
+<div class="<%= "right-to-left" if edition.rtl? %>">
+  <%= render "subtype_fields", form: form, edition: form.object %>
+  <%= form.hidden_field :lock_version %>
+
+  <% unless form.object.persisted? %>
+    <%= render "govuk_publishing_components/components/select_with_search", {
+      id: "edition_corporate_information_page_type_id",
+      name: "edition[corporate_information_page_type_id]",
+      label: "Type",
+      heading_size: "l",
+      error_items: errors_for(edition.errors, :corporate_information_page_type_id),
+      include_blank: true,
+      options: corporate_information_page_types(@organisation).map do |type, value|
+        {
+          text: type,
+          value: value,
+        }
+      end,
+    } %>
+  <% end %>
+
+  <%= render "govuk_publishing_components/components/character_count", {
+    textarea: {
+      label: {
+        text: "Summary",
+        heading_size: "l",
+      },
+      name: "edition[summary]",
+      value: edition.summary,
+      rows: 4,
+      error_items: errors_for(form.object.errors, :summary),
+    },
+    id: "edition_summary",
+    maxlength: MaxLengths::SUMMARY,
+  } %>
+
+  <%= render "components/govspeak_editor", {
+    label: {
+      text: "Body (required)",
+      heading_size: "l",
+    },
+    name: "edition[body]",
+    id: "edition_body",
+    value: edition.body,
+    rows: 20,
+    error_items: errors_for(form.object.errors, :body),
+    data_attributes: {
+      image_ids: edition.images.map { |img| img[:id] }.to_json,
+      attachment_ids: edition.allows_attachments? ? edition.attachments.map(&:id) : [],
+      alternative_format_provider_id: (edition.alternative_format_provider_id || current_user.organisation.try(:id)),
+    },
+  } %>
+
+  <%= render "additional_significant_fields", form: form, edition: form.object %>
+</div>
+
+<% if form.object.allows_image_attachments? %>
+  <%= render "govuk_publishing_components/components/heading", {
+        text: "Images",
+        heading_level: 3,
+        font_size: "l",
+        margin_bottom: 3,
+    } %>
+  <p class="govuk-body">
+    <% if edition.new_record? %>
+      To add images you must save the document first. After saving, use the
+      tabs at the top of the page to upload, edit and delete images and
+      attachments.
+    <% else %>
+      Use the tabs at the top of the page to upload, edit and delete images.
+    <% end %>
+  </p>
+<% end %>

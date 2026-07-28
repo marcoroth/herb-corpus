@@ -1,0 +1,98 @@
+<% if @migration.pending? %>
+  <p class="mb-4">Welcome to Feedbin. You can migrate your subscriptions, unread and starred articles. Besides following your favorite feeds, you can now add newsletters and more.</p>
+  <%= form_with model: @migration, url: start_account_migration_path(@migration) do |f| %>
+    <%= button_tag "Begin Migration", type: "submit", class: "button button-huge" %>
+  <% end %>
+<% elsif @migration.failed? %>
+  <%= render Common::ErrorMessage.new do %>
+    <%= @migration.message %>
+  <% end %>
+<% elsif @migration.started? || @migration.processing? || @migration.complete? %>
+  <%= render Settings::ControlGroupComponent.new class: "group mb-14", data: {capsule: "true"} do |group| %>
+    <% group.item do %>
+      <div class="py-3 px-4">
+        <div class="flex justify-between">
+          <strong class="font-bold">Progress</strong>
+          <div class="text-500"><%= number_with_delimiter(@migration.account_migration_items.where.not(status: :pending).count) %> of <%= number_with_delimiter(@migration.account_migration_items.count) %> processed</div>
+        </div>
+
+        <div class="flex mt-4 mb-2 bg-100 rounded-full w-full overflow-hidden">
+          <%= content_tag :div, "", class: "h-[12px] bg-green-600", style: "width: #{@migration.percentage_complete}%;" %>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <% if @migration.started? %>
+      Initializing…
+  <% else %>
+    <%= render Settings::ControlGroupComponent.new class: "mb-14" do |group| %>
+      <% group.header do %>
+        Stats
+      <% end %>
+
+      <% group.item do %>
+        <%= render Settings::ControlRowComponent.new do |row| %>
+          <% row.title { "Subscriptions" } %>
+          <% row.control do %>
+            <span class="text-500">
+              <%= number_with_delimiter(current_user.subscriptions.count) %>
+            </span>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <% group.item do %>
+        <%= render Settings::ControlRowComponent.new do |row| %>
+          <% row.title { "Starred Articles" } %>
+          <% row.control do %>
+            <span class="text-500">
+              <%= number_with_delimiter(current_user.starred_entries.count) %>
+            </span>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <% group.item do %>
+        <%= render Settings::ControlRowComponent.new do |row| %>
+          <% row.title { "Unread Articles" } %>
+          <% row.control do %>
+            <span class="text-500">
+              <%= number_with_delimiter(current_user.unread_entries.count) %>
+            </span>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+<% end %>
+
+<% if @migration.processing? || @migration.complete? %>
+
+  <% if @migration.account_migration_items.failed.exists? %>
+    <div class="flex justify-between items-baseline">
+      <%= render Settings::H2Component.new do %>
+        Missing Feeds
+      <% end %>
+      <div class="text-500">
+        <%= number_with_delimiter(@migration.account_migration_items.failed.count) %>
+      </div>
+    </div>
+
+      <% @migration.account_migration_items.failed.order(updated_at: :asc).each do |item| %>
+        <%= render Settings::ExpandableComponent.new class: "mb-4", data: {capsule: "true"} do |expandable| %>
+          <% expandable.description do %>
+            <%= render Settings::ControlRowComponent.new do |row| %>
+              <% row.title { item.fw_feed.safe_dig("title") } %>
+                <% row.description do %>
+                  <%= link_to item.fw_feed.safe_dig("feed_url"), target: :_blank, rel: "noopener noreferrer", class: "extra-muted" do  %>
+                    <%= short_url(item.fw_feed.safe_dig("feed_url")) %>
+                  <% end %>
+                <% end %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+  <% end %>
+<% end %>

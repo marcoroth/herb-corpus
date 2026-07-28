@@ -1,0 +1,110 @@
+<%= turbo_refreshes_with method: :morph, scroll: :preserve %>
+<%= turbo_frame_tag "sample_modal" %>
+<%= turbo_frame_tag "samples_dialog" %>
+
+<%= render Viral::PageHeaderComponent.new(title: @sample.name, id: @sample.puid, subtitle: @sample.description) do |component| %>
+  <%= viral_pill(text: @sample.puid, color: :blue) %>
+
+  <% component.with_buttons do %>
+    <% if @allowed_to[:update_sample] %>
+      <%= link_to(
+        t("projects.samples.show.edit_button"),
+        edit_namespace_project_sample_path(id: @sample.id),
+        class: "button button-default w-auto",
+      ) %>
+    <% end %>
+
+    <% if @allowed_to[:destroy_sample] %>
+      <%= button_to(
+        t('common.actions.remove'),
+        new_samples_deletions_path,
+        params: {
+          namespace_id: @project.namespace.id,
+          deletion_type: "single",
+          sample_id: @sample.id,
+        },
+        method: :get,
+        data: {
+          turbo_stream: true,
+        },
+        class: "button button-default w-auto",
+      ) %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<div>
+  <%= render Pathogen::Tabs.new(
+    id: "sample-tabs",
+    label: t("projects.samples.show.nav_aria_label"),
+    default_index: @tab_index,
+    sync_url: true
+  ) do |tabs| %>
+    <% tabs.with_tab(
+      id: "files-tab",
+      label: t(:"projects.samples.show.tabs.files"),
+      selected: @tab == "files"
+    ) %>
+
+    <% tabs.with_tab(
+      id: "metadata-tab",
+      label: t(:"projects.samples.show.tabs.metadata"),
+      selected: @tab == "metadata"
+    ) %>
+
+    <% tabs.with_tab(
+      id: "history-tab",
+      label: t(:"projects.samples.show.tabs.history"),
+      selected: @tab == "history"
+    ) %>
+
+    <% tabs.with_lazy_panel(
+      id: "files-panel",
+      tab_id: "files-tab",
+      frame_id: "files-panel-content",
+      src_path: namespace_project_sample_path(id: @sample.id, tab: "files"),
+      selected: @tab == "files"
+    ) do %>
+      <%= render partial: "projects/samples/attachments/table",
+      locals: {
+        allowed_to: @allowed_to,
+        attachments: @sample_attachments,
+        has_attachments: @has_attachments,
+        pagy: @pagy,
+        sample: @sample,
+        q: @q,
+        render_individual_attachments: @render_individual_attachments
+      } %>
+    <% end %>
+
+    <% tabs.with_lazy_panel(
+      id: "metadata-panel",
+      tab_id: "metadata-tab",
+      frame_id: "metadata-panel-content",
+      src_path: namespace_project_sample_path(id: @sample.id, tab: "metadata"),
+      selected: @tab == "metadata"
+    ) do %>
+      <%= render partial: "projects/samples/metadata/table",
+      locals: {
+        sample_metadata: @sample_metadata,
+      } %>
+    <% end %>
+
+    <% tabs.with_lazy_panel(
+      id: "history-panel",
+      tab_id: "history-tab",
+      frame_id: "history-panel-content",
+      src_path: namespace_project_sample_path(id: @sample.id, tab: "history"),
+      selected: @tab == "history"
+    ) do %>
+      <div class="grid gap-4 px-4 py-8">
+        <%= render HistoryComponent.new(
+          data: @log_data.reverse,
+          type: "Sample",
+          url:
+            namespace_project_sample_view_history_version_path(sample_id: @sample.id),
+        ) %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

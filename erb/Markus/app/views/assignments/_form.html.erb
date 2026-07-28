@@ -1,0 +1,647 @@
+<% content_for :head do %>
+  <%= javascript_include_tag 'create_assignment', nonce: true %>
+  <%= render partial: 'boot', formats: [:js], handlers: [:erb] %>
+  <%= render partial: 'shared/navigation_warning',
+             formats: [:js],
+             handlers: [:erb] %>
+
+  <%= javascript_tag nonce: true do %>
+      document.addEventListener("DOMContentLoaded", function() {
+        $('#grace-period-add').click(function(e) {
+          add_period("grace_periods", grace_periods);
+          e.preventDefault();
+        })
+        $('#penalty-decay-period-add').click(function(e) {
+          add_period("penalty_decay_periods", penalty_decay_periods);
+          e.preventDefault();
+        })
+        $('#penalty-period-add').click(function(e) {
+          add_period("penalty_periods", penalty_periods);
+          e.preventDefault();
+        })
+        $('#required-file-add').click(function(e) {
+          add_assignment_file();
+          e.preventDefault();
+        })
+        refresh_event_listeners();
+
+        // Handle global visibility datetime fields show/hide
+        function toggleGlobalVisibilityDatetimeFields() {
+          const scheduledRadio = $('#assignment_is_hidden_scheduled');
+          const visibleOnLabel = $('#visible_on_label');
+          const visibleOnField = $('#assignment_visible_on');
+          const visibleUntilLabel = $('#visible_until_label');
+          const visibleUntilField = $('#assignment_visible_until');
+
+          if (scheduledRadio.is(':checked')) {
+            visibleOnLabel.show();
+            visibleOnField.show();
+            visibleUntilLabel.show();
+            visibleUntilField.show();
+          } else {
+            visibleOnLabel.hide();
+            visibleOnField.hide();
+            visibleUntilLabel.hide();
+            visibleUntilField.hide();
+          }
+        }
+
+        $('input[name="assignment[is_hidden]"]').on('change', toggleGlobalVisibilityDatetimeFields);
+
+        // Initialize on page load - check if we have datetime values set
+        if ($('#assignment_visible_on').val() ||
+            $('#assignment_visible_until').val()) {
+          $('#assignment_is_hidden_scheduled').prop('checked', true);
+        }
+        toggleGlobalVisibilityDatetimeFields();
+
+        // Handle section-specific visibility datetime fields enable/disable
+        function toggleSectionDatetimeFields(row) {
+          const scheduledRadio = $(row).find('input[value="scheduled"].section-visibility-radio');
+          const datetimeInputs = $(row).find('.section-datetime-input');
+
+          if (scheduledRadio.is(':checked')) {
+            datetimeInputs.prop('disabled', false);
+          } else {
+            datetimeInputs.prop('disabled', true);
+          }
+        }
+
+        $('.section-visibility-radio').on('change', function() {
+          const row = $(this).closest('tr');
+          toggleSectionDatetimeFields(row);
+        });
+
+        // Initialize section datetime fields on page load
+        $('tbody tr').each(function() {
+          toggleSectionDatetimeFields(this);
+        });
+      });
+  <% end %>
+<% end %>
+
+<%= form_for [@current_course, @assignment] do |f| %>
+  <%= f.fields_for :assignment_properties do |ap_f| %>
+
+    <%= ap_f.hidden_field :scanned_exam, value: @assignment.scanned_exam %>
+    <%= ap_f.hidden_field :is_timed, value: @assignment.is_timed %>
+
+    <label class='required'><%= t('required_fields') %></label>
+
+    <%# Assignment properties %>
+    <fieldset>
+      <legend>
+        <span><%= t('menu.properties') %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.properties_html') %>
+        </p>
+      </div>
+
+      <div class="inline-labels">
+        <%= f.label :short_identifier,
+                    Assignment.human_attribute_name(:short_identifier),
+                    class: 'required' %>
+        <%= f.text_field :short_identifier,
+                         pattern: '[a-zA-Z0-9\-_]+',
+                         size: 35,
+                         maxlength: 30,
+                         required: true,
+                         readonly: !@assignment.new_record? %>
+
+        <%= f.label :description,
+                    Assignment.human_attribute_name(:description),
+                    class: 'required' %>
+        <%= f.text_field :description,
+                         size: 35,
+                         required: true %>
+
+        <%= f.label :message %>
+        <%= f.text_area :message,
+                        cols: 65,
+                        rows: 8 %>
+        <% if @assignment.is_timed %>
+          <%= ap_f.label :start_time,
+                         I18n.t('assignments.timed.start_time'),
+                      class: 'required' %>
+          <%= ap_f.text_field :start_time,
+                              value: @assignment.start_time.nil? ? '' : l(@assignment.start_time, format: :flatpickr),
+                              size: 35,
+                              required: true,
+                              placeholder: t('time.format_string.placeholder') %>
+        <% end %>
+        <%= f.label :due_date,
+                    @assignment.is_timed ? I18n.t('assignments.timed.end_time') : Assignment.human_attribute_name(:due_date),
+                    class: 'required' %>
+        <%= f.text_field :due_date,
+                         value: @assignment.due_date.nil? ? '' : l(@assignment.due_date, format: :flatpickr),
+                         size: 35,
+                         required: true,
+                         placeholder: t('time.format_string.placeholder') %>
+        <%= f.label :is_hidden, Assignment.human_attribute_name(:is_hidden) %>
+        <span>
+          <%
+            # Determine which radio button should be checked
+            has_datetime = @assignment.visible_on.present? || @assignment.visible_until.present?
+            is_scheduled = !@assignment.is_hidden && has_datetime
+          %>
+          <%= f.radio_button :is_hidden, true, id: 'assignment_is_hidden_true', checked: @assignment.is_hidden && !has_datetime %>
+          <%= f.label :is_hidden, I18n.t('assignments.section_hidden.hidden'), value: 'true' %>
+          <%= f.radio_button :is_hidden, false, id: 'assignment_is_hidden_false', checked: !@assignment.is_hidden && !has_datetime %>
+          <%= f.label :is_hidden, I18n.t('assignments.section_hidden.visible'), value: 'false' %>
+          <%= f.radio_button :is_hidden, Assessment::SCHEDULED_VISIBILITY, id: 'assignment_is_hidden_scheduled', checked: is_scheduled %>
+          <%= f.label :is_hidden, I18n.t('assignments.section_hidden.scheduled'), value: Assessment::SCHEDULED_VISIBILITY %>
+          <br>
+          (<%= I18n.t('assignments.section_hidden.hidden_option') %>)
+        </span>
+
+        <%= f.label :visible_on, I18n.t('assignments.section_hidden.visible_from'),
+                    id: 'visible_on_label',
+                    style: ('display: none;' unless has_datetime) %>
+        <%= f.text_field :visible_on,
+                         value: @assignment.visible_on.nil? ? '' : l(@assignment.visible_on, format: :flatpickr),
+                         size: 35,
+                         placeholder: I18n.t('assignments.section_hidden.visible_from_placeholder'),
+                         id: 'assignment_visible_on',
+                         style: ('display: none;' unless has_datetime) %>
+
+        <%= f.label :visible_until, I18n.t('assignments.section_hidden.visible_until'),
+                    id: 'visible_until_label',
+                    style: ('display: none;' unless has_datetime) %>
+        <%= f.text_field :visible_until,
+                         value: @assignment.visible_until.nil? ? '' : l(@assignment.visible_until, format: :flatpickr),
+                         size: 35,
+                         placeholder: I18n.t('assignments.section_hidden.visible_until_placeholder'),
+                         id: 'assignment_visible_until',
+                         style: ('display: none;' unless has_datetime) %>
+        <% unless @sections.empty? %>
+          <%= ap_f.label :section_due_dates_type, Assignment.human_attribute_name(:section_due_dates_type) %>
+          <span>
+            <%= ap_f.check_box :section_due_dates_type %>
+          </span>
+        <% end %>
+      </div>
+      <% unless @sections.empty? %>
+        <div id='assessment_section_properties_information'
+             class='<%= 'no-display' unless @assignment.section_due_dates_type %>'>
+          <p class='information'>
+            <%= t('assignments.form.section_due_dates_info_html') %>
+          </p>
+          <div class='assessment_section_properties_form table'>
+            <table>
+              <thead>
+                <tr>
+                  <th><%= Section.model_name.human %></th>
+                  <% if @assignment.is_timed %>
+                    <th><%= I18n.t('assignments.section_settings.start_time') %></th>
+                  <% end %>
+                  <th><%= @assignment.is_timed ?
+                            I18n.t('assignments.section_settings.end_time') :
+                            I18n.t('assignments.section_settings.due_date') %></th>
+                  <th><%= I18n.t('assignments.section_settings.visibility') %></th>
+                  <th><%= I18n.t('assignments.section_hidden.visible_from') %></th>
+                  <th><%= I18n.t('assignments.section_hidden.visible_until') %></th>
+                </tr>
+              </thead>
+              <tbody>
+              <%= f.fields_for :assessment_section_properties,
+                               @assessment_section_properties do |due_date_f| %>
+                <tr>
+                  <%
+                    obj = due_date_f.object
+                    # Determine which radio button should be checked for this section
+                    section_has_datetime = obj.visible_on.present? || obj.visible_until.present?
+                    section_is_scheduled = obj.is_hidden == false && section_has_datetime
+                    section_is_default = obj.is_hidden.nil? || (obj.is_hidden.to_s.empty? && !section_has_datetime)
+                  %>
+                  <td><%= obj.section.name %></td>
+                  <% if @assignment.is_timed %>
+                    <td>
+                      <%= due_date_f.text_field :start_time,
+                                                class: 'assessment_section_properties_input',
+                                                value: obj.start_time.nil? ? '' :
+                                                         l(obj.start_time, format: :flatpickr),
+                                                placeholder: t('assignments.section_settings.start_time_placeholder'),
+                                                size: 35 %>
+                    </td>
+                  <% end %>
+                  <td>
+                    <%= due_date_f.text_field :section_id, class: 'hidden' %>
+                    <%= due_date_f.text_field :due_date,
+                                              class: 'assessment_section_properties_input',
+                                              value: obj.due_date.nil? ? '' :
+                                                       l(obj.due_date, format: :flatpickr),
+                                              placeholder: t('assignments.section_settings.due_date_placeholder'),
+                                              size: 35 %>
+                  </td>
+                  <td>
+                    <div class="section-visibility-options">
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, '', class: 'section-visibility-radio', checked: section_is_default %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.default'), value: '' %>
+                      </div>
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, false, class: 'section-visibility-radio', checked: obj.is_hidden == false && !section_has_datetime %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.visible'), value: 'false' %>
+                      </div>
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, true, class: 'section-visibility-radio', checked: obj.is_hidden == true && !section_has_datetime %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.hidden'), value: 'true' %>
+                      </div>
+                      <div class="section-visibility-option">
+                        <%= due_date_f.radio_button :is_hidden, Assessment::SCHEDULED_VISIBILITY, class: 'section-visibility-radio', checked: section_is_scheduled %>
+                        <%= due_date_f.label :is_hidden, I18n.t('assignments.section_hidden.scheduled'), value: Assessment::SCHEDULED_VISIBILITY %>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <%= due_date_f.text_field :visible_on,
+                                              class: 'assessment_section_properties_input section-datetime-input',
+                                              value: obj.visible_on.nil? ? '' : l(obj.visible_on, format: :flatpickr),
+                                              placeholder: I18n.t('assignments.section_hidden.visible_from_placeholder'),
+                                              size: 25,
+                                              disabled: obj.is_hidden != Assessment::SCHEDULED_VISIBILITY %>
+                  </td>
+                  <td>
+                    <%= due_date_f.text_field :visible_until,
+                                              class: 'assessment_section_properties_input section-datetime-input',
+                                              value: obj.visible_until.nil? ? '' : l(obj.visible_until, format: :flatpickr),
+                                              placeholder: I18n.t('assignments.section_hidden.visible_until_placeholder'),
+                                              size: 25,
+                                              disabled: obj.is_hidden != Assessment::SCHEDULED_VISIBILITY %>
+                  </td>
+                </tr>
+              <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
+      <% if @assignment.is_timed %>
+          <fieldset class="nested-fieldset">
+            <legend>
+              <span><%= Assignment.human_attribute_name(:duration) %></span>
+            </legend>
+            <div>
+            <%= ap_f.fields_for :duration do |dur_f| %>
+              <%= dur_f.number_field :hours,
+                                     min: 0,
+                                     max: 999,
+                                     value: @assignment.duration_parts[:hours] %>
+              <%= dur_f.label :hours, I18n.t('durations.any_hours') %>
+              <%= dur_f.number_field :minutes,
+                                     min: 0,
+                                     max: 59,
+                                     value: @assignment.duration_parts[:minutes] %>
+              <%= dur_f.label :minutes, I18n.t('durations.any_minutes') %>
+            <% end %>
+          </div>
+        </fieldset>
+      <% end %>
+      <fieldset class='no-legend'>
+        <div class='inline-labels'>
+        <% unless @assignment.scanned_exam %>
+          <%= ap_f.label :allow_web_submits,
+                         Assignment.human_attribute_name(:allow_web_submits) %>
+          <%= ap_f.check_box :allow_web_submits %>
+
+          <%= ap_f.label :vcs_submit,
+                         Assignment.human_attribute_name(:vcs_submit) %>
+          <%= ap_f.check_box :vcs_submit %>
+
+          <%= ap_f.label :url_submit,
+                         Assignment.human_attribute_name(:url_submit) %>
+          <%= ap_f.check_box :url_submit %>
+
+          <%= ap_f.label :api_submit,
+                       Assignment.human_attribute_name(:api_submit) %>
+          <%= ap_f.check_box :api_submit %>
+        <% end %>
+
+        <%= ap_f.label :display_median_to_students,
+                       Assignment.human_attribute_name(:display_median_to_students) %>
+        <%= ap_f.check_box :display_median_to_students %>
+
+        <%= ap_f.label :display_grader_names_to_students,
+                       Assignment.human_attribute_name(:display_grader_names_to_students) %>
+        <%= ap_f.check_box :display_grader_names_to_students %>
+
+        <%= ap_f.label :release_with_urls,
+                       Assignment.human_attribute_name(:release_with_urls) %>
+        <%= ap_f.check_box :release_with_urls %>
+
+      </div>
+      </fieldset>
+    </fieldset>
+
+    <% if !@assignment.scanned_exam %>
+    <%# Required files %>
+    <fieldset>
+      <legend>
+        <span><%= Assignment.human_attribute_name(:assignment_files) %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.required_files') %>
+        </p>
+      </div>
+
+      <p><%= t('assignments.form.required_files_by_student') %></p>
+      <p id='assignment_file_add_link'>
+        <%= link_to t('assignments.form.add_required_file'),
+                    '#',
+                    id: 'required-file-add' %>
+      </p>
+      <div id='assignment_files'>
+        <%= f.fields_for :assignment_files do |assignment_file_form| %>
+          <%= render partial: 'assignment_file',
+                     locals: { assignment_file: assignment_file_form.object,
+                               form: f } %>
+        <% end %>
+      </div>
+      <p id='only_required_files_option'
+         class='inline-labels <%= @assignment.assignment_files.empty? ? 'disable' : '' %>'>
+        <%= ap_f.label :only_required_files, Assignment.human_attribute_name(:only_required_files) %>
+        <%= ap_f.check_box :only_required_files,
+                           disabled: @assignment.assignment_files.empty? %>
+      </p>
+    </fieldset>
+
+    <%# Group properties %>
+    <fieldset>
+      <legend>
+        <span><%= t('assignments.form.group_properties') %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.assignment_type_html') %>
+        </p>
+      </div>
+
+      <% if @assignment.new_record? && @clone_assignments.size > 0 %>
+        <p id='persist_groups_assignment_style'>
+          <%= check_box_tag :persist_groups %>
+          <%= label_tag :persist_groups, t('assignments.form.persist_groups_from') %>
+          <%= select_tag :persist_groups_assignment,
+                         options_for_select(@clone_assignments.map { |a| [a.short_identifier, a.id] }),
+                         disabled: true %>
+        </p>
+      <% end %>
+      <p id='is_group_assignment_style' class='inline-labels'>
+        <%= label_tag :is_group_assignment,
+                      Assignment.human_attribute_name(:allow_groups) %>
+        <%= check_box_tag :is_group_assignment, true,
+                          @assignment.student_form_groups ||
+                          @assignment.group_max > 1 %>
+      </p>
+      <fieldset class='group_properties nested-fieldset'>
+        <div class='inline-labels'>
+          <%= ap_f.label :student_form_groups,
+                         Assignment.human_attribute_name(:student_form_groups) %>
+          <%= ap_f.check_box :student_form_groups %>
+
+          <%= ap_f.label :group_min,
+                         Assignment.human_attribute_name(:group_min) %>
+          <%= ap_f.number_field :group_min,
+                                min: 1,
+                                max: 999 %>
+
+          <%= ap_f.label :group_max,
+                         Assignment.human_attribute_name(:group_max) %>
+          <%= ap_f.number_field :group_max,
+                                min: 1,
+                                max: 999 %>
+
+          <%= ap_f.label :group_name_autogenerated,
+                         Assignment.human_attribute_name(:group_name_autogenerated) %>
+          <%= ap_f.check_box :group_name_autogenerated %>
+        </div>
+      </fieldset>
+    </fieldset>
+
+    <%# Submission rules %>
+    <fieldset id='submission_rule_fields'>
+      <legend>
+        <span><%= SubmissionRule.model_name.human %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.submission_rules') %>
+        </p>
+      </div>
+
+      <%= f.fields_for :submission_rule do |rule| %>
+        <p>
+          <%= rule.radio_button :type,
+                                'NoLateSubmissionRule',
+                                checked: true,
+                                id: 'no_late_submission_rule' %>
+          <%= label_tag 'no_late_submission_rule',
+                        NoLateSubmissionRule.human_attribute_name(:form_description) %>
+        </p>
+        <p>
+        <%= rule.radio_button :type,
+                              'GracePeriodSubmissionRule',
+                              id: 'grace_period_submission_rule' %>
+        <%= label_tag 'grace_period_submission_rule',
+                      GracePeriodSubmissionRule.human_attribute_name(:form_description) %>
+        </p>
+        <div id='grace_periods' class='table-with-add'>
+          <table id='grace_periods_table'>
+            <thead>
+            <tr>
+              <th><%= t('submission_rules.period').capitalize %></th>
+              <th><%= t('submission_rules.from').capitalize %></th>
+              <th><%= t('submission_rules.to').capitalize %></th>
+              <th><%= t('submission_rules.deduct').capitalize %></th>
+              <th><%= t(:delete) %></th>
+            </tr>
+            </thead>
+            <tbody>
+              <% if rule.object.type.to_s == 'GracePeriodSubmissionRule' && !rule.object.periods.empty? %>
+                  <%= rule.fields_for :periods do |period_form| %>
+                      <%
+                        # The below conditional is meant to filter out periods that do not match
+                        # the currently selected submission rule. This only happens when we fail to
+                        # save a new submission rule.
+                        if rule.object.type.to_s == rule.object.class.to_s || period_form.object.id.nil?
+                      %>
+                          <%= render partial: 'grace_period',
+                                     locals: { grace_period: period_form.object,
+                                               pf: rule } %>
+                      <% end %>
+                  <% end %>
+              <% else %>
+                  <%= render partial: 'grace_period',
+                             locals: { pf: rule, grace_period: Period.new } %>
+              <% end %>
+            </tbody>
+          </table>
+          <%= link_to t('submission_rules.add_period'),
+                      '#',
+                      id: 'grace-period-add' %>
+        </div>
+
+        <p>
+        <%= rule.radio_button :type,
+                              'PenaltyDecayPeriodSubmissionRule',
+                              id: 'penalty_decay_period_submission_rule' %>
+        <%= label_tag 'penalty_decay_period_submission_rule',
+                      PenaltyDecayPeriodSubmissionRule.human_attribute_name(:form_description) %>
+        </p>
+        <div id='penalty_type_selector_decay' class='penalty-type-selector table-with-add' style='display:none'>
+          <%= t('submission_rules.penalty_type') %>:
+          <%= rule.select :penalty_type,
+                          [
+                            [t('submission_rules.penalty_types.percentage'), ExtraMark::PERCENTAGE],
+                            [t('submission_rules.penalty_types.percentage_of_mark'), ExtraMark::PERCENTAGE_OF_MARK],
+                            [t('submission_rules.penalty_types.marks'), ExtraMark::POINTS]
+                          ],
+                          { selected: rule.object.penalty_type || ExtraMark::PERCENTAGE } %>
+        </div>
+        <div id='penalty_decay_periods' class='table-with-add'>
+          <table id='penalty_decay_periods_table'>
+            <thead>
+            <tr>
+              <th><%= t('submission_rules.deduct').capitalize %></th>
+              <th><%= t('submission_rules.every').capitalize %></th>
+              <th><%= t('submission_rules.for').capitalize %></th>
+              <th><%= t('submission_rules.from').capitalize %></th>
+              <th><%= t('submission_rules.to').capitalize %></th>
+              <th><%= t(:delete) %></th>
+            </tr>
+            </thead>
+            <tbody>
+              <% if rule.object.type.to_s == 'PenaltyDecayPeriodSubmissionRule' && !rule.object.periods.empty? %>
+                  <%= rule.fields_for :periods do |period_form| %>
+                      <%
+                        # The below conditional is meant to filter out periods that do not match
+                        # the currently selected submission rule. This only happens when we fail to
+                        # save a new submission rule.
+                        if rule.object.type.to_s == rule.object.class.to_s || period_form.object.id.nil?
+                      %>
+                          <%= render partial: 'penalty_decay_period',
+                                     locals: { penalty_decay_period: period_form.object,
+                                               pf: rule } %>
+                      <% end %>
+                  <% end %>
+              <% else %>
+                  <%= render partial: 'penalty_decay_period',
+                             locals: { pf: rule, penalty_decay_period: Period.new } %>
+              <% end %>
+            </tbody>
+          </table>
+          <%= link_to t('submission_rules.add_period'),
+                      '#',
+                      id: 'penalty-decay-period-add' %>
+        </div>
+
+        <p>
+        <%= rule.radio_button :type,
+                              'PenaltyPeriodSubmissionRule',
+                              id: 'penalty_period_submission_rule' %>
+        <%= label_tag 'penalty_period_submission_rule',
+                      PenaltyPeriodSubmissionRule.human_attribute_name(:form_description) %>
+        </p>
+        <div id='penalty_type_selector_period' class='penalty-type-selector table-with-add' style='display:none'>
+          <%= t('submission_rules.penalty_type') %>:
+          <%= rule.select :penalty_type,
+                          [
+                            [t('submission_rules.penalty_types.percentage'), ExtraMark::PERCENTAGE],
+                            [t('submission_rules.penalty_types.percentage_of_mark'), ExtraMark::PERCENTAGE_OF_MARK],
+                            [t('submission_rules.penalty_types.marks'), ExtraMark::POINTS]
+                          ],
+                          { selected: rule.object.penalty_type || ExtraMark::PERCENTAGE } %>
+        </div>
+        <div id='penalty_periods' class='table-with-add'>
+          <table id='penalty_periods_table'>
+            <thead>
+            <tr>
+              <th><%= t('submission_rules.period').capitalize %></th>
+              <th><%= t('submission_rules.from').capitalize %></th>
+              <th><%= t('submission_rules.to').capitalize %></th>
+              <th><%= t('submission_rules.deduct').capitalize %></th>
+              <th><%= t(:delete) %></th>
+            </tr>
+            </thead>
+            <tbody>
+              <% if rule.object.type.to_s == 'PenaltyPeriodSubmissionRule' && !rule.object.periods.empty? %>
+                  <%= rule.fields_for :periods do |period_form| %>
+                      <%
+                        # The below conditional is meant to filter out periods that do not match
+                        # the currently selected submission rule. This only happens when we fail to
+                        # save a new submission rule.
+                        if rule.object.type.to_s == rule.object.class.to_s || period_form.object.id.nil?
+                      %>
+                          <%= render partial: 'penalty_period',
+                                     locals: { penalty_period: period_form.object,
+                                               pf: rule } %>
+                      <% end %>
+                  <% end %>
+              <% else %>
+                  <%= render partial: 'penalty_period',
+                             locals: { pf: rule, penalty_period: Period.new } %>
+              <% end %>
+            </tbody>
+          </table>
+          <%= link_to t('submission_rules.add_period'),
+                      '#',
+                      id: 'penalty-period-add' %>
+        </div>
+      <% end %>
+    </fieldset>
+    <% end %>
+    <%# Remark request rules %>
+    <fieldset>
+      <legend>
+        <span><%= t('assignments.form.remarks') %></span>
+      </legend>
+
+      <div class='help'>
+        <p>
+          <%= t('assignments.help.edit.remark_request_rules') %>
+        </p>
+      </div>
+
+      <div class='inline-labels'>
+        <%= ap_f.label :allow_remarks, Assignment.human_attribute_name(:allow_remarks) %>
+        <%= ap_f.check_box :allow_remarks %>
+        <%= ap_f.label :remark_due_date, Assignment.human_attribute_name(:remark_due_date) %>
+        <%= ap_f.text_field :remark_due_date,
+                            value: @assignment.remark_due_date.nil? ? '' :
+                                     l(@assignment.remark_due_date, format: :flatpickr),
+                            size: 35 %>
+
+        <%= ap_f.label :remark_message, Assignment.human_attribute_name(:remark_message) %>
+        <%= ap_f.text_area :remark_message,
+                           rows: 8,
+                           cols: 65 %>
+      </div>
+    </fieldset>
+
+    <p>
+      <%= f.submit t(:save),
+                   data: { disable_with: t('working') } %>
+    </p>
+  <% end %>
+<% end %>
+
+<% if action_name == "edit" %>
+  <% has_groups = @assignment.groups.length != 0 %>
+  <%= button_to t(:delete),
+                course_assignment_path(@current_course, @assignment),
+                {
+                  data: { confirm: I18n.t("assignments.deletion_confirmation") },
+                  method: 'delete',
+                  class: has_groups ? nil : 'danger-button',
+                  form_class: 'display-inline-block',
+                  title: has_groups ? I18n.t('assignments.assignment_has_groupings') :
+                           I18n.t('helpers.submit.delete', model: Assignment.model_name.human),
+                  disabled: has_groups
+                } %>
+<% end %>

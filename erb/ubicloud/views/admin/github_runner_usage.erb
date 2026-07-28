@@ -1,0 +1,38 @@
+<% @page_title = "GitHub Runner #{@arch} VM Usage" %>
+
+<% total = Hash.new(0)
+types = %w[runner vm]
+@data.each do |row|
+    row[:name] = [row[:name], {link: "/model/GithubInstallation/#{UBID.to_ubid(row.delete(:id))}"}]
+    row.each { |k, v| total[k] += v if v.is_a?(Numeric) }
+    types.each do |type|
+      row[:"#{type}_vcpus"] = "#{row.delete(:"allocated_#{type}_vcpus")} / #{row[:"#{type}_vcpus"]}"
+    end
+end
+types.each do |type|
+  total[:"#{type}_vcpus"] = "#{total.delete(:"allocated_#{type}_vcpus")} / #{total[:"#{type}_vcpus"]}"
+end
+@data.prepend({name: "TOTAL", premium: "", **total}) if @data.any? %>
+
+<%== part("components/table", title: nil, table_class: "github-runner-usage-table", data: @data, use_admin_label: false) %>
+
+<% other_arch = (@arch == "x64") ? "arm64" : "x64" %>
+<h3><a href="/github-runner-usage?arch=<%= other_arch %>">Show
+    <%= other_arch %></a></h3>
+
+<h3>Columns</h3>
+<p><strong>premium:</strong>
+  Whether premium runners are enabled. Even when enabled, runners can still fall back to standard.</p>
+<p><strong>r*:</strong>
+  Number of requested runners with the specified vCPU count.</p>
+<p><strong>runner_vcpus:</strong>
+  Total allocated vCPUs / total requested vCPUs. Unallocated runners are waiting for the concurrency limit.</p>
+<p><strong>vm_vcpus:</strong>
+  Total allocated vCPUs / total vCPUs. Unallocated VMs have passed the concurrency limit but haven't found an available
+  VM host yet.</p>
+<p><strong>s*:</strong>
+  Number of runners with that standard family, including ones that fell back from premium.</p>
+<p><strong>p*:</strong>
+  Number of runners with that premium family.</p>
+<p><strong>a*:</strong>
+  Number of alien runners.</p>

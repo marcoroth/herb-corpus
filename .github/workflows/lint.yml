@@ -1,0 +1,47 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  yerba:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler: none
+
+      - run: gem install yerba
+
+      - name: Check corpus.yml against the Yerbafile
+        run: |
+          if ! yerba check; then
+            echo "::error title=corpus.yml needs formatting::Run \`yerba apply\` and commit the result."
+            exit 1
+          fi
+
+      - name: Check the manifest agrees with .gitmodules
+        run: |
+          ruby -ryerba -e '
+            manifest = Yerba.parse_file("corpus.yml").to_h["apps"].map { |entry| entry["name"] }
+            submodules = `git config -f .gitmodules --get-regexp "^submodule\..*\.path$"`
+              .lines.map { |line| File.basename(line.split(/\s+/, 2).last.strip) }
+
+            missing = submodules - manifest
+            extra = manifest - submodules
+            duplicates = manifest.tally.select { |_, count| count > 1 }.keys
+
+            abort "In .gitmodules but not corpus.yml: #{missing.join(", ")}" if missing.any?
+            abort "In corpus.yml but not .gitmodules: #{extra.join(", ")}" if extra.any?
+            abort "Duplicated in corpus.yml: #{duplicates.join(", ")}" if duplicates.any?
+
+            puts "#{manifest.size} apps, consistent across corpus.yml and .gitmodules"
+          '

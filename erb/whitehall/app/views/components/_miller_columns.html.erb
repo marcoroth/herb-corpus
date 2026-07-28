@@ -1,0 +1,55 @@
+<%
+  id ||= "miller-columns-#{SecureRandom.hex(4)}"
+  items ||= []
+  searchable ||= false
+%>
+
+<div class="app-c-miller-columns" data-module="miller-columns" data-searchable="<%= searchable %>">
+  <p id="navigation-instructions" class="govuk-body govuk-visually-hidden">
+    Use the right arrow to explore sub-topics, use the up and down arrows to find other topics.
+  </p>
+
+  <miller-columns-selected id="selected-items" for="<%= id %>" class="miller-columns-selected"></miller-columns-selected>
+
+  <% if searchable %>
+    <%
+      def recursive_topics(item, prefix = "")
+        parent = {
+          text: "#{prefix}#{item[:label]}",
+          value: item[:value],
+        }
+        children = []
+        if item[:items].present?
+          children = item[:items].map do |child|
+            recursive_topics(child, "#{prefix} #{item[:label]} > ")
+          end
+        end
+        [parent, children].flatten
+      end
+
+      select_config = {
+        include_blank: true,
+        options: items.map { |item| recursive_topics(item) }.flatten,
+      }
+      select_helper = GovukPublishingComponents::Presenters::SelectWithSearchHelper.new(select_config)
+    %>
+    <%= content_tag :div, class: select_helper.css_classes do %>
+      <%= select_tag(
+        "app-c-miller-columns__search-input",
+        select_helper.options_markup,
+        id: "app-c-miller-columns__search-input",
+        class: select_helper.select_classes,
+        multiple: true,
+        aria: select_helper.aria,
+      ) %>
+    <% end %>
+  <% end %>
+
+  <miller-columns class="miller-columns" for="<%= id %>-list" selected="selected-items" id="<%= id %>" aria-describedby="navigation-instructions">
+    <%= render "components/miller_columns_list", {
+      id: id,
+      name: "#{id}[]",
+      items: items,
+    } %>
+  </miller-columns>
+</div>

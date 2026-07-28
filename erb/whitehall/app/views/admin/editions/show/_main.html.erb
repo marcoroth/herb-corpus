@@ -1,0 +1,201 @@
+<div class="app-view-summary__main">
+  <section class="app-view-summary__section page-header">
+    <div class="app-view-summary__document-summary">
+      <p class="govuk-body-lead"><%= @edition.summary %></p>
+    </div>
+
+    <div>
+      <%
+        type_of_document = {
+          field: "Type of document",
+          value: edition_type(@edition),
+        }
+        if @edition.configurable_document_type.present? && @edition.is_in_valid_state_for_type_conversion?
+          type_of_document[:edit] = { href: change_type_admin_standard_edition_path(@edition) }
+        end
+      %>
+      <%= render "govuk_publishing_components/components/summary_list", {
+        items: [
+          type_of_document,
+          { field: "Status", value: status_text(@edition).html_safe },
+          { field: "Change type", value: @edition.minor_change? ? "Minor" : "Major" },
+          *([{ field: "Organisations", value: joined_list(@edition.organisations.map { |o| o.name }) }] if @edition.respond_to?(:organisations)),
+          {
+            field: "Review date",
+            value: @edition.document.review_reminder.present? ? @edition.document.review_reminder.review_at.strftime("%-d %B %Y") : "Not set",
+          },
+          {
+            field: "Primary language",
+            value: Locale.new(@edition.primary_locale || "en").native_and_english_language_name,
+          },
+        ],
+      } %>
+    </div>
+  </section>
+
+  <%= render partial: "admin/editions/show/main_notices", locals: { edition: @edition } %>
+  <%= render Admin::Editions::Show::PreviewComponent.new(edition: @edition, invalid_tab_forms: @invalid_tab_forms) %>
+
+  <% if @edition.change_note_required? %>
+    <section class="app-view-summary__section">
+      <%= render "govuk_publishing_components/components/heading", {
+        text: "Public change note",
+        heading_level: 2,
+        font_size: "l",
+        margin_bottom: 3,
+      } %>
+
+      <p class="govuk-body-lead">
+        <% if @edition.minor_change? %>
+          Minor change
+        <% elsif @edition.change_note.blank? %>
+          No change note
+        <% else %>
+          <%= @edition.change_note %>
+        <% end %>
+      </p>
+    </section>
+  <% end %>
+
+  <% if @edition.supports_taxon? %>
+    <section class="app-view-summary__section app-view-summary__taxonomy-topics">
+      <%= render "govuk_publishing_components/components/heading", {
+        text: "Topic taxonomy tags",
+        heading_level: 2,
+        font_size: "l",
+        margin_bottom: 3,
+      } %>
+
+      <p class="govuk-body">
+        <%= link_to(@edition_taxons.any? ? "Edit tags" : "Add tags",
+                    edit_admin_edition_tags_path(@edition.id), class: "govuk-link") %>
+      </p>
+
+      <% @edition_taxons.map(&:full_path).each do | tag_path | %>
+        <div class="govuk-breadcrumbs">
+          <ol class="govuk-breadcrumbs__list app-view-summary__topic-tag-list">
+            <% tag_path.each do | path | %>
+              <li class="govuk-breadcrumbs__list-item app-view-summary__topic-tag-list-item"><%= path[:title] %></li>
+            <% end %>
+          </ol>
+        </div>
+      <% end %>
+      <% if @edition.requires_taxon? && @edition_taxons.none? %>
+        <%= render "govuk_publishing_components/components/warning_text", {
+          text: "You need to add topic tags before you can publish this document.",
+        } %>
+      <% end %>
+    </section>
+  <% end %>
+
+  <% if @edition.can_be_tagged_to_worldwide_taxonomy? %>
+    <section class="app-view-summary__section app-view-summary__world-taxonomy">
+      <%= render "govuk_publishing_components/components/heading", {
+        text: "Worldwide",
+        heading_level: 2,
+        font_size: "l",
+        margin_bottom: 3,
+      } %>
+
+      <p class="govuk-body">
+        <%= link_to(@edition_world_taxons.map(&:full_path).any? ? "Edit tags" : "Add tags", edit_admin_edition_world_tags_path(@edition.id), class: "govuk-link") %>
+      </p>
+
+      <% if @edition_world_taxons.map(&:full_path).any? %>
+        <% @edition_world_taxons.map(&:full_path).each do | tag_path | %>
+          <div class="govuk-breadcrumbs">
+            <ol class="govuk-breadcrumbs__list app-view-summary__topic-tag-list">
+              <% tag_path.each do | path | %>
+                <li class="govuk-breadcrumbs__list-item app-view-summary__topic-tag-list-item"><%= path[:title] %></li>
+              <% end %>
+            </ol>
+          </div>
+        <% end %>
+      <% else %>
+        <p class="govuk-body">No worldwide related tags</p>
+      <% end %>
+    </section>
+  <% end %>
+
+  <% if @edition.allows_image_attachments? %>
+    <section class="app-view-summary__section app-view-summary__section--attachments">
+      <%= render "govuk_publishing_components/components/heading", {
+        text: "Images",
+        heading_level: 2,
+        font_size: "l",
+        margin_bottom: 3,
+      } %>
+
+      <% if @edition.editable? %>
+        <p class="govuk-body">
+          <%= link_to("#{@edition.images.any? ? "Edit" : "Add"} images",
+                      admin_edition_images_path(@edition.id),
+                      class: "govuk-link") %>
+        </p>
+      <% end %>
+
+      <% if @edition.images.any? %>
+        <%= render "govuk_publishing_components/components/table", {
+          head: [
+            {
+              text: "Filename",
+            },
+          ],
+          rows: @edition.images.map do | image |
+            [
+              { text: image.filename },
+            ]
+          end,
+        } %>
+      <% else %>
+        <p class="govuk-body">No images for this document</p>
+      <% end %>
+    </section>
+  <% end %>
+
+  <% if @edition.allows_attachments? %>
+    <section class="app-view-summary__section app-view-summary__section--attachments">
+      <%= render "govuk_publishing_components/components/heading", {
+        text: "Attachments",
+        heading_level: 2,
+        font_size: "l",
+        margin_bottom: 3,
+      } %>
+
+      <% if @edition.editable? %>
+        <p class="govuk-body">
+          <%= link_to("#{@edition.attachments.any? ? "Edit" : "Add"} attachments",
+                      admin_edition_attachments_path(@edition.id),
+                      class: "govuk-link") %>
+        </p>
+      <% end %>
+
+      <% if @edition.attachments.any? %>
+        <%= render "govuk_publishing_components/components/table", {
+          head: [
+            {
+              text: "Title",
+            },
+            {
+              text: "Filename",
+            },
+            @edition.editable? ? {
+              text: "Actions",
+            } : nil,
+          ].compact,
+          rows: @edition.attachments.map do | attachment |
+            [
+              { text: attachment[:title] },
+              { text: link_to_attachment(attachment, full_url: true, class: "govuk-link", data: { module: "CachebustLink" }, **attachment_preview_options(attachment.attachable)) },
+              @edition.editable? ? { text: link_to("Edit", [:edit, :admin, @edition.becomes(Edition), attachment], class: "govuk-link") } : nil,
+            ].compact
+          end,
+        } %>
+      <% else %>
+        <p class="govuk-body">No attachments for this document</p>
+      <% end %>
+    </section>
+  <% end %>
+
+  <%= render Admin::Editions::Show::Translations.new(@edition) %>
+</div>

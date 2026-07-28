@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <%= capybara_lockstep if defined?(Capybara::Lockstep) %>
+
+    <title>
+      <% if content_for?(:page_title) %>
+        <%= content_for :page_title %> -
+      <% end %>
+
+      Maintenance Tasks
+    </title>
+
+    <%= csrf_meta_tags %>
+
+    <%=
+      stylesheet_link_tag(URI.join(controller.class::BULMA_CDN, "npm/bulma@1.0.4/css/bulma.min.css"),
+        media: :all,
+        integrity: "sha256-Z/om3xyp6V2PKtx8BPobFfo9JCV0cOvBDMaLmquRS+4=",
+        crossorigin: "anonymous") unless request.xhr?
+    %>
+
+    <style>
+      :root {
+        --ruby-comment: #6a737d;
+        --ruby-const: #e36209;
+        --ruby-embexpr: #24292e;
+        --ruby-ident: #6f42c1;
+        --ruby-number: #005cc5;
+        --ruby-keyword: #d73a49;
+        --ruby-string: #032f62;
+        --required-color: #ff6685;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ruby-comment: #8b949e;
+          --ruby-const: #ffa657;
+          --ruby-embexpr: #c9d1d9;
+          --ruby-ident: #d2a8ff;
+          --ruby-number: #79c0ff;
+          --ruby-keyword: #ff7b72;
+          --ruby-string: #a5d6ff;
+          --required-color: #ff6685;
+        }
+      }
+
+      .ruby-comment { color: var(--ruby-comment); }
+      .ruby-const { color: var(--ruby-const); }
+      .ruby-embexpr-beg, .ruby-embexpr-end, .ruby-period { color: var(--ruby-embexpr); }
+      .ruby-ident, .ruby-symbeg { color: var(--ruby-ident); }
+      .ruby-ivar, .ruby-cvar, .ruby-gvar, .ruby-int, .ruby-imaginary, .ruby-float, .ruby-rational { color: var(--ruby-number); }
+      .ruby-kw { color: var(--ruby-keyword); }
+      .ruby-label, .ruby-tstring-beg, .ruby-tstring-content, .ruby-tstring-end { color: var(--ruby-string); }
+
+      .select, select { width: 100%; }
+      summary { cursor: pointer; }
+      input[type="datetime-local"], input[type="date"], input[type="time"] {
+        width: fit-content;
+      }
+	  details > summary {
+        list-style: none;
+      }
+      summary::-webkit-details-marker {
+        display: none
+      }
+      summary::before {
+        content: '► ';
+        position:absolute;
+        font-size: 16px
+      }
+      details[open] summary:before {
+        content: "▼ ";
+      }
+
+      .box {
+        box-shadow: 0 0 6px 0 #0000001a,
+                    0 2px 4px -1px #0000001a;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .box {
+          background-color: var(--bulma-background);
+        }
+      }
+
+      .label.is-required:after {
+        content: " (required)";
+        color: var(--required-color);
+        font-size: 12px;
+      }
+    </style>
+
+    <script>
+      function refresh() {
+        const target = document.querySelector("[data-refresh]")
+        if (!target || !target.dataset.refresh) return
+        window.setTimeout(() => {
+          document.body.style.cursor = "wait"
+          fetch(document.location, { headers: { "X-Requested-With": "XMLHttpRequest" } }).then(
+            async response => {
+              const text = await response.text()
+              const newDocument = new DOMParser().parseFromString(text, "text/html")
+              const newTarget = newDocument.querySelector("[data-refresh]")
+              if (newTarget) {
+                target.replaceWith(newTarget)
+              }
+              document.body.style.cursor = ""
+              refresh()
+            },
+            error => location.reload()
+          )
+        }, 3000)
+      }
+      document.addEventListener('DOMContentLoaded', refresh)
+    </script>
+  </head>
+
+  <body>
+    <%= render 'layouts/maintenance_tasks/navbar' %>
+
+    <section class="section">
+      <div class="container">
+        <% if notice %>
+          <div class="notification is-success"><%= notice %></div>
+        <% elsif alert %>
+          <div class="notification is-warning"><%= alert %></div>
+        <% end %>
+
+        <%= yield %>
+      </div>
+    </section>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+<%
+  ga4_auto_attributes = {
+    event_name: "mid_page_error",
+    action: "error",
+  }
+%>
+
+<% if edition.rejected? %>
+  <%= render "/components/inset_prompt", {
+    data_attributes: {
+      module: "ga4-auto-tracker",
+      ga4_auto: {
+        type: "rejected",
+        text: "Rejected by [author] - check the internal note in the document history for the reason.",
+      }.merge(ga4_auto_attributes).as_json,
+    },
+    description: sanitize("Rejected by #{linked_author(edition.rejected_by, class: "govuk-link")} - check the internal note in the document history for the reason."),
+    error: true,
+  } %>
+<% end %>
+
+<% if edition.force_published? %>
+  <%= render "/components/inset_prompt", {
+    title: "This edition was force published and has not yet been reviewed by a second pair of eyes",
+    data_attributes: {
+      module: "ga4-auto-tracker",
+      ga4_auto: {
+        type: "rejected",
+        text: "This edition was force published and has not yet been reviewed by a second pair of eyes",
+      }.merge(ga4_auto_attributes).as_json,
+    },
+    description: capture do %>
+      <% if can?(:approve, edition) %>
+        <p class="govuk-body"><%= link_to "View this on the website", edition.public_url(draft: true), class: "govuk-link", target: "_blank", rel: "noopener" %> and check everything thoroughly.</p>
+        <%= render "govuk_publishing_components/components/button", {
+            text: "Approve",
+            href: confirm_approve_retrospectively_admin_edition_path(@edition, lock_version: @edition.lock_version),
+            secondary_quiet: true,
+          } %>
+      <% else %>
+        <p class="govuk-body">Please have an editor other than the original publisher review the document to clear this warning.</p>
+      <% end %>
+    <% end,
+    error: true
+  } %>
+<% end %>
+
+<% if edition.pre_publication? %>
+  <% if edition.is_a?(Publication) && edition.statistics_announcement.present? %>
+    <%= render "components/inset_prompt", {
+      description: capture do %>
+        <p class="govuk-body">This publication has been announced for publication <%= edition.statistics_announcement.display_date %>.</p>
+        <p class="govuk-body"><%= link_to "View announcement", [:admin, edition.statistics_announcement], class: "govuk-link" %></p>
+      <% end
+    } %>
+  <% end %>
+
+  <% if edition.scheduled_publication.present? %>
+    <div class="app-view-summary__scheduled-notice">
+      <%= render "/components/inset_prompt", {
+        description: (edition.scheduled? ? "Scheduled for publication on " : "Scheduled publication proposed for ") + (l edition.scheduled_publication, format: :long) + ".",
+      } %>
+    </div>
+  <% end %>
+<% end %>

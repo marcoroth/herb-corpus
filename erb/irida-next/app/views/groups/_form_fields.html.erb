@@ -1,0 +1,175 @@
+<%= form_error_summary(form, target_overrides: { parent_id: "namespace-select" },
+include: group.new_record? ? %i[name description path parent_id] : %i[name description]) %>
+
+<%= render partial: "shared/form/required_field_legend" %>
+
+<% invalid_name = group.errors.include?(:name) %>
+
+<div class="form-field <%= 'invalid' if invalid_name %>">
+  <%= form.label :name, data: { required: true } %>
+
+  <%= form.text_field :name,
+                  data: {
+                    "slugify-target": "name",
+                    action: "input->slugify#nameChanged",
+                  },
+                  minlength: 3,
+                  maxlength: 255,
+                  pattern: "[a-zA-Z0-9_\\-\\.\\s\\p{Emoji}]+",
+                  placeholder: t(:"groups.create.name_placeholder"),
+                  required: true,
+                   aria: {
+                     describedby: [
+                       invalid_name ? form.field_id(:name, "error") : nil,
+                       form.field_id(:name, "hint"),
+                     ].join(" "),
+                     invalid: invalid_name,
+                     required: true,
+                   } %>
+
+  <% if invalid_name %>
+    <%= render "shared/form/field_errors",
+    id: form.field_id(:name, "error"),
+    errors: group.errors.full_messages_for(:name) %>
+  <% end %>
+
+  <span id="<%= form.field_id(:name, "hint") %>" class="field-hint"><%== t(:"groups.create.name_help") %></span>
+</div>
+
+<% if group.new_record? %>
+  <% if group.parent_id.present? %>
+    <div class="grid gap-4 @xs:grid-cols-1 @5xl:grid-cols-2">
+      <div class="form-field">
+        <% form_id = "namespace-select" %>
+
+        <%= form.label :parent_id,
+                   t("activerecord.attributes.group.parent_id"),
+                   for: form_id,
+                   class:
+                     "mb-1 block text-sm font-medium text-slate-900 dark:text-white" %>
+
+        <div>
+          <%= render Prefixed::Select2Component.new(form:, name: :parent_id, id: form_id, selected_value: group.parent_id, placeholder: t(:"groups.new_subgroup.select_group")) do |select| %>
+            <% authorized_namespaces.each do |namespace| %>
+              <% select.with_option(
+                      value: namespace.id,
+                      label: namespace.full_path,
+                    ) do %>
+                <div class="pointer-events-none flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="truncate font-semibold text-slate-900 dark:text-slate-200">
+                      <%= namespace.name %>
+                    </div>
+
+                    <div class="truncate text-sm text-slate-600 dark:text-slate-400">
+                      <%= namespace.full_path %>
+                    </div>
+                  </div>
+
+                  <div class="shrink-0">
+                    <%= render PuidComponent.new(puid: namespace.puid, show_clipboard: false) %>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
+
+            <%= select.with_empty_state do %>
+              <%= t(:"groups.new_subgroup.empty_state") %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+
+      <% invalid_path = group.errors.include?(:path) %>
+
+      <div class="form-field <%= 'invalid' if invalid_path %>">
+        <%= form.label :path, data: { required: true } %>
+
+        <%= form.text_field :path,
+                        data: {
+                          "slugify-target": "path",
+                        },
+                        minlength: 3,
+                        maxlength: 255,
+                        pattern: Irida::PathRegex::PATH_REGEX_STR,
+                        required: true,
+                         aria: {
+                           describedby: [
+                             invalid_path ? form.field_id(:path, "error") : nil,
+                             form.field_id(:path, "hint"),
+                           ].join(" "),
+                           invalid: invalid_path,
+                           required: true,
+                         } %>
+
+        <% if invalid_path %>
+          <%= render "shared/form/field_errors",
+          id: form.field_id(:path, "error"),
+          errors: group.errors.full_messages_for(:path) %>
+        <% end %>
+
+        <span id="<%= form.field_id(:path, "hint") %>" class="field-hint"><%= t(:"groups.create.path_help") %></span>
+      </div>
+    </div>
+  <% else %>
+    <% invalid_path = group.errors.include?(:path) %>
+    <div class="form-field <%= 'invalid' if invalid_path %>">
+      <%= form.label :path, data: { required: true } %>
+
+      <%= form.text_field :path,
+                      data: {
+                        "slugify-target": "path",
+                      },
+                      pattern: Irida::PathRegex::PATH_REGEX_STR,
+                      required: true,
+                       aria: {
+                         describedby: [
+                           invalid_path ? form.field_id(:path, "error") : nil,
+                           form.field_id(:path, "hint"),
+                         ].join(" "),
+                         invalid: invalid_path,
+                         required: true,
+                       } %>
+
+      <% if invalid_path %>
+        <%= render "shared/form/field_errors",
+        id: form.field_id(:path, "error"),
+        errors: group.errors.full_messages_for(:path) %>
+      <% end %>
+
+      <span id="<%= form.field_id(:path, "hint") %>" class="field-hint"><%= t(:"groups.create.path_help") %></span>
+    </div>
+  <% end %>
+<% end %>
+
+<% invalid_description = group.errors.include?(:description) %>
+
+<div class="form-field <%= 'invalid' if invalid_description %>">
+  <%= form.label :description %>
+
+  <%= form.text_area :description,
+                 {
+                   :class => "form-control",
+                   "aria-describedby" => [
+                     (
+                       if invalid_description
+                         form.field_id(:description, "error")
+                       else
+                         nil
+                       end
+                     ),
+                     form.field_id(:description, "hint"),
+                    ].join(" "),
+                    "aria-invalid" => invalid_description,
+                  } %>
+
+  <% if invalid_description %>
+    <%= render "shared/form/field_errors",
+    id: form.field_id(:description, "error"),
+    errors: group.errors.full_messages_for(:description) %>
+  <% end %>
+
+  <span id="<%= form.field_id(:description, "hint") %>" class="field-hint">
+    <%= t(:"groups.create.description_help") %>
+  </span>
+</div>

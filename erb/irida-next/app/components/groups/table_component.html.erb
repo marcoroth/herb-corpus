@@ -1,0 +1,134 @@
+<% if @has_group_links %>
+  <%= render Viral::BaseComponent.new(**wrapper_arguments) do %>
+    <table
+      class="w-full text-left text-sm whitespace-nowrap text-slate-500 rtl:text-right dark:text-slate-400"
+      data-controller="table"
+      data-action="focusin->table#handleCellFocus"
+    >
+      <thead class="w-full text-left text-sm whitespace-nowrap text-slate-500 rtl:text-right dark:text-slate-400">
+        <tr class="border-y border-slate-200 text-slate-900 uppercase dark:border-slate-700 dark:text-slate-400">
+          <% @columns.each_with_index do |column, index| %>
+            <%= render_cell(
+            tag: 'th',
+            **(@q.sorts&.first ? helpers.aria_sort(column, @q.sorts.first.name, @q.sorts.first.dir) : {}),
+            scope: 'col',
+            classes: class_names('px-6 py-3 bg-slate-100 dark:bg-slate-900 dark:text-slate-400', 'sticky left-0 z-10 flex': index.zero?)
+          ) do %>
+              <%= render Ransack::SortComponent.new(
+                ransack_obj: @q,
+                label: t(".#{column}"),
+                url: helpers.sorting_url(@q, column.to_s.gsub(".", "_")),
+                field: column.to_s.gsub(".", "_").to_sym,
+              ) %>
+            <% end %>
+          <% end %>
+
+          <%= render_cell(
+          tag: 'th',
+          scope: 'col',
+          classes: class_names('px-6 py-3 sticky right-0 bg-slate-100 dark:bg-slate-900 dark:text-slate-400')
+        ) do %>
+            <%= t(".action") %>
+          <% end %>
+        </tr>
+      </thead>
+
+      <tbody class="divide-y divide-slate-200 bg-white dark:divide-slate-700 dark:bg-slate-800">
+        <% @namespace_group_links.each do | namespace_group_link | %>
+          <%= render Viral::BaseComponent.new(**row_arguments(namespace_group_link)) do %>
+            <% namespace_group_link_source =
+              helpers.namespace_group_link_source(@namespace, namespace_group_link) %>
+
+            <td class="px-6 py-4"><%= namespace_group_link.group.name %></td>
+
+            <td class="px-6 py-4">
+              <% if namespace_group_link_source.key?(:inherited_namespace_path) %>
+                <%= pathogen_link(href: namespace_group_link_source[:inherited_namespace_path], data: {
+                  turbo_frame: "_top",
+                }) do |component| %>
+                  <% component.with_tooltip(text: t(:"projects.group_links.index.inherited_from")) %>
+                  <%= namespace_group_link_source[:label] %>
+                <% end %>
+              <% else %>
+                <div class="text-sm font-normal text-slate-500 dark:text-slate-400">
+                  <%= namespace_group_link_source[:label] %>
+                </div>
+              <% end %>
+            </td>
+
+            <td class="px-6 py-4">
+              <div><%= helpers.local_time_ago(namespace_group_link.created_at) %></div>
+            </td>
+
+            <td class="px-6 py-4">
+              <div class="form-field">
+                <%= t(
+                    :"projects.group_links.index.access_level.level_#{namespace_group_link.group_access_level}",
+                  ) %>
+              </div>
+            </td>
+
+            <td class="px-6 py-4">
+              <% unless namespace_group_link.expires_at.nil? %>
+                <%= helpers.local_date(namespace_group_link.expires_at, :long) %>
+              <% end %>
+            </td>
+
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-2">
+                <% if @abilities[:update_namespace] && !namespace_group_link_source.key?(:inherited_namespace_path) %>
+                  <%= render partial: edit_group_link,
+                  locals: {
+                    namespace: @namespace,
+                    namespace_group_link:,
+                  } %>
+                <% end %>
+
+                <% if @abilities[:unlink_group] && !namespace_group_link_source.key?(:inherited_namespace_path) %>
+                  <%= button_to t(
+                  :"#{namespace_group_link.namespace.type.pluralize.downcase}.group_links.index.unlink",
+                ),
+                select_group_link_path(namespace_group_link),
+                data: {
+                  turbo_method: :delete,
+                  turbo_confirm:
+                    (
+                      t(
+                        :"#{namespace_group_link.namespace.type.pluralize.downcase}.group_links.index.unlink_confirmation",
+                        namespace_name: namespace_group_link.namespace.human_name,
+                        group_name: namespace_group_link.group.human_name,
+                      )
+                    ),
+                },
+                method: :delete,
+                aria: {
+                  label:
+                    (
+                      t(
+                        :"#{namespace_group_link.namespace.type.pluralize.downcase}.group_links.index.actions.unlink_aria_label",
+                        member: namespace_group_link.group.name,
+                      )
+                    ),
+                },
+                class:
+                  "font-medium text-blue-600 underline dark:text-blue-400 hover:decoration-2 cursor-pointer" %>
+                <% end %>
+              </div>
+            </td>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+<% else %>
+  <div class="empty_state_message">
+    <%= viral_empty(
+      title: t(:"#{@namespace.type.downcase}s.group_links.index.empty_state.title"),
+      description:
+        t(
+          :"#{@namespace.type.downcase}s.group_links.index.empty_state.description",
+        ),
+      icon_name: Member.icon,
+    ) %>
+  </div>
+<% end %>

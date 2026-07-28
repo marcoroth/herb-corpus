@@ -1,0 +1,72 @@
+<% content_for :page_title, t('calendars.show.title', calendar_title: @calendar.title) %>
+
+<div class="d-flex justify-content-between align-items-center">
+  <h1><%= t('calendars.show.title', calendar_title: @calendar.title) %></h1>
+  <div>
+    <% if can?(:index, Calendar) %>
+      <%= link_to t('calendars.show.all_calendars'), admin_calendars_path, class: 'btn btn-default' %>
+    <% end %>
+  </div>
+</div>
+
+<% if current_user.admin? %>
+  <%= render 'admin_calendar_info' %>
+<% end %>
+
+<p><%= t('calendars.show.amend_existing_events_message') %>.</p>
+
+<%= link_to t('calendars.show.add_new_event'), new_calendar_calendar_event_path(@calendar), class: 'btn btn-primary' %>
+
+<% if can? :manage, @calendar %>
+  <% if @calendar.calendars.any? %>
+    <%= link_to t('calendars.show.update_dependent_schools'), resync_calendar_path(@calendar),
+                method: :post, class: 'btn btn-primary', data: { confirm: t('calendars.show.confirm_message') } %>
+  <% end %>
+<% end %>
+
+<nav class="mt-2">
+  <div class="nav nav-tabs" id="nav-tab" role="tablist">
+    <a class="nav-item nav-link active" id="nav-calendar-view-tab" data-toggle="tab" href="#calendar-view-tab"
+       role="tab" aria-controls="calendar-view-tab" aria-selected="yes">
+      <%= t('calendars.show.calendar_view') %>
+    </a>
+    <a class="nav-item nav-link reloadable" id="nav-list-view-tab" data-toggle="tab"
+       data-reload-url='<%= current_events_calendar_path(@calendar) %>' href="#list-view-tab" role="tab"
+       aria-controls="list-view-tab" aria-selected="yes">
+      <%= t('calendars.show.current_events') %>
+    </a>
+  </div>
+</nav>
+
+<div class="tab-content" id="nav-tabContent">
+
+  <div class="tab-pane active" id="calendar-view-tab" role="tabpanel" aria-labelledby="nav-calendar-view-tab">
+    <div id="calendar" class="calendar"></div>
+    <%= render 'legend' %>
+  </div>
+
+  <div class="tab-pane" id="list-view-tab" role="tabpanel" aria-labelledby="nav-list-view-tab">
+    <%= render 'calendar_links', calendar: @calendar %>
+    <div id="current_events"><%= render 'current_events', calendar: @calendar, current_events: @current_events %></div>
+    <%= render 'calendar_actions', calendar: @calendar %>
+    <%= render 'calendar_links', calendar: @calendar %>
+  </div>
+
+</div>
+
+<%= render 'event_modal' %>
+
+<% if current_user.admin? %>
+  <% if School.joins(:calendar).where('calendars.based_on_id = ?', @calendar.id).any? %>
+  <div class="mb-2 alert alert-secondary">
+
+    <h3>Dependent Schools</h3>
+    <p>These schools all have their own calendar, based on this one.</p>
+    <ul>
+      <% School.joins(:calendar).where('calendars.based_on_id = ?', @calendar.id).by_name.each do | school| %>
+        <li><%= link_to school.name, calendar_path(school.calendar) %></li>
+      <% end %>
+    </ul>
+  </div>
+  <% end %>
+<% end %>

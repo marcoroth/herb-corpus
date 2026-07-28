@@ -1,0 +1,101 @@
+<div aria-hidden="true" class="modal" id="save-edition-note" role="dialog" tabindex="-1">
+  <div class="modal-dialog modal-dialog--wide">
+    <div class="modal-content">
+      <header class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3 class="modal-title">Add edition note</h3>
+      </header>
+      <%= form_for(:note, :url=> legacy_notes_path) do |f| %>
+        <fieldset class="inputs">
+          <%= hidden_field_tag :edition_id, resource.id %>
+          <div class="modal-body">
+            <p class="help-block">Explain what changes you did or did not make and why. <% if current_user.govuk_editor? %>Include a link to the relevant Zendesk ticket and Jira card.<% end %> You can also add an edition note when you send the edition for review (2nd pair of eyes).</p>
+            <% if current_user.govuk_editor? %>
+              <p class="help-block">Read the <a href="https://gov-uk.atlassian.net/l/cp/dwn06raQ" rel="noreferrer noopener" target="_blank">guidance on writing good change notes on the GOV.UK wiki (opens in a new tab)</a>.</p>
+            <% end %>
+            <div class="form-group">
+              <span class="form-label">
+                <%= f.label :comment, "Edition note" %>
+              </span>
+              <span class="form-wrapper">
+                <%= f.text_area :comment, rows: 20, cols: 120, class: "form-control" %>
+              </span>
+            </div>
+          </div>
+          <footer class="modal-footer remove-top-margin">
+            <a href="#" class="btn btn-default" data-dismiss="modal">Cancel</a>
+            <button class="btn btn-success" name="commit">Save edition note</button>
+          </footer>
+        <% end %>
+      </fieldset>
+    </div>
+  </div>
+</div>
+
+<div aria-hidden="true" class="modal" id="update-important-note" role="dialog" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <header class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3 class="modal-title">Update important note</h3>
+      </header>
+      <%= form_for(:note, :url=> legacy_notes_path) do |f| %>
+        <fieldset class="inputs">
+          <%= hidden_field_tag :edition_id, resource.id %>
+          <%= hidden_field_tag "note[type]", Action::IMPORTANT_NOTE %>
+          <div class="modal-body">
+            <div class="form-group">
+              <span class="form-label">
+                <%= f.label :comment, "Important note" %>
+              </span>
+              <span class="form-wrapper">
+                <%= f.text_area :comment, rows: 6, cols: 120, value: @resource.important_note ? @resource.important_note.comment : "", class: "form-control" %>
+              </span>
+              <p class="help-block">Add important notes that anyone who works on this edition needs to see, eg “(Doesn’t) need fact check, don’t publish.” Each edition can have only one important note at a time.</p>
+            </div>
+          </div>
+          <footer class="modal-footer remove-top-margin">
+            <a href="#" class="btn btn-default" data-dismiss="modal">Cancel</a>
+            <%= f.submit :class=>"btn btn-success", :value=>"Save important note" %>
+          </footer>
+        </fieldset>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<div id="edition-history" data-module="collapsible-group" data-expand-text="Expand all notes" data-collapse-text="Collapse all notes">
+  <h2 class="remove-top-margin add-bottom-margin h3">History and notes</h2>
+
+  <p class="add-bottom-margin if-no-js-hide">
+    <a href="#" class="js-toggle-all">Expand all notes</a>
+  </p>
+
+  <% if current_user.has_editor_permissions?(@resource) %>
+    <div class="add-bottom-margin">
+      <a href="#save-edition-note" class="btn btn-primary" data-toggle="modal"><i class="glyphicon glyphicon-comment add-right-margin"></i>Add edition note</a>
+      <a href="#update-important-note" class="btn btn-default" data-toggle="modal"><i class="glyphicon glyphicon-exclamation-sign add-right-margin"></i>Update important note</a>
+      <% if @resource.important_note %>
+        <%= form_for(@resource.important_note, :url=> resolve_legacy_note_path, :html => { :class => "add-left-margin inline" }, :method => "put") do |f| %>
+          <%= hidden_field_tag :edition_id, resource.id %>
+          <%= f.submit :class=>"btn btn-default", :value => "Delete important note" %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <p class="add-bottom-margin">
+    <% if resource.published? %>
+      View this on the GOV.UK website <%= link_to "#{Plek.website_root}/#{resource.slug}", "#{Plek.website_root}/#{resource.slug}" %>.<br />
+    <% elsif resource.safe_to_preview? %>
+      Preview edition at <%= link_to preview_edition_path(resource), preview_edition_path(resource) %>.<br />
+    <% else %>
+      This edition can’t be previewed.<br />
+    <% end %>
+    Send fact check responses to <%= mail_to resource.fact_check_email_address %> and include [<%= resource.id %>] in the subject line.
+  </p>
+
+  <div class="panel-group">
+    <%= render collection: @resource.history, partial: "/shared/edition_history", as: "edition", locals: { update_events: @update_events } %>
+  </div>
+</div>

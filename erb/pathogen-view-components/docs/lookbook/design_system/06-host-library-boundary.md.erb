@@ -1,0 +1,69 @@
+---
+title: Host and Library Boundary
+---
+
+# Host and Library Boundary
+
+Pathogen View Components is a shared UI library. Host applications compose product pages on top of it. Keep that split sharp so every host gets the same accessible, token-based system—and so the gem stays free of any single product’s domain.
+
+## Roles
+
+| Layer | Owns |
+|-------|------|
+| **Pathogen (library)** | Host-agnostic controls and surfaces, design tokens, precompiled CSS, `pathogen--*` Stimulus, Lookbook previews, component chrome i18n |
+| **Host application** | Workflows, authorization, domain models, feature flags, routes, product copy, page composition, brand token overrides |
+
+Reusable UI is `Pathogen::*`. Prefer host **views that compose Pathogen** over growing a parallel host component namespace.
+
+## Belongs in Pathogen
+
+- Controls and surfaces with a stable public API (kwargs, slots, documented `data-*` hooks)
+- Host content passed in via slots, blocks, or locals—not imported from the host
+- Interaction behaviour in `pathogen--*` Stimulus controllers
+- Visual rules in `pathogen.tailwind.css` → shipped `pathogen_view_components.css`
+- Locales for component chrome (labels, ARIA strings owned by the gem)
+- Lookbook preview + component tests for every public behaviour change
+
+## Belongs in the host
+
+- Page wiring and Turbo / Hotwire targets
+- Policies, services, feature flags, domain models, routes
+- Product-facing i18n and workflow copy
+- Brand mapping via CSS variables (for example `--color-primary-*`)
+- One-off layout that is truly page-specific
+
+## Hard no in the gem
+
+- Host session / `Current` / auth objects
+- Host feature flags
+- Host models, routes, or helpers
+- Hard-coded host brand colours in shared components (hosts override tokens)
+
+If the gem needs host-specific behaviour, pass it in (slot, block, callback, option)—do not reach out into the host.
+
+## Promotion rule
+
+If a pattern is reusable, or it appears on two or more host surfaces, implement or extend Pathogen first (or in the same change), then wire the host. Do not permanently fork the pattern in the host.
+
+## Host-local UI debt
+
+Some hosts still carry a legacy component layer beside Pathogen. Treat that layer as temporary:
+
+1. Replace call sites with `Pathogen::*` (or promote the pattern into Pathogen).
+2. Delete the host-local component.
+3. Do not add new components to that legacy layer.
+
+## Theming
+
+Pathogen stays brand-neutral in shared code. Hosts map brand through CSS variables. Do not bake a single host’s palette into Pathogen primitives.
+
+## Upgrade checklist
+
+When a host bumps Pathogen:
+
+1. Bump the gem dependency and run `bundle install`.
+2. Confirm the CSS artifact is current (`pnpm run build:css:check` in the gem when you change styles).
+3. Smoke host pages that exercise Pathogen controls, forms, dialogs, and dense surfaces.
+4. Reject new host-local UI forks that should have been Pathogen extensions.
+
+See also [Foundations](<%= page_path("design-system-design-contract") %>) and the [Review checklist](<%= page_path("design-system-review-checklist") %>).

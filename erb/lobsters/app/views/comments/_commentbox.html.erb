@@ -1,0 +1,72 @@
+<%# locals: (comment:, story: nil, show_comment: nil, show_tree_lines: false, redirect_on_submit: false, parents: nil) -%>
+<% if parents %>
+  <ol class="comments comments1">
+    <li class="comments_subtree">
+      <%= render partial: 'threads', locals: { thread: parents, story: story } %>
+    </li>
+  </ol>
+<% end %>
+
+<div class="comment comment_form_container" data-shortid="<%= comment.short_id if comment.persisted? %>">
+<%= form_with url: comment do |f| %>
+  <% if comment.errors.any? %>
+    <%= errors_for comment %>
+  <% end %>
+
+  <%= f.hidden_field "story_id", value: story&.short_id || comment.story.short_id %>
+  <%= f.hidden_field "_method", value: "#{comment.new_record?? 'post' : 'patch'}" %>
+
+  <% if redirect_on_submit %>
+    <%= f.hidden_field "redirect_on_submit", value: true %>
+  <% end %>
+
+  <% if comment.parent_comment %>
+    <%= f.hidden_field "parent_comment_short_id", value: comment.parent_comment.short_id %>
+  <% end %>
+
+  <% if comment.story.comments_closing_soon? %>
+    <p class="hint">
+      This story is almost <%= Story::COMMENTABLE_DAYS %> days old
+      and will stop accepting comments in
+      <%= ((comment.story.created_at - Story::COMMENTABLE_DAYS.days.ago) / 60).floor %> minutes.
+    </p>
+  <% end %>
+
+  <div style="width: 100%;">
+    <%= f.text_area "comment", :value => comment.comment, :rows => 5,
+      :disabled => !@user,
+      :placeholder => (@user ? "" : "You must be logged in to leave a comment.")
+    %>
+
+    <div class="controls">
+      <div class="buttons">
+        <%= f.submit "#{comment.new_record?? "Post" : "Update"}", :class => "comment-post", :disabled => !@user %>
+        &nbsp;
+        <%= f.button "Preview", :class => "comment-preview", :type => "button", :disabled => !@user %>
+        <% if comment.persisted? || comment.parent_comment_id %>
+          &nbsp;
+          <%= f.button "Cancel", :class => "comment-cancel", :type => "button" %>
+        <% end %>
+      </div>
+
+      <% if @user && @user.wearable_hats.any? %>
+        <div class="hats">
+          Put on hat:
+          <%= f.select "hat_id",
+            options_from_collection_for_select(@user.wearable_hats, "short_id", "hat",
+            comment.hat&.short_id), :include_blank => true %>
+        </div>
+      <% end %>
+
+      <% if @user %>
+        <%= render :partial => "global/markdownhelp" %>
+      <% end %>
+    </div>
+  </div>
+
+  <p></p>
+<% end %>
+
+<%# placeholder to render preview into %>
+<%= render partial: 'comments/preview', locals: { comment: show_comment } %>
+</div>

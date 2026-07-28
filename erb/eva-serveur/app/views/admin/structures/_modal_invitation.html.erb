@@ -1,0 +1,86 @@
+<% id_modal = "fr-modal-invitation-#{structure.id}" %>
+<% form_id = "invitation-form-#{structure.id}" %>
+<% invitation_url = if structure.is_a?(StructureOpco)
+  envoyer_invitation_admin_structure_opco_path(structure)
+ else
+  envoyer_invitation_admin_structure_locale_path(structure)
+end %>
+
+<%= render BoutonDsfrComponent.new(
+  "#",
+  type: :secondary,
+  size: :sm,
+  "data-fr-opened": "false",
+  "aria-controls": id_modal
+  ) do %>
+  <%= t(".inviter") %>
+<% end %>
+<%= dsfr_modal(
+  title: t(".titre"),
+  html_attributes: { id: id_modal, class: "fr-modal-invitation" }
+) do |component| %>
+  <div class="contenu-modale">
+    <div class="contenu">
+      <%= form_with url: invitation_url,
+                    method: :post,
+                    local: true,
+                    scope: :invitation,
+                    html: { id: form_id } do |f| %>
+        <p class="invitation-modal-description">
+          <%= t(".description") %>
+        </p>
+
+        <%= render InputComponent.new(
+          id: "invitation_email_#{structure.id}",
+          form: f,
+          method: :email,
+          type: "email",
+          label: t(".email_label"),
+          required: true
+        ) %>
+
+        <% if current_compte.au_moins_admin? %>
+          <div class="fr-select-group">
+            <label class="fr-label" for="invitation_role_<%= structure.id %>">
+              <%= t(".role_label") %>
+              <abbr title="required">*</abbr>
+            </label>
+            <%= f.select :role,
+                         options_for_select(
+                           Compte::ROLES_STRUCTURE.map { |r| [ t(".roles.#{r}"), r ] },
+                           nil
+                         ),
+                         { include_blank: t(".role_placeholder") },
+                         id: "invitation_role_#{structure.id}",
+                         class: "fr-select",
+                         data: { placeholder: t(".role_placeholder") } %>
+          </div>
+        <% end %>
+
+        <div class="fr-input-group">
+          <label class="fr-label" for="invitation_message_<%= structure.id %>">
+            <%= t(".message_label") %>
+            <span class="fr-hint-text"><%= t(".message_hint") %></span>
+          </label>
+          <%= f.text_area :message,
+                          id: "invitation_message_#{structure.id}",
+                          class: "fr-input",
+                          rows: 4 %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <% component.with_button do %>
+    <%= render BoutonDsfrComponent.new(
+      t(".envoyer"),
+      type: :primary,
+      tag: :submit,
+      size: :md,
+      form: form_id,
+      class: "fr-icon-send-plane-fill"
+    ) do %>
+      <%= t(".envoyer") %>
+    <% end %>
+  <% end %>
+<% end %>

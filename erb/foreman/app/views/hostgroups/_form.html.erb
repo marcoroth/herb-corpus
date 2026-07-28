@@ -1,0 +1,101 @@
+<%= javascript 'host_edit', 'host_edit_interfaces' %>
+<%= form_for @hostgroup, :html => {:class => 'hostresource-form hostgroup-form form-horizontal well', :data => {:id => @hostgroup.try(:id)}} do |f| %>
+  <%= base_errors_for @hostgroup %>
+
+  <ul class="nav nav-tabs" data-tabs="tabs">
+    <li class="active"><a href="#primary" data-toggle="tab"><%= _('Hostgroup') %></a></li>
+    <li><a href="#network" data-toggle="tab"><%= _('Network') %></a></li>
+    <li><a href="#os" data-toggle="tab"><%= _('Operating System') %></a></li>
+    <li><a href="#params" id='params-tab' data-url='' data-toggle="tab"><%= _('Parameters') %></a></li>
+    <%= render_tab_header_for(:main_tabs, :subject => @hostgroup) %>
+    <% if show_location_tab? %>
+      <li><a href="#locations" data-toggle="tab"><%= _('Locations') %></a></li>
+    <% end %>
+    <% if show_organization_tab? %>
+      <li><a href="#organizations" data-toggle="tab"><%= _('Organizations') %></a></li>
+    <% end %>
+  </ul>
+
+  <div class="tab-content">
+
+    <div class="tab-pane active" id="primary">
+      <%= select_f(f, :parent_id, parent_hostgroups, :id, :to_label, {:include_blank => true}, {:label => _('Parent'),
+                      :class => 'hostgroup-select',
+                      :data => { :url => process_hostgroup_hostgroups_path },
+                      :help_inline => :indicator }) if show_parent?(@hostgroup) %>
+      <%= text_f f, :name %>
+      <%= textarea_f f, :description, :rows => :auto %>
+
+      <%= select_f f, :compute_resource_id, 
+          accessible_resource(@hostgroup, :compute_resource), 
+          :id, 
+          :to_label,
+          { 
+            :disable_button_enabled => hostgroup_inherited_by_default?(:compute_resource_id, @hostgroup),
+            :disable_button => _(HostsAndHostgroupsHelper::INHERIT_TEXT),
+            :user_set => user_set?(:compute_resource_id),
+            :include_blank => _('Bare Metal'),
+          },
+          { :label => _('Deploy on'),
+            :help_inline => :indicator } %>
+
+      <%= select_f(f, :compute_profile_id, visible_compute_profiles(@hostgroup), :id, :name,
+                       { :include_blank => blank_or_inherit_f(f, :compute_profile) },
+                       { :label => _("Compute profile") }
+                  ) if visible_compute_profiles(@hostgroup).any? %>
+      <%= render_pagelets_for(:main_tab_fields, :subject => @hostgroup, :form => f) %>
+      <%= smart_proxy_fields f %>
+    </div>
+
+    <div class="tab-pane" id="network">
+      <fieldset>
+        <%= select_f f, :domain_id, accessible_resource(@hostgroup, :domain), :id, :to_label, {:include_blank => blank_or_inherit_f(f, :domain)},
+          {:help_inline => :indicator, :label => _("Domain"),
+           :class => 'interface_domain', :'data-url' => method_path('domain_selected') } %>
+        <%= select_f f, :subnet_id, domain_subnets(:"Subnet::Ipv4"), :id, :to_label,
+                     { :include_blank => domain_subnets(:"Subnet::Ipv4").any? ? blank_or_inherit_f(f, :subnet) : _("No subnets") },
+                     { :disabled => domain_subnets(:"Subnet::Ipv4").empty?,
+                       :data     => { :url     => freeip_subnets_path,
+                                      :subnets => subnets_ipam_data(:"Subnet::Ipv4").to_json },
+                       :label    => _("IPv4 Subnet"),
+                       :help_inline => :indicator } %>
+        <%= select_f f, :subnet6_id, domain_subnets(:"Subnet::Ipv6"), :id, :to_label,
+                     { :include_blank => domain_subnets(:"Subnet::Ipv6").any? ? blank_or_inherit_f(f, :subnet6) : _("No subnets") },
+                     { :disabled => domain_subnets(:"Subnet::Ipv6").empty?,
+                       :label    => _("IPv6 Subnet"),
+                       :help_inline => :indicator } %>
+        <%= select_f f, :realm_id, accessible_resource(@hostgroup, :realms), :id, :to_label,
+                        {:include_blank => blank_or_inherit_f(f, :realm)}, {:label => _("Realm")} %>
+      </fieldset>
+    </div>
+
+    <div class="tab-pane" id="os">
+      <%= render "common/os_selection/initial", :item=> @hostgroup %>
+      <%= password_f f, :root_pass, :help_inline => _("Password must be 8 characters or more").html_safe,
+                     :unset => action_name == "edit", :keep_value => action_name == "clone"  %>
+    </div>
+
+    <div class="tab-pane" id="params">
+
+      <%= slot('HostgroupParams', true, lookup_values: lookup_values_data(@hostgroup)) %>
+
+      <% if authorized_for(:controller => "host_editing", :action => "view_params") %>
+        <fieldset>
+          <% if @hostgroup.parent.present? %>
+              <h4><%= _('Parent Parameters') %></h4>
+              <%= render "common_parameters/inherited_parameters", { :inherited_parameters => @hostgroup.parent_params(true), :parameters => @hostgroup.group_parameters } %>
+          <% end %>
+          <h2><%= _('Host Group Parameters') %></h2>
+          <%= render "common_parameters/parameters", { :f => f, :type => :group_parameters } %>
+        </fieldset>
+      <% end %>
+    </div>
+
+    <%= render_tab_content_for(:main_tabs, :subject => @hostgroup) %>
+
+    <%= render "taxonomies/loc_org_tabs", :f => f, :obj => @hostgroup %>
+  </div>
+
+  <%= f.hidden_field :id %>
+  <%= submit_or_cancel(f, false, { :cancel_path => resource_prev_url_with_search_filters }) %>
+<% end %>

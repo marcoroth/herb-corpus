@@ -1,0 +1,95 @@
+<% set_meta_tags title: "My characters",
+                 description: "My characters" %>
+
+<div class="row">
+  <div class="col">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><%= link_to("Home", root_path) %></li>
+        <li class="breadcrumb-item active" aria-current="page">My characters</li>
+      </ol>
+    </nav>
+  </div>
+</div>
+
+<div id="characters" class="row">
+  <% @characters.each do |character| %>
+    <%# TODO: replace manual id generation with dom_id() helper %>
+    <div id="character_<%= character.character_id %>" class="col-12 col-sm-12 col-md-6 col-lg-4 col-xl-4">
+      <div class="clearfix">
+        <h4 class="float-start"><%= link_to(character.name, character_path(character.character_id)) %></h4>
+        <%= form_with(url: character_path(character.character_id), method: :patch, class: "float-end") do %>
+          <%= button_tag(class: "btn btn-primary mb-2") do %>
+            <%= inline_svg_tag "icons/arrow-repeat.svg" %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="card">
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item text-center">
+            <%= image_tag(character.icon_large,
+                          alt: character.name,
+                          class: "rounded border",
+                          size: "130x130",
+                          loading: "lazy") %>
+          </li>
+          <% if character.corporation %>
+            <li class="list-group-item text-break">
+              Corporation: <%= link_to(character.corporation.name,
+                                       universe_corporation_path(character.corporation)) %>
+            </li>
+          <% end %>
+          <% if character.alliance %>
+            <li class="list-group-item text-break">
+              Alliance: <%= link_to(character.alliance.name,
+                                    universe_alliance_path(character.alliance)) %>
+            </li>
+          <% end %>
+          <li class="list-group-item text-break">
+            Security status: <%= character.rounded_security_status %>
+          </li>
+          <li class="list-group-item text-break">
+            Wallet: <%= character.wallet_formatted %> ISK
+          </li>
+          <li class="list-group-item text-break text-center">
+            <%= button_to(character_path(character.character_id),
+                          class: "btn btn-danger",
+                          method: :delete,
+                          form: {
+                            data: {
+                              turbo_confirm: "Are you sure?"
+                            }
+                          }) do %>
+              <span class="show-when-enabled">
+                <%= inline_svg_tag "icons/trash.svg", class: "vertical-align-125" %> <%= t(".remove_character") %>
+              </span>
+              <span class="show-when-disabled">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> <%= t(".removing_character") %>
+              </span>
+            <% end %>
+          </li>
+        </ul>
+        <p class="card-text text-center">
+          <small class="text-muted">
+            Last updated: <%= local_time_ago(character.updated_at) %>
+          </small>
+        </p>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="col-12 col-sm-12 col-md-6 col-lg-4 col-xl-4 text-center m-auto">
+    <%= form_tag("/auth/eve_online_sso", data: {turbo: false}) do %>
+      <%= button_tag do %>
+        <% image_uri = "https://web.ccpgamescdn.com/eveonlineassets/developers/eve-sso-login-black-large.png" %>
+        <% image_uri = "#{Setting.image_proxy_url}#{image_uri}" if Setting.use_image_proxy %>
+        <%= image_tag(image_uri, alt: "Sign in via EVE Online") %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="w-100"></div>
+
+  <%= paginate @characters %>
+</div>

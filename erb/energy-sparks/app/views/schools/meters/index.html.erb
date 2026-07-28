@@ -1,0 +1,143 @@
+<div class='d-flex justify-content-between align-items-baseline'>
+  <h1><%= t('schools.meters.index.title') %></h1>
+  <% if current_user.admin? && @school&.school_group %>
+    <%= render 'admin/school_groups/default_issues_admin_user', school_group: @school&.school_group %>
+  <% end %>
+</div>
+
+<% if current_user.admin? %>
+  <%= render 'admin/shared/dashboard_message', messageable: @school %>
+  <div class="alert alert-secondary mb-2">
+    <% if can?(:validate_meters, @school) && @school.meters_with_readings.any? && @school.process_data? %>
+      <%= link_to t('schools.meters.index.validate_meter_readings'), school_meter_readings_validation_path(@school),
+                  method: :post, class: 'btn' %>
+    <% else %>
+      <button type="button"
+              class="btn disabled"
+              data-toggle="tooltip"
+              data-placement="top"
+              title="<%= t('schools.meters.index.data_processing_turned_on_message') %>">
+        <%= t('schools.meters.index.validate_meter_readings') %>
+      </button>
+    <% end %>
+
+    <%= link_to t('schools.meters.index.school_downloads'), school_downloads_path(@school), class: 'btn' %>
+
+    <% if can? :manage_solar_feed_configuration, School %>
+      <%= link_to t('schools.meters.index.manage_solar_api_feeds'),
+                  school_solar_feeds_configuration_index_path(@school), class: 'btn' %>
+    <% end %>
+
+    <% if can? :manage, MeterReview %>
+      <% if @school.meters.reviewed_dcc_meter.any? %>
+        <%= link_to t('schools.meters.index.completed_meter_reviews'),
+                    admin_school_meter_reviews_path(@school), class: 'btn' %>
+      <% end %>
+      <% if @pending_reviews %>
+        <%= link_to t('schools.meters.index.review_meters'), new_admin_school_meter_review_path(@school), class: 'btn' %>
+      <% end %>
+    <% end %>
+  </div>
+<% else %>
+  <div class="alert alert-secondary mb-2">
+    <%= link_to t('schools.meters.index.school_downloads'), school_downloads_path(@school), class: 'btn' %>
+  </div>
+<% end %>
+
+<% unless @invalid_mpan.empty? %>
+  <div class="alert alert-warning mb-2">
+    <%= t('schools.meters.index.mpan_warning_message') %>.
+  </div>
+<% end %>
+
+<% colspan = current_user.admin? ? 15 : 10 %>
+<% first_colspan = current_user.admin? ? 6 : 2 %>
+
+<div class="table-responsive">
+<table class="table table-sm">
+  <col>
+  <colgroup span="<%= first_colspan %>"></colgroup>
+  <colgroup span="2"></colgroup>
+  <colgroup span="4"></colgroup>
+  <colgroup span="2"></colgroup>
+  <thead>
+    <tr>
+      <th colspan="<%= first_colspan %>"></th>
+      <th colspan="2"><%= t('schools.meters.index.readings') %></th>
+      <th colspan="4"><%= t('schools.meters.index.validated_readings') %></th>
+      <th colspan="1"></th>
+    </tr>
+    <tr>
+      <th scope="col"><%= t('schools.meters.index.meter') %></th>
+      <th scope="col"><%= t('schools.meters.index.name') %></th>
+      <% if current_user.admin? %>
+        <th scope="col"><%= t('schools.meters.index.meter_system') %></th>
+        <th scope="col"><%= t('schools.meters.index.data_source') %></th>
+        <th scope="col"><%= t('schools.meters.index.supplier') %></th>
+        <th scope="col"><%= t('schools.meters.index.procurement_route') %></th>
+        <th scope="col"><%= t('schools.meters.index.admin_meter_status') %></th>
+      <% end %>
+      <th scope="col" class="text-end">
+        <span title="<%= t('schools.meters.index.imported') %>">
+          <%= current_user.admin? ? fa_icon(:database) : t('schools.meters.index.imported') %>
+        <span>
+      </th>
+      <th scope="col" class="text-end">
+        <span title="<%= t('schools.meters.index.validated') %>">
+          <%= current_user.admin? ? fa_icon('square-check') : t('schools.meters.index.validated') %>
+        </span>
+      </th>
+      <th scope="col" class="text-center"><%= t('schools.meters.index.first') %>-<%= t('schools.meters.index.latest') %>
+      </th>
+      <th scope="col" class="text-end"><%= t('schools.meters.index.zero_days') %></th>
+      <th scope="col" class="text-end"><%= t('schools.meters.index.large_gaps') %></th>
+      <th scope="col"></th>
+    </tr>
+  </thead>
+  <thead>
+    <tr class="bg-light">
+      <th colspan="<%= colspan %>"><%= t('schools.meters.index.active_meters') %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% if @active_meters.any? %>
+      <%= render 'active_meters', active_meters: @active_meters %>
+    <% else %>
+      <tr>
+        <td colspan="<%= colspan %>"><%= t('schools.meters.index.no_active_meters') %></td>
+      </tr>
+    <% end %>
+  </tbody>
+  <% if @active_pseudo_meters.any? %>
+  <thead>
+    <tr class="bg-light">
+      <th colspan="<%= colspan %>"><%= t('schools.meters.index.active_pseudo_meters') %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <%= render 'active_meters', active_meters: @active_pseudo_meters %>
+  </tbody>
+  <% end %>
+
+  <% if @inactive_meters.any? || @inactive_pseudo_meters.any? %>
+    <thead>
+      <tr class="bg-light">
+        <th colspan="<%= colspan %>"><%= t('schools.meters.index.inactive_meters') %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <%= render 'inactive_meters', inactive_meters: @inactive_meters %>
+      <%= render 'inactive_meters', inactive_meters: @inactive_pseudo_meters %>
+    </tbody>
+  <% end %>
+</table>
+</div>
+
+<% if can? :create, Meter %>
+  <div class="card bg-light mb-3">
+    <div class="card-header"><h4><%= t('schools.meters.index.add_meter') %></h4></div>
+    <div class="card-body">
+      <%= render 'form', school: @school, meter: @meter, show_dcc_fields: current_user.admin? %>
+    </div>
+  </div>
+<% end %>

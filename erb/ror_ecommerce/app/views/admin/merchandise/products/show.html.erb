@@ -1,0 +1,140 @@
+<%= render partial: '/admin/merchandise/sub_header' %>
+
+<div class="page-header">
+  <h1 class="page-title">Product: <%= @product.name %></h1>
+  <div class="page-actions" style="color:<%= @product.active ? '#3A3' : '#C33' %>;">
+    <% if @product.active? %>
+      <%= link_to 'Make Inactive', admin_merchandise_product_path(@product),
+                data: { turbo_method: :delete, turbo_confirm: "This will inactivate the product, Are you sure?" },
+                class: 'btn btn-danger' %>
+    <% elsif @product.available? %>
+      <%= link_to 'Activate', activate_admin_merchandise_product_path(@product),
+                data: { turbo_method: :put, turbo_confirm: "This will activate the product, Are you sure?" },
+                class: 'btn btn-primary' %>
+    <% else %>
+      Not Ready for Production
+    <% end %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <p><%= @product.name %></p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description (<%= link_to 'edit', edit_admin_merchandise_products_description_path(@product) %>)</label>
+      <p><%= sanitize @product.description %></p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Meta Keywords</label>
+      <p><%= @product.meta_keywords %></p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Meta Description</label>
+      <p><%= @product.meta_description %></p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Product Type</label>
+      <p><%= @product.product_type.name %></p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Shipping Category</label>
+      <p><%= @product.shipping_category.name %></p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Shipping Details</label>
+      <div class="data-table">
+        <table class="admin-table">
+          <tr><th><%= link_to 'Shipping Zone', admin_config_shipping_rates_path %></th><th></th></tr>
+          <% @shipping_zones.each do |zone| %>
+            <tr>
+              <td><%= zone.name %></td>
+              <td>
+                <% rates = @product.shipping_category.shipping_rates %>
+                <% product_rates = rates.map { |rate| rate.shipping_method.name if rate.shipping_method.shipping_zone_id == zone.id }.compact %>
+                <% if product_rates.empty? %>
+                  Not Available
+                <% else %>
+                  <%= safe_join(product_rates, tag.br) %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Properties</h3>
+  </div>
+  <div class="card-body">
+    <% @product.product_properties.each do |product_prop| %>
+      <div class="form-group">
+        <label class="form-label"><%= product_prop.property.identifing_name %>:</label>
+        <p><%= product_prop.description %></p>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card" id="admin-product-properties">
+  <div class="card-header">
+    <h3 class="card-title">Variants</h3>
+  </div>
+  <div class="card-body">
+    <% if @product.variants.size == 0 %>
+      <p>No variants created yet. <%= link_to 'Create some variants?', edit_admin_merchandise_multi_product_variant_path(@product) %></p>
+    <% else %>
+      <p><%= link_to 'Edit Variants', edit_admin_merchandise_multi_product_variant_path(@product) %></p>
+      <div class="data-table">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Price</th>
+              <th>Cost</th>
+              <th>Brand</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @product.variants.each do |variant| %>
+              <tr class="<%= 'text-muted' unless variant.active? %>">
+                <td><%= variant.sku %></td>
+                <td><%= variant.price %></td>
+                <td><%= variant.cost %></td>
+                <td><%= variant.brand.try(:name) %></td>
+                <td><%= link_to 'View', admin_merchandise_product_variant_path(@product, variant) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Images (<%= link_to 'edit', edit_admin_merchandise_images_product_path(@product) %>)</h3>
+  </div>
+  <div class="card-body">
+    <% @product.images.each do |image| %>
+      <% if image.photo.attached? %>
+        <div class="form-group">
+          <label class="form-label"><%= image.photo_filename %></label>
+          <%= image_tag image.photo_url(:small), alt: image.photo_filename %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<p class="mt-4">
+  <%= link_to 'All Products', admin_merchandise_products_path, class: 'btn btn-outline' %>
+</p>

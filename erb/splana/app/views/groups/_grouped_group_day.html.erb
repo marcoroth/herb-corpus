@@ -1,0 +1,110 @@
+<% min_height ||= "150px" %>
+
+<div class="" style="min-height: <%= min_height %>">
+
+  <%# blocks = UserBlock.this_day(date).for_user(group.users.first).where(has_working_hour: true, start_time: range).order(start_time: :asc) %>
+
+  <% grouped_group_start_times = GroupBlock.new(group).for_blocks(UserBlock.for_day(date)).grouped_group_start_times %>
+
+  <% appointments = group ? Appointment.where(id: grouped_group_start_times.pluck(:appointment_id).compact.uniq) : [] %>
+
+  <% appointment_ids = [] %>
+
+  <div class="tw-flex tw-flex-col tw-items-stretch tw-h-full tw-gap-2">
+    <% grouped_group_start_times.each_with_index do |parts, index| %>
+      <% next_part = grouped_group_start_times[index + 1] %>
+      <% first_block = parts.blocks.first.blocks.first %>
+
+      <% next if appointment_ids.include?(first_block.appointment_id) %>
+
+      <% if next_part && first_block.appointment_id && first_block.appointment_id == next_part.blocks.first.blocks.first.appointment_id %>
+        <% appointment = Appointment.find(first_block.appointment_id) %>
+        <% appointment_ids << appointment.id %>
+        <% conflict = UserBlock.this_day(date).exists?(appointment_id: appointment.id, has_conflict: true) %>
+        <% conflict_block = UserBlock.this_day(date).where(appointment_id: appointment.id, has_conflict: true).group_by(&:user_id) %>
+
+        <%= link_to appointment, class: "tw-h-full #{conflict ? "tw-bg-red-100 hover:tw-bg-red-200 tw-border-red-500" : "tw-bg-blue-100 hover:tw-bg-blue-200 tw-border-blue-500" } hover:tw-text-inherit tw-border-l-4 tw-p-3 tw-w-full tw-content-center" do %>
+          <div class="tw-mb-3">
+            <%= appointment.time_text(only_time: true, suffix: false) %><br/>
+            <div class="tw-mt-2"><%= appointment.name %></div>
+            <b><%= appointment.client&.lastname %></b> - <%= appointment.client&.place&.name %>
+          </div>
+
+          <% (conflict_block).each do |user_id, blocks| %>
+            <% user = User.find(user_id) %>
+            <%= render AvatarComponent.new(user: user, extra_classes: "avatar-red", tag_name: :div, size: "xs", title: "#{user.name} (#{blocks.first.conflicts_text})") %>
+          <% end %>
+        <% end %>
+
+      <% elsif parts.blocks.first.blocks.first.appointment_id %>
+        <% appointment = parts.blocks.first.blocks.first.appointment %>
+        <% conflict = UserBlock.this_day(date).exists?(appointment_id: appointment.id, has_conflict: true) %>
+        <% conflict_block = UserBlock.this_day(date).where(appointment_id: appointment.id, has_conflict: true).group_by(&:user_id) %>
+
+        <%= link_to appointment, class: "tw-h-full #{conflict ? "tw-bg-red-100 hover:tw-bg-red-200 tw-border-red-500" : "tw-bg-blue-100 hover:tw-bg-blue-200 tw-border-blue-500" } hover:tw-text-inherit tw-border-l-4 tw-p-3 tw-w-full tw-content-center" do %>
+          <div>
+            <%= parts.blocks.first.start_time.to_fs(:time) %> bis
+            <%= parts.blocks.last.end_time.to_fs(:time) %><br/>
+            <div class="tw-mt-2"><%= appointment.name %></div>
+            <b><%= appointment.client&.lastname %></b> - <%= appointment.client&.place&.name %>
+          </div>
+
+          <% if conflict_block.any? %>
+            <% conflict_block.each do |user_id, blocks| %>
+              <% user = User.find(user_id) %>
+              <%= render AvatarComponent.new(user: user, extra_classes: "avatar-red", tag_name: :div, size: "xs", title: "#{user.name} (#{blocks.first.conflicts_text})") %>
+            <% end %>
+          <% else %>
+            <% if appointment.user_ids != group.user_ids %>
+              <%= render AvatarGroupComponent.new(users: appointment.users, extra_classes: "tw-mt-3", tag_name: :div, size: "xs") %>
+            <% end %>
+          <% end %>
+
+        <% end %>
+      <% else %>
+        <% if parts.available %>
+          <%= link_to new_appointment_path(group_id: group.id, start_time: parts.blocks.first.start_time, end_time: parts.blocks.last.end_time), class: "tw-bg-green-100 hover:tw-bg-green-200 hover:tw-text-inherit tw-border-l-4 tw-border-green-500 tw-p-3 tw-h-full tw-grid tw-content-center" do %>
+            <div data-bs-toggle="tooltip" data-bs-title="Klicke um Termin zu ertellen">
+              <%= "#{parts.blocks.first.start_time.to_fs(:time)} bis #{parts.blocks.last.end_time.to_fs(:time)}" %><br/>
+              Verfügbar (<%= ActiveSupport::Duration.build(parts.blocks.last.end_time - parts.blocks.first.start_time).in_hours %> h)
+            </div>
+          <% end %>
+        <% else %>
+          <% if appointments.any? && !parts.available %>
+            <div class="tw-bg-gray-100 hover:tw-bg-gray-200 tw-border-l-4 tw-border-gray-500 hover:tw-text-inherit tw-p-3 tw-w-full" data-bs-toggle="tooltip" data-bs-title="Klicke um Termin zu ertellen">
+              <%= link_to "#{parts.first.start_time.to_fs(:time)} bis #{parts.last.end_time.to_fs(:time)} Keine Verfügbarkeit", new_appointment_path(group_id: group.id, start_time: parts.first.start_time, end_time: parts.last.end_time) %>
+            </div>
+          <% elsif parts.available == false && parts.blocks.first.blocks.first.has_working_hour && !parts.blocks.first.blocks.first.has_pause %>
+
+            <% if parts.available_user_ids.count == 0 %>
+              <%= link_to day_plan_for_group_path(group, start_date: parts.start_time.to_date), class: "tw-h-full tw-bg-gray-100 hover:tw-bg-gray-200 tw-border-l-4 tw-border-gray-500 hover:tw-text-inherit tw-p-3 tw-w-full" do %>
+                <%= "#{parts.start_time.to_fs(:time)} bis #{parts.end_time.to_fs(:time)}" %><br/>
+                <div class="tw-mb-3">Nicht verfügbar</div>
+              <% end %>
+
+            <% else %>
+
+              <%= link_to day_plan_for_group_path(group, start_date: parts.start_time.to_date), class: "tw-h-full tw-bg-yellow-100 hover:tw-bg-yellow-200 tw-border-l-4 tw-border-yellow-500 hover:tw-text-inherit tw-p-3 tw-w-full" do %>
+                <%= "#{parts.start_time.to_fs(:time)} bis #{parts.end_time.to_fs(:time)}" %><br/>
+                <div class="tw-mb-3"><%= "#{parts.available_user_ids.count} / #{parts.user_ids.count} verfügbar" %></div>
+
+                <% (parts.user_ids - parts.available_user_ids).each do |user_id| %>
+                  <% user = User.find(user_id) %>
+                  <%= render AvatarComponent.new(user: user, extra_classes: "avatar-red", tag_name: :div, size: "xs", title: "#{user.name} nicht verfügbar (#{parts.user_blocks[user_id].first.reasons})") %>
+                <% end %>
+              <% end %>
+
+            <% end %>
+          <% end %>
+
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% if grouped_group_start_times.none? %>
+      <div class="tw-bg-red-50 hover:tw-text-inherit tw-p-3 tw-w-full tw-h-full tw-border-b tw-border-black tw-text-center tw-grid tw-content-center" data-bs-toggle="tooltip" data-bs-title="Klicke um Termin zu ertellen">
+        <%= link_to "Keine Verfügbarkeit", new_appointment_path(group_id: group.id, start_date: date) %>
+      </div>
+    <% end %>
+  </div>
+</div>

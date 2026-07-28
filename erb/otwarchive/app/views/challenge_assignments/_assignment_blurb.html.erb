@@ -1,0 +1,79 @@
+<% # expects "assignment" %>
+<dt>
+  <% if @collection && @collection.user_is_maintainer?(current_user) %>
+    <% # we're listing assignments for a mod by the assigned writer %>
+    <%= challenge_assignment_byline(assignment) %> <%= challenge_assignment_email(assignment) %>
+  <% else %>
+    <% # we're listing assignments for a user by the recipient %>
+    <%= link_to assignment.collection.title, collection_assignment_path(assignment.collection, assignment) %>
+    <%= ts("for") %> <%= link_to assignment.request_byline, collection_assignment_path(assignment.collection, assignment) %>
+  <% end %>
+</dt>
+<dd>
+  <% # link to the work %>
+    <% if assignment.creation %>
+      <% if !assignment.posted? %>
+        <%= t(".header_draft_html", title_link: (link_to (assignment.creation.try(:title) || assignment.creation.class.name), assignment.creation, class: "work")) %>
+      <% else %>
+        <%= link_to (assignment.creation.try(:title) || assignment.creation.class.name), assignment.creation, class: "work" %>
+      <% end %>
+    <% end %>
+
+  <% if @collection && @collection.user_is_maintainer?(current_user) %>
+    <% # for a mod: list recipient (and check in case there are some people without recipients) %>
+    <% if assignment.request_signup %>
+      <%= ts("for") %> <%= link_to assignment.request_byline, collection_assignment_path(@collection, assignment) %>
+    <% else %>
+      <strong><%= ts("No Recipient") %></strong>
+    <% end %>
+  <% end %>
+
+<!--stats-->
+  <dl class="stats">
+    <dt><%= t(".stats.status.header") %></dt>
+    <dd>
+      <% # status can be: unposted (no creation), unapproved (creation but it hasn't been approved), complete %>
+      <% if !assignment.posted? %>
+        <%= t(".stats.status.unposted") %>
+      <% elsif !assignment.fulfilled? %>
+        <strong><%= t(".stats.status.unapproved") %><!-- BACK END add approve button for mod --></strong>
+      <% else %>
+        <%= t(".stats.status.fulfilled") %>
+      <% end %>
+    </dd>
+
+    <% if assignment.creation %>
+      <% if assignment.posted? %>
+        <dt> <%= t(".stats.creation.posted") %> </dt>
+        <dd class="datetime"><%= assignment.creation.published_at %></dd>
+      <% else %>
+        <dt> <%= t(".stats.creation.unposted") %> </dt>
+        <dd class="datetime"><%= assignment.creation.created_at %></dd>
+      <% end %>
+
+      <% if assignment.creation.respond_to?(:word_count) %>
+        <dt><%= ts("Words:") %></dt>
+        <dd><%= ts("%{count}", :count => assignment.creation.word_count) %></dd>
+      <% end %>
+    <% end %>
+  </dl>
+
+  <% unless assignment.fulfilled? %>
+    <ul class="actions" role="menu">
+      <% if @user && @user == current_user %>
+        <li><%= link_to t("challenge_assignments.to_fulfill.button"), new_collection_work_path(assignment.collection, assignment_id: assignment.id) %></li>
+        <li>
+          <%= button_to t("challenge_assignments.to_default.button"),
+                default_collection_assignment_path(assignment.collection, assignment),
+                data: { confirm: t("challenge_assignments.to_default.confirmation") },
+                method: :patch %>
+        </li>
+      <% elsif @collection && @collection.user_is_maintainer?(current_user) %>
+        <%= fields_for "challenge_assignments[]", assignment do |assignment_form| %>
+          <label class="action" title="<%= ts("default") %>"><%= assignment_form.check_box :defaulted %></label>
+        <% end %>
+      <% end %>
+    </ul>
+  <% end %>
+
+</dd>

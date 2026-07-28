@@ -1,0 +1,76 @@
+<div
+  class="
+    mt-14 mb-4 flex flex-col justify-between gap-4 p-5 py-3 md:flex-row
+    md:items-center dark:border-gray-800/50
+  "
+>
+  <div class="flex grow flex-col gap-1 pt-1">
+    <% breadcrumb_links = build_breadcrumb_links(request.path, class: " no-underline") %>
+
+    <% if breadcrumb_links.present? %>
+      <nav aria-label="Breadcrumb">
+        <ol class="mb-1 flex flex-wrap gap-x-2 gap-y-2.5 text-sm opacity-60">
+          <% breadcrumb_links.each_with_index do |link, index| %>
+            <li class="inline-flex h-5 items-center">
+              <%= link %>
+
+              <% if index < breadcrumb_links.size - 1 %>
+                <span class="ml-2 font-thin">/</span>
+              <% end %>
+            </li>
+          <% end %>
+        </ol>
+      </nav>
+    <% end %>
+
+    <div class="flex flex-wrap items-center gap-2 md:gap-4">
+      <h2 class="text-left text-4xl font-thin" aria-label="Page Title">
+        <%= sanitize(title) %>
+      </h2>
+
+      <% if params[:action] == "index" && year = params.dig(:q, :during_year).presence %>
+        <span class="inline text-4xl font-thin text-gray-300 dark:text-gray-500">
+          <%= Current.org.fiscal_year_for(year) %>
+        </span>
+      <% end %>
+
+      <% if params[:action] == "show" && params[:id] && resource&.respond_to?(:state) %>
+        <div class="flex grow items-center text-right md:grow-0">
+          <span
+            class="status-tag large <%= resource.model_name.to_s.underscore %>"
+            data-status="<%= resource.state %>"
+          >
+            <%= t("states.#{resource.model_name.to_s.underscore}.#{resource.state}") %>
+          </span>
+        </div>
+      <% end %>
+
+      <% if params[:controller] == "dashboard" %>
+        <span
+          class="
+            grow text-right text-4xl font-thin text-gray-300
+            dark:text-gray-500
+          "
+        >
+          <%= Current.fiscal_year %>
+        </span>
+      <% end %>
+    </div>
+  </div>
+
+  <% if action_items_for_action.present? %>
+    <div class="flex flex-wrap justify-end gap-2">
+      <%= render "active_admin/shared/action_items" %>
+    </div>
+  <% end %>
+</div>
+
+<% if params[:controller] == "invoices" && !Current.org.iban? %>
+  <div class="mx-5">
+    <%= warning_pane("exclamation-triangle") do %>
+      <%= t("active_admin.resource.form.iban_missing_warning_html",
+            iban_type: Current.org.iban_type_name,
+            url: edit_organization_path(anchor: "billing")) %>
+    <% end %>
+  </div>
+<% end %>

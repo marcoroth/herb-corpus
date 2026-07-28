@@ -1,0 +1,106 @@
+<%#
+kind: host_init_config
+name: Linux host_init_config default
+model: ProvisioningTemplate
+oses:
+- AlmaLinux
+- CentOS
+- CentOS_Stream
+- Fedora
+- Rocky
+- SLES
+- Debian
+- Ubuntu
+description: |
+  This template is used during the host registration to perform the initial host configuration. After the host
+  is created by starting the registration, the registration script asks for the host init config script, that
+  is rendered based on this template. It is rendered for the specific host therefore it contains instructions
+  specific for the OS of the host. Its content can differ based on any parameters applicable for the host.
+
+  It deploys the CA certificate so any later communication with the Foreman is TLS secured. Then it
+  performs initial steps, such as puppet deployment, remote execution SSH key configuration etc. At the end
+  it informs Foreman that provisioning has finished.
+-%>
+#!/bin/bash
+set -e
+
+echo "# Running [<%= @host.name %>] host initial configuration"
+
+<%= snippet_if_exists('host_init_config_pre') -%>
+
+exit_and_cancel_build() {
+  echo 'Host [<%= @host.name %>] initial configuration failed'
+
+  <%= indent(2, skip1: true, skip_content: 'EOF') { snippet('built', :variables => {
+    :endpoint => 'failed',
+    :method => 'POST',
+    :post_data => 'Host initial configuration failed, please see the registration log for more details.',
+    :force_https => true }) }
+  -%>
+  exit 1
+}
+
+set +e
+trap 'exit_and_cancel_build' ERR
+
+<% if plugin_present?('katello') && @host.operatingsystem.family == 'Debian' -%>
+export DEBIAN_FRONTEND=noninteractive
+apt-get -y update
+<% end -%>
+
+<% if !host_param_true?('skip-puppet-setup') && (host_puppet_server.present? || host_param_true?('force-puppet')) -%>
+<%= snippet 'puppetlabs_repo' %>
+<%= snippet 'puppet_setup' %>
+<% end -%>
+
+<% if host_param_true?('host_registration_remote_execution') -%>
+<%= snippet 'remote_execution_ssh_keys' %>
+<% end -%>
+
+<% if plugin_present?('katello') && host_param_true?('host_registration_remote_execution_pull') -%>
+<%= snippet 'remote_execution_pull_setup' %>
+<% end -%>
+
+<%= install_packages(host_param('host_packages')) -%>
+
+<% if host_param_true?('host_registration_insights') -%>
+<%= snippet 'insights' %>
+
+<% end -%>
+
+<% if plugin_present?('katello') -%>
+if command -v subscription-manager &>/dev/null; then
+  echo "Refreshing subscription data"
+  subscription-manager refresh
+fi
+
+<% if host_param_true?('redhat_install_host_tools') -%>
+<%= install_packages('katello-host-tools') -%>
+<% end -%>
+
+<% if host_param_true?('redhat_install_host_tracer_tools') -%>
+<%= install_packages('katello-host-tools-tracer') -%>
+<% end -%>
+
+<% end -%>
+<%= update_packages if host_param_true?('host_update_packages') -%>
+
+<%= snippet_if_exists('host_init_config_post') -%>
+
+# Call home to exit build mode
+
+trap - ERR
+<%= snippet('built', :variables => { :force_https => true }) %>
+
+if [[ $? == 0 ]] ; then
+  echo "Host [<%= @host.name %>] successfully configured."
+else
+  echo "ERROR: Host [<%= @host.name %>] configured, but failed to report status to Foreman." >&2
+  exit 1
+fi
+
+<% if plugin_present?('katello') -%>
+subscription-manager repos
+<% end -%>
+
+exit 0

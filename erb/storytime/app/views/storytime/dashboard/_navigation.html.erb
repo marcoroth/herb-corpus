@@ -1,0 +1,127 @@
+<nav class="nav-menu nav-menu-default nav-menu-fixed-left off-canvas <%= dashboard_nav_class %>" id="dashboard-nav">
+  <div class="nav-menu-header relative">
+    <%= link_to image_tag("storytime/storytime-logo-nav.png", style: "height: 45px;"), "/", class: "nav-menu-brand" %>
+    <div class="btn-group" style="position: absolute; top: 50%; margin-top: -17px; right: 15px;">
+      <%= link_to "", id: "utility-menu-toggle", class: "btn btn-icon dropdown-toggle rotate-on-hover", data: { toggle: "dropdown" }, style: "color: #666; box-shadow: none;" do %>
+        <i class="icon-st-icons-utilitymenu"></i>
+      <% end %>
+      <ul class="dropdown-menu dropdown-menu-right" role="menu">
+        <% if Pundit.policy(current_user, Storytime.user_class).index? %>
+          <li>
+            <%= link_to [storytime, :dashboard, :memberships], class: "storytime-modal-trigger", remote: true, id: "users-link" do %>
+              <i class="icon-st-icons-users"></i>
+              <span style="margin-left: 10px; margin-right: 6px;">Users</span>
+            <% end %>
+          </li>
+          <li>
+            <%= link_to storytime.edit_dashboard_membership_path(current_user.storytime_membership_in_site(@current_storytime_site)), class: "storytime-modal-trigger", remote: true, id: "profile-link" do %>
+              <i class="icon-st-icons-profile"></i>
+              <span style="margin-left: 10px; margin-right: 6px;">My Account</span>
+            <% end %>
+          </li>
+        <% end %>
+        
+        <% if Pundit.policy(current_user, Storytime::Site).edit? %>
+          <li>
+            <%= link_to dashboard_nav_site_path(@current_storytime_site), class: "storytime-modal-trigger", remote: true, id: "site-settings-link" do %>
+              <i class="icon-st-icons-settings"></i>
+              <span style="margin-left: 10px; margin-right: 6px;">Site Settings</span>
+            <% end %>
+          </li>
+          <li>
+            <%= link_to storytime.edit_multiple_dashboard_roles_path, class: "storytime-modal-trigger", remote: true, id: "site-permissions-link" do %>
+              <i class="icon-st-icons-permission"></i>
+              <span style="margin-left: 10px; margin-right: 6px;">Permissions</span>
+            <% end %>
+          </li>
+          <li>
+            <%= link_to [storytime, :dashboard, :api_tokens], class: "storytime-modal-trigger", remote: true, id: "api-tokens-link" do %>
+              <i class="icon-st-icons-settings"></i>
+              <span style="margin-left: 10px; margin-right: 6px;">API Tokens</span>
+            <% end %>
+          </li>
+        <% end %>
+        <% if Pundit.policy(current_user, Storytime::Subscription).manage? %>
+          <li>
+            <%= link_to [storytime, :dashboard, Storytime::Subscription], class: "storytime-modal-trigger", remote: true, id: "subscriptions-link" do %>
+              <i class="icon-st-icons-subscribe"></i>
+              <span style="margin-left: 10px; margin-right: 6px;">Subsciptions</span>
+            <% end %>
+          </li>
+        <% end %>
+        <li class="divider"></li>
+        <li>
+          <%= link_to Storytime.logout_path, method: Storytime.logout_method do %>
+            <i class="icon-st-icons-logout"></i>
+            <span style="margin-left: 10px; margin-right: 6px;">Log Out</span>
+          <% end %>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="storytime-sites-menu" style="display: none;">
+    <ul class="nav nav-menu-nav">
+      <% Storytime::Membership.all_for_user(current_user).each do |membership| %>
+        <% if membership.site == current_storytime_site %>
+          <li class="active"><%= link_to icon("check", membership.site.title), "", class: "storytime-menu-toggle" %></li>
+        <% else %>
+          <li><%= link_to membership.site.title, storytime.dashboard_url(host: membership.site.custom_domain) %></li>
+        <% end %>
+      <% end %>
+      <li><%= link_to icon("plus", "New Site"), storytime.new_dashboard_site_path %></li>
+    </ul>
+  </div>
+  
+  <div id="storytime-main-menu">
+    <ul class="nav nav-menu-nav">
+
+      <li><%= link_to icon('long-arrow-left', current_storytime_site(request).title), "", class: "storytime-menu-toggle" %></li>
+
+      <% if Pundit.policy(current_user, Storytime::Snippet).manage? %>
+        <li <%= active_nav_item_class("snippets") %>>
+          <%= link_to "Text Snippets", [storytime, :dashboard, Storytime::Snippet], class: "storytime-modal-trigger", remote: true, id: "snippets-link" %>
+        </li>
+      <% end %>
+      <% if Pundit.policy(current_user, Storytime::Media).index? %>
+        <li <%= active_nav_item_class("media") %>>
+          <%= link_to "Media", [storytime, :dashboard, Storytime::Media] %>
+        </li>
+      <% end %>
+      <% if Pundit.policy(current_user, Storytime::Artifact).index? %>
+        <li <%= active_nav_item_class("artifacts") %>>
+          <%= link_to "Artifacts", storytime.dashboard_artifacts_path %>
+        </li>
+      <% end %>
+
+      <li <%= active_nav_item_class("pages", Storytime::Page.type_name) %>>
+        <%= link_to Storytime::Page.human_name.pluralize, [storytime, :dashboard, Storytime::Page] %>
+      </li>
+
+      <% if Pundit.policy(current_user, Storytime::Site).edit? %>
+        <li <%= active_nav_item_class("navigations", Storytime::Navigation) %>>
+          <%= link_to "Navigation", [storytime, :dashboard, Storytime::Navigation] %>
+        </li>
+      <% end %>
+    </ul>
+
+    <h4 class="nav-menu-divider">
+      Blogs
+    </h4>
+    <ul class="nav nav-menu-nav" id="blogs">
+      <%= render partial: "storytime/dashboard/blogs/blog", collection: Storytime::Blog.all %>
+    </ul>
+    <ul class="nav nav-menu-nav">
+      <li><%= link_to icon("plus", "New Blog"), [storytime, :new, :dashboard, :blog], class: "storytime-modal-trigger", remote: true %></li>
+    </ul>
+  </div>
+</nav>
+<div id='off-canvas-overlay'></div>
+
+<div class="modal modal-full-height fade" id="storytime-modal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+ 
+    </div>
+  </div>
+</div>

@@ -1,0 +1,47 @@
+<%= component_wrapper do %>
+  <%=
+  primer_form_with(
+    id: FORM_ID,
+    model: related,
+    **submit_url_options,
+    data: {
+      turbo: true,
+      update_work_package: true
+    }
+  ) do |f|
+  %>
+    <%# Form fields section %>
+    <%=
+      flex_layout(mb: 3) do |flex|
+        flex.with_row do
+          if base_errors.any?
+            render(Primer::Alpha::Banner.new(mb: 3, icon: :stop, scheme: :danger)) { base_errors.join("\n") }
+          end
+        end
+        flex.with_row do
+          # @workpackage is not available inside the render_inline_form block
+          # so we need to re-define them here. Figure out solution for this.
+          url = ::API::V3::Utilities::PathHelper::ApiV3Path.work_package_available_relation_candidates(work_package.id, type: relation_type)
+          render_inline_form(f) do |my_form|
+            my_form.work_package_autocompleter(
+              name: :id,
+              label: WorkPackage.model_name.human,
+              required: true,
+              visually_hide_label: false,
+              autocomplete_options: {
+                resource: "work_packages",
+                searchKey: "typeahead",
+                url:,
+                openDirectly: false,
+                focusDirectly: true,
+                dropdownPosition: "bottom",
+                appendTo: "##{DIALOG_ID}",
+                data: { test_selector: ID_FIELD_TEST_SELECTOR }
+              }
+            )
+          end
+        end
+      end
+    %>
+  <% end %>
+<% end %>

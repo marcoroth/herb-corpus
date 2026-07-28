@@ -1,0 +1,53 @@
+<%= render BoutonDsfrComponent.new(locals[:form_url], type: :secondary, tag: :button, size: :sm, class: "fr-icon-add-line fr-btn--icon-left") do %>
+  <%= t(".#{locals[:translation_scope]}.action") %>
+<% end %>
+
+<%= form_with id: locals[:form_id], url: locals[:form_url], class: "hidden" do |f| %>
+    <label class="fr-sr-only" for="<%= locals[:autocomplete_id] %>"><%= t(".#{locals[:translation_scope]}.libelle_champ_recherche") %></label>
+  <div id="<%= locals[:container_id] %>" class="champ-recherche" ></div>
+  <%= f.hidden_field locals[:hidden_field_name] %>
+<% end %>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const boutonAjout = $("#<%= locals[:sidebar_section_id] %> button" );
+  const formulaireRecherche = $("#<%= locals[:form_id] %>" );
+
+  const comptes = [<% locals[:comptes_collection].each do |compte| %>
+    {
+      nom: "<%= escape_javascript(compte.display_name.html_safe) %>",
+      identifiant: "<%= compte.id %>",
+      email: "<%= escape_javascript(compte.email.html_safe) %>"
+    },
+  <% end %>];
+
+  afficheRecherche(boutonAjout, formulaireRecherche, () => {
+      const container = document.querySelector('#<%= locals[:container_id] %>');
+      initialiseAutocomplete({
+        focus: true,
+        element: container,
+        id: '<%= locals[:autocomplete_id] %>',
+        name: '<%= locals[:autocomplete_name] %>',
+        placeholder: "<%= t(".placeholder") %>",
+        source: (requete, reponse) => {
+            const term = requete.toLowerCase();
+            const comptes_filtres = comptes.filter(compte =>  {
+              return compte.nom.toLowerCase().includes(term.trim()) ||
+                compte.email.toLowerCase().includes(term.trim())
+            });
+            reponse(comptes_filtres);
+        },
+        templates: {
+          inputValue: (reponse) => reponse ? reponse.nom : '',
+          suggestion: (reponse) => reponse.nom
+        },
+        onConfirm: (selectedItem) => {
+          if (! selectedItem) return;
+
+          $('#<%= locals[:hidden_field_name] %>').val(selectedItem.identifiant);
+          $('#<%= locals[:form_id] %>').submit();
+        }
+      })
+  });
+});
+</script>

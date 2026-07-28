@@ -1,0 +1,39 @@
+<h4 class="header">
+  <%= _("Host Collections") %>
+</h4>
+
+<% organizations = Organization.current.present? ? [Organization.current] : User.current.allowed_organizations %>
+<% critical, warning, ok = Katello::HostCollection.lists_by_updates_needed(organizations) %>
+<% host_collections = (critical + warning + ok)[0..6] %>
+
+<% if host_collections.empty? %>
+  <p class="ca"><%= _("No host collections found.") %></p>
+<% else %>
+  <table class="table table-fixed table-striped table-bordered">
+    <thead>
+      <tr>
+        <th class='ellipsis'><%= _("Updates") %></th>
+        <th class='ellipsis'><%= _("Name") %></th>
+        <th class='ellipsis'><%= _("Content Hosts") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% installable_only = Setting['errata_status_installable'] %>
+      <% host_collections.each do |host_collection| %>
+        <tr>
+          <td>
+            <% if host_collection.security_updates?(installable_only: installable_only) %>
+              <a href="/host_collections/<%= host_collection.id %>" style="text-align: center" title="<%= installable_only ? _('Installable security errata') : _('Applicable security errata') %>"><i class="label label-danger">&nbsp;</i></a>
+            <% elsif host_collection.bugzilla_updates?(installable_only: installable_only) || host_collection.enhancement_updates?(installable_only: installable_only) %>
+              <a href="/host_collections/<%= host_collection.id %>" style="text-align: center" title="<%= installable_only ? _('Installable bugfix/enhancement errata') : _('Applicable bugfix/enhancement errata') %>"><i class="label label-warning">&nbsp;</i></a>
+            <% else %>
+              <a href="/host_collections/<%= host_collection.id %>" style="text-align: center"><i class="label label-success">&nbsp;</i></a>
+            <% end %>
+          </td>
+          <td class='ellipsis'><%= host_collection.name %></td>
+          <td style="text-align: right"><%= host_collection.hosts.length %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

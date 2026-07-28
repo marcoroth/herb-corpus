@@ -1,0 +1,97 @@
+<% title_tag @topic.title, description: @topic.description %>
+<% content_for :scripts do %>
+  <script type="text/javascript">
+    Topics.topic_id = <%= @topic.id %>;
+    <% if !@user_like_reply_ids.blank? %>
+    Topics.user_liked_reply_ids = [<%= @user_like_reply_ids.join(",") %>];
+    <% end %>
+    $(document).ready(function(){
+      <% if can?(:manage, Reply) %>
+        $("#replies .reply a.edit").css('display','inline-block');
+      <% elsif current_user %>
+        $("#replies .reply a.edit[data-uid='<%= current_user.id %>']").css('display','inline-block');
+      <% end %>
+
+      <% if @topic.closed? %>
+        $("#replies .reply .hideable").remove();
+      <% end %>
+      $.post("<%= read_topic_path(@topic) %>");
+    })
+  </script>
+<% end %>
+<div class="flex gap-4">
+  <div class="w-3/4 grow">
+    <div class="mb-4 topic-detail card">
+      <%= render partial: "topics/topic_info", locals: { topic: @topic, node: @node } %>
+      <% if @topic.excellent? %>
+        <div class="label-awesome">
+          <i class="fa fa-award awesome"></i> <%= t("topics.excellent_info_html") %>
+          <% if can?(:close, @topic) %>
+            <div class="float-right">
+              <%= link_to icon_tag("close"), action_topic_path(@topic.id, type: 'normal'), method: :post, remote: true %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <div class="card-body markdown markdown-toc">
+        <%= raw Setting.before_topic_html %>
+        <%= @topic.body_html %>
+        <%= raw Setting.after_topic_html %>
+      </div>
+      <div class="clearfix card-footer">
+        <%= render "buttons" %>
+      </div>
+    </div>
+    <%= render partial: "references" %>
+    <%= render partial: "ban_reason" %>
+    <% if @replies.blank? %>
+      <div class="no-result">
+        <%= t("topics.no_replies") %>
+      </div>
+    <% else %>
+      <div id="replies" class="mb-4 card" data-last-floor="<%= @replies.count(:all) %>">
+        <div class="items card-body">
+          <%= render ReplyComponent.with_collection(@replies, topic: @topic, show_raw: @show_raw) %>
+        </div>
+      </div>
+    <% end %>
+    <% if current_user %>
+      <% if @topic.closed? %>
+        <div class="alert alert-info"><%= t("topics.closed_info_html", closed_at: l(@topic.closed_at, format: :long)) %></div>
+      <% else %>
+        <div id="reply" class="mb-4 card">
+          <div class="card-body">
+            <div class="card-title hide-ios"><%= t("topics.reply") %></div>
+            <% if can? :create, Reply %>
+              <%= render 'reply_form' %>
+            <% else %>
+              <div class="alert alert-info">
+                <%= t("topics.newbi_info_html") %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% else %>
+      <div class="mb-4 card">
+        <div class="card-body">
+          <div id="reply" class="form box">
+            <div style="padding:20px;" data-turbolinks-action="replace">
+              <%= t("topics.need_login_to_reply_html") %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <% if !mobile? %>
+    <div class="hidden md:flex md:w-60 lg:w-72 shrink-0">
+      <%= render 'topic_sidebar' %>
+    </div>
+  <% else %>
+    <div class="move-page-buttons">
+      <a href="#" class="btn btn-block btn-sm btn-move-page" data-type="top"><i class="fa fa-arrow-up"></i></a>
+      <a href="#" class="btn btn-block btn-sm btn-move-page" data-type="bottom"><i class="fa fa-arrow-down"></i></a>
+    </div>
+  <% end %>
+</div>

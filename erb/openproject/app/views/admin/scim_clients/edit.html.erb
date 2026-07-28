@@ -1,0 +1,72 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% html_title t(:label_administration), ScimClient.model_name.human(count: 2), @scim_client.name %>
+
+<%=
+  render(Primer::OpenProject::PageHeader.new) do |header|
+    header.with_title { @scim_client.name }
+    header.with_description do
+      link_translate("admin.scim_clients.form.description", links: { docs_url: %i[sysadmin_docs scim] }, external: true)
+    end
+    header.with_breadcrumbs(
+      [{ href: admin_index_path, text: t(:label_administration) },
+       { href: admin_settings_authentication_path, text: t(:label_authentication) },
+       { href: admin_scim_clients_path, text: ScimClient.model_name.human(count: 2) },
+       @scim_client.name]
+    )
+
+    header.with_action_button(
+      scheme: :danger,
+      mobile_icon: :trash,
+      mobile_label: t("button_delete"),
+      aria: { label: t(".label_delete_scim_client") },
+      tag: :a,
+      href: deletion_dialog_admin_scim_client_path(@scim_client),
+      data: { controller: "async-dialog" }
+    ) do |button|
+      button.with_leading_visual_icon(icon: :trash)
+      t("button_delete")
+    end
+  end
+%>
+
+<% if @scim_client.configured_from_env? %>
+  <%= render(Primer::Alpha::Banner.new(mb: 3, icon: :info)) { t("admin.banners.environment_configured_readonly") } %>
+<% end %>
+
+<%= render(Admin::ScimClients::FormComponent.new(@scim_client)) %>
+
+<%= render(Admin::ScimClients::TokenListComponent.new(@scim_client)) if @scim_client.authentication_method_oauth2_token? %>
+
+<% if @setup_token %>
+  <%= render(Admin::ScimClients::CreatedTokenDialogComponent.new(@setup_token, data: { controller: "auto-show-dialog" })) %>
+<% elsif @setup_client_secret %>
+  <%= render(Admin::ScimClients::CreatedClientCredentialsDialogComponent.new(@scim_client, plaintext_secret: @setup_client_secret, data: { controller: "auto-show-dialog" })) %>
+<% end %>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="<%= ::I18n.locale %>" class="no-js">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title><%= render_alchemy_title %></title>
+    <link rel="shortcut icon" href="<%= asset_path('alchemy/favicon.ico') %>">
+    <link rel="preload" href="<%= asset_path("alchemy/icons-sprite.svg") %>" as="image" type="<%= Mime::Type.lookup_by_extension(:svg) %>" crossorigin>
+    <%= csrf_meta_tag %>
+    <meta name="robots" content="noindex">
+    <meta name="turbo-prefetch" content="false">
+    <meta name="turbo-cache-control" content="no-cache">
+    <%= stylesheet_link_tag('alchemy/theme', media: 'screen', 'data-turbo-track' => true) %>
+    <%= stylesheet_link_tag('alchemy/admin', media: 'screen', 'data-turbo-track' => true) %>
+    <%= stylesheet_link_tag('alchemy/admin/print', media: 'print', 'data-turbo-track' => true) %>
+    <% Alchemy.config.admin_stylesheets.each do |stylesheet| %>
+      <%= stylesheet_link_tag(stylesheet, 'data-turbo-track' => true) %>
+    <% end %>
+    <%= yield :stylesheets %>
+    <script>
+      // Global Alchemy JavaScript object.
+      var Alchemy = {};
+      // Store regular expression for external link url matching.
+      Alchemy.link_url_regexp = <%= link_url_regexp.inspect %>;
+      // JS translations
+      <%= alchemy_admin_js_translations %>
+    </script>
+    <%= render 'alchemy/admin/tinymce/setup' %>
+    <%= render 'alchemy/admin/partials/routes' %>
+    <%= javascript_importmap_tags("alchemy_admin", importmap: Alchemy.importmap) %>
+    <% Alchemy.config.admin_js_imports.each do |path| %>
+      <script type="module">
+        import "<%= path %>"
+      </script>
+    <% end %>
+    <%= yield :javascript_includes %>
+  </head>
+  <%= content_tag :body, id: 'alchemy',
+    class: alchemy_body_class,
+    style: cookies["alchemy-elements-window-width"] && "--elements-window-width: #{cookies["alchemy-elements-window-width"]}px" do %>
+    <noscript>
+      <h1><%= Alchemy.t(:javascript_disabled_headline) %></h1>
+      <p><%= Alchemy.t(:javascript_disabled_text) %></p>
+    </noscript>
+    <alchemy-overlay text="<%= Alchemy.t(:please_wait) %>"></alchemy-overlay>
+    <%= render "alchemy/admin/left_menu" %>
+    <%= render 'alchemy/admin/partials/flash_notices' %>
+    <div id="main_content">
+      <%= yield %>
+    </div>
+    <% if current_alchemy_user %>
+      <%= render "alchemy/admin/top_menu", locked_pages: @locked_pages %>
+    <% end %>
+    <%= render 'alchemy/admin/uploader/setup' %>
+    <%= yield(:javascripts) %>
+  <% end %>
+</html>

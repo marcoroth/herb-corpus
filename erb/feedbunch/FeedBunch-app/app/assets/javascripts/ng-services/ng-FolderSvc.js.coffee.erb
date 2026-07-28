@@ -1,0 +1,129 @@
+########################################################
+# AngularJS service to manage folders
+########################################################
+
+angular.module('feedbunch').service 'folderSvc',
+['$rootScope', 'csrfTokenSvc', 'currentFeedSvc', 'currentFolderSvc', 'timerFlagSvc', 'openFolderSvc',
+'loadFoldersSvc', 'unreadCountSvc', 'findSvc',
+($rootScope, csrfTokenSvc, currentFeedSvc, currentFolderSvc, timerFlagSvc, openFolderSvc,
+loadFoldersSvc, unreadCountSvc, findSvc)->
+
+  # Constants for the different operations the web worker can perform
+  MOVE_INTO_NEW_FOLDER = 'move_into_new_folder'
+  MOVE_INTO_EXISTING_FOLDER = 'move_into_existing_folder'
+  REMOVE_FROM_FOLDER = 'remove_from_folder'
+
+  # Constant for the special "no folder" case
+  NO_FOLDER = 'none'
+
+  # CSRF token for POST
+  token = csrfTokenSvc.get_token()
+
+  # Web worker to move feeds into and out of folders in a different thread.
+  worker = new Worker '<%= asset_path 'workers/move_feed_folder_worker' %>'
+  worker.onmessage = (e) ->
+    if e.data.status == 200
+      if e.data.operation == REMOVE_FROM_FOLDER
+        removed_from_folder()
+      else if e.data.operation == MOVE_INTO_EXISTING_FOLDER
+        moved_to_existing_folder()
+      else if e.data.operation == MOVE_INTO_NEW_FOLDER
+        moved_to_new_folder e.data
+    else if e.data.status == 304 && e.data.operation == MOVE_INTO_NEW_FOLDER
+      # Tried to create a folder with the same name as another that already exists
+      timerFlagSvc.start 'error_already_existing_folder'
+    else if e.data.status == 401 || e.data.status == 422
+      $window.location.href = '/login'
+    else
+      if e.data.operation == MOVE_INTO_EXISTING_FOLDER || e.data.operation == REMOVE_FROM_FOLDER
+        timerFlagSvc.start 'error_managing_folders'
+      else if e.data.operation == MOVE_INTO_NEW_FOLDER
+        timerFlagSvc.start 'error_creating_folder'
+    $rootScope.$digest()
+
+  #---------------------------------------------
+  # PRIVATE FUNCTION: Operations after a feed has been removed from its folder
+  #---------------------------------------------
+  removed_from_folder = ->
+    timerFlagSvc.start 'success_remove_from_folder'
+    loadFoldersSvc.load_folders()
+
+  #---------------------------------------------
+  # PRIVATE FUNCTION: Operations after a feed has been moved into an existing folder
+  #---------------------------------------------
+  moved_to_existing_folder = ->
+    timerFlagSvc.start 'success_move_to_folder'
+    loadFoldersSvc.load_folders()
+
+  #---------------------------------------------
+  # PRIVATE FUNCTION: Operations after a feed has been moved into a new folder
+  #---------------------------------------------
+  moved_to_new_folder = (data)->
+    timerFlagSvc.start 'success_move_to_new_folder'
+    loadFoldersSvc.add_folder data.response
+    feed = findSvc.find_feed data.params.folder.feed_id
+    feed.folder_id = data.response.id
+    loadFoldersSvc.load_folders()
+    # open the new folder
+    openFolderSvc.set data.response
+
+  service =
+    #--------------------------------------------
+    # Remove a feed from a folder
+    #--------------------------------------------
+    remove_from_folder: ->
+      current_feed = currentFeedSvc.get()
+      if current_feed
+        current_feed.folder_id = NO_FOLDER
+        worker.postMessage {operation: REMOVE_FROM_FOLDER, token: token, feed_id: current_feed.id, folder_id: NO_FOLDER}
+
+    #--------------------------------------------
+    # Move a feed to an already existing folder
+    #--------------------------------------------
+    move_to_folder: (folder)->
+      current_feed = currentFeedSvc.get()
+      if current_feed
+        current_feed.folder_id = folder.id
+        # open the new folder
+        openFolderSvc.set folder
+        worker.postMessage {operation: MOVE_INTO_EXISTING_FOLDER, token: token, feed_id: current_feed.id, folder_id: folder.id}
+
+    #--------------------------------------------
+    # Move a feed to a new folder
+    #--------------------------------------------
+
+    move_to_new_folder: (title)->
+      current_feed = currentFeedSvc.get()
+      if title && current_feed
+        worker.postMessage {operation: MOVE_INTO_NEW_FOLDER, token: token, feed_id: current_feed.id, title: title}
+
+    #--------------------------------------------
+    # Function to filter folders which should be visible. Returns a function that returns true if
+    # the folder should be visible, false otherwise.
+    #--------------------------------------------
+    show_folder_filter: (folder)->
+      return (folder)->
+        # If "show_read" flag is set to true, always show all folders
+        if $rootScope.show_read
+          return true
+
+        # Always show the currently selected folder, or the folder of the currently selected feed
+        current_feed = currentFeedSvc.get()
+        current_folder = currentFolderSvc.get()
+        if current_feed?.folder_id == folder.id || current_folder?.id == folder.id
+          return true
+
+        # Always show a folder if any of its feeds has a job state alert in the start page
+        feeds = findSvc.find_folder_feeds folder
+        if feeds?.length > 0
+          for feed in feeds
+            subscribeJobStates = findSvc.find_feed_subscribe_jobs feed.id
+            return true if subscribeJobStates?.length > 0
+            refreshFeedJobStates = findSvc.find_feed_refresh_jobs feed.id
+            return true if refreshFeedJobStates?.length > 0
+
+        # If the folder is not in any of the above cases, show it only if it has unread entries
+        return unreadCountSvc.folder_unread_entries(folder) > 0
+
+  return service
+]

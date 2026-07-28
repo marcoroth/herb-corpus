@@ -1,0 +1,130 @@
+<% title @user.first_name + " " + (!@user.nickname.blank? ? "(#{@user.nickname}) " : "") + @user.last_name %>
+<% subtitle @user.username %>
+
+<% if can? :read, User %>
+  <div class="row">
+    <div class="col-md-12">
+      <%= render :partial => 'reservations/top_buttons', :locals => {:reserver => @user} %>
+    </div>
+  </div>
+  <hr>
+<% end %>
+
+<div class="row">
+  <div id="bool_labels" class="col-md-12">
+    <% if can? :manage, User %>
+      <%= "<span class=\"user_label label label-important\">Banned</span>".html_safe if @user.role == 'banned' %>
+      <%= "<span class=\"user_label label label-success\">Admin</span>".html_safe if @user.role == 'admin' %>
+      <%= "<span class=\"user_label label label-success\">Super User</span>".html_safe if @user.role == 'superuser' %>
+      <%= "<span class=\"user_label label label-default\">Checkout Person</span>".html_safe if @user.role == 'checkout' %>
+    <% end %>
+    <% if @has_pending %>
+      <span class="user_label label label-info">Request Pending</span>
+    <% end %>
+  </div>
+</div>
+
+
+<div class="row">
+
+  <dl id="user_info" class="dl-horizontal col-md-6">
+    <div class="well">
+      <% if @cas_auth %>
+        <dt>Username</dt>
+        <dd><%= @user.username %></dd>
+      <% end %>
+
+      <dt>First Name</dt>
+      <dd><%= @user.first_name %></dd>
+
+      <dt>Last Name</dt>
+      <dd><%= @user.last_name %></dd>
+
+      <dt>Nickname</dt>
+      <dd><%= !@user.nickname.blank? ? @user.nickname : "(none)" %></dd>
+
+      <dt>Phone</dt>
+      <dd><%= !@user.phone.blank? ? @user.phone : "(none)" %></dd>
+
+      <dt>Email</dt>
+      <dd><%= mail_to @user.email, @user.email %></dd>
+
+      <dt>Affiliation</dt>
+      <dd><%= @user.affiliation %></dd>
+    </div>
+  </dl>
+
+  <div id="user_stats" class="col-md-6">
+
+    <%# @show_equipment has reservation status (:overdue, ...) as key, full
+    reservations in question as value %>
+    <% @show_equipment.each do |status, reservations| %>
+      <%= content_tag :div, :id => "#{status}_count", :class => 'col-md-6' do %>
+        <%= content_tag :h4, status.to_s.titleize %>
+        <%= content_tag :div, :class => "#{status}_num" do %>
+          <%= content_tag :i, nil, :class => stats_icons(status) %>
+          <%= reservations.size %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<%# TODO: Make this prettier %>
+<% unless @user.requirements.empty? %>
+
+  <div class="row">
+    <div class="col-md-12">
+      <h2>Equipment Qualifications</h2>
+    </div>
+  </div>
+  <hr />
+  <div class="row">
+    <div id="qualif_box" class="col-md-12">
+      <ul id="qualifications">
+        <% @user.requirements.each do |req| %>
+          <li><i class="fa fa-check"></i><%= link_to req.description, req %></li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+
+<% end %>
+<hr>
+<h2>History</h2>
+<div class="row">
+  <div class="col-md-12">
+
+    <ul class="nav nav-tabs" role="tablist">
+      <% @show_equipment.each do |status, reservations| %>
+        <%= content_tag :li, :class => active_tab(status) do %>
+          <%= link_to "##{status.to_s}", :class => 'tab-text', :"data-toggle" => 'tab' do %>
+            <%= status.to_s.titleize %>
+            <%= content_tag :span, reservations.size, :class => 'badge tab-badge' %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </ul>
+
+    <div class="tab-content">
+      <% @show_equipment.each do |status, reservations| %>
+        <p>
+          <%= content_tag :div, {:class => "tab-pane #{active_tab(status)}", :id => status}, false do %>
+            <% unless reservations.empty? %>
+              <%= render partial: 'history_table', locals: { :key => status, :value => reservations } %>
+            <% end %>
+          <% end %>
+        </p>
+      <% end %>
+
+    </div>
+
+  </div>
+</div>
+
+<hr>
+<%= link_to "Edit Information", edit_user_path(@user), :class => 'btn btn-primary' %>
+<% if can? :manage, User %>
+  <%= make_ban_btn @user %>
+  <%= link_to "View All Users", users_path, :class => 'btn btn-default', :id => 'view_all_users' %>
+<% end %>

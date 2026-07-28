@@ -1,0 +1,107 @@
+<% competition = delegate_report.competition %>
+
+<div class="delegate-report">
+  <% if delegate_report.wrc_feedback_requested %>
+    <p style="color: red; font-weight: bold">
+      @WRC: Feedback requested on incidents: <%= delegate_report.wrc_incidents %>
+    </p>
+  <% end %>
+  <% if delegate_report.wic_feedback_requested %>
+    <p style="color: red; font-weight: bold">
+      @WIC: Feedback requested on incidents: <%= delegate_report.wic_incidents %>
+    </p>
+  <% end %>
+
+  <div>
+    <strong>Date</strong>
+    <%= wca_date_range(competition.start_date, competition.end_date, locale: :en) %>
+    <% if delegate_report.schedule_url.present? %>
+      (<%= link_to "Schedule", delegate_report.schedule_url %>)
+    <% else %>
+      (Schedule missing)
+    <% end %>
+  </div>
+
+  <div>
+    <strong>Location</strong>
+    <%= competition.city_name %>, <%= competition.country.name_in(:en) %>
+    <%= link_to_google_maps_place competition.venue_address, competition.latitude_degrees, competition.longitude_degrees %>
+  </div>
+
+  <div>
+    <strong>Competitors</strong>
+
+    <% if competition.results_posted? %>
+      <%= competition.competitors.count %>
+    <% elsif competition.results_submitted? %>
+      <% inbox_count = competition.inbox_persons.count %>
+      <% wca_live_count = competition.live_results.distinct.count(:registration_id) %>
+
+      <% if inbox_count > 0 %>
+        <%= inbox_count %> (tentative)
+      <% elsif wca_live_count > 0 %>
+        <%= wca_live_count %> (tentative)
+      <% else %>
+        Unknown.
+      <% end %>
+    <% else %>
+      Unknown, results are not posted yet.
+    <% end %>
+  </div>
+
+  <div>
+    <strong>Events</strong>
+    (<%= competition.events.count %>)
+    <%= competition.events.map(&:name).join(", ") %>
+  </div>
+  <% if competition.lead_delegate.present? %>
+    <div>
+      <strong>Lead Delegate</strong>
+      <%= competition.lead_delegate.name %>
+    </div>
+  <% end %>
+  <div>
+    <strong>Delegates</strong>
+    <%= competition.staff_delegates.pluck(:name).to_sentence %>
+  </div>
+  <% if competition.trainee_delegates.length > 0 %>
+    <div>
+      <strong>Trainee Delegates</strong>
+      <%= competition.trainee_delegates.pluck(:name).to_sentence %>
+    </div>
+  <% end %>
+  <% if competition.organizers.length > 0 %>
+    <div>
+      <strong>Organisers</strong>
+      <%= competition.organizers.pluck(:name).to_sentence %>
+    </div>
+  <% end %>
+
+  <% delegate_report.md_sections.each do |section| %>
+    <div>
+      <h2><%= section.capitalize %></h2>
+      <%=md delegate_report.read_attribute(section) %>
+    </div>
+
+    <% if section == :venue && delegate_report.setup_images.attached? %>
+      <div>
+        <h2>Setup Images</h2>
+        <p>(Click to get a larger view)</p>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-around; align-items: center">
+          <% delegate_report.setup_images.each do |image| %>
+            <%= link_to url_for(image), target: :_blank do %>
+              <%= image_tag image.variant(:preview).processed %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+
+  <% if delegate_report.posted_by_user %>
+    <br>
+    <div>
+      Report submitted by <%= delegate_report.posted_by_user.name %>
+    </div>
+  <% end %>
+</div>

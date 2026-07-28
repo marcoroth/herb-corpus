@@ -1,0 +1,35 @@
+<% content_for :head do %>
+  <%= javascript_include_tag 'Results/main', nonce: true %>
+
+  <%= javascript_tag nonce: true do %>
+    document.addEventListener('DOMContentLoaded', () => {
+      makeRepoBrowser(document.getElementById('file_manager'),
+        {
+          course_id: <%= @current_course.id %>,
+          assignment_id: <%= @grouping.assessment_id %>,
+          late_penalty: <%= !@grouping.assignment.submission_rule.is_a? NoLateSubmissionRule %>,
+          grouping_id: <%= @grouping.id %>,
+          collected_revision_id: '<%= @collected_revision&.revision_identifier %>',
+          enableSubdirs: <%= allowed_to? :manage_subdirectories? %>,
+          enableUrlSubmit: <%= @grouping.assignment.url_submit %>,
+          enableCollect: <%= allowed_to? :manually_collect_and_begin_grading? %>,
+          collection_date: '<%= l(@grouping.collection_date) %>',
+          due_date: '<%= l(@grouping.due_date) %>',
+          is_timed: <%= @grouping.assignment.is_timed %>,
+          start_time: '<%= @grouping.start_time.nil? ? '' : l(@grouping.start_time) %>',
+          rmd_convert_enabled: <%= Rails.application.config.rmd_convert_enabled %>
+        });
+    });
+  <% end %>
+<% end %>
+
+<% content_for :title do %>
+  <% if !@current_role.instructor? && @grouping.assignment.anonymize_groups %>
+    <%= t('submissions.repo_browser.repository_name', repository: "#{Group.model_name.human} #{@grouping.id}") %>
+  <% else %>
+    <%= t('submissions.repo_browser.repository_name', repository: @grouping.group.repo_name) %>
+    (<%= @grouping.get_all_students_in_group %>)
+  <% end %>
+<% end %>
+
+<div id='file_manager'></div>

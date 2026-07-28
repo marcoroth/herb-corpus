@@ -1,0 +1,122 @@
+<% environment = GovukPublishingComponents::AppHelpers::Environment.current_acceptance_environment %>
+
+<% if user_signed_in? %>
+  <% content_for :head do %>
+    <meta name="govuk:components_gem_version" content="<%= GovukPublishingComponents::VERSION %>">
+    <meta name="govuk:user-created-at" content="<%= current_user&.created_at&.to_date %>">
+    <meta name="govuk:user-organisation-name" content="<%= current_user&.organisation_name %>">
+    <meta name="govuk:user-role" content="<%= current_user&.role %>">
+    <meta name="govuk:format" content="<%= "#{action_name}-#{controller_name}" %>">
+    <meta name="govuk:user-id" content="<%= current_user&.anonymous_user_id %>">
+    <% if get_content_id(@edition) %>
+      <meta name="govuk:content-id" content="<%= get_content_id(@edition) %>">
+    <% end %>
+    <%= javascript_include_tag "govuk_publishing_components/load-analytics" %>
+    <%= javascript_include_tag "admin/domain-config" %>
+  <% end %>
+<% end %>
+
+<% sanitized_title = sanitize((yield(:page_title).presence || yield(:title))) %>
+
+<%= render "govuk_publishing_components/components/layout_for_admin",
+           product_name: yield(:product_name).presence || product_name,
+           environment: environment,
+           browser_title: ("Error: " if yield(:error_summary).present?).to_s + sanitized_title do %>
+
+  <%= render "govuk_publishing_components/components/skip_link" %>
+
+  <%= render partial: "shared/header" %>
+
+  <%= tag.div(
+    class: "govuk-width-container",
+    data: {
+      ga4_no_copy: "",
+      module: "ga4-event-tracker ga4-paste-tracker ga4-button-setup ga4-index-section-setup ga4-form-setup",
+      ga4_search_section_type: "Filter by",
+      ga4_section: yield(:page_title).presence || yield(:title),
+      ga4_filter_type: controller_name,
+      ga4_document_type: "#{action_name}-#{controller_name}",
+    },
+  ) do %>
+    <%= render "shared/phase_banner", {
+      show_feedback_banner: t("admin.feedback.show_banner"),
+    } %>
+
+    <%= yield(:back_link) %>
+    <%= yield(:breadcrumbs) %>
+
+    <main class="govuk-main-wrapper<%= " govuk-main-wrapper--l" if yield(:back_link).blank? && yield(:breadcrumbs).blank? %>" id="main-content" data-module="ga4-link-tracker" role="main" data-ga4-link='{ "event_name": "navigation", "type": "generic_link" }'>
+
+      <%= render Admin::FlashNoticeComponent.new(message: flash[:notice], html_safe: flash["html_safe"]) if flash[:notice] %>
+      <%= render Admin::FlashAlertComponent.new(message: flash[:alert], html_safe: flash["html_safe"]) if flash[:alert] && yield(:error_summary).blank? %>
+
+      <% column_width = yield(:page_full_width).present? ? "full" : "two-thirds" %>
+
+      <div class="govuk-grid-row">
+        <div class="govuk-grid-column-<%= column_width %>">
+          <%= yield(:error_summary) %>
+        </div>
+      </div>
+
+      <% if yield(:error_summary).blank? %>
+        <div class="govuk-grid-row">
+          <div class="govuk-grid-column-<%= column_width %>">
+            <%= yield(:banner) %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if yield(:title).present? %>
+        <div class="govuk-grid-row">
+          <div class="govuk-grid-column-<%= column_width %>">
+            <%
+              heading_options = {
+                context: yield(:context),
+                text: yield(:title),
+                heading_level: 1,
+                font_size: "xl",
+              }
+              heading_options[:margin_bottom] = yield(:title_margin_bottom).present? ? yield(:title_margin_bottom).to_i : 8
+            %>
+            <%= render "govuk_publishing_components/components/heading", heading_options %>
+          </div>
+
+          <% if yield(:page_full_width).blank? %>
+            <div class="govuk-grid-column-one-third app-grid-column--align-right">
+              <%= yield(:title_side) %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <%= yield %>
+    </main>
+  <% end %>
+
+  <%= render "govuk_publishing_components/components/layout_footer", {
+    data_attributes: {
+      ga4_link: '{ "event_name": "navigation", "type": "generic_link" }',
+      module: "ga4-link-tracker",
+      ga4_no_copy: true,
+    },
+    hide_licence: true,
+    navigation: [
+      {
+        title: "Support and feedback",
+        items: [
+          {
+            href: Plek.external_url_for("support"),
+            text: "Raise a support request",
+          },
+          {
+            href: "https://www.gov.uk/government/content-publishing",
+            text: "How to write, publish, and improve content",
+          },
+          {
+            href: "https://status.publishing.service.gov.uk/",
+            text: "Check if publishing apps are working or if there’s any maintenance planned",
+          },
+        ],
+      },
+    ],
+  } %>
+<% end %>

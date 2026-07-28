@@ -1,0 +1,79 @@
+<%= render CardComponent.new do |card| %>
+  <%= card.with_header do |header| %>
+    <%= header.with_title { link_to recurring_order, recurring_order } %>
+    <%= header.with_button { link_to "Neue Ausführung", new_recurring_order_execution_path(recurring_order_id: recurring_order), class: "btn btn-sm btn-white"} %>
+  <% end %>
+
+  <%= card.with_card_content do %>
+    <div class="table-responsive mb-0">
+
+      <% if recurring_order.recurring_order_executions.any? %>
+        <table class="table table-sm table-nowrap card-table">
+          <thead>
+            <tr>
+              <th>Jahr</th>
+              <th>Termine</th>
+              <th>Status</th>
+              <th>Fortschritt</th>
+              <th><%= Group.translated_name %></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <% recurring_order.recurring_order_executions.to_a.sort { |e| e.start_date.to_date }.each do |execution| %>
+              <tr>
+                <td><%= link_to execution.year, execution %></td>
+                <td><%= link_to execution.appointments.count, execution %></td>
+                <td>
+                  <%= link_to execution do %>
+                    <% if (execution.start_date..execution.end_date).include?(Date.current) %>
+                      <span class="text-success">●</span> Aktiv
+                    <% elsif execution.start_date >= Date.current %>
+                      <span class="text-warning">●</span> Zukünftig
+                    <% elsif execution.end_date <= Date.current %>
+                      <span class="text-danger">●</span> Vergangen
+                    <% end %>
+                    <% end %>
+                </td>
+
+                <td>
+                  <% percent = ((100/((execution.end_date-execution.start_date).to_f))*((Date.current-execution.start_date).to_f)).floor %>
+
+                  <% if (execution.start_date..execution.end_date).include?(Date.current) %>
+                    <% color = "success" %>
+                  <% elsif execution.start_date >= Date.current %>
+                    <% color = "warning" %>
+                    <% percent = 0 %>
+                  <% elsif execution.end_date <= Date.current %>
+                    <% color = "danger" %>
+                    <% percent = 100 %>
+                  <% end %>
+
+
+                  <div class="row align-items-center no-gutters">
+                    <div class="col-auto"><span class="mr-2"><%= percent %>%</span>
+                    </div>
+                    <div class="col">
+                      <div class="progress progress-sm">
+                        <div class="progress-bar bg-<%= color %>" role="progressbar" style="width: <%= percent %>%" aria-valuenow="<%= percent %>" aria-valuemin="0" aria-valuemax="100"></div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <%= render AvatarGroupComponent.new(users: execution.group&.users) %>
+                  <span><%= link_to execution.group, execution.group %></span>
+                </td>
+              </tr>
+            <% end %>
+
+          </tbody>
+        </table>
+
+      <% else %>
+        <div class="tw-p-3">Keine Ausführungen</div>
+      <% end %>
+
+    </div>
+  <% end %>
+<% end %>

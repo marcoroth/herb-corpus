@@ -1,0 +1,68 @@
+<% content_for :title, "Create Account" %>
+
+<% if user_signed_in? %>
+  <p>
+    Please sign out before completing your invitation.
+  </p>
+<% elsif @invite.already_member? %>
+  <p>
+    You are already a member of <%= @invite.organization.name %>.
+  </p>
+<% elsif @invite.expired? %>
+  <p>
+    This invitation has expired. Please request a new invitation.
+  </p>
+<% else %>
+  <% content_for :before_content do %>
+    <p>
+      <em>
+        This invitation expires
+        <strong class="<%= nearby_expiration_class(@invite.expires_at) %>"><%= local_time @invite.expires_at, "%A, %B %e at %l:%M%P" %></strong>
+      </em>
+    </p>
+  <% end %>
+
+  <% content_for :content do %>
+    <%= form_tag user_invitation_path(@invite), method: :put, data: { live_guarded: true } do %>
+      <input name="auth_token" type="hidden" value="<%= @invite.auth_token %>" />
+
+      <fieldset>
+        <div class="form-group">
+          <label class="control-label" for="user-organization">Organization</label>
+          <p class="form-control-static" id="user-organization">
+            <%= @invite.organization.name %>
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label class="control-label" for="user-email">Email</label>
+          <p class="form-control-static" id="user-email">
+            <%= @invite.email %>
+          </p>
+          <%= hidden_field :user, :email, value: @invite.email %>
+        </div>
+
+        <div class="form-group">
+          <%= label :user, :name, class: "control-label" %>
+          <%= text_field :user, :name, class: "form-control input-md", value: @invite.name, data: { guard: "required" } %>
+        </div>
+
+        <div class="form-group">
+          <%= label :user, :primary_number, t(:user_primary_number) %>
+          <%= text_field :user, :primary_number, class: "form-control input-md", data: { guard: "required phoneUS different", guard_different_group: "phone" } %>
+        </div>
+
+        <div class="form-group">
+          <%= label :user, :secondary_number, t(:user_secondary_number) %>
+          <%= text_field :user, :secondary_number, class: "form-control input-md", data: { guard: "phoneUS different", guard_different_group: "phone" } %>
+        </div>
+
+        <%= render partial: "common/password_fields", locals: { updating: false } %>
+      </fieldset>
+
+      <div>
+        <input type="submit" class="btn btn-primary" value="Save" />
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

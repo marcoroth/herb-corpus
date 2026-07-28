@@ -1,0 +1,75 @@
+########################################################
+# AngularJS service to manage subscribing and unsubscribing from feeds
+########################################################
+
+angular.module('feedbunch').service 'subscriptionSvc',
+['$rootScope', 'csrfTokenSvc', 'timerFlagSvc', 'feedsFoldersTimerSvc', 'loadFoldersSvc', 'cleanupSvc',
+'favicoSvc', 'startPageSvc', 'jobStateSvc',
+($rootScope, csrfTokenSvc, timerFlagSvc, feedsFoldersTimerSvc, loadFoldersSvc, cleanupSvc,
+favicoSvc, startPageSvc, jobStateSvc)->
+
+  # Constants for the different operations the web worker can perform
+  SUBSCRIBE = 'subscribe'
+  UNSUBSCRIBE = 'unsubscribe'
+
+  # CSRF token for POST
+  token = csrfTokenSvc.get_token()
+
+  # Web worker to add and remove subscriptions in a different thread.
+  worker = new Worker '<%= asset_path 'workers/subscriptions_worker' %>'
+  worker.onmessage = (e) ->
+    jobStateSvc.load_data()
+    if e.data.status == 200
+      if e.data.operation == SUBSCRIBE
+        startPageSvc.show_start_page()
+      else if e.data.operation == UNSUBSCRIBE
+        feed_unsubscribed e.data.params.feed.id
+    else if e.data.status == 401 || e.data.status == 422
+      $window.location.href = '/login'
+    else if e.data.status == 403 && e.data.operation == SUBSCRIBE
+      # User attempted to subscribe to a blacklisted url
+      timerFlagSvc.start 'blacklisted_url'
+    else
+      if e.data.operation == SUBSCRIBE
+        timerFlagSvc.start 'error_subscribing'
+      else if e.data.operation == UNSUBSCRIBE
+        timerFlagSvc.start 'error_unsubscribing'
+    $rootScope.$digest()
+
+  #---------------------------------------------
+  # PRIVATE FUNCTION: Operations after successfully unbuscribing a feed
+  #---------------------------------------------
+  feed_unsubscribed = (id)->
+    cleanupSvc.remove_feed id
+    favicoSvc.update_unread_badge()
+    # Load folders again so that if the folder has been deleted (no more feeds in it), the client is aware and removes
+    # it from the view
+    loadFoldersSvc.load_folders()
+
+  service =
+
+    #---------------------------------------------
+    # Add a subscription to a feed
+    #---------------------------------------------
+    subscribe: (url)->
+      if url
+        worker.postMessage {operation: SUBSCRIBE, token: token, feed_url: url}
+
+    unsubscribe: ->
+      current_feed = $rootScope.current_feed
+      if current_feed
+        # Remove feed from feeds list
+        $rootScope.subscribed_feeds_count -= 1
+        cleanupSvc.remove_feed current_feed.id
+        favicoSvc.update_unread_badge()
+
+        # Reset the timer that updates feeds every minute, to give the server time to
+        # actually delete the feed subscription before the next update
+        feedsFoldersTimerSvc.reset_refresh_timer()
+
+        worker.postMessage {operation: UNSUBSCRIBE, token: token, feed_id: current_feed.id}
+        startPageSvc.show_start_page()
+
+  return service
+
+]

@@ -1,0 +1,81 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%=
+  render(
+    Primer::Alpha::Dialog.new(
+      id: dialog_id,
+      title: I18n.t(:label_change_parent),
+      size: :medium_portrait
+    )
+  ) do |dialog|
+    dialog.with_body do
+      primer_form_with(**form_arguments) do |form|
+        render(
+          Primer::OpenProject::FilterableTreeView.new(
+            form_arguments: { builder: form, name: :new_parent },
+            include_sub_items_check_box_arguments: { hidden: true },
+            filter_mode_control_arguments: { hidden: true }
+          )
+        ) do |tree_view|
+          parent = @hierarchy_item.parent
+          descendants = hierarchy_service.get_descendants(item: @hierarchy_item).value!
+          item_formatter = standard_tree_view_item_formatter
+          label_fn = lambda { |item| item_formatter.format(item:) }
+
+          item_options = {
+            select_variant: :single,
+            expanded: [parent],
+            current: @hierarchy_item,
+            disabled: [parent] + descendants,
+            label_fn:
+          }
+
+          populate_tree_view(tree_view, @custom_field, show_root: true, item_options:)
+        end
+      end
+    end
+
+    dialog.with_footer(show_divider: true) do
+      concat(render(Primer::Beta::Button.new(data: { close_dialog_id: dialog_id })) { I18n.t(:button_cancel) })
+      concat(
+        render(
+          Primer::Beta::Button.new(
+            scheme: :primary,
+            form: form_id,
+            type: :submit,
+            data: { turbo: true }
+          )
+        ) do
+          I18n.t(:button_select)
+        end
+      )
+    end
+  end
+%>

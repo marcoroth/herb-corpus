@@ -1,0 +1,107 @@
+<% provide(:title, "#{@chapter.chapter}") %>
+<section class="main-container">
+  <div class="container">
+    <aside class="chapter-aside">
+      <div class="state-container-aside">
+        <%= link_to image_tag(image_route(@chapter.state)), chapters_path %>
+      </div>
+      <hr>
+      <h1><%= @chapter.chapter %></h1>
+
+      <%= render partial: "social_media_chapter", locals: {chapter: @chapter} %>
+
+      <p class="subtitle">- don't be shy -</p>
+      <%= link_to "{ Join Us }", "http://www.meetup.com/#{@chapter.meetup}", :class=>"button" %>
+
+      <% if @chapter.sponsors.count != 0 %>
+          <div class="supporters">
+            <h2>Sponsors</h2>
+            <div class="logos">
+              <% @sponsors.each do |sponsor| %>
+                <% if sponsor.image? %>
+                  <%= link_to image_tag(sponsor.image.url, alt: sponsor.name, title: sponsor.name), sponsor.url, target: "_blank" %>
+                <% elsif sponsor.name? %>
+                  <%= link_to sponsor.url, target: "_blank", :class=>"subtitle" do %>
+                    { <%= sponsor.name %> }
+                  <% end %>
+                <% end %>
+              <% end %>
+            </div>
+            <p>
+              Interested in becoming a sponsor?
+              <%= mail_to @chapter.email, "Contact the chapter", subject: "Sponsoring the #{@chapter.chapter} Chapter" %>
+            </p>
+          </div>
+      <% end %>
+    </aside>
+
+    <section id="content-section">
+      <div class="headline">
+        <%= image_tag 'pencil.png' %>
+        <h2>Upcoming Events</h2>
+      </div>
+
+      <div class="classes">
+      </div>
+
+      <% if @leaders.count != 0 %>
+       <%= render partial: "profiles_sections", locals: {title: 'The Leaders', bios: @leaders} %>
+      <% end %>
+
+      <% if @organizers.count != 0 %>
+        <%= render partial: "profiles_sections", locals: {title: 'The Organizers', bios: @organizers} %>
+      <% end %>
+
+      <% if @instructors.count != 0 %>
+        <%= render partial: "profiles_sections", locals: {title: 'The Instructors', bios: @instructors} %>
+      <% end %>
+
+      <% if @volunteers.count != 0 %>
+        <%= render partial: "profiles_sections", locals: {title: 'The Volunteers', bios: @volunteers} %>
+      <% end %>
+
+
+      <script type="text/template" id="meetup">
+        <%% _.each( classesArr,function(course){ %>
+          <div class="meetup-overview">
+            <h3>
+              <a href="<%%= course.event_url %>"><%%= course.name %></a>
+              <%% if( typeof course.rsvp_limit !== "undefined " && course.yes_rsvp_count >= course.rsvp_limit) { %><span class="closed">sold out</span>
+              <%% } %>
+            </h3>
+            <p class="subtitle">[ <%%= moment(course.time).format("dddd, MMMM Do YYYY, h:mm a") %>
+            <%% if(typeof course.venue !== "undefined" ) { %>
+                , <a href=" https://maps.google.com/?q=<%%= course.venue.address_1 %>, <%%= course.venue.city %>, <%%= course.venue.state %>"><%%= course.venue.address_1 %>, <%%= course.venue.city %>, <%%= course.venue.state %></a>
+              <%% } %>
+              ] </p>
+              <%# MOVING MAP PARTIAL BELOW PARAGRAPH UNTIL GOOGLE API KEY IS AVAILABLE %>
+              <%#= render partial: "meetup_map"%>
+             <p><%%= course.description.substring(0, 400) %><a href="<%%= course.event_url %>"> &hellip;read more</a></p>
+             <%% if( typeof course.venue !== "undefined" ||  course.rsvp_limit !== "undefined " && course.yes_rsvp_count >= course.rsvp_limit) { } else { %>
+                <p><a href="<%%= course.event_url %>" class="button">RSVP</a></p>
+              <%% } %>
+              <%= render partial: "meetup_map"%>
+          </div>
+        <%% }); %>
+      </script>
+
+      <script type="text/javascript">
+
+        var meetup_url = '/meetups/<%= params[:id] %>.json';
+        var classesArr = null;
+        $.getJSON(meetup_url).done(function (classesData){
+          if(classesData.length>0) {
+            classesArr = classesData.slice(0,3);
+            var classes = $('#meetup').html();
+            //instead send classesArr to template where _.each is waiting...
+            //idea seen here: http://stackoverflow.com/questions/4778881/how-to-use-underscore-js-as-a-template-engine
+            $(".classes").html(_.template(classes,classesArr));
+            $(".classes").append("<p><a href=\"http://meetup.com/<%= @chapter.meetup %>\">More Events</a></p>");
+          } else {
+            $(".classes").html("<p class=\"uhOh\">Sadly, no meetups are currently scheduled for this Chapter. <a href=\"http://meetup.com/<%= @chapter.meetup %>\">Join our meetup group</a> to be notified when a new meetup is happening. Thanks for visiting us!</p>")};
+          });
+
+      </script>
+    </section>
+  </div>
+</section>

@@ -1,0 +1,299 @@
+// variant autocompletion
+
+$(document).ready(function() {
+
+  initAlert()
+  initConfirm()
+  initButtonCancel()
+  initLinkCancel()
+
+  if ($('#variant_autocomplete_template').length > 0) {
+    window.variantTemplate = Handlebars.compile($('#variant_autocomplete_template').text());
+    window.variantStockTemplate = Handlebars.compile($('#variant_autocomplete_stock_template').text());
+
+    // handle variant selection, show stock level.
+    $('#add_variant_id').change(function(){
+      var variant_id = $(this).val();
+
+      var variant = _.find(window.variants, function(variant){
+        return variant.id == variant_id
+      })
+      $('#stock_details').html(variantStockTemplate({variant: variant}));
+      $('#stock_details').show();
+
+      $('button.add_variant').click(addVariantFromStockLocation);
+
+      // Add some tips
+      $('.with-tip').powerTip({
+        smartPlacement: true,
+        fadeInTime: 50,
+        fadeOutTime: 50,
+        intentPollInterval: 300
+      });
+
+    });
+
+    //handle edit click
+    $('a.edit-item').click(toggleItemEdit);
+
+    //handle cancel click
+    $('a.cancel-item').click(toggleItemEdit);
+
+    handle_save_click = function(){
+      var save = $(this);
+      var shipment_number = save.data('shipment-number');
+      var variant_id = save.data('variant-id');
+
+      var quantity = parseInt(save.parents('tr').find('input.line_item_quantity').val());
+      var maxQuantity = parseInt(save.parents('tr').find('input.line_item_quantity').attr("max"));
+
+      if (quantity > maxQuantity) {
+        quantity = maxQuantity;
+        save.parents('tr').find('input.line_item_quantity').val(maxQuantity);
+        ofnAlert(t("js.admin.orders.quantity_unavailable"));
+      } else {
+        adjustItems(shipment_number, variant_id, quantity, true);
+      }
+
+      return false;
+    }
+    $('a.save-item').click(handle_save_click);
+
+    handle_delete_click = function(elementSelector, restock_item){
+      var del = $(elementSelector);
+      del.hide()
+      var shipment_number = del.data('shipment-number');
+      var variant_id = del.data('variant-id');
+
+      toggleItemEdit();
+
+      adjustItems(shipment_number, variant_id, 0, restock_item);
+    }
+
+    $('a.delete-item').click((event) => {
+     try {
+         var del = $('a.delete-item');
+         var shipment_number = del.data('shipment-number');
+         var variant_id = del.data('variant-id');
+         var shipment = _.findWhere(shipments, {number: shipment_number + ''});
+         var inventory_units = _.where(shipment.inventory_units, {variant_id: variant_id});
+         if (inventory_units.length !== shipment.inventory_units.length) {
+             ofnConfirm((reStockItem) => {
+                 handle_delete_click('#custom-confirm', reStockItem);
+             });
+         } else {
+             adjustItems(shipment_number, variant_id, 0);
+         }
+     } catch (e) {
+     }
+    });
+  }
+});
+
+adjustItems = function(shipment_number, variant_id, quantity, restock_item){
+  var shipment = _.findWhere(shipments, {number: shipment_number + ''});
+  var inventory_units = _.where(shipment.inventory_units, {variant_id: variant_id});
+
+  if (quantity === 0 && inventory_units.length === shipment.inventory_units.length) {
+    ofnCancelOrderAlert((confirm, sendEmailCancellation, restock_item) => {
+      if (confirm) {
+        doAdjustItems(shipment_number, variant_id, quantity, inventory_units, restock_item, () => {
+          var redirectTo = new URL(Spree.routes.cancel_order.toString());
+          redirectTo.searchParams.append("send_cancellation_email", sendEmailCancellation);
+          redirectTo.searchParams.append("restock_item", restock_item);
+          window.location.href = redirectTo.toString();
+        });
+      }
+    });
+    return;
+  }
+  doAdjustItems(shipment_number, variant_id, quantity, inventory_units, restock_item, () => {
+    window.location.reload();
+  });
+}
+
+doAdjustItems = function(shipment_number, variant_id, quantity, inventory_units, restock_item, callback) {
+  var url = Spree.routes.orders_api + "/" + order_number + "/shipments/" + shipment_number;
+
+  var new_quantity = 0;
+  var data = { variant_id: variant_id };
+  if (inventory_units.length < quantity) {
+    url += "/add";
+    new_quantity = (quantity - inventory_units.length);
+  } else if (inventory_units.length > quantity) {
+    url += "/remove"
+    new_quantity = (inventory_units.length - quantity);
+    data.restock_item = restock_item;
+  }
+  url += '.json';
+  data.quantity = new_quantity;
+
+  if (new_quantity == 0) {
+    ofnAlert(t("js.admin.orders.quantity_unchanged"));
+  } else {
+    $.ajax({
+      type: "PUT",
+      url: Spree.url(url),
+      data: data
+    }).done(function( msg ) {
+      callback();
+    });
+  }
+}
+
+toggleTrackingEdit = function(){
+  var link = $(this);
+  var parent_node = link.parents('tbody')
+  let input = parent_node.find('#tracking')[0]
+  parent_node.find('tr.edit-tracking').toggle();
+  // Set focus on input and
+  // put cursor at it's end
+  input.focus()
+  input.setSelectionRange(-1, -1)
+  parent_node.find('tr.show-tracking').toggle();
+}
+
+toggleNoteEdit = function(){
+  var link = $(this);
+  var parent_node = link.parents('tbody')
+  let input = parent_node.find('#note')[0]
+  parent_node.find('tr.edit-note').toggle();
+  // Set focus on input and
+  // put cursor at it's end
+  input.focus()
+  input.setSelectionRange(-1, -1)
+  parent_node.find('tr.show-note').toggle();
+}
+
+toggleMethodEdit = function(){
+  var link = $(this);
+  link.parents('tbody').find('tr.edit-method').toggle();
+  link.parents('tbody').find('tr.show-method').toggle();
+}
+
+toggleItemEdit = function(){
+  var link = $(this);
+  link.parent().find('a.edit-item').toggle();
+  link.parent().find('a.cancel-item').toggle();
+  link.parent().find('a.save-item').toggle();
+  link.parent().find('a.delete-item').toggle();
+  link.parents('tr').find('td.item-qty-show').toggle();
+  link.parents('tr').find('td.item-qty-edit').toggle();
+
+  return false;
+}
+
+addVariantFromStockLocation = function() {
+  $('#stock_details').hide();
+
+  var variant_id = $('input.variant_autocomplete').val();
+  var quantity = $("input.quantity").val();
+
+  var shipment = _.find(shipments, function(shipment){
+    return shipment.state == 'ready' || shipment.state == 'pending';
+  });
+
+  if(shipment==undefined){
+    $.ajax({
+      type: "POST",
+      url: Spree.url(Spree.routes.orders_api + "/" + order_number + "/shipments.json"),
+      data: { variant_id: variant_id, quantity: quantity }
+    }).done(function( msg ) {
+      window.location.reload();
+    }).error(function( msg ) {
+      console.log(msg);
+    });
+  }else{
+    //add to existing shipment
+    adjustItems(shipment.number, variant_id, quantity, true);
+  }
+  return 1
+}
+
+initAlert = function() {
+  $('#custom-alert .confirm').click(function(e) {
+    $('#custom-alert').hide();
+  })
+}
+
+initConfirm = function() {
+  $('#custom-confirm button.cancel').click(function(e) {
+    $('#custom-confirm').hide();
+  });
+}
+
+
+ofnAlert = function(message) {
+  $('#custom-alert .message').text(message);
+  $('#custom-alert').show();
+}
+
+ofnCancelOrderAlert = function(callback, i18nKey) {
+  if (i18nKey == undefined) {
+    i18nKey = "js.admin.orders.cancel_the_order_html";
+  }
+  $('#custom-confirm .message').html(
+    ` ${t(i18nKey)}
+      <div class="form">
+        <input type="checkbox" name="send_cancellation_email" value="1" id="send_cancellation_email" checked="true" />
+        <label for="send_cancellation_email">${t("js.admin.orders.cancel_the_order_send_cancelation_email")}</label><br />
+        <input type="checkbox" name="restock_items"  id="restock_items" checked="checked"/>
+        <label for="restock_items">${t("js.admin.orders.restock_items")}</label>
+      </div>`);
+  $('#custom-confirm button.confirm').unbind( "click" ).click(() => {
+    $('#custom-confirm').hide();
+    callback(true, $('#send_cancellation_email').is(':checked'), $('#restock_items').is(':checked'));
+  });
+  $('#custom-confirm button.cancel').click(() => {
+    $('#custom-confirm').hide();
+    callback(false)
+  });
+  $('#custom-confirm').show();
+}
+
+ofnDeleteLineItemsAlert = function(callback, count) {
+  $('#custom-confirm .message').html(`${t("js.admin.orders.delete_line_items_html", {count: count})}`);
+  $('#custom-confirm button.confirm').click(() => {
+    $('#custom-confirm').hide();
+    callback();
+  });
+  $('#custom-confirm button.cancel').click(() => {
+    $('#custom-confirm').hide();
+  });
+  $('#custom-confirm').show();
+}
+
+ofnConfirm = function(callback) {
+  $('#custom-confirm .message').html(
+      ` ${t("are_you_sure")}
+    <div class="form">
+      <input type="checkbox" name="restock_items"  id="restock_items" checked="checked"/>
+      <label for="restock_items">${t("js.admin.orders.restock_item")}</label>
+    </div>`);
+  $('#custom-confirm').data($(event.target).data());
+  $('#custom-confirm button.confirm').click(() => {
+      callback($('#restock_items').is(':checked'));
+  });
+  $('#custom-confirm').show();
+}
+
+initCancelAction = function(e){
+  ofnCancelOrderAlert((confirm, sendEmailCancellation, restock_items) => {
+      if (confirm) {
+          var redirectTo = new URL(Spree.routes.cancel_order.toString());
+          redirectTo.searchParams.append("send_cancellation_email", sendEmailCancellation);
+          redirectTo.searchParams.append("restock_items", restock_items);
+          window.location.href = redirectTo.toString();
+      }
+    });
+  e.preventDefault();
+  return false;
+};
+
+initButtonCancel = function() {
+  $('#cancel_order_form').submit(initCancelAction)
+}
+
+initLinkCancel = function() {
+  $('#links-dropdown a[href$="cancel"]').click(initCancelAction);
+}

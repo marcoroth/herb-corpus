@@ -1,0 +1,37 @@
+<% content_for :body_layout_body_color, 'white' %>
+<% content_for :page_title, "Split Details: #{@split.name}" %>
+
+<h1 class="my-5">Split: <%= @split.name %></h1>
+
+<% if @split.feature_gate? %>
+  <p>
+  This split is a feature gate. Changing weights will immediately change
+  behavior of visitors who do not have an explicit assignment, even if they've
+  already experienced a specific variant of this split. This is usually
+  desirable for slow-rolling features.
+  </p>
+<% else %>
+  <p>
+  This split is an experiment. Changing weights will have no immediate effect
+  on the behavior of visitors who have already experienced a variant of this
+  split. Experiments rarely benefit from changing weightings unless you are
+  performing analysis over a date range.
+  </p>
+<% end %>
+
+<%= simple_form_for(@split_config, url: admin_split_split_config_path) do |f| %>
+  <% f.simple_fields_for :weighting_registry do |ff| %>
+
+    <% if @split_config.errors.include? :weighting_registry %>
+      <%= render Primer::Beta::Flash.new scheme: :danger, mb: 3 do %>
+        <%= @split_config.errors.full_messages_for(:weighting_registry).join(', ') %>
+      <% end %>
+    <% end %>
+
+    <% @split_config.weighting_registry.each do |variant, weight| %>
+      <%= ff.input variant, as: :percent, input_html: { value: weight, class: "weight-input" } %>
+    <% end %>
+
+    <%= render "shared/form_footer", f: f, submit_text: "Save", submit_disable_with_text: "Changing..." %>
+  <% end %>
+<% end %>

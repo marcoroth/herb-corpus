@@ -1,0 +1,81 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%=
+  component_wrapper(data: { turbo: true }) do
+    render(Primer::OpenProject::SidePanel::Section.new) do |section|
+      section.with_title { t("storages.health.project_folders.subtitle") }
+
+      flex_layout do |notifications_container|
+        notifications_container.with_row do
+          concat(
+            render(Primer::Beta::Text.new(pr: 2, test_selector: "storage-health-checked-at")) do
+              I18n.t("storages.health.synced", datetime: helpers.format_time(@storage.health_checked_at))
+            end
+          )
+
+          concat(
+            render(
+              Primer::Beta::Label.new(
+                scheme: health_status_indicator[:scheme],
+                test_selector: "storage-health-status"
+              )
+            ) do
+              health_status_indicator[:label]
+            end
+          )
+        end
+
+        if @storage.health_unhealthy?
+          notifications_container.with_row(mt: 2) do
+            render(Primer::Beta::Text.new(color: :muted, test_selector: "storage-health-error")) do
+              formatted_health_reason
+            end
+          end
+        end
+
+        notifications_container.with_row(mt: 2) do
+          if sync_pending?
+            render(Primer::OpenProject::InlineMessage.new(scheme: :success)) { t(".sync_queued") }
+          else
+            render(Primer::Beta::Button.new(
+              tag: :a,
+              scheme: :link,
+              data: { turbo_method: :post },
+              href: ampf_sync_now_admin_settings_storage_path(@storage)
+            )) do |button|
+              button.with_leading_visual_icon(icon: :sync)
+              t(".sync_now")
+            end
+          end
+        end
+      end
+    end
+  end
+%>

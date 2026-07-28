@@ -1,0 +1,63 @@
+<%# locals: (event:, extra_fields: {}) %>
+
+<%# I cannot guarantee that all of these if's are properly tested (all cases being hit), so be careful when modifying %>
+
+<%# Note: If you update the ransack search form, this has some things with q that need to be changed. %>
+
+<%= content_for :publicity_and_members do %>
+  <div class="grid grid-cols-12">
+    <div class="<%= event.team_members.any? ? 'col-span-12 xl:col-span-6' : 'col-span-12' %>">
+      <h3>Publicity Text</h3>
+      <%= render_markdown event.publicity_text %>
+    </div>
+
+    <% if event.team_members.any? %>
+      <div class="col-span-12 xl:col-span-6 xl:border-l xl:border-gray-200 xl:pl-4">
+          <%= render '/shared/admin_show_team_members', team_members: event.team_members.ordered %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<% fields = {
+  slug:           event.slug,
+  'ID' =>         (can?(:manage, event) ? event.id : nil),
+  'SparkSeat Slug' => (event.spark_seat_slug.presence),
+  tagline:        event.tagline.presence || 'No tagline',
+  'Date(s)' =>    event.date_range(true),
+  venue:          event.venue.present? ? link_to(event.venue.name, admin_events_url('q[venue_id_eq]' => event.venue.id)) : 'No Venue specified',
+  author:         event.author.present? ? link_to(event.author, admin_events_url('q[author_cont]' => event.author)) : 'No author specified',
+  company:        (event.company.present? ? link_to(event.company.name, admin_company_path(event.company)) : 'No society specified'),
+  price:          event.price,
+  season:         event.season.present? ? get_link(event.season, :show) : 'Not part of a season',
+  proposal:       'No proposal linked',
+  is_public:      bool_text(event.is_public),
+  event_tags:     event.event_tags.accessible_by(current_ability).collect{ |event_tag| link_to(event_tag.name, admin_events_url('q[event_tags_id_eq]' => event_tag.id))}.join('; ').presence&.html_safe() || 'There are no tags set for this event.',
+  image:          { type: 'image', image: event.image, variant: slideshow_variant },
+  publicity_and_members: { type: 'content', content: yield(:publicity_and_members) },
+  content_warnings: { type: 'content', markdown: event.content_warnings },
+  members_only_text: { type: 'markdown', markdown: event.members_only_text },
+  questionnaires: { type: 'content', content: render('admin/events/questionnaires', event: event) },
+  gallery:        { type: 'content', content: render('/admin/shared/gallery', pictures: event.pictures.accessible_by(current_ability, :show)) },
+  attachments:    { type: 'content', content: render('admin/shared/attachments_gallery', attachments: event.all_attachments.accessible_by(current_ability, :show)) },
+  video_links:    { type: 'content', content: render('shared/video_link_gallery', video_links: event.video_links.accessible_by(current_ability, :show)) },
+} %>
+
+<%# Members-only text: show a muted note instead of the unfilled default template %>
+<% unless event.members_only_text_customised? %>
+  <% fields[:members_only_text] = { type: 'content', content: content_tag(:em, 'Not filled in yet.', class: 'text-muted') } %>
+<% end %>
+
+<%# Proposal %>
+<% if event.proposal.present? && can?(:view, event.proposal) %>
+  <% fields[:proposal] = get_link(event.proposal, :show, link_target: admin_proposals_proposal_path(event.proposal)) %>
+<% end %>
+
+<% fields = fields.merge(extra_fields) %>
+
+<% content_for :extra_show_actions do %>
+  <%= view_page_on_main_site_button if event.is_public %>
+  <%= get_link event, :edit, link_text: "Bulk Import Team", link_target: new_admin_show_show_crew_import_path(event) %>
+<% end %>
+
+<%= render('shared/pages/show', object: event, fields: fields) %>

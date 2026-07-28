@@ -1,0 +1,116 @@
+<%= turbo_stream_from destination %>
+
+<% application = destination.application %>
+
+<div id="<%= dom_id destination %>">
+  <h2 class="mb-4 is-size-2 has-text-weight-medium">
+    <%= link_to application.display_name, application_path(application) %>
+
+    <%= destination_tag(destination) %>
+  </h2>
+
+  <div class="content">
+    <p>
+      <strong>URL:</strong>
+      <% if destination.url.present? %>
+        <%= link_to destination.url, destination.url, target: "_blank", class: "is-link" %>
+      <% end %>
+    </p>
+
+    <p>
+      <strong>Branch:</strong>
+      <span class="tag"><%= destination.branch %></span>
+    </p>
+
+    <p>
+      <strong>Block deploys:</strong>
+      <span class="tag"><%= destination.block_deploys? ? "Yes" : "No" %></span>
+      <br>
+        <small>
+          <% if destination.block_deploys? %>
+            When this destination is locked, deploys will only be allowed by whoever it is currently locked by.
+          <% else %>
+            When this destination is locked, anyone can deploy to it.
+          <% end %>
+        </small>
+    </p>
+
+    <p>
+      <strong>Auto-lock outside business hours:</strong>
+      <span class="tag"><%= destination.auto_lock_outside_business_hours? ? "Yes" : "No" %></span>
+      <% if destination.auto_lock_outside_business_hours? %>
+        <br>
+        <small>
+          <% if destination.application.organization.business_hours_configured? %>
+            <% org = destination.application.organization %>
+            Deploys are blocked outside of <%= format_hour(org.business_hours_start) %> - <%= format_hour(org.business_hours_end) %> (<%= org.time_zone %>).
+            <% if destination.outside_business_hours? %>
+              <span class="tag is-warning">Currently outside business hours</span>
+            <% else %>
+              <span class="tag is-success">Currently within business hours</span>
+            <% end %>
+          <% else %>
+            <span class="tag is-warning">Time zone not configured</span> -
+            <%= link_to "Configure business hours", edit_organization_path(destination.application.organization) %> in organization settings.
+          <% end %>
+        </small>
+      <% end %>
+    </p>
+  </div>
+
+  <%= link_to "Edit this destination", edit_application_destination_path(application, destination), class: "button is-primary my-4" %>
+  <%= link_to "Activity", deploys_application_destination_path(application, destination), class: "button my-4" %>
+
+  <hr>
+
+  <h3 class="is-size-3">Badges</h3>
+
+  <div class="columns">
+    <div class="column is-half">
+      <h5 class="is-size-5 mb-2">Last deploy</h5>
+
+      <p>
+        <%= image_tag destination_badge(destination, :deploy, :image), class: "mb-2" %>
+      </p>
+
+      <pre class="mb-1 is-sr-only"><code id="badge_deployed_markdown"><%= destination_badge(destination, :deploy, :markdown) %></code></pre>
+      <div id="badge_deployed_image" class="is-sr-only"><%= destination_badge(destination, :deploy, :image) %></div>
+
+        <%= render "shared/copy_to_clipboard", target: "#badge_deployed_markdown", label: "markdown", button_class: "is-small" %>
+        <%= render "shared/copy_to_clipboard", target: "#badge_deployed_image", label: "image URL", button_class: "is-small" %>
+    </div>
+
+    <div class="column is-half">
+      <h5 class="is-size-5 mb-2">Lock status</h5>
+
+      <p>
+        <%= image_tag destination_badge(destination, :lock, :image), class: "mb-2" %>
+      </p>
+
+      <pre class="is-sr-only"><code id="badge_locked_markdown"><%= destination_badge(destination, :lock, :markdown) %></code></pre>
+      <div id="badge_locked_image" class="is-sr-only"><%= destination_badge(destination, :lock, :image) %></div>
+
+      <p class="mt-1">
+        <%= render "shared/copy_to_clipboard", target: "#badge_locked_markdown", label: "markdown", button_class: "is-small" %>
+        <%= render "shared/copy_to_clipboard", target: "#badge_locked_image", label: "image URL", button_class: "is-small" %>
+      </p>
+    </div>
+  </div>
+
+  <small>
+    <em>
+      Badges are powered by shields.io which has a 60 minute cache expiration.
+    </em>
+  </small>
+  <hr>
+
+  <h3 class="is-size-3">Servers</h3>
+
+  <% if destination.servers.empty? %>
+    <p>No servers deployed to for this destination.</p>
+  <% else %>
+    <% destination.servers.each do |server| %>
+      <%= render server %>
+    <% end %>
+  <% end %>
+</div>

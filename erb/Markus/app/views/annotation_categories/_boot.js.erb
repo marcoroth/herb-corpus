@@ -1,0 +1,61 @@
+<%= javascript_tag nonce: true do %>
+  function add_annotation_prompt(path) {
+    var annotation_text = $('#add_annotation_text #annotation_text_content');
+
+    if (annotation_text.length) {
+      annotation_text.select();
+      annotation_text.focus();
+    } else {
+      $.ajax({
+        url:  path,
+        type: 'GET'
+      });
+    }
+  }
+
+  function add_annotation_category(path) {
+    let new_annotation_category = document.getElementById('add_annotation_category');
+
+    if (new_annotation_category !== null) {
+      new_annotation_category.getElementsByTagName('input')[0].focus();
+    } else {
+      $.ajax({
+        url:  path,
+        type: 'GET',
+      });
+
+      var info = $('#no_annotation_categories_info');
+      if (info.length) {
+        info.hide();
+      }
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    bindSortable();
+
+    function bindSortable() {
+      $('.sortable ul').sortable({
+        axis:   'y',
+        cursor: 'move',
+        update: function() {
+          // Cancel any previous requests
+          if (typeof ajaxRequest !== 'undefined') {
+            ajaxRequest.abort();
+          }
+
+          ajaxRequest = $.ajax({
+            url:  '<%= update_positions_course_assignment_annotation_categories_path(@current_course, @assignment) %>',
+            type: 'POST',
+            data: $('.sortable ul').sortable('serialize'),
+            success: function(response) {
+              ajaxRequest = undefined;
+              bindSortable();
+            }
+          });
+        },
+        cancel: '#add_annotation_category'
+      });
+    }
+  });
+<% end %>

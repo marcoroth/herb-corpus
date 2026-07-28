@@ -1,0 +1,76 @@
+<% content_for :title_caption, @user.api_user? ? "Manage API users" : "Manage other users" %>
+<% content_for :title, "Exempt #{@user.name} from 2-step verification".html_safe %>
+
+<%
+  @breadcrumbs = [
+    {
+      title: "Dashboard",
+      url: root_path,
+    },
+    {
+      title: "Users",
+      url: users_path,
+    },
+    {
+      title: @user.name,
+      url: user_path(@user),
+    }
+  ]
+%>
+
+<% if @exemption.errors.any? %>
+  <% content_for :error_summary do %>
+    <%= render "govuk_publishing_components/components/error_summary", {
+      title: "There is a problem",
+      items: @exemption.errors.map do |error|
+        {
+          text: error.full_message,
+          href: "#exemption_#{error.attribute}",
+        }
+      end,
+    } %>
+  <% end %>
+<% end %>
+
+<%= render "govuk_publishing_components/components/lead_paragraph", {
+  text: %{
+    You are about to exempt this user from having 2-step verification on their account.
+    This will remove any existing requirement to log in with, or set up 2-step verification.
+  }
+} %>
+
+<%= form_tag two_step_verification_exemption_path(@user), method: "patch" do %>
+  <%= render "govuk_publishing_components/components/input", {
+    id: "exemption_reason",
+    label: { text: "Reason for 2-step verification exemption" },
+    type: "text",
+    name: "exemption[reason]",
+    value: @exemption.reason,
+    hint: %{
+      Please provide a reason for granting this exemption above.
+      Please note - the reason you enter will be visible to the user, and any admins who have the ability to edit the user.
+    },
+    autocomplete: "off",
+    error_items: @exemption.errors.full_messages_for(:reason).map { |message| { text: message } }
+  } %>
+
+  <%= render "govuk_publishing_components/components/date_input", {
+    id: "exemption_expiry_date",
+    legend_text: "Expiry date for exemption",
+    name: "exemption[expiry_date]",
+    items: [
+      { name: "day", width: 2, value: @exemption.expiry_day },
+      { name: "month", width: 2, value: @exemption.expiry_month },
+      { name: "year", width: 4, value: @exemption.expiry_year }
+    ],
+    hint: %{
+      All exemptions must have an expiry date.
+      As this date approaches, this exemption will need to be reviewed.
+    },
+    error_items: @exemption.errors.full_messages_for(:expiry_date).map { |message| { text: message } }
+  } %>
+
+  <%= render "govuk_publishing_components/components/button", {
+    text: "Save"
+  } %>
+<% end %>

@@ -1,0 +1,206 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%= render layout: "mailer/spacer_table" do %>
+  <%= render partial: "mailer/mailer_header",
+             locals: {
+               user: @user,
+               summary: I18n.t("meeting.email.updated.summary", title: @meeting.title, actor: @actor),
+               bottom_spacing: false
+             } %>
+
+  <%= render layout: "mailer/border_table" do %>
+    <tr>
+      <%= placeholder_cell("24px", vertical: true) %>
+      <td>
+        <table>
+          <% if @changes[:old_title] != @changes[:new_title] %>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= t("meeting.email.updated.old_title") %>
+              </td>
+              <td style="<%= placeholder_text_styles %>">
+                <s>
+                  <%= @changes[:old_title] %>
+                </s>
+              </td>
+            </tr>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= t("meeting.email.updated.new_title") %>
+              </td>
+              <td style="<%= placeholder_text_styles(color: "#1f2328", "font-weight": "bold") %>">
+                <%= @changes[:new_title] %>
+              </td>
+            </tr>
+          <% end %>
+
+          <% if @changes[:old_start] != @changes[:new_start] || @changes[:old_duration] != @changes[:new_duration] %>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= t("meeting.email.updated.old_date_time") %>
+              </td>
+              <td style="<%= placeholder_text_styles %>">
+                <s>
+                  <%= format_date @changes[:old_start] %> <%= format_time @changes[:old_start], include_date: false %>
+                  -
+                  <%= format_time (@changes[:old_start] + @changes[:old_duration].hours), include_date: false %> (<%= formatted_time_zone_offset %>)
+                </s>
+              </td>
+            </tr>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= t("meeting.email.updated.new_date_time") %>
+              </td>
+              <td style="<%= placeholder_text_styles(color: "#1f2328", "font-weight": "bold") %>">
+                <%= format_date @changes[:new_start] %> <%= format_time @changes[:new_start], include_date: false %>
+                -
+                <%= format_time (@changes[:new_start] + @changes[:new_duration].hours), include_date: false %> (<%= formatted_time_zone_offset %>)
+              </td>
+            </tr>
+          <% else %>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= I18n.t(:label_meeting_date_time) %>
+              </td>
+              <td style="<%= placeholder_text_styles %>">
+                <%= format_date @changes[:new_start] %> <%= format_time @changes[:new_start], include_date: false %>
+                -
+                <%= format_time (@changes[:new_start] + @changes[:new_duration].hours), include_date: false %> (<%= formatted_time_zone_offset %>)
+              </td>
+            </tr>
+          <% end %>
+
+          <% if @changes[:old_location].present? || @changes[:new_location].present? %>
+            <% if @changes[:old_location] != @changes[:new_location] %>
+              <tr>
+                <td style="<%= placeholder_text_styles(width: "30%") %>">
+                  <%= t("meeting.email.updated.old_location") %>
+                </td>
+                <td style="<%= placeholder_text_styles %>">
+                  <s>
+                    <%= @changes[:old_location].presence || "-" %>
+                  </s>
+                </td>
+              </tr>
+              <tr>
+                <td style="<%= placeholder_text_styles(width: "30%") %>">
+                  <%= t("meeting.email.updated.new_location") %>
+                </td>
+                <td style="<%= placeholder_text_styles(color: "#1f2328", "font-weight": "bold") %>">
+                  <%= @changes[:new_location].blank? ? "-" : (auto_link @changes[:new_location]) %>
+                </td>
+              </tr>
+            <% else %>
+              <tr>
+                <td style="<%= placeholder_text_styles(width: "30%") %>">
+                  <%= Meeting.human_attribute_name(:location) %>
+                </td>
+                <td style="<%= placeholder_text_styles %>">
+                  <%= auto_link @changes[:new_location] %>
+                </td>
+              </tr>
+            <% end %>
+          <% end %>
+
+          <tr>
+            <td style="<%= placeholder_text_styles(width: "30%") %>">
+              <%= Meeting.human_attribute_name(:project) %>
+            </td>
+            <td style="<%= placeholder_text_styles %>">
+              <%= link_to @meeting.project.name, project_url(@meeting.project) %>
+            </td>
+          </tr>
+          <tr>
+            <td style="<%= placeholder_text_styles(width: "30%") %>">
+              <%= Meeting.human_attribute_name(:author) %>
+            </td>
+            <td style="<%= placeholder_text_styles %>">
+              <%= @meeting.author %>
+            </td>
+          </tr>
+
+          <% if @added_participants.any? %>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= I18n.t("meeting.email.updated.added_participants") %>
+              </td>
+              <td style="<%= placeholder_text_styles(color: "#1f2328", "font-weight": "bold") %>">
+                <%= @added_participants.join(", ") %>
+              </td>
+            </tr>
+          <% end %>
+          <% if @removed_participants.any? %>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= I18n.t("meeting.email.updated.removed_participants") %>
+              </td>
+              <td style="<%= placeholder_text_styles %>">
+                <s><%= @removed_participants.join(", ") %></s>
+              </td>
+            </tr>
+          <% end %>
+
+          <% if @meeting.participants.exists? %>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= Meeting.human_attribute_name(:participants_invited) %>
+              </td>
+              <td style="<%= placeholder_text_styles %>">
+                <%= @meeting.participants.invited.sort.join("; ") %>
+              </td>
+            </tr>
+            <tr>
+              <td style="<%= placeholder_text_styles(width: "30%") %>">
+                <%= Meeting.human_attribute_name(:participants_attended) %>
+              </td>
+              <td style="<%= placeholder_text_styles %>">
+                <%= @meeting.participants.attended.sort.join("; ") %>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      </td>
+    </tr>
+  <% end %>
+
+  <table>
+    <tr>
+      <%= placeholder_cell("20px", vertical: false) %>
+    </tr>
+  </table>
+
+  <%= action_button do %>
+    <%= link_to I18n.t(:"meeting.email.open_meeting_link"),
+                meeting_url(@meeting),
+                target: "_blank",
+                rel: "noopener",
+                style: "color: #333333; text-decoration: none; font-size: 14px;white-space: nowrap;" %>
+  <% end %>
+<% end %>

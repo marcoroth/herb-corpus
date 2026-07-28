@@ -1,0 +1,32 @@
+<%#
+kind: finish
+name: Alterator default finish
+model: ProvisioningTemplate
+oses:
+- ALTLinux p6
+- ALTLinux p7
+description: |
+  A finish template executed at the end of a network provisioning or
+  after the image based provisioning is done using the image without user data.
+  It is only used for ALTLinux distributions. It fixes the /etc/hosts entries,
+  installs and cofigures puppet and reboots the machine.
+-%>
+#!/bin/sh
+
+<%= snippet 'fix_hosts' %>
+
+apt-get update >/dev/null 2>/dev/null
+apt-get -y install puppet >/dev/null 2>/dev/null
+
+
+cat > /etc/puppet/puppet.conf << EOF
+<%= snippet 'puppet.conf' -%>
+EOF
+
+/usr/bin/puppet agent --config /etc/puppet/puppet.conf -o --tags no_such_tag --server <%= host_puppet_server %> --no-daemonize
+/sbin/chkconfig puppetd on
+
+<%= snippet 'built' %>
+<%= snippet 'schedule_reboot' -%>
+
+exit 0

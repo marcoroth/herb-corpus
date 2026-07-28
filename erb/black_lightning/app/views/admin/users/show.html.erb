@@ -1,0 +1,52 @@
+<% fields = {
+    # Deliberately ungated: every member who can open a profile sees the id, theirs and
+    # each other's. It is no longer readable from the breadcrumb, which now names the user.
+    'ID' => @user.id,
+    email: @user.email,
+    student_id: @user.student_id.present? ? @user.student_id : 'Not set',
+    associate_id: @user.associate_id.present? ? @user.associate_id : 'Not set',
+    phone_number: @user.phone_number.present? ? link_to(@user.phone_number, "tel: #{@user.phone_number}") : 'Not set',
+    calendar_email: @user.calendar_email.present? ? @user.calendar_email : 'Not set',
+    roles: to_sentence(@user.roles.collect { |role| get_link role, :show, link_text: role.name.titleize }),
+    years_active: @user.years_active.map { |y| format_academic_year(y) }.join(", ").presence || "No events",
+    marketing_creative_profile: @user.marketing_creatives_profile.present? ? get_link(@user.marketing_creatives_profile, :show) : 'This user has no Marketing Creative Profile.',
+    'Sign-in Count' => @user.sign_in_count,
+    profile_visible_to_public: bool_text(@user.public_profile),
+} %>
+
+<%= content_for :extra_show_actions do %>
+    <%= get_link @user, :reset_password, http_method: :post %>
+    <% if can? :absorb, @user %>
+        <%= link_to "Merge Another User Into This One", merge_admin_user_path(@user), class: btn_classes(:warning) %>
+    <% end %>
+<% end %>
+
+<%= render('shared/quick_actions_card') do %>
+  <%= render '/shared/show_actions', object: @user, destroy_link_params: {
+    type_confirm: @user.name,
+    detail: "If you delete a user, you may also break content which belongs to them. Do not take this decision lightly\n\nPlease type the user's full name:"
+  } %>
+<% end %>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-3">
+  <div>
+    <%= render Admin::UserBioComponent.new(user: @user) %>
+  </div>
+  <div class="xl:col-span-2">
+    <%= render CardComponent.new(flush: true) do %>
+      <%= render 'shared/basic_fields', fields: fields %>
+    <% end %>
+    <%= render Admin::DebtSummaryComponent.new(user: @user, current_user: current_user) %>
+  </div>
+</div>
+
+<h3>Projects</h3>
+<% items = @team_memberships.collect { |team_membership| {
+        event: team_membership.teamwork,
+        paragraphs: [
+          { content: team_membership.teamwork.date_range(true), small: true },
+          { content: team_membership.teamwork.short_blurb },
+          { content: "<b>Position</b>: #{team_membership.position}".html_safe, class: 'mt-auto' }
+        ] } } %>
+
+<%= render Admin::EventsGridComponent.new(items: items, col_size: 12, link_to_admin_events: @link_to_admin_events) %>

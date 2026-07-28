@@ -1,0 +1,52 @@
+<% content_for(:page_title, t(".title")) %>
+<div class="w-full max-w-(--breakpoint-xl) m-auto pt-4 px-4">
+  <section class="mb-6">
+    <h2 class="font-bold text-2xl mb-3">TOC</h2>
+    <% @talks.map(&:start_at).uniq.group_by(&:to_date).each do |date, slots| %>
+      <details class="mb-3">
+        <summary>
+          <span class="font-bold text-xl mb-3 cursor-pointer"><%= l(date.in_time_zone("Tokyo"), format: :event_date) %></span>
+        </summary>
+        <ol class="list-disc pl-8">
+          <% slots.each do |slot| %>
+            <li>
+              <%= link_to l(slot.in_time_zone("Tokyo"), format: :talk_time_slot), "#" + time_with_zone_to_anchor(slot), class: "underline cursor-pointer" %>
+            </li>
+          <% end %>
+        </ol>
+      </details>
+    <% end %>
+  </section>
+  <% @talks.group_by(&:start_at).each do |slot, talks| %>
+    <section class="mb-6">
+      <h2 class="font-bold text-2xl mb-3" id=<%= time_with_zone_to_anchor(slot) %>><%= l(slot.in_time_zone("Tokyo"), format: :talk_time_slot_with_date) %></h2>
+      <section class="flex flex-row justify-between flex-wrap items-start">
+        <% talks.reverse.each do |talk| # want to place Room Red -> Room Blue, so reverse %>
+          <div class="w-full md:w-[48%] border border-(--color-text-secondary) shadow-xs shadow-gray-400 rounded-lg mb-4 p-4">
+            <div class="w-full flex">
+              <div class="w-24">
+                <% talk.speakers.each do |speaker| %>
+                  <%= image_tag speaker.avatar_image_url, class: "rounded-lg w-20 mb-1" %>
+                  <p class="text-sm block mb-2"><%= speaker.name %></p>
+                <% end %>
+                <p class="text-sm block mb-3 pill pill__<%= talk.track.downcase.gsub(' ', '-') %>"><%= talk.track %></p>
+                <div class="w-6 h-6 -ml-1">
+                  <% if logged_in? %>
+                    <%= render partial: "bookmark_button", locals: { talk: talk, user: current_user!, user_bookmarks: @current_user_bookmarks } %>
+                  <% end %>
+                </div>
+              </div>
+              <div class="w-full pl-3">
+                <h3 class="text-xl mb-3 break-all"><%= talk.title %></h3>
+                <p class="text-theme-primary break-words mb-2 min-h-[5rem]"><%= truncate(talk.abstract, length: talk.speakers.size > 1 ? 250 : 150) %></p>
+              </div>
+            </div>
+            <div class="text-right">
+              <%= link_to t('.view_details'), event_talk_path(event_slug: @event.slug, id: talk.id), class: "underline text-right cursor-pointer w-full" %>
+            </div>
+        </div>
+          <% end %>
+      </section>
+    </section>
+  <% end %>
+</div>

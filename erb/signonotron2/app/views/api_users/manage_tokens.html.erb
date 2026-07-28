@@ -1,0 +1,88 @@
+<% content_for :title_caption, "Manage API users" %>
+<% content_for :title, "Manage tokens for #{@api_user.name}" %>
+
+<%
+  @breadcrumbs = [
+    {
+      title: "Dashboard",
+      url: root_path,
+    },
+    {
+      title: "API users",
+      url: api_users_path,
+    },
+    {
+      title: @api_user.name,
+      url: edit_api_user_path(@api_user),
+    }
+  ]
+%>
+
+<% if authorisation = flash[:authorisation] %>
+  <% content_for :custom_alerts do %>
+    <%= render "govuk_publishing_components/components/success_alert", {
+      message: "Make sure to copy the access token for #{authorisation["application_name"]} now. You won't be able to see it again!",
+      description: render("govuk_publishing_components/components/copy_to_clipboard", {
+        label: "Access token for #{authorisation["application_name"]}",
+        copyable_content: authorisation["token"],
+        button_text: "Copy access token",
+      })
+    } %>
+  <% end %>
+<% end %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-two-thirds">
+    <div class="govuk-form-group">
+      <%= render "govuk_publishing_components/components/button", {
+        text: "Add application token",
+        href: new_api_user_authorisation_path(@api_user),
+      } %>
+    </div>
+
+    <% @api_user.authorisations.not_revoked.ordered_by_application_name.ordered_by_expires_at.each do |authorisation| %>
+      <div class="govuk-summary-card">
+        <div class="govuk-summary-card__title-wrapper">
+          <h2 class="govuk-summary-card__title"><%= authorisation.application.name %></h2>
+          <ul class="govuk-summary-card__actions">
+            <li class="govuk-summary-card__action">
+              <a class="govuk-link" href="<%= edit_api_user_authorisation_path(@api_user, authorisation) %>">
+                Revoke<span class="govuk-visually-hidden"> token giving <%= @api_user.name %> access to <%= authorisation.application.name %></span>
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div class="govuk-summary-card__content">
+          <dl class="govuk-summary-list">
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">
+                Token (hidden)
+              </dt>
+              <dd class="govuk-summary-list__value">
+                <code>
+                  <%= truncate_access_token(authorisation.token) %>
+                </code>
+              </dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">
+                Generated
+              </dt>
+              <dd class="govuk-summary-list__value">
+                <%= authorisation.created_at.to_date.to_fs(:govuk_date) %>
+              </dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">
+                Expires
+              </dt>
+              <dd class="govuk-summary-list__value">
+                <%= authorisation.expires_at.to_date.to_fs(:govuk_date) %>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

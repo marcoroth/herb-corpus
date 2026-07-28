@@ -1,0 +1,47 @@
+<% # expects "bookmark" %>
+<% bookmarkable = bookmark.bookmarkable %>
+<% bookmark_form_id = (bookmarkable.blank? ? "#{bookmark.id}" : "#{bookmarkable.id}") %>
+<li id="bookmark_<%= bookmark.id %>" class="<%= css_classes_for_bookmark_blurb(bookmark) %>" role="article">
+
+  <% if bookmarkable.blank? %>
+    <p class="message"><%= t(".deleted") %></p>
+    <% # Bookmarks of deleted items need a div because they can still be edited. %>
+    <div class="new dynamic" id="bookmark_form_placement_for_<%= bookmark_form_id %>"></div>
+  <% else %>
+    <!--bookmark icons-->
+    <% bookmark_count = bookmarkable.public_bookmark_count %>
+    <p class="status" title="<%= bookmark_count %> Bookmarks">
+      <%= get_symbol_for_bookmark(bookmark) %>
+      <%= get_count_for_bookmark_blurb(bookmarkable) %>
+    </p>
+
+    <!--bookmark item module-->
+    <%= render "bookmarks/bookmark_item_module", bookmarkable: bookmarkable %>
+
+    <!--actions-->
+    <% if (bookmark_count > 1 && params[:tag_id]) || (bookmark_count > 1 && (@owner.blank? && @bookmarkable.blank?)) || (logged_in? && !is_author_of?(bookmark)) %>
+      <ul class="actions" role="navigation">
+        <% # If this bookmark does not belong to the current user, let them save a new copy or edit their existing copy %>
+        <% if logged_in? && !is_author_of?(bookmark) %>
+          <li>
+            <% if (current_user_bookmark ||= bookmark_if_exists(bookmarkable)) %>
+              <%= link_to t(".saved"), edit_bookmark_path(current_user_bookmark), data: { path: edit_bookmark_path(current_user_bookmark) }, class: "bookmark_form_trigger_for_#{bookmark_form_id}", remote: true %>
+            <% else %>
+              <%= link_to t(".save"), get_new_bookmark_path(bookmarkable), class: "bookmark_form_trigger_for_#{bookmark_form_id}", remote: true %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+
+    <% # bookmark form loaded here if requested %>
+    <div class="new dynamic" id="bookmark_form_placement_for_<%= bookmark_form_id %>"></div>
+  <% end %>
+
+  <%= render "bookmarks/bookmark_user_module", bookmark: bookmark %>
+
+  <% if logged_in_as_admin? && bookmarkable.class == ExternalWork %>
+    <%= render "admin/admin_options", item: bookmarkable %>
+  <% end %>
+
+</li>

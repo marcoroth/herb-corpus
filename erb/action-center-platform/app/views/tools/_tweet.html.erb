@@ -1,0 +1,75 @@
+<div class="tool <%= tweet_tool_classes -%>" id="tweet-tool"
+     data-tweet-targets="<%= @tweet.targets.to_json(only: :twitter_id) %>"
+     data-tweet-message="<%= @tweet.message %>"
+     data-tweet-related="<%= Rails.application.config.twitter_related.to_a.join(",") %>">
+  <div class="tool-container">
+    <div class="tool-heading"><h3 class="tool-title">Take Action</h3></div>
+    <div class="tool-body">
+      <div id="tweet-message-wrapper"<%= %( style="display: none").html_safe if @tweet.target_congress? %>>
+        <textarea class="form-control"><%= @tweet.message.html_safe -%></textarea>
+      </div>
+
+      <% if @tweet.targets.present? %>
+        <div id="tweet-tool-container"<%= %( style="display: none").html_safe if @tweet.target_congress? %>>
+          <h3 class="twitter-tool-label">Individuals</h3>
+          <% initial_targets = @tweet.targets.sample(3) %>
+          <% @tweet.targets.each do |target| %>
+            <div class="tweet-individual"<%= %( style="display: none").html_safe unless initial_targets.include?(target) %>>
+
+              <%= link_to "https://twitter.com/intent/tweet?" + {
+                  text: ".@#{target.twitter_id} #{@tweet.message}",
+                  related: Rails.application.config.twitter_related.to_a.join(',')
+                }.to_query,
+                  :target => "_blank",
+                  :class => "btn btn-default btn-tweet individual",
+                  :"data-twitter-id" => "@#{target.twitter_id}" do %>
+                <i class="icon-twitter-1"></i> Tweet @<%= target.twitter_id %>
+              <% end %>
+            </div>
+          <% end %>
+
+          <% if @tweet.targets.size > 3 %>
+            <button class="eff-button tweet-refresh" role="button" aria-pressed="false" ><i class ="icon-loop"></i> Display another 3</button>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if @tweet.target_congress? %>
+        <div class="with-js">
+          <h3 class="twitter-tool-label" style="display: none">Your Representatives</h3>
+          <form class="tweet-tool validate" action="" role="form">
+            <div class="form-group">
+              <label for="street_address">Street address</label>
+              <input class="form-control" type=text id="street_address" required>
+            </div>
+            <div class="form-group">
+              <label for="zipcode">Zip Code</label>
+              <input class="form-control" type=text name="zipcode" id="zipcode" required>
+            </div>
+            <%= render "tools/save_my_info_option", info: %w[address zipcode] -%>
+            <input type=submit class="eff-button" value="Look up your reps" role="button" aria-pressed="false">
+            <%= render "tools/loading" -%>
+
+                <% if @tweet.target_congress? && !@reps.present? -%>
+                <p class="privacy-notice with-js">
+                  This tool uses <a href="http://smartystreets.com/legal/privacy-policy" target="_blank">Smarty Streets</a>' API
+                  (<span class="privacy-notice-popover" data-toggle="tooltip" data-trigger="hover">why?
+                    <span class="tooltiptext">Our &quot;Tweet Your Representatives&quot; tool uses Smarty Streets' API to convert your street address and zip code to a congressional district.<br>This information isn't stored unless you're logged in.</span>
+                  </span>).<br>
+                  If you prefer not to use our tweet tool, <a href="https://www.eff.org/congress"  target="_blank">click here</a>.</p>
+                <% end -%>
+          </form>
+        </div>
+        <div class="without-js">
+          <h4><strong>Our representative lookup tool requires javascript.</strong></h4>
+          <p>If your browser doesn't support javascript or you prefer not to enable javascript on this site, you can find your legislators' contact information via the <a target="_blank" href="http://www.house.gov/representatives/find/">House</a> and <a target="_blank" href="https://www.senate.gov/general/contact_information/senators_cfm.cfm">Senate</a> websites.</p>
+          <p>The tweet for this campaign is:</p>
+          <textarea class="form-control"><%= @tweet.message.html_safe -%></textarea>
+        </div>
+      <% end -%>
+    </div>
+
+    <input type="hidden" name="action-id" value="<%= @actionPage.id -%>">
+
+  </div>
+</div>

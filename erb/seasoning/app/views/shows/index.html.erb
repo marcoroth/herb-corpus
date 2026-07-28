@@ -1,0 +1,148 @@
+<%= content_for :title do %>
+  Your shows
+<% end %>
+
+<div class="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
+  <div class="lg:w-1/3">
+    <%= render "activity_feed", activity_reviews: @activity_reviews %>
+  </div>
+
+  <div class="lg:w-2/3">
+    <div class="bg-white rounded-lg shadow-md p-2 sm:p-6">
+      <h1 class="text-2xl font-bold text-gray-900 mb-6">Your shows</h1>
+
+      <div class="mb-8">
+        <%= form_with(url: shows_path, method: :get) do |f| %>
+          <%= f.text_field :q, placeholder: "Filter your shows", class: "text-field block", value: @filters.q %>
+
+          <%= f.select(
+              :statuses,
+              MyShow.statuses.keys.map { [it.humanize, it] },
+              {
+                multiple: true,
+                selected: @filters.statuses
+              },
+              class: "select-field block mt-2",
+              size: MyShow.statuses.keys.count
+            ) %>
+
+          <%= f.submit "Apply filters", class: "rounded-button mt-2 block" %>
+        <% end %>
+      </div>
+
+      <% if @my_shows.any? %>
+        <div class="space-y-4">
+          <% @my_shows.each do |my_show| %>
+            <div
+              class="
+                rounded-md border border-gray-200 p-2 sm:p-4
+                hover:border-gray-400 hover:bg-orange-50 transition-colors
+              "
+            >
+              <% badge = my_show.unwatched_episode_badge %>
+
+              <%= link_to show_path(my_show.show.slug), class: "block no-underline cursor-pointer" do %>
+                <div class="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                  <div class="flex items-start gap-2 sm:gap-4 w-full sm:flex-1">
+                    <div class="flex-shrink-0">
+                      <%= render "poster", url: my_show.show.poster.url, show: my_show.show, size: "medium", badge: badge %>
+                    </div>
+
+                    <div class="flex-1 min-w-0 overflow-hidden">
+                      <div class="flex items-center gap-2">
+                        <div class="font-medium text-gray-900">
+                          <%= my_show.show.title %>
+                        </div>
+                      </div>
+
+                      <div class="text-sm text-gray-500 mt-1">
+                        <%= my_show.status_label %>
+                      </div>
+
+                      <% percentage = my_show.watched_percentage %>
+
+                      <div class="mt-2">
+                        <div class="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Progress</span>
+
+                          <span>
+                            <%= number_to_percentage(percentage, precision: 0, round_mode: :down) %>
+                          </span>
+                        </div>
+
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            class="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                            style="width: <%= percentage %>%"
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="text-gray-400 mt-1 sm:hidden">
+                      →
+                    </div>
+                  </div>
+
+                  <div class="hidden sm:block text-gray-400 mt-1">
+                    →
+                  </div>
+                </div>
+              <% end %>
+
+              <% if my_show.note_to_self.present? %>
+                <div class="mt-3 pt-3 border-t border-gray-200 collapsible-note">
+                  <input
+                    type="checkbox"
+                    id="note-toggle-index-<%= my_show.id %>"
+                    class="collapsible-note-toggle"
+                    checked
+                  >
+
+                  <label
+                    for="note-toggle-index-<%= my_show.id %>"
+                    class="collapsible-note-header"
+                  >
+                    <span class="collapsible-note-caret text-xs">▶</span>
+
+                    <div class="text-xs font-medium text-gray-700">
+                      Note to self
+                    </div>
+                  </label>
+
+                  <div class="collapsible-note-content">
+                    <div class="text-sm text-gray-600 rendered-markdown break-words mt-1">
+                      <%= auto_link(markdown_to_html(my_show.note_to_self)).html_safe %>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div>
+          No shows yet. Maybe add some via the search at the top of the page?
+        </div>
+      <% end %>
+
+      <% if @has_previous_page || @has_next_page %>
+        <div class="mt-8 flex justify-between items-center">
+          <div>
+            <% if @has_previous_page %>
+              <%= link_to "← Previous", @filters.previous_page_path %>
+            <% end %>
+          </div>
+
+          <div class="text-gray-600">Page <%= current_page %></div>
+
+          <div>
+            <% if @has_next_page %>
+              <%= link_to "Next →", @filters.next_page_path %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

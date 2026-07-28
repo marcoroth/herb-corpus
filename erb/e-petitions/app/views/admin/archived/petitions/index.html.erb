@@ -1,0 +1,105 @@
+<h1>Archived Petitions</h1>
+
+<%= form_tag admin_archived_petitions_path, enforce_utf8: false, method: :get, class: "search-petitions" do %>
+  <div class="grid-row">
+    <div class="column-two-thirds">
+      <%= label_tag :parliament, "Filter by parliament", class: "visuallyhidden" %>
+      <%= select_tag :parliament, admin_parliaments_for_select(params[:parliament]), class: "form-control", data: { autosubmit: true } %>
+    </div>
+    <div class="column-two-thirds">
+      <%= label_tag :state, "Filter by status", class: "visuallyhidden" %>
+      <%= select_tag :state, admin_archived_petition_facets_for_select(@petitions.facets, params[:state]), class: "form-control", data: { autosubmit: true } %>
+    </div>
+    <div class="column-two-thirds">
+      <div class="search-inline">
+        <%= label_tag :q, "Search petitions", class: "visuallyhidden" %>
+        <%= search_field_tag :q, params[:q], class: "form-control", placeholder:"Enter a search query" %>
+        <%= submit_tag 'Search', name: nil, class: 'inline-submit' %>
+      </div>
+    </div>
+    <div class="column-third actions-right">
+      <%= link_to "Download CSV", admin_archived_petitions_path(:csv, search_params.except(:page)) %>
+    </div>
+  </div>
+
+  <div class="grid-row">
+    <div class="column-two-thirds">
+      <%= content_tag(:details, class: "department-selector", open: selected_depts.present? || params[:dmatch] == "none") do %>
+        <summary><span>Departments</span></summary>
+        <div class="inline department-list">
+          <div class="panel-indent">
+            <p>
+              <small>
+                Match <label><%= radio_button_tag :dmatch, "any", %w[all none].exclude?(params[:dmatch]) %> any selected departments</label>
+                <label><%= radio_button_tag :dmatch, "all", params[:dmatch] == "all" %> all selected departments</label>
+                <label><%= radio_button_tag :dmatch, "none", params[:dmatch] == "none" %> no departments</label>
+              </small>
+            </p>
+            <% Department.by_name.each do |d| %>
+              <div class="multiple-choice">
+                <%= tag.input type: "checkbox", name: "depts[]", value: d.id, id: "depts_#{d.id}", checked: selected_depts.include?(d.id) %>
+                <%= tag.label d.label, for: "depts_#{d.id}", title: d.name %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= content_tag(:details, class: "tag-selector", open: selected_tags.present? || params[:tmatch] == "none") do %>
+        <summary><span>Tags</span></summary>
+        <div class="inline tag-list">
+          <div class="panel-indent">
+            <p>
+              <small>
+                Match <label><%= radio_button_tag :tmatch, "any", %w[all none].exclude?(params[:tmatch]) %> any selected tags</label>
+                <label><%= radio_button_tag :tmatch, "all", params[:tmatch] == "all" %> all selected tags</label>
+                <label><%= radio_button_tag :tmatch, "none", params[:tmatch] == "none" %> no tags</label>
+              </small>
+            </p>
+            <% Tag.by_name.each do |t| %>
+              <div class="multiple-choice">
+                <%= tag.input type: "checkbox", name: "tags[]", value: t.id, id: "tags_#{t.id}", checked: selected_tags.include?(t.id) %>
+                <%= tag.label t.name, for: "tags_#{t.id}", title: t.description %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<%= will_paginate(@petitions) %>
+
+<table class="petition-list">
+  <thead>
+    <tr>
+      <th class="action">Action</th>
+      <th class="creator">Creator</th>
+      <th class="petition-id">ID</th>
+      <th class="state">State</th>
+      <th class="date">Closed At</th>
+      <th class="numeric last">Signatures</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @petitions.each do |petition| -%>
+      <tr class="<%= petition.state.dasherize %>">
+        <td class="action"><%= link_to petition.action, admin_archived_petition_path(petition) %></td>
+        <td class="creator">
+          <% if petition.creator.present? && !petition.creator.anonymized? %>
+            <%= mail_to petition.creator.email, petition.creator.name %>
+          <% else %>
+            –
+          <% end %>
+        </td>
+        <td class="petition-id"><%= petition.id %></td>
+        <td class="state"><%= petition.state.humanize %></td>
+        <td class="date"><%= date_format(petition.closed_at) %></td>
+        <td class="numeric last"><%= number_with_delimiter(petition.signature_count) %></td>
+      </tr>
+    <% end -%>
+  </tbody>
+</table>
+
+<%= will_paginate(@petitions) %>

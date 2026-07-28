@@ -1,0 +1,69 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% with_enterprise_banner_guard(:sso_auth_providers, variant: :large, video: "enterprise/sso-login.mp4") do %>
+  <%=
+    settings_primer_form_with(scope: :settings,
+                              url: admin_settings_authentication_path(tab: params[:tab]),
+                              method: :patch) do |f|
+      render_inline_settings_form(f) do |form|
+        form.select_list(
+          name: :omniauth_direct_login_provider,
+          input_width: :medium,
+          label: I18n.t(:setting_omniauth_direct_login_provider),
+          caption: t(
+            "settings.authentication.omniauth_direct_login_hint_html",
+            internal_path: internal_signin_url
+          ),
+          include_blank: I18n.t(:label_none_parentheses)
+        ) do |select|
+          AuthProvider
+            .where(available: true)
+            .order("lower(display_name) ASC")
+            .select(:type, :display_name, :slug)
+            .to_a
+            .each do |provider|
+            select.option(
+              value: provider.slug,
+              label: "#{provider.display_name} (#{provider.human_type})",
+              selected: Setting.omniauth_direct_login_provider == provider.slug
+            )
+          end
+        end
+
+        form.check_box(
+          name: :oauth_allow_remapping_of_existing_users,
+          caption: I18n.t("settings.authentication.remapping_existing_users_hint")
+        )
+
+        form.submit
+      end
+    end
+  %>
+<% end %>

@@ -1,0 +1,42 @@
+<%#
+name: Host - Registered Content Hosts
+snippet: false
+template_inputs:
+- name: Hosts filter
+  required: false
+  input_type: user
+  description: Limit the report only on hosts found by this search query. Keep empty
+    for report on all available hosts.
+  advanced: false
+  value_type: search
+  resource_type: Host
+- name: Installability
+  required: true
+  input_type: user
+  description: Select Applicable to show all applicable errata. Select Installable to show errata that are in the host's content view environment(s) and can thus be installed.
+  advanced: false
+  value_type: plain
+  options: "applicable\r\ninstallable"
+  default: "applicable"
+model: ReportTemplate
+require:
+- plugin: katello
+  version: 4.9.0
+-%>
+<%- if input('Installability') == 'applicable' -%>
+    <%- report_headers 'Name', 'Ip', 'Operating System', 'Applicable Errata', 'Owner', 'Kernel', 'Latest kernel available' -%>
+<%- else -%>
+    <%- report_headers 'Name', 'Ip', 'Operating System', 'Installable Errata', 'Owner', 'Kernel', 'Latest kernel available' -%>
+<%- end -%>
+<%- load_hosts(search: input('Hosts filter'), includes: [:operatingsystem, :interfaces, :applicable_errata], preload: [:kernel_release, :owner]).each_record do |host| -%>
+<%-   report_row(
+        'Name': host.name,
+        'Ip': host.ip,
+        'Operating System': host.operatingsystem,
+        'Errata': (input('Installability') == 'applicable' ? host_applicable_errata_ids(host) : host_installable_errata_ids(host)),
+        'Owner': host.owner,
+        'Kernel': host_kernel_release(host),
+        'Latest kernel available': (input('Installability') == 'applicable' ? host_latest_applicable_rpm_version(host, 'kernel') : host_latest_installable_rpm_version(host, 'kernel'))
+      ) -%>
+<%- end -%>
+<%= report_render -%>

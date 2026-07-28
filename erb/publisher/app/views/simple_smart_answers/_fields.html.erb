@@ -1,0 +1,63 @@
+<div class="row">
+  <div class="col-md-8">
+    <fieldset class="inputs">
+      <legend class="remove-bottom-margin">
+        <h2 class="remove-top-margin add-bottom-margin h3">Edit Simple smart answer</h2>
+      </legend>
+
+      <%= render :partial => "shared/common_edition_attributes", :locals => {:f => f} %>
+      <div class="row">
+        <div class="col-md-10">
+          <%= form_group(f, :body) do %>
+            <%= f.text_area :body, rows: 20, disabled: @resource.locked_for_edits?, class: "form-control", data: {
+              module: "paste-html-to-govspeak",
+            } %>
+          <% end %>
+        </div>
+      </div>
+    </fieldset>
+  </div>
+</div>
+
+<div class="builder-container">
+  <div class="row">
+    <div class="col-md-8">
+      <div class="form-group">
+        <fieldset>
+          <legend class="remove-bottom-margin">
+            <p>Start button text:</p>
+          </legend>
+          <% ["Start now", "Continue", "Find contact details", "Next"].each do |option| %>
+            <%= f.radio_button :start_button_text, option, disabled: @resource.locked_for_edits? %>
+            <%= f.label "start_button_text_#{option.gsub(" ","_").underscore}", option, class: "control-label input-md-3" %><br>
+          <% end %>
+        </fieldset>
+      </div>
+      <br>
+    </div>
+  </div>
+  <div class="nodes" id="nodes">
+    <%# We need to output questions followed by outcomes but the potential for unsaved (invalid) nodes rules out the user of database ordering. So we must instead sort the collection by node order ascending (a.order <=> b.order) within node kind descending (b.kind <=> a.kind). %>
+    <%= f.fields_for :nodes, @resource.nodes.sort {|a,b| [b.kind, a.order] <=> [a.kind, b.order] }, :wrapper_class => lambda {|n| return "row node #{n.kind}" } do |node| %>
+      <%= render :partial => "simple_smart_answers/node", :locals => { :f => node } %>
+    <% end %>
+  </div>
+  <div class="row">
+    <div class="col-md-8">
+      <%= f.link_to_add(:nodes, :model_object => SimpleSmartAnswerEdition::Node.new, :data => { :target => "#nodes" }, :class => "btn btn-primary add-question add-right-margin" ) do %>
+        <i class="glyphicon glyphicon-plus"></i>Add question
+      <% end %>
+      <%= f.link_to_add(:nodes, :model_object => SimpleSmartAnswerEdition::Node.new, :data => { :target => "#nodes" }, :class => "btn btn-danger add-outcome" ) do %>
+        <i class="glyphicon glyphicon-plus"></i>Add outcome
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%= render partial: "shared/workflow_buttons", locals: { f: f } %>
+
+<% content_for :extra_javascript do %>
+  <script>
+    Publisher.smartAnswerBuilder.init();
+  </script>
+<% end %>

@@ -1,0 +1,50 @@
+<%
+  ga4_auto_attributes = {
+    event_name: "side_bar_error",
+    action: "error",
+  }
+%>
+
+<div class="app-view-summary__sidebar-notices">
+  <% unless @edition.valid?(:publish) %>
+    <% invalid_items = if @edition.is_a?(StandardEdition) && @invalid_tab_forms&.any?
+      @invalid_tab_forms.map do |tab|
+        link_to(
+          "#{tab[:label]} tab is invalid",
+          edit_admin_standard_edition_path(@edition, current_tab: tab[:tab_key]),
+          class: "govuk-link",
+        )
+      end
+    else
+      @edition.errors.map(&:full_message)
+    end %>
+    <%= render "components/inset_prompt", {
+      data_attributes: {
+        module: "ga4-auto-tracker",
+        ga4_auto: {
+          type: "show invalid edition warning",
+          text: @edition.errors.map(&:full_message).join(", "),
+        }.merge(ga4_auto_attributes).as_json,
+      },
+      title: "This edition is invalid",
+      description: render("govuk_publishing_components/components/list", {
+        visible_counters: true,
+        items: invalid_items,
+      }),
+      error: true,
+    } %>
+  <% end %>
+  <% if show_similar_slugs_warning?(@edition) %>
+    <%= render "components/inset_prompt", {
+      data_attributes: {
+        module: "ga4-auto-tracker",
+        ga4_auto: {
+          type: "show similar slugs warning",
+          text: "This title has been used before on GOV.UK, although the page may no longer exist. Please use another title. If not, the URL for this #{@edition.format_name} will be #{@edition.base_path}",
+        }.merge(ga4_auto_attributes).as_json,
+      },
+      description: "This title has been used before on GOV.UK, although the page may no longer exist. Please use another title. If not, the URL for this #{@edition.format_name} will be #{@edition.base_path}",
+      error: true,
+    } %>
+  <% end %>
+</div>

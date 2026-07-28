@@ -1,0 +1,69 @@
+<% @page_title = "Projects"
+@projects = current_account.projects_dataset.where(:visible).all
+@invitations = current_account.invitations %>
+
+<%== part(
+  "components/page_header",
+  right_items: (@projects.count > 0) ? [
+    part("components/button", text: "Create Project", link: "/project/create")
+  ] : []
+) %>
+
+<div class="grid gap-6">
+  <%== part(
+      "components/table_card",
+      headers: ["Name", "Set As Default", "Remove Access"],
+      rows: @projects.map do |p|
+         [
+           [
+             [p.name, {link: "#{p.path}/dashboard"}],
+             if current_account.default_project == p
+               ["Default"]
+             else
+               [part("components/submit_button", action: "/project/set-default/#{p.ubid}", text: "Set As Default"), {escape: false}]
+             end,
+             [
+               part("components/delete_button",
+                 url: "/project/#{p.ubid}/user/#{current_account.ubid}",
+                 text: "Remove Access",
+                 icon: nil,
+                 hidden_inputs: {"project_list" => true},
+                 confirmation_message: "Are you sure you want to remove your access to this project?"),
+               {escape: false}
+             ],
+           ],
+           { id: "project-#{p.ubid}" }
+         ]
+      end,
+      empty_state: {
+        icon: "hero-folder-open",
+        title: "No projects",
+        description: "Get started by creating a new project.",
+        button_link: "/project/create",
+        button_title: "Create Project"
+      }
+    ) %>
+</div>
+
+<% unless @invitations.empty? %>
+  <div class="grid gap-6 mt-4">
+    <%== part(
+        "components/table_card",
+        title: "Project Invitations",
+        headers: %w[Name ID Invited\ By Accept Decline],
+        rows: @invitations.map do |inv|
+           project_ubid = inv.project.ubid
+           [
+             [
+               inv.project.name,
+               project_ubid,
+               inv.inviter&.email || "-Account Deleted-",
+               [part("components/submit_button", action: "/project/invitation/#{project_ubid}/accept", text: "Accept"), {escape: false}],
+               [part("components/delete_button", url: "/project/invitation/#{project_ubid}/decline", text: "Decline", exact_url: true, icon: nil), {escape: false}]
+             ],
+             { id: "invitation-#{project_ubid}" }
+           ]
+        end,
+      ) %>
+  </div>
+<% end %>

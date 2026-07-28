@@ -1,0 +1,125 @@
+<%
+# Copyright (C) 2015 - present Instructure, Inc.
+#
+# This file is part of Canvas.
+#
+# Canvas is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, version 3 of the License.
+#
+# Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <http://www.gnu.org/licenses/>.
+%>
+
+<% if aac.try(:last_timeout_failure).present? %>
+<p class='last_timeout_failure'>
+  <%= t :ldap_timeout_failure_help2,
+        "If Canvas times out too many times communicating with the LDAP server,"\
+          " it will block further login attempts from using that LDAP "\
+          "server for %{time}. Your LDAP server last timed out at %{timestamp}.",
+        time: distance_of_time_in_words(aac.failure_wait_time),
+        timestamp: datetime_string(aac.last_timeout_failure) %>
+</p>
+<% end %>
+
+<div class="ic-Form-control">
+  <%= f.label :auth_host, t('Host'), class: 'ic-Label', for: "auth_host_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_field :auth_host, class: 'ic-Input', id: "auth_host_#{presenter.id_suffix(aac)}" %>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :auth_port, t('Port'), class: 'ic-Label', for: "auth_port_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_field :auth_port, class: 'ic-Input', style: 'width: 50px;', id: "auth_port_#{presenter.id_suffix(aac)}" %>
+</div>
+<fieldset class="ic-Fieldset ic-Fieldset--radio-checkbox">
+  <legend class="ic-Legend">
+    <%= t('TLS') %>
+  </legend>
+  <div class="ic-Form-control ic-Form-control--radio">
+    <div class="ic-Radio">
+      <%= f.radio_button :auth_over_tls, 'start_tls', id: "start_tls_#{presenter.id_suffix(aac)}", checked: aac.auth_over_tls == 'start_tls' %>
+      <%= f.label :auth_over_tls, t('Start TLS'), for: "start_tls_#{presenter.id_suffix(aac)}", class: 'ic-Label' %>
+    </div>
+    <div class="ic-Radio">
+      <%= f.radio_button :auth_over_tls, 'simple_tls', id: "simple_tls_#{presenter.id_suffix(aac)}", checked: aac.auth_over_tls == 'simple_tls' %>
+      <%= f.label :auth_over_tls, t('Simple TLS'), for: "simple_tls_#{presenter.id_suffix(aac)}", class: 'ic-Label' %>
+    </div>
+    <% if aac && !aac.auth_over_tls %>
+      <div class="ic-Radio">
+        <%= f.radio_button :auth_over_tls, false, id: "no_tls_#{presenter.id_suffix(aac)}", checked: !aac.auth_over_tls %>
+        <%= f.label :auth_over_tls, t('No TLS'), for: "no_tls_#{presenter.id_suffix(aac)}", class: 'ic-Label' %>
+      </div>
+    <% end %>
+  </div>
+</fieldset>
+<div class="ic-Form-control">
+  <%= f.label :auth_base, t('Base'), class: 'ic-Label', for: "auth_base_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_field :auth_base, class: 'ic-Input', id: "auth_base_#{presenter.id_suffix(aac)}" %>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :auth_filter, t('Filter'), class: 'ic-Label', for: "auth_filter_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_field :auth_filter, class: 'ic-Input', id: "auth_filter_#{presenter.id_suffix(aac)}" %>
+  <div class="ic-Form-help-text">
+    <%= t(:auth_filter_description,
+          "Use *%{placeholder}* as a placeholder for the username "\
+          "supplied by the user. \nFor example: "\
+          "*(sAMAccountName=%{placeholder})*",
+          placeholder: '{{login}}',
+          wrapper: '<code>\1</code>') %>
+  </div>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :identifier_format, t('Login Attribute'), class: 'ic-Label', for: "identifier_format_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_field :identifier_format, class: 'ic-Input', id: "identifier_format_#{presenter.id_suffix(aac)}" %>
+  <div class="ic-Form-help-text">
+    <%= t(:identifer_format_description,
+          "The LDAP attribute to use to look up the Canvas login. "\
+          "Leave blank to use the username supplied by the user.") %>
+  </div>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :internal_ca, t('Internal Certificate Authority (CA)'), class: 'ic-Label', for: "internal_ca_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_area :internal_ca, style: hidden, id: "internal_ca_#{presenter.id_suffix(aac)}" %>
+
+  <div id="internal-ca-select-<%= presenter.id_suffix(aac) %>" style="flex: 1"></div>
+  <div class="ic-Form-help-text">
+          <%= t(:internal_ca_description,
+                "If your LDAP server presents a certificate issued by an untrusted, internal root CA, you *must* upload your root "\
+          "CA in order for Canvas to trust it when connecting.", wrapper: '<strong>\1</strong>') %>
+    </div>
+    <div class="ic-Form-help-text">
+          <%= t(:internal_ca_warning,
+                "*Warning*: Using an internal root CA is less secure, and increases the risk of compromise. We strongly "\
+                "recommend using certificates issued by a trusted certificate authority, instead.", wrapper: '<strong>\1</strong>') %>
+  </div>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :verify_tls_cert_opt_in, t('Verify TLS Certificate'), class: 'ic-Label', for: "verify_tls_cert_opt_in_#{presenter.id_suffix(aac)}" %>
+  <%= f.check_box :verify_tls_cert_opt_in, class: 'verify_tls_cert_opt_in_checkbox', disabled: aac.account.feature_enabled?(:verify_ldap_certs), checked: aac.account.feature_enabled?(:verify_ldap_certs) || aac.verify_tls_cert_opt_in, id: "verify_tls_cert_opt_in_#{presenter.id_suffix(aac)}" %>
+
+  <!-- Only show help text if verification isn't forced on -->
+  <% if !aac.account.feature_enabled?(:verify_ldap_certs) %>
+    <% if Setting.get("ldap_validate_tls_cert_help_text_format", nil) == 'undated' %>
+      <div class="ic-Form-help-text ldap-verify-tls-cert-opt-in-help-text">
+        <%= t(:verify_tls_cert_opt_in_undated_description, "TLS certificate verification will be required soon, but you may enable it early to ensure your LDAP server is compliant.") %>
+      </div>
+    <% elsif Setting.get("ldap_validate_tls_cert_help_text_format", nil) == 'dated' && Setting.get("ldap_validate_tls_cert_enforcement_date", nil).present? %>
+      <div class="ic-Form-help-text ldap-verify-tls-cert-opt-in-help-text">
+        <%= t(:verify_tls_cert_opt_in_dated_description, "TLS certificate verification will be required on *%{enforcement_date}*, but you may enable it early to ensure your LDAP server is compliant.", enforcement_date: date_string(Time.at(Setting.get("ldap_validate_tls_cert_enforcement_date", 0).to_i)), wrapper: '<strong>\1</strong>') %>
+      </div>
+    <% end %>
+  <% end %>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :auth_username, t('Username'), class: 'ic-Label', for: "auth_username_#{presenter.id_suffix(aac)}" %>
+  <%= f.text_field :auth_username, class: 'ic-Input', id: "auth_username_#{presenter.id_suffix(aac)}" %>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :auth_password, t('Password'), class: 'ic-Label', for: "auth_password_#{presenter.id_suffix(aac)}" %>
+  <%= f.password_field :auth_password, class: 'ic-Input', id: "auth_password_#{presenter.id_suffix(aac)}" %>
+</div>
+<%= render partial: 'jit_provisioning_field', locals: { aac: aac, presenter: presenter, f: f } %>

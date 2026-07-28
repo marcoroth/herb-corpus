@@ -1,0 +1,76 @@
+<p class="mb-3 text-gray-600">
+  Submit your expenses here. The finance team reviews every claim, batches it to the
+  Students' Association (EUSA), and EUSA pays it into your bank account.
+  <% if (receive_mailbox = Reimbursements::CostCentre.default&.receive_mailbox).present? %>
+    You can also just email a receipt to <%= mail_to receive_mailbox %> and finish the claim here.
+  <% end %>
+</p>
+
+<% if current_person.nil? || !current_person.bank_details? %>
+  <%= render AlertComponent.new(type: :warning) do %>
+    We don't have your bank details yet. You can submit expenses, but they can't be
+    approved until you
+    <%= link_to "add your payment details", edit_admin_reimbursements_payment_details_path, class: "font-medium underline" %>.
+  <% end %>
+<% else %>
+  <%# Durable, quiet confirmation that details are on file (and which account),
+      so "is my money going to the right place?" is answerable at a glance —
+      last 4 digits only. %>
+  <p class="mb-3 text-sm text-gray-600">
+    Payments go to your account ending <strong><%= current_person.account_number.to_s.last(4) %></strong>.
+    <%= link_to "Change", edit_admin_reimbursements_payment_details_path, class: "underline" %>
+  </p>
+<% end %>
+
+<%= render CardComponent.new(title: "Quick actions") do %>
+  <div class="flex flex-wrap items-center gap-2">
+    <%= link_to "New expense", new_admin_reimbursements_expense_path, class: btn_classes(:primary) %>
+    <%= link_to "Payment details", edit_admin_reimbursements_payment_details_path, class: btn_classes(:secondary) %>
+    <%= link_to "Refresh", admin_reimbursements_expenses_path(refresh: 1), class: btn_classes(:secondary) %>
+  </div>
+<% end %>
+
+<% if @expenses.empty? %>
+  <%= render CardComponent.new(title: @title) do %>
+    <div class="py-4 text-center text-gray-600">
+      No expenses yet.
+      <%= link_to "Submit your first one", new_admin_reimbursements_expense_path, class: "font-medium underline" %>:
+      upload the receipt and we'll fill in most of the form for you.
+    </div>
+  <% end %>
+<% else %>
+  <% headers = [ "Status", "Description", "Budget", "Amount", "Created", "Receipts", "" ] %>
+  <% field_sets = @expenses.map do |expense|
+       status = safe_join([
+         reimbursements_producer_status_badge(expense.status),
+         (reimbursements_reasons_popover(reasons: expense.missing_completion_fields, key: "expense-#{expense.record_id}",
+                                         label: "Needs completion", heading: "Still needs:",
+                                         record_label: "##{expense.auto_number}") if expense.needs_completion?)
+       ].compact, " ")
+       description = safe_join([
+         expense.description.presence || content_tag(:span, "(no description yet)", class: "text-gray-500"),
+         (content_tag(:div, "Rejected: #{expense.rejection_reason}", class: "text-sm text-danger") if expense.status == Reimbursements::Status::REJECTED && expense.rejection_reason.present?)
+       ].compact)
+       {
+         fields: [
+           expense,
+           status,
+           description,
+           expense.budget ? expense.budget.name : content_tag(:span, "No budget yet", class: "text-gray-500"),
+           reimbursements_money(expense.amount),
+           reimbursements_date(expense.submitted_at),
+           expense.receipt_count,
+           safe_join([
+             (link_to("Edit", edit_admin_reimbursements_expense_path(expense.record_id),
+                      "aria-label": "Edit ##{expense.auto_number}", class: btn_classes(:secondary, :sm)) if expense.editable?),
+             link_to("View", admin_reimbursements_expense_path(expense.record_id),
+                     "aria-label": "View ##{expense.auto_number}", class: btn_classes(:secondary, :sm))
+           ].compact, " ")
+         ]
+       }
+     end %>
+  <%= render "shared/pages/index_results",
+        resources: @expenses, resource_class: Reimbursements::Expense,
+        headers: headers, field_sets: field_sets,
+        include_edit_button: false, include_link_to_item: false, include_pagination: false %>
+<% end %>

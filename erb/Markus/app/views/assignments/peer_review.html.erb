@@ -1,0 +1,106 @@
+<%= content_for :head do %>
+  <%= javascript_tag nonce: true do %>
+    document.addEventListener('DOMContentLoaded', () => {
+      makeStudentPeerReviewsTable(
+        document.getElementById('peer_submissions_table'),
+        {
+          course_id: <%= @current_course.id %>,
+          assignment_id: <%= @assignment.parent_assignment.id %>
+        }
+      );
+    })
+  <% end %>
+<% end %>
+
+<div class='title_bar'>
+  <h1>
+    <%= @assignment.is_peer_review? ?
+          "#{@assignment.parent_assignment.short_identifier}: #{PeerReview.model_name.human.pluralize}" :
+          "#{@assignment.short_identifier}: #{PeerReview.model_name.human.pluralize}" %>
+  </h1>
+</div>
+
+<div class='pane-wrapper'>
+  <div class='pane block'>
+    <%= render partial: 'read', locals: { peer_review: true } %>
+
+    <div class='block-content'>
+      <h3><%= Submission.model_name.human.pluralize %></h3>
+      <div id='peer_submissions_table'></div>
+    </div>
+  </div>
+
+  <div class='pane block'>
+    <h2><%= t('groups.student_interface.group_information') %></h2>
+
+    <div class='block-content'>
+      <%# If student has no group, inform them %>
+      <% if @grouping.nil? %>
+          <p class='notice'>
+            <i class="fa-solid fa-circle-info left-icon"></i>
+            <%= t('groups.student_interface.no_group_yet') %>.
+            <% if @assignment.past_collection_date?(@student.section) %>
+              <%= t('assignments.due_date.final_due_date_passed') %>
+            <% end %>
+          </p>
+      <% else %>
+          <%# Since the student has a group already, we display information about the group only %>
+          <h3>
+            <%= t('groups.student_interface.your_group') %>
+          </h3>
+
+          <% if flash[:fail_notice] && !flash[:fail_notice].empty? %>
+              <div class='notice'>
+                <i class="fa-solid fa-circle-info left-icon"></i>
+                <% if flash[:fail_notice].is_a?(Array) %>
+                    <ul>
+                      <% flash[:fail_notice].each do |message| %>
+                          <li><%= message %></li>
+                      <% end %>
+                    </ul>
+                <% else %>
+                    <%= flash[:fail_notice] %>
+                <% end %>
+              </div>
+          <% end %>
+
+          <% if flash[:success] && !flash[:success].empty? %>
+              <div class='success'>
+                <% if flash[:success].is_a?(Array) %>
+                    <ul>
+                      <% flash[:success].each do |message| %>
+                          <li><%= message %></li>
+                      <% end %>
+                    </ul>
+                <% else %>
+                    <%= flash[:success] %>
+                <% end %>
+              </div>
+          <% end %>
+
+          <%# For each member of this group, display name %>
+          <ul>
+            <% @grouping.student_memberships.includes(:role).each do |member| %>
+                <li>
+                    <%= member.role.display_name %>
+                </li>
+            <% end %>
+          </ul>
+      <% end %>
+
+      <h3><%= t('peer_reviews.your_results') %></h3>
+      <div>
+        <% if @prs.empty? %>
+            <p><%= t('peer_reviews.your_results_none') %></p>
+        <% else %>
+          <ul>
+            <% @prs.each do |pr| %>
+                <li><%= link_to "#{PeerReview.model_name.human} #{pr.id}",
+                                view_marks_course_result_path(@current_course.id, pr.result_id) %> </li>
+            <% end %>
+          </ul>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

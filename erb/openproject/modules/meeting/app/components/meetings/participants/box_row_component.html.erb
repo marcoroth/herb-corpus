@@ -1,0 +1,69 @@
+<%=
+  component_wrapper do
+    flex_layout(align_items: :center, justify_content: :space_between) do |row|
+      row.with_column do
+        render(
+          Users::AvatarComponent.new(
+            user: @participant.user,
+            show_name: false,
+            hover_card: { active: true, target: :custom }
+          )
+        )
+      end
+
+      row.with_column(flex: 1, flex_layout: true, ml: 3) do |column|
+        column.with_row do
+          render(
+            Primer::Beta::Link.new(
+              href: user_path(@participant.user),
+              underline: false,
+              font_weight: :bold,
+              test_selector: "participant_user_link_#{@participant.user_id}",
+              classes: "meeting-participant-user-link",
+              data: {
+                "hover-card-url" => hover_card_user_path(@participant.user),
+                "hover-card-trigger-target" => "trigger"
+              }
+            )
+          ) do
+            @participant.user.name
+          end
+        end
+
+        column.with_row do
+          if @participant.participation_needs_action? || @participant.participation_unknown?
+            render(Primer::Beta::Text.new(font_size: :small, color: :subtle)) { t("meeting_participant.participation_status.needs_action").capitalize }
+          elsif @participant.participation_accepted?
+            render(Primer::Beta::Text.new(font_size: :small, color: :success)) { t("meeting_participant.participation_status.accepted").capitalize }
+          elsif @participant.participation_declined?
+            render(Primer::Beta::Text.new(font_size: :small, color: :danger)) { t("meeting_participant.participation_status.declined").capitalize }
+          elsif @participant.participation_tentative?
+            render(Primer::Beta::Text.new(font_size: :small, color: :attention)) { t("meeting_participant.participation_status.tentative").capitalize }
+          end
+        end
+      end
+
+      row.with_column do
+        flex_layout(align_items: :center, justify_content: :space_between) do |actions|
+          if @meeting.in_progress?
+            actions.with_column(ml: 2) do
+              render(Meetings::Participants::AttendedToggleButtonComponent.new(meeting: @meeting, participant: @participant))
+            end
+          end
+          actions.with_column(ml: 2) do
+            render(
+              Primer::Beta::IconButton.new(
+                scheme: :invisible,
+                tag: :a,
+                href: project_meeting_participant_path(@meeting.project, @meeting, @participant),
+                icon: :x,
+                aria: { label: I18n.t("meeting.participants.label.remove_participant") },
+                data: remove_button_data_attributes
+              )
+            )
+          end
+        end
+      end
+    end
+  end
+%>

@@ -1,0 +1,201 @@
+<div class="row">
+  <%= render "thank_you_modal" %>
+  <div class="col-sm-12 form-header d-flex flex-wrap justify-content-between">
+    <h1 class="pull-left my-4"><%= @casa_case.decorate.transition_aged_youth_icon %>CASA Case Details</h1>
+    <div class="d-inline-flex flex-wrap my-4 gap-3">
+      <%- if @casa_case.active? %>
+        <%= link_to new_case_contact_path(case_contact: {casa_case_id: @casa_case.id}), class: "main-btn primary-btn btn-sm btn-hover pull-left" do %>
+          <i class="lni lni-plus mr-10"></i>
+          New Case Contact
+        <% end %>
+      <%- end %>
+      <% if @casa_case.active? %>
+        <%= link_to edit_casa_case_path(@casa_case), class: "main-btn primary-btn btn-sm btn-hover pull-left" do %>
+          <i class="lni lni-pencil mr-10"></i>
+          Edit Case Details
+        <% end %>
+      <% end %>
+      <% if @casa_case.in_transition_age? %>
+        <%= link_to(casa_case_emancipation_path(@casa_case),
+                class: "main-btn primary-btn btn-sm") do %>
+          Emancipation
+          <%= render BadgeComponent.new(text: @casa_case.decorate.emancipation_checklist_count,
+                                        type: :light,
+                                        margin: false) %>
+        <% end %>
+      <% end %>
+      <% if @casa_case.casa_org.show_fund_request %>
+        <%= link_to("New Fund Request", new_casa_case_fund_request_path(@casa_case),
+  class: "main-btn primary-btn btn-sm") %>
+      <% end %>
+      <%= render "casa_cases/generate_report_modal" %>
+    </div>
+  </div>
+</div>
+<div class="card card-container">
+  <div class="card-body">
+    <% if !@casa_case.active %>
+      <%= render "inactive_case", casa_case: @casa_case %>
+    <% end %>
+    <div>
+      <h6><strong>Case number:</strong> <%= @casa_case.case_number %>
+        <%= volunteer_badge(@casa_case, current_user) %>
+      </h6>
+    </div>
+    <% if @casa_case.hearing_type %>
+      <div>
+        <h6><strong>Hearing Type:</strong> <%= @casa_case.hearing_type_name %></h6>
+      </div>
+    <% end %>
+    <% if @casa_case.has_judge_name? %>
+      <div>
+        <h6><strong>Judge:</strong> <%= @casa_case.judge_name %></h6>
+      </div>
+    <% end %>
+    <div>
+      <h6><strong>Transition Aged Youth:</strong> <%= @casa_case.decorate.transition_aged_youth %></h6>
+    </div>
+    <div>
+      <h6>
+        <strong>
+          Youth's Date in Care:
+        </strong>
+        <%= @casa_case.decorate.date_in_care %>
+        <%= @casa_case.decorate.duration_in_care %>
+      </h6>
+    </div>
+    <div>
+      <h6>
+        <strong>Next Court Date:</strong>
+        <%= I18n.l(@casa_case.next_court_date&.date, format: :day_and_date, default: '') %>
+        <%= render "calendar_button", date: @casa_case.decorate.calendar_next_court_date,
+                 id: "btnNextCourtDate",
+                 tooltip: "Add Next Court Date to Calendar",
+                 title: "Next Court Date for [#{@casa_case.case_number}]" %>
+      </h6>
+    </div>
+    <div>
+      <h6>
+        <strong>Court Report Status:</strong>
+        <%= @casa_case.decorate.court_report_submission %></h6>
+    </div>
+    <% unless @casa_case.court_report_not_submitted? %>
+      <% if @casa_case.court_report_submitted? && @casa_case.court_reports.attached? %>
+        <%= link_to('Click to download',
+                    rails_blob_path(@casa_case.latest_court_report, disposition: 'attachment')) %>
+      <% end %>
+      <div>
+        <h6>
+          <strong>Court Report Submitted Date:</strong>
+          <%= @casa_case.decorate.court_report_submitted_date %></h6>
+      </div>
+    <% end %>
+    <% if @casa_case.case_court_orders.exists? %>
+      <h6><strong>Court Orders:</strong></h6>
+      <% @casa_case.case_court_orders.each do |court_order| %>
+        <p><%= court_order.implementation_status_symbol %> <%= court_order.text %></p>
+      <% end %>
+    <% end %>
+    <%= render "court_dates", casa_case: @casa_case %>
+    <%= render "placements", casa_case: @casa_case %>
+    <div>
+      <h6><strong>Assigned Volunteers:</strong></h6>
+      <div class="container">
+        <% Pundit.policy_scope(current_user, @casa_case.assigned_volunteers).each do |volunteer| %>
+          <div class="row mb-3">
+            <% if current_user.volunteer? %>
+              <div class="col-12"><%= volunteer.display_name %></div>
+            <% else %>
+              <div class="col-2">
+                <%= link_to "#{volunteer.display_name} ", edit_volunteer_path(volunteer) %>
+              </div>
+              <div class="col-10">
+                <%= render "volunteers/volunteer_reminder_form", volunteer: volunteer %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+      <br>
+      <% if @casa_case.case_contacts.present? %>
+        <div class="text-right mb-2">
+          <%= link_to casa_case_path(params[:id], format: :xlsx), class: "main-btn primary-btn btn-sm btn-hover" do %>
+            <i class="lni lni-download mr-10"></i>
+            Download All
+          <% end %>
+        </div>
+      <% end %>
+      <div id="case_contacts_list">
+        <% if current_user.supervisor? || current_user.casa_admin? %>
+          <%= render(partial: "case_contacts/case_contact",
+                    collection: @casa_case.decorate
+                      .case_contacts_ordered_by_occurred_at
+                      .includes(
+                        :creator,
+                        :followups,
+                        :contact_types,
+                        contact_topic_answers: [:contact_topic]
+                      )
+                      .grab_all(current_user),
+                    as: :contact) %>
+        <% else %>
+          <%= render(partial: "case_contacts/case_contact",
+                    collection: @casa_case.decorate
+                      .case_contacts_filtered_by_active_assignment_ordered_by_occurred_at
+                      .includes(
+                        :creator,
+                        :followups,
+                        :contact_types,
+                        contact_topic_answers: [:contact_topic]
+                      )
+                      .grab_all(current_user),
+                    as: :contact) %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# clear local storage when successfully created case_contacts %>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    if (/\/casa_cases\/.*\?.*success=true/.test(window.location.href)) {
+      window.localStorage.removeItem('casa-contact-form')
+    }
+  });
+  const ELEMENTS = {
+    'caseSelect': '#case-selection',
+    'generateBtn': '#btnGenerateReport',
+  }
+  const showBtn = el => el.classList.remove('d-none')
+  const enableBtn = (el) => {
+    el.disabled = false
+    el.classList.remove('disabled')
+    el.removeAttribute('aria-disabled')
+  }
+
+  const handleSelect = (e) => {
+    const selectEl = e.target
+    const generateBtn = selectEl.form.querySelector(ELEMENTS.generateBtn)
+
+    // when selecting a case, reset buttons to initial state
+    enableBtn(generateBtn)
+    showBtn(generateBtn)
+  }
+
+  const bindElements = () => {
+    const caseSelectEl = document.querySelector(ELEMENTS.caseSelect)
+
+    if (caseSelectEl)
+      caseSelectEl.addEventListener('change', handleSelect)
+  }
+
+  const setTimeZone = () => {
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    document.getElementById("user-time-zone").value = timeZone
+  }
+
+  window.onload = function () {
+    bindElements()
+  }
+</script>

@@ -1,0 +1,75 @@
+<div class="container">
+  <aside>
+    <ul>
+      <li><%= type_filter_link "All" %></li>
+      <% Upright.probe_types.each do |probe_type| %>
+        <li><%= type_filter_link probe_type.name, probe_type.type %></li>
+      <% end %>
+    </ul>
+  </aside>
+
+  <main>
+    <h1>Probe Results</h1>
+    <p><%= results_summary(@page) %></p>
+
+    <div class="filters">
+      <%= form_with url: site_root_path, method: :get, data: { controller: "form" } do |f| %>
+        <%= hidden_field_tag :probe_type, params[:probe_type] if params[:probe_type].present? %>
+        <%= hidden_field_tag :date, params[:date] if params[:date].present? %>
+        <label for="probe_name">Name</label>
+        <%= select_tag :probe_name,
+              options_for_select([["All", ""]] + @probe_names, params[:probe_name]),
+              class: "input--select",
+              data: { action: "change->form#submit" } %>
+        <label for="status">Status</label>
+        <%= select_tag :status,
+              options_for_select([["All", ""]] + Upright::ProbeResult.statuses.keys.map { |s| [s.titleize, s] }, params[:status]),
+              class: "input--select",
+              data: { action: "change->form#submit" } %>
+        <% if params[:date].present? %>
+          <%= link_to "Clear date filter", site_root_path(probe_type: params[:probe_type], probe_name: params[:probe_name], status: params[:status]), class: "filter-clear" %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <div class="probe-results__chart"
+         data-controller="probe-results-chart"
+         data-probe-results-chart-results-value="<%= @chart_data.to_json %>">
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Probe Name</th>
+          <th>Status</th>
+          <th>Duration</th>
+          <th>Time</th>
+          <th>Artifacts</th>
+        </tr>
+      </thead>
+      <tbody data-controller="results-table" data-action="click->results-table#openArtifact">
+        <% @page.records.each do |result| %>
+          <tr>
+            <td class="probe__cell">
+              <span class="probe__icon"><%= probe_type_icon(result.probe_type) %></span>
+              <div class="probe__details">
+                <div class="probe__name"><%= result.probe_name %></div>
+                <% if result.probe_target.present? %>
+                  <div class="probe__target"><%= result.probe_target %></div>
+                <% end %>
+              </div>
+            </td>
+            <td class="status--<%= result.status %>"><%= result.status.titleize %></td>
+            <td><%= result.duration ? "#{sprintf('%.3f', result.duration)}s" : "N/A" %></td>
+            <td title="<%= result.created_at.to_fs(:db) %>"><%= time_ago_in_words(result.created_at) %> ago</td>
+            <td>
+              <%= render partial: "upright/active_storage/attachments/attachment", collection: result.artifacts, as: :attachment, locals: { probe_result: result } %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <%= render "pagination", page: @page %>
+  </main>
+</div>

@@ -1,0 +1,276 @@
+<%= viral_dialog(open: open, size: :large, closable: closable) do |dialog| %>
+  <% dialog.with_header(title: t("shared.samples.spreadsheet_imports.dialog.title")) %>
+  <%= turbo_stream_from @broadcast_target %>
+
+  <%= turbo_frame_tag "import_spreadsheet_dialog_content" do %>
+    <%= turbo_frame_tag "import_spreadsheet_dialog_alert" %>
+
+    <div
+      data-controller="spreadsheet-import sortable-lists--v1--two-lists-selection attachment-upload <% if @namespace.group_namespace? %> <%= Flipper.enabled?(:v2_select2, Current.user) ? 'select2--v2' : 'select2--v1' %> <% end %>"
+      data-sortable-lists--v1--two-lists-selection-selected-list-value="selected-list"
+      data-sortable-lists--v1--two-lists-selection-available-list-value="available-list"
+      data-sortable-lists--v1--two-lists-selection-field-name-value="spreadsheet_import[metadata_fields][]"
+      data-spreadsheet-import-select-sample-value="<%= t("shared.samples.spreadsheet_imports.dialog.select_sample_name_column") %>"
+      data-spreadsheet-import-select-description-value="<%= t("shared.samples.spreadsheet_imports.dialog.select_sample_description_column") %>"
+      data-spreadsheet-import-select-project-value="<%= t("shared.samples.spreadsheet_imports.dialog.select_project_puid_column") %>"
+      data-attachment-upload-uploading-text-value="<%= t('shared.samples.spreadsheet_imports.dialog.uploading') %>"
+      data-attachment-upload-success-text-value="<%= t('common.upload.uploaded_successfully') %>"
+      data-attachment-upload-error-fallback-text-value="<%= t('common.upload.failed') %>"
+      <% if Flipper.enabled?(:v2_select2, Current.user) %>
+        data-select2--v2-enable-controller-coordination-value="<%= true %>"
+        <% if @namespace.group_namespace? %>
+          data-select2--v2-spreadsheet-import-outlet="#spreadsheet-import-dialog-content"
+        <% end %>
+      <% else %>
+        data-select2--v1-enable-controller-coordination-value="<%= true %>"
+        <% if @namespace.group_namespace? %>
+          data-select2--v1-spreadsheet-import-outlet="#spreadsheet-import-dialog-content"
+        <% end %>
+      <% end %>
+      data-spreadsheet-import-refresh-outlet="[data-controller='refresh']"
+      data-action="
+        spreadsheet-import:sendMetadata->sortable-lists--v1--two-lists-selection#updateMetadataListing
+      "
+      id="spreadsheet-import-dialog-content"
+    >
+      <%= form_for(:spreadsheet_import, url: url, method: :post) do |form| %>
+        <input type="hidden" name="broadcast_target" value="<%= @broadcast_target %>">
+
+        <div class="grid gap-4">
+          <p class="text-base leading-relaxed text-slate-500 dark:text-slate-300">
+            <%= t("shared.samples.spreadsheet_imports.dialog.description") %>
+          </p>
+
+          <p class="text-base leading-relaxed text-slate-500 dark:text-slate-300">
+            <% if @namespace.group_namespace? %>
+              <%= t("shared.samples.spreadsheet_imports.dialog.namespace.group.description_html") %>
+            <% else %>
+              <%= t(
+                "shared.samples.spreadsheet_imports.dialog.namespace.project.description_html",
+              ) %>
+            <% end %>
+          </p>
+
+          <%= render partial: "shared/form/required_field_legend" %>
+
+          <div class="form-field">
+            <%= form.label :file,
+                       t("shared.samples.spreadsheet_imports.dialog.file"),
+                       class:
+                         "block mb-2 text-sm font-medium text-slate-900 dark:text-white",
+                       data: {
+                         required: true,
+                       } %>
+
+            <%= form.file_field :file,
+                            required: true,
+                            direct_upload: true,
+                            accept:
+                              # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+                              "text/csv,.tsv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            data: {
+                              action: "change->spreadsheet-import#readFile",
+                              "attachment-upload-target": "attachmentsInput",
+                            },
+                            aria: {
+                              required: true,
+                            },
+                            class:
+                              "block w-full text-sm text-slate-900 border border-slate-300 rounded-lg cursor-pointer bg-slate-50 dark:text-slate-300 dark:bg-slate-900 dark:border-slate-600 dark:placeholder-slate-400 disabled:opacity-50 disabled:cursor-not-allowed" %>
+
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">
+              <%= t("shared.samples.spreadsheet_imports.dialog.file_help") %>
+            </p>
+          </div>
+
+          <div class="form-field">
+            <%= form.label :sample_name_column,
+                       t("shared.samples.spreadsheet_imports.dialog.sample_name_column"),
+                       class:
+                         "block mb-2 text-sm font-medium text-slate-900 dark:text-white",
+                       data: {
+                         required: true,
+                       } %>
+
+            <%= form.select :sample_name_column,
+                        {},
+                        {
+                          prompt:
+                            t(
+                              "shared.samples.spreadsheet_imports.dialog.select_sample_name_column",
+                            ),
+                        },
+                        required: true,
+                        data: {
+                          "spreadsheet-import-target": "sampleNameColumn",
+                          action: "change->spreadsheet-import#changeInputValue",
+                        },
+                        aria: {
+                          required: true,
+                        },
+                        disabled: true,
+                        class:
+                          "disabled:bg-slate-50 disabled:border disabled:border-slate-300 disabled:rounded-lg disabled:w-full disabled:p-2.5 disabled:dark:bg-slate-700 disabled:dark:border-slate-600 disabled:dark:placeholder-slate-400" %>
+          </div>
+
+          <div class="form-field">
+            <%= form.label :sample_description_column,
+                       t(
+                         "shared.samples.spreadsheet_imports.dialog.sample_description_column",
+                       ),
+                       class:
+                         "block mb-2 text-sm font-medium text-slate-900 dark:text-white" %>
+
+            <%= form.select :sample_description_column,
+                        {},
+                        {
+                          prompt:
+                            t(
+                              "shared.samples.spreadsheet_imports.dialog.select_sample_description_column",
+                            ),
+                        },
+                        required: false,
+                        data: {
+                          "spreadsheet-import-target": "sampleDescriptionColumn",
+                          action: "change->spreadsheet-import#changeInputValue",
+                        },
+                        disabled: true,
+                        class:
+                          "disabled:bg-slate-50 disabled:border disabled:border-slate-300 disabled:rounded-lg disabled:w-full disabled:p-2.5 disabled:dark:bg-slate-700 disabled:dark:border-slate-600 disabled:dark:placeholder-slate-400" %>
+          </div>
+
+          <% if @namespace.group_namespace? %>
+            <div class="form-field">
+              <fieldset>
+                <legend data-required="true" class="font-sm font-medium text-slate-900 dark:text-white">
+                  <%= t("shared.samples.spreadsheet_imports.dialog.project_selection") %>
+                </legend>
+
+                <div class="mb-2">
+                  <p class="text-xs leading-relaxed text-slate-500 dark:text-slate-300">
+                    <%= t("shared.samples.spreadsheet_imports.dialog.project_selection_description") %>
+                  </p>
+                </div>
+
+                <%= form.label :project_puid_column,
+                           t("shared.samples.spreadsheet_imports.dialog.project_puid_column"),
+                           class:
+                             "block mb-2 text-sm font-medium text-slate-900 dark:text-white" %>
+
+                <p class="text-xs leading-relaxed text-slate-500 dark:text-slate-300">
+                  <%= t("shared.samples.spreadsheet_imports.dialog.project_puid_column_description") %>
+                </p>
+
+                <%= form.select :project_puid_column,
+                            {},
+                            {
+                              prompt:
+                                t(
+                                  "shared.samples.spreadsheet_imports.dialog.select_project_puid_column",
+                                ),
+                            },
+                            required: false,
+                            data: {
+                              "spreadsheet-import-target": "projectPUIDColumn",
+                              action: "change->spreadsheet-import#changeInputValue",
+                            },
+                            disabled: true,
+                            class:
+                              "mb-2 disabled:bg-slate-50 disabled:border disabled:border-slate-300 disabled:rounded-lg disabled:w-full disabled:p-2.5 disabled:dark:bg-slate-700 disabled:dark:border-slate-600 disabled:dark:placeholder-slate-400" %>
+
+                <% form_id = "static-project-select" %>
+
+                <label for="<%= form_id %>" class="mb-2 block text-sm font-medium text-slate-900 dark:text-white">
+                  <%= t("shared.samples.spreadsheet_imports.dialog.static_project") %>
+                </label>
+
+                <p class="text-xs leading-relaxed text-slate-500 dark:text-slate-300">
+                  <%= t("shared.samples.spreadsheet_imports.dialog.static_project_description") %>
+                </p>
+
+                <%= render Select2Component.new(form:, name: :static_project_id, id: form_id, placeholder: t("shared.samples.spreadsheet_imports.dialog.select_static_project"), required: false) do |select| %>
+                  <% @group_projects.each do |project| %>
+                    <% select.with_option(
+                        value: project.id,
+                        label: project.namespace.full_path,
+                      ) do %>
+                      <span class="pointer-events-none block font-semibold text-slate-900 dark:text-slate-400">
+                        <%= project.namespace.name %>
+                        <%= render PuidComponent.new(puid: project.namespace.puid, show_clipboard: false) %>
+                      </span>
+
+                      <span class="pointer-events-none block text-slate-600 dark:text-white">
+                        <%= project.namespace.full_path %>
+                      </span>
+                    <% end %>
+                  <% end %>
+
+                  <%= select.with_empty_state do %>
+                    <%= t("shared.samples.spreadsheet_imports.dialog.static_project_empty_state") %>
+                  <% end %>
+                <% end %>
+              </fieldset>
+            </div>
+          <% end %>
+
+          <template id="sortable-list-item-template" data-sortable-lists--v1--two-lists-selection-target="itemTemplate">
+            <%= render SortableLists::V1::ListItemComponent.new(list_item: "NAME_HERE") %>
+          </template>
+
+          <div class="grid hidden gap-4" data-spreadsheet-import-target="metadata">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">
+              <%= t("shared.samples.spreadsheet_imports.dialog.metadata") %>
+            </h2>
+
+            <% sortable_lists_guidance_id = "sample-spreadsheet-import-fields-guidance" %>
+
+            <%= render Viral::SortableListsGuidanceComponent.new(
+              title: t("shared.samples.spreadsheet_imports.dialog.fields_instructions_title"),
+              instructions: t("shared.samples.spreadsheet_imports.dialog.fields_instructions"),
+              keyboard_help: t("shared.samples.spreadsheet_imports.dialog.keyboard_help"),
+              id_prefix: sortable_lists_guidance_id,
+              available: {
+                title: t("shared.samples.spreadsheet_imports.dialog.available_list_title"),
+                description: t("shared.samples.spreadsheet_imports.dialog.available_description"),
+              },
+              selected: {
+                title: t("shared.samples.spreadsheet_imports.dialog.selected_list_title"),
+                description: t("shared.samples.spreadsheet_imports.dialog.selected_description"),
+              },
+            ) %>
+
+            <%= render SortableListsComponent.new do |sortable_lists| %>
+              <%= sortable_lists.with_list(
+                id: "available-list",
+                title: t("shared.samples.spreadsheet_imports.dialog.available_list_title"),
+                describedby: "#{sortable_lists_guidance_id}-available-description",
+              ) %>
+
+              <%= sortable_lists.with_list(
+                id: "selected-list",
+                title: t("shared.samples.spreadsheet_imports.dialog.selected_list_title"),
+                describedby: "#{sortable_lists_guidance_id}-selected-description",
+              ) %>
+            <% end %>
+          </div>
+
+          <div class="hidden" data-sortable-lists--v1--two-lists-selection-target="field"></div>
+
+          <div>
+            <%= form.submit t("shared.samples.spreadsheet_imports.dialog.submit_button"),
+                        class: "button button-primary",
+                        data: {
+                          turbo_frame: "_top",
+                          action:
+                            "viral--dialog#setClosable click->sortable-lists--v1--two-lists-selection#constructParams click->spreadsheet-import#handleSubmit",
+                          "viral--dialog-closable-param": "false",
+                          "spreadsheet-import-target": "submitButton",
+                          "attachment-upload-target": "submitButton",
+                        },
+                        disabled: true %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

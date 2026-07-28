@@ -1,0 +1,216 @@
+var getSubtitle = function() {
+  var subtitle = "";
+
+  if(document.ontouchstart === undefined) {
+    subtitle += "<%= I18n.t('highcharts.subtitle.desktop') %>";
+  } else {
+    subtitle += "<%= I18n.t('highcharts.subtitle.mobile') %>";
+  }
+
+  subtitle += "<br><%= I18n.t('highcharts.subtitle.commit_url') %>";
+  return subtitle;
+}
+
+var drawChart = function(chartClass) {
+  $(chartClass).each(function() {
+    $this = $(this);
+
+    escaped = $this.attr('data-categories');
+    $this.attr('data-categories', escaped.replace(/\\#/g, "#"));
+
+    if($this.length) {
+      $this.highcharts({
+        chart: {
+          zoomType: 'x'
+        },
+        colors: ['#e34447', '#434348', '#90ed7d', '#f7a35c', '#8085e9', '#f15c80', '#e4d354', '#2b908f', '#f45b5b', '#91e8e1'],
+        subtitle: {
+          text: getSubtitle()
+        },
+        title: {
+          text: ""
+        },
+        exporting: {
+          enabled: false
+        },
+        tooltip: {
+          useHTML: true,
+          crosshairs: true,
+          shared: true,
+          positioner: function (labelWidth, labelHeight, point) {
+            if ((this.chart.chartWidth / 2) > point.plotX ) {
+              return { x: this.chart.chartWidth - labelWidth - 20, y: 50 };
+            } else {
+              return { x: 80, y: 50 };
+            }
+          },
+          shadow: false,
+          animation: false,
+          shape: 'square'
+        },
+        xAxis: {
+          type: 'category',
+          categories: $this.data('categories'),
+          labels: {
+            formatter: function () {
+              var date = /Commit Date: (\d{4}-\d{2}-\d{2})/.exec(this.value);
+              if (date != null) {
+                return date[1];
+              }
+            }
+          },
+          tickInterval: $this.data('tick-interval')
+        },
+        yAxis: {
+          title: {
+            text: $this.data('unit'),
+          },
+          min: 0
+        },
+        legend: {
+          layout: 'horizontal',
+          align: 'center',
+          verticalAlign: 'bottom'
+        },
+        series: $this.data('columns'),
+        plotOptions: {
+          series: {
+            turboThreshold: 5000,
+            animation: false,
+            point: {
+              events: {
+                click: function() {
+                  var getCommitHash = function(category) {
+                    return /^Commit Sha: (.{7})/.exec(category)[1];
+                  }
+
+                  var getCommitMessage = function(category) {
+                    category = category.replace(/(\r\n|\n|\r)/g,"");
+                    return /Commit Message: (.{0,30})<br>/.exec(category)[1];
+                  }
+
+                  var generateCommitRow = function(commitHash, index, styleColor) {
+                    return "<tr><td><a target='_blank' style='color:" + styleColor +
+                      ";' href=" + githubCommitURL + commitHash + ">" +
+                      commitHash + " " + getCommitMessage(data[index].category) +
+                      " - " + data[index].y + " " + units + "</a></td></tr>";
+                  }
+
+                  var generateCompareRow = function(startCommitHash, endCommitHash) {
+                    return "<tr><td><p>~</p>" +
+                      "<a target='_blank' href='" + githubCompareURL + startCommitHash +
+                      "..." + endCommitHash + "'>" +
+                      "There may be untested commits between this range. " +
+                      "Click to view them on GitHub." +
+                      "</a><br>" + "<p>~</p></td></tr>";
+                  }
+
+                  var currentIndex = this.index;
+                  var prevIndex = currentIndex - 1;
+                  var nextIndex = currentIndex + 1;
+                  var data = this.series.data;
+                  var currentCommitHash = getCommitHash(this.category);
+                  var units = this.series.yAxis.axisTitle.textStr;
+
+                  var githubURL = 'https://github.com/' +
+                    $this.data('organization') + '/' + $this.data('repo') + '/';
+
+                  var githubCommitURL = githubURL + "commit/";
+                  var githubCompareURL = githubURL + "compare/";
+
+                  if(prevIndex >= 0) {
+                    var prevCommitHash = getCommitHash(data[prevIndex].category);
+                  } else {
+                    var prevCommitHash = currentCommitHash;
+                    prevIndex = currentIndex;
+                  }
+
+                  if(nextIndex <= (data.length -1)) {
+                    var nextCommitHash = getCommitHash(data[nextIndex].category);
+                  } else {
+                    var nextCommitHash = currentCommitHash;
+                    nextIndex = currentIndex;
+                  }
+
+                  var $spinner = $("#chart-modal .spinner");
+                  var $modalTbody = $("#chart-modal .modal-body table tbody");
+
+                  $('#chart-modal .modal-title').empty().append(this.category);
+                  $modalTbody.empty();
+                  $spinner.toggleClass('hide');
+
+                  var commitRows = "";
+
+                  if(prevIndex > 0 || (data.length == 3 && currentIndex == 1)) {
+                    commitRows += generateCommitRow(
+                      prevCommitHash, prevIndex, 'black'
+                    );
+
+                    commitRows += generateCompareRow(prevCommitHash, currentCommitHash);
+                  }
+
+                  commitRows += generateCommitRow(
+                    currentCommitHash ,currentIndex, 'green'
+                  );
+
+                  if(nextIndex < (data.length - 1) || (data.length == 3 && currentIndex == 1)) {
+                    commitRows += generateCompareRow(currentCommitHash, nextCommitHash);
+
+                    commitRows += generateCommitRow(
+                      nextCommitHash ,nextIndex, 'black'
+                    );
+                  }
+
+                  $spinner.toggleClass('hide');
+                  $modalTbody.append(commitRows);
+                  $('#chart-modal').modal('show');
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  })
+};
+
+var drawComparisonChart = function(chartClass) {
+  $(chartClass).each(function() {
+    series = $(this).data('series');
+    commitUrls = $(this).data('commit-urls');
+
+    Highcharts.stockChart(this, {
+      legend: {
+        enabled: true
+      },
+      plotOptions: {
+        series: {
+          showInNavigator: true,
+          point: {
+            events: {
+              click: function() {
+                point = this;
+
+                obj = $.grep(commitUrls, function(obj) {
+                  return obj["name"] == point.series.name;
+                })[0];
+
+                commitUrl = obj["data"][point.index];
+                if(commitUrl != "") {
+                  window.open(commitUrl, "_blank");
+                }
+              }
+            }
+          }
+        }
+      },
+      chart: {
+        zoomType: 'x',
+      },
+      tooltip: {
+        split: true
+      },
+      series: $(this).data('series')
+    });
+  });
+};

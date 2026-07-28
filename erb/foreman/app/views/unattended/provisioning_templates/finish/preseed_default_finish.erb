@@ -1,0 +1,90 @@
+<%#
+kind: finish
+name: Preseed default finish
+model: ProvisioningTemplate
+oses:
+- Debian
+- Ubuntu
+test_on:
+- debian4dhcp
+- ubuntu4dhcp
+description: |
+  A finish template executed at the end of a network provisioning done using preseed based
+  installer, typically DEB based distributions. This template renders to a shell script.
+-%>
+<%
+  # safemode renderer does not support unary negation
+  puppet_enabled = !host_param_true?('skip-puppet-setup') && (host_puppet_server.present? || host_param_true?('force-puppet'))
+  salt_enabled = host_param('salt_master') ? true : false
+  chef_enabled = @host.respond_to?(:chef_proxy) && @host.chef_proxy
+-%>
+<% subnet = @host.subnet -%>
+<% if @static -%>
+  <%- dhcp = false -%>
+<% elsif subnet.nil? -%>
+  <%- dhcp = true -%>
+<% else -%>
+  <%- dhcp = subnet.dhcp_boot_mode? -%>
+<% end -%>
+<%= snippet_if_exists(template_name + " custom pre") -%>
+<% unless dhcp -%>
+# host and domain name need setting as these values may have come from dhcp if pxe booting
+/bin/sed -i "s/^search.*$/search <%= @host.domain %>/g" /etc/resolv.conf
+/bin/sed -i "s/.*dns-search.*/\tdns-search <%= @host.domain %>/g" /etc/network/interfaces
+/bin/sed -i "s/^<%= @host.ip %>.*/<%= @host.ip %>\t<%= @host.shortname %>.<%= @host.domain %>\t<%= @host.shortname %>/g" /etc/hosts
+<% end -%>
+
+<% unless !(@host.operatingsystem.name == "Ubuntu" && @host.operatingsystem.major.to_i > 20 || (@host.operatingsystem.major.to_i == 20 && @host.operatingsystem.minor.to_i >= 3)) || dhcp -%>
+/bin/echo <%= @host.shortname %> > /etc/hostname
+/bin/hostname  <%= @host.shortname %>.<%= @host.domain %>
+<% end -%>
+
+<% if @host.operatingsystem.name == "Debian" && @host.operatingsystem.major.to_i >= 13 -%>
+echo "# Removed by Foreman" > /etc/grub.d/30_uefi-firmware
+/usr/sbin/grub-mkconfig -o /boot/grub/grub.cfg
+<% end -%>
+
+<%= snippet 'ntp' %>
+
+<% if @host.provision_method == 'image' && root_pass.present? -%>
+# Install the root password
+echo 'root:<%= root_pass -%>' | /usr/sbin/chpasswd -e
+
+<% end -%>
+<%= snippet_if_exists(template_name + " custom snippet") %>
+<% if @host.realm && @host.realm.realm_type == 'FreeIPA' -%>
+<%= snippet 'freeipa_register' %>
+<% end -%>
+
+<%= snippet('remote_execution_ssh_keys') %>
+
+<%= snippet "blacklist_kernel_modules" %>
+
+<%= snippet_if_exists(template_name + " custom post") -%>
+<% unless host_param('kernel_parameters').nil? -%>
+
+# Allow overriding the default kernel parameters
+  sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=".*"/GRUB_CMDLINE_LINUX_DEFAULT="<%= host_param('kernel_parameters') %>"/g' /etc/default/grub && update-grub
+<% end -%>
+<% if chef_enabled -%>
+
+<%= snippet 'chef_client' %>
+<% end -%>
+<% if puppet_enabled -%>
+
+<% if host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-official-puppet8-repo') || host_param_true?('enable-official-puppet7-repo') || host_param_true?('enable-puppetlabs-puppet6-repo') || host_param_true?('enable-puppetlabs-puppet5-repo') -%>
+<%= snippet 'puppetlabs_repo' %>
+<% end -%>
+<%= snippet 'puppet_setup' %>
+<% end -%>
+<% if salt_enabled -%>
+
+<%= snippet 'saltstack_setup' %>
+<% end -%>
+
+<%= snippet 'preseed_networking_setup' -%>
+<%= snippet 'ansible_provisioning_callback' -%>
+<%= snippet 'efibootmgr_netboot' -%>
+<%= snippet 'eject_cdrom' -%>
+<%= snippet 'built' -%>
+<%= snippet 'schedule_reboot' -%>

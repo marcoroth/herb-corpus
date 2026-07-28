@@ -1,0 +1,57 @@
+// Copyright 2014 Square Inc.
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+
+$(document).ready(function() {
+  // set up the magic bugs table
+  var table = new SortableTable($('#bugs'),
+                                "<%= project_environment_bugs_url(@project, @environment, format: 'json') %>",
+                                [
+                                  { key: 'class_message', title: "Message", sortable: false, htmlGenerator: function(bug) {
+                                    var sp = $('<span/>').addClass('long-words').text(bug.message_template);
+                                    $('<br/>').prependTo(sp);
+                                    $('<tt/>').text(bug.class_name).prependTo(sp);
+                                    return sp;
+                                  } },
+                                  { title: "File", sortable: false, textGenerator: formatBugFile },
+                                  { key: 'occurrences', title: "Counts", sortable: 'desc', htmlGenerator: function(bug) {
+                                    var sp = $('<span/>');
+                                    $('<span/>').text(bug.occurrences_count).addClass('occurrences_count').appendTo(sp);
+                                    $('<i/>').addClass('fa fa-exclamation-circle').appendTo(sp);
+                                    sp.append(' ');
+                                    $('<span/>').text(bug.comments_count).addClass('comments_count').appendTo(sp);
+                                    $('<i/>').addClass('fa fa-comment').appendTo(sp);
+                                    return sp;
+                                  } },
+                                  { key: 'latest', title: "Latest", sortable: 'desc', htmlGenerator: function(bug) {
+                                    return $('<time/>').attr('datetime', bug.latest_occurrence).liveUpdate();
+                                  } }
+                                ],
+                                {
+                                  sort_key:    'latest',
+                                  params:      function() {
+                                    return $('#filter').serializeObject();
+                                  },
+                                  scroll_with: 'number'
+                                }
+  );
+
+  var refresh = function() {
+    var spinner = $('<i/>').addClass('fa fa-refresh').appendTo($('#filter').find('>p:first-child'));
+    table.refreshData(function() { spinner.remove(); }, true);
+  };
+
+  // changing a filter value refreshes the table
+  $('#filter').find('select').change(refresh);
+  new DynamicSearchField($('#filter_search'), refresh);
+});

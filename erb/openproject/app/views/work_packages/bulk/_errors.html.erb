@@ -1,0 +1,46 @@
+<%
+  erroneous_results = service_result.results_with_errors(include_self: false)
+  error_count = erroneous_results.count
+  total_count = service_result.dependent_results.map(&:result).uniq.count
+  selected_count = selected_work_packages.count
+  selected_ids = selected_work_packages.map(&:id)
+  source_ids = erroneous_results.map { |call| call.state.copied_from_work_package_id }.compact.uniq
+  source_work_packages_by_id = source_ids.any? ? WorkPackage.visible.where_display_id_in(*source_ids).index_by(&:id) : {}
+%>
+
+<% if total_count - error_count == 0 %>
+  <%= t(
+        "work_packages.bulk.none_could_be_saved",
+        total: total_count
+      ) %>
+<% else %>
+  <%= t(
+        "work_packages.bulk.x_out_of_y_could_be_saved",
+        failing: error_count,
+        total: total_count,
+        success: total_count - error_count
+      ) %>
+
+  <%= t("work_packages.bulk.could_not_be_saved") %>
+<% end %>
+
+<% if selected_count < total_count %>
+  <%= t(
+        "work_packages.bulk.selected_because_descendants",
+        total: total_count,
+        selected: selected_count
+      ) %>
+<% end %>
+
+<ul>
+  <% erroneous_results.each do |call| %>
+    <% source_id = call.state.copied_from_work_package_id %>
+    <% wp = source_id ? source_work_packages_by_id[source_id] : call.result %>
+    <% wp_id = wp&.id || call.result.id %>
+
+    <li>
+      <%= link_to wp&.formatted_id || "##{wp_id}", work_package_path(wp) %><%= selected_ids.include?(wp_id) ? "" : " (#{I18n.t('work_packages.bulk.descendant')})" %>:
+      <%= safe_join call.errors.full_messages, " " %>
+    </li>
+  <% end %>
+</ul>

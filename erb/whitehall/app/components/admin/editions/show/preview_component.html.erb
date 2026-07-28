@@ -1,0 +1,85 @@
+<% local_edition = edition %>
+<section class="app-view-summary__section">
+  <%= render "govuk_publishing_components/components/heading", {
+    text: "Preview",
+    heading_level: 2,
+    font_size: "l",
+    margin_bottom: 3,
+  } %>
+
+  <% if local_edition.is_a?(StandardEdition) && invalid_tab_forms&.any? %>
+    <%= render "govuk_publishing_components/components/inset_text", {
+      text: "This preview may be out of date because the edition is invalid.",
+    } %>
+  <% end %>
+  <% if versioning_completed %>
+    <p class="govuk-body">
+      <%= preview_link(primary_locale_link_text, preview_url) %>
+    </p>
+
+    <% if available_in_multiple_languages %>
+      <% translation_preview_links = local_edition.non_primary_translation_locales.map do |locale|
+        preview_link(
+          "Preview on website - #{locale.native_and_english_language_name} (opens in new tab)",
+          preview_url(locale: locale.code),
+          )
+      end %>
+      <%= render "govuk_publishing_components/components/details", {
+        title: "Preview translated pages",
+      } do %>
+          <%= render "govuk_publishing_components/components/list", {
+            items: translation_preview_links,
+          } %>
+      <% end %>
+    <% end %>
+
+    <% if local_edition.has_enabled_shareable_preview? %>
+      <%= render "govuk_publishing_components/components/details", {
+        title: "Share preview link with someone else",
+      } do %>
+        <p class="govuk-body">Anyone with a link can preview the content on GOV.UK. No password is needed. You’re responsible for who you share the link with.</p>
+
+        <% if token_generated? %>
+          <% shareable_preview_link = show_url_with_auth_bypass_options(local_edition, draft: true, locale: local_edition.primary_locale) %>
+
+          <p class="govuk-body">The link will expire on <%= Time.zone.today.next_month.strftime("%-d %B %Y") %> or when the document is published.</p>
+
+          <%= render "govuk_publishing_components/components/copy_to_clipboard", {
+            label: "Preview link",
+            copyable_content: shareable_preview_link,
+            button_text: "Copy link",
+          } %>
+
+          <p class="govuk-body govuk-!-margin-top-7">Generate a new link if it’s expired or shared by mistake. The old link will no longer work.</p>
+
+          <div class="govuk-button-group">
+            <%= form_with(url: update_bypass_id_admin_edition_path(local_edition), method: :patch, data: { module: "prevent-multiple-form-submissions" }) do %>
+              <%= render "govuk_publishing_components/components/button", {
+                text: "Generate new link",
+                secondary_quiet: true,
+              } %>
+            <% end %>
+
+            <%= form_with(url: destroy_bypass_id_admin_edition_path(local_edition), method: :delete, data: { module: "prevent-multiple-form-submissions" }) do %>
+              <%= render "govuk_publishing_components/components/button", {
+                text: "Delete link",
+                secondary_quiet: true,
+              } %>
+            <% end %>
+          </div>
+        <% else %>
+          <%= form_with(url: update_bypass_id_admin_edition_path(local_edition), method: :patch, data: { module: "prevent-multiple-form-submissions" }) do %>
+            <%= render "govuk_publishing_components/components/button", {
+              text: "Generate link",
+              secondary_quiet: true,
+            } %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% else %>
+    <%= render "govuk_publishing_components/components/inset_text", {
+      text: "To see the changes and share a document preview link, add a change note or mark the change type to minor.",
+    } %>
+  <% end %>
+</section>

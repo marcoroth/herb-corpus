@@ -1,0 +1,48 @@
+<% content_for :page_title, "Feiertage importieren" %>
+<% content_for :page_subtitle, "Feiertage" %>
+
+<div class="container-fluid mt--6">
+  <%= render PageHeaderComponent.new %>
+
+  <form data-reflex="change->HolidayImport#preview">
+    <div id="holiday-import">
+      <%= render CardComponent.new do |card| %>
+        <%= card.with_header do |header| %>
+          <%= header.with_title do %>
+            <div class="tw-grid tw-grid-cols-2 tw-gap-2" data-reflex-permanent>
+              <div><%= select("date", "to_s", @years) %></div>
+              <div><%= select("region", "first", @regions, { selected: "ch_bl" }) %></div>
+            </div>
+          <% end %>
+        <% end %>
+
+        <%= card.with_body do %>
+          <%= render CardTableComponent.new do |table| %>
+            <%= table.with_header { "Name" } %>
+            <%= table.with_header { "Datum" } %>
+            <%= table.with_header { "Aktionen" } %>
+
+            <% Holidays.between(@date.beginning_of_year, @date.end_of_year, @region, :informal).each do |holiday| %>
+              <%= table.with_row do |row| %>
+                <%= row.with_cell do %>
+                  <%= holiday[:name] %>
+                  <i class="fa fa-info-circle tw-text-gray-400" data-bs-toggle="tooltip" data-bs-title="<%= Holidays.on(holiday[:date], @region).any? ? "Gesetzlich anerkannter Feiertag" : "Informeller Feiertag" %>"></i>
+                <% end %>
+                <%= row.with_cell { "#{I18n.t("date.day_names")[holiday[:date].wday]}, #{holiday[:date].to_fs(:default)}" } %>
+                <%= row.with_cell do %>
+                  <% if (holidays = Holiday.where("? BETWEEN start_time AND end_time", holiday[:date])) && holidays.none? %>
+                    <%= link_to "Erstellen", new_holiday_path(name: "#{holiday[:name]} #{@date.year}", start_time: holiday[:date].beginning_of_day, end_time: holiday[:date].end_of_day, holiday_type: "Feiertag"), class: "btn btn-primary btn-sm" %>
+                  <% else %>
+                    <%= link_to "Exisitiert bereits", edit_holiday_path(holidays.first), class: "btn btn-sm btn-white" %>
+                  <% end %>
+                <% end %>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <%= link_to "Zurück", holidays_path, class: "tw-mt-6 btn btn-secondary" %>
+        <% end %>
+      <% end %>
+    </div>
+  </form>
+</div>

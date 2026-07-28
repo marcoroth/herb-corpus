@@ -1,0 +1,85 @@
+<% if claims_preventing_payment.any? %>
+  <%= govuk_warning_text do %>
+    <p class="govuk-body govuk-!-font-weight-bold">
+      This claim cannot currently be approved because we’re already paying
+      <%= claims_preventing_payment.one? ? "another claim" : "other claims" %>
+      (<%= claims_preventing_payment.map(&:reference).to_sentence %>)
+      to this claimant in this payroll month using different payment details.
+    </p>
+
+    <p class="govuk-body govuk-!-font-weight-bold">
+      Please check the guidance in the operations playbook and speak to a
+      Grade 7 before making a decision on this claim.
+    </p>
+  <% end %>
+<% end %>
+
+<% if claim.held? %>
+  <%= govuk_warning_text(text: "You cannot approve or reject a claim that is on hold") %>
+<% end %>
+
+<% claim.claim_checking_tasks.blocking_approval.each do |task| %>
+  <% display_name = t("admin.tasks.#{task.name}.name") %>
+
+  <%= govuk_warning_text(
+    text: "You cannot approve this claim until the #{display_name} task is passed"
+  ) %>
+<% end %>
+
+<% if claim.attributes_flagged_by_risk_indicator.any? %>
+  <%= govuk_warning_text do %>
+    This claim cannot be approved because the
+    <%= @claim.attributes_flagged_by_risk_indicator.map(&:humanize).to_sentence.downcase %>
+    <%= @claim.attributes_flagged_by_risk_indicator.many? ? "are" : "is" %>
+    included on the fraud prevention list.
+  <% end %>
+<% end %>
+
+<%= form_with model: decision_form,
+  url: admin_claim_decisions_path(claim),
+  scope: "decision",
+  builder: GOVUKDesignSystemFormBuilder::FormBuilder do |f| %>
+  <%= hidden_field_tag :qa, params[:qa] %>
+
+  <%= f.govuk_radio_buttons_fieldset(:approved,
+                                     legend: {
+                                       tag: "h2",
+                                       size: "l",
+                                       text: decision_form.heading }) do %>
+
+    <%= f.govuk_radio_button :approved, true,
+      label: {
+        text: decision_form.approve_label_text
+      },
+      disabled: decision_form.approved_button_disabled?,
+      link_errors: true %>
+    <%= f.govuk_radio_button :approved, false,
+      label: { text: decision_form.reject_label_text },
+      disabled: decision_form.reject_button_disabled? do %>
+      <%= f.govuk_collection_check_boxes :rejected_reasons,
+        decision_form.checkbox_options,
+        :id,
+        :name,
+        small: true,
+        legend: {
+          text: "Reasons for rejection",
+          tag: "h3",
+          size: "s"
+        } %>
+    <% end %>
+  <% end %>
+
+  <%= f.govuk_text_area :notes,
+    rows: 5,
+    disabled: !claim.approvable?(current_admin:) && !claim.rejectable?(current_admin:),
+    label: {
+      text: "Decision notes",
+      size: "m"
+    },
+    hint: {
+      text: "Please write a brief note explaining why this claim has been rejected or approved."
+    }
+  %>
+
+  <%= f.govuk_submit "Confirm decision", disabled: !claim.approvable?(current_admin:) && !claim.rejectable?(current_admin:) %>
+<% end %>

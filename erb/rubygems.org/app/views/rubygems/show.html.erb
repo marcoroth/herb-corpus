@@ -1,0 +1,87 @@
+<% @title = @rubygem.name %>
+<% @title_url = rubygem_path(@rubygem.slug) %>
+<% @subtitle = @latest_version&.slug %>
+
+<% content_for :head do %>
+  <%= auto_discovery_link_tag(:atom, rubygem_versions_path(@rubygem.slug, format: "atom"), {title: "#{@rubygem.name} Version Feed"}) %>
+  <% if @rubygem.versions.any? && @latest_version.indexed %>
+    <!-- canonical url -->
+    <link rel="canonical" href="<%= rubygem_version_url(@rubygem.slug, @latest_version.slug) %>" />
+    <!-- alternative language versions url -->
+    <% I18n.available_locales.each do |locale| %>
+      <link rel="alternate" hreflang="<%= locale %>" href="<%= rubygem_version_url(@rubygem.slug, @latest_version.slug, { locale: locale }) %>" />
+    <% end %>
+    <!-- unmatched alternative language fallback -->
+    <link rel="alternate" hreflang="x-default" href="<%= rubygem_version_url(@rubygem.slug, @latest_version.slug) %>" />
+  <% else %>
+    <meta name="robots" content="noindex" />
+  <% end %>
+<% end %>
+
+
+<div class="l-overflow">
+  <div class="l-colspan--l colspan--l--has-border">
+    <% if @latest_version.indexed %>
+      <div class="gem__intro">
+        <div id="markup" class="gem__desc">
+          <%= simple_markup(@latest_version.info) %>
+        </div>
+      </div>
+
+      <div class="gem__install">
+        <h2 class="gem__ruby-version__heading t-list__heading">
+          <%= t '.bundler_header' %>:
+          <%= copy_field_tag("gemfile_text", @latest_version.to_bundler(locked_version: @on_version_page)) %>
+        </h2>
+        <h2 class="gem__ruby-version__heading t-list__heading">
+          <%= t '.install' %>:
+          <%= copy_field_tag("install_text", @latest_version.to_install) %>
+        </h2>
+      </div>
+    <% else %>
+      <div class="t-body">
+        <p><%=t '.yanked_notice' %></p>
+      </div>
+    <% end %>
+
+    <% if @versions.present? %>
+      <div class="l-half--l">
+        <div class="versions">
+          <h3 class="t-list__heading"><%= t '.versions_header' %>:</h3>
+          <ol class="gem__versions t-list__items">
+            <%= render @versions %>
+          </ol>
+          <% if show_all_versions_link?(@rubygem) %>
+            <%= link_to t('.show_all_versions', :count => @rubygem.versions.count), rubygem_versions_url(@rubygem.slug), :class => "gem__see-all-versions t-link--gray t-link--has-arrow" %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <div class = "l-half--l">
+      <%= render :partial => "rubygems/dependencies", :locals => { :dependencies => @latest_version.dependencies.runtime } %>
+      <%= render :partial => "rubygems/dependencies", :locals => { :dependencies => @latest_version.dependencies.development } %>
+      <% if @latest_version.dependencies.present? && @latest_version.indexed %>
+        <div class="dependencies_list">
+          <%= link_to t(:dependency_list), rubygem_version_dependencies_path(@rubygem.slug, @latest_version.slug), class: "gem__see-all-versions t-link--gray t-link--has-arrow push--s" %>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @latest_version.requirements.present? %>
+      <div class="l-half--l">
+        <h3 class="t-list__heading"><%= t '.requirements_header' %>:</h3>
+        <div class="t-list__items">
+          <% Array(@latest_version.requirements).each do |requirement| %>
+            <p><%= requirement %></p>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%= render partial: "rubygems/release_info", locals: { latest_version: @latest_version, rubygem: @rubygem } %>
+    <%= render partial: "rubygems/version_navigation", locals: { rubygem: @rubygem, latest_version: @latest_version } %>
+  </div>
+
+  <%= render "rubygems/aside" %>
+</div>

@@ -1,0 +1,134 @@
+<% content_for(:title) { @book.title } %>
+<% @layout_class = "book" %>
+
+<% content_for :head do %>
+  <%= tag.link rel: "alternate", type: "text/markdown", href: book_slug_path(@book, format: :md) %>
+  <%= tag.meta property: "og:title", content: @book.title %>
+  <%= tag.meta property: "og:description", content: @book.subtitle %>
+  <%= tag.meta property: "og:image", content: @book.cover.blank? ? asset_url("covers/cover-#{@book.theme}-og.png") : "#{root_url}#{url_for(@book.cover)}" %>
+  <%= tag.meta property: "og:url", content: book_slug_url(@book) %>
+
+  <%= tag.meta property: "twitter:title", content: @book.title %>
+  <%= tag.meta property: "twitter:description", content: @book.subtitle %>
+  <%= tag.meta property: "twitter:image", content: @book.cover.blank? ? asset_url("covers/cover-#{@book.theme}-og.png") : "#{root_url}#{url_for(@book.cover)}" %>
+  <%= tag.meta property: "twitter:card", content: "summary_large_image" %>
+<% end %>
+
+<% content_for :header do %>
+  <nav class="book__navbar">
+    <%= link_to root_path, class: "btn" do %>
+      <%= image_tag "arrow-left.svg", aria: { hidden: true }, size: 24 %>
+      <span class="for-screen-reader">Go back</span>
+    <% end %>
+
+    <span class="btn btn--placeholder placeholder-start" aria-hidden="true"></span>
+
+    <div class="breadcrumbs">
+      <%= render "books/index_link" %>
+      <span class="flex-item-no-shrink">▸</span>
+      <strong><%= @book.title %></strong>
+    </div>
+
+    <%= link_to_first_leafable(@leaves) %>
+
+    <span class="btn btn--placeholder placeholder-end" aria-hidden="true"></span>
+
+    <button class="btn fullscreen" data-action="fullscreen#toggle" data-fullscreen-target="button">
+      <%= image_tag "expand.svg", aria: { hidden: true }, size: 24 %>
+      <span class="for-screen-reader">Enter fullscreen</span>
+    </button>
+
+    <%= render "books/searches/search", book: @book %>
+
+    <% if @book.editable? %>
+      <%= link_to edit_book_path(@book), class: "btn settings" do %>
+        <%= image_tag "settings.svg", aria: { hidden: true }, size: 24 %>
+        <span class="for-screen-reader">Edit book settings</span>
+      <% end %>
+    <% end %>
+  </nav>
+<% end %>
+
+<% cache [ @book, @book.editable? ] do %>
+  <aside class="txt-align-center margin-block">
+    <div class="book__sidebar <%= "theme--#{@book&.theme}" unless @book.cover.attached? %>">
+      <% if @book.cover.attached? %>
+        <%= link_to rails_blob_path(@book.cover, disposition: "attachment", only_path: true), data: { action: "lightbox#open:prevent", lightbox_target: "image", lightbox_url_value: rails_blob_path(@book.cover, disposition: "attachment", only_path: true) } do %>
+          <%= image_tag @book.cover, alt: "Cover for #{ @book.title }", class: "book__cover margin-block-none center" %>
+        <% end %>
+      <% else %>
+        <span class="book__cover-wrapper">
+          <%= image_tag "empty-cover.png", alt: "Book cover", class: "book__cover margin-block-none center" %>
+          <span class="book__title overflow-line-clamp pad txt-align-start txt-tight-lines"" style="--lines: 6" aria-hidden="true"><%= @book.title %></span>
+        </span>
+      <% end %>
+
+      <% if @book.editable? %>
+        <%= turbo_frame_tag @book, :publication do %>
+          <%= render "books/publications/publication", book: @book %>
+        <% end %>
+      <% end %>
+
+      <span data-controller="edit-mode" data-edit-mode-editing-class="edit-mode" />
+    </div>
+  </aside>
+
+  <%= arrangement_tag @book, class: "arrangement__container toc__container full-width txt-align-center" do %>
+    <h1 class="flex flex-column txt-tight-lines txt-align-start margin-block-end">
+      <strong class="book__title txt-x-large--responsive"><%= @book.title %></strong>
+      <span class="txt-large--responsive txt-normal"><%= @book.subtitle %></span>
+      <span class="txt-large--responsive txt-normal"><%= @book.author %></span>
+    </h1>
+
+    <div class="book__toolbar fill-white flex gap-half pad-block margin-block-end-half justify-center <%= "position-sticky" if @book.editable? %>" data-controller="toc-view" data-toc-view-id-value="<%= dom_id(@book) %>">
+      <label class="btn txt-medium disable-when-empty">
+        <input type="radio" name="view" id="toc-list" value="list" data-toc-view-target="switch" data-toc-view-type-value="list" data-action="toc-view#saveViewPref">
+        <%= image_tag "view-list.svg", aria: { hidden: true }, size: 24 %>
+        <span class="for-screen-reader">List view</span>
+      </label>
+
+      <label class="btn txt-medium flex-item-justify-start disable-when-empty">
+        <input type="radio" name="view" id="toc-grid" value="grid" checked="checked" data-toc-view-target="switch" data-toc-view-type-value="grid" data-action="toc-view#saveViewPref">
+        <%= image_tag "view-grid.svg", aria: { hidden: true }, size: 24 %>
+        <span class="for-screen-reader">Page view</span>
+      </label>
+
+      <% if @book.editable? %>
+        <%= render "books/create_buttons", book: @book %>
+        <%= render "books/mode_buttons", book: @book %>
+      <% end %>
+    </div>
+
+    <div class="position-relative">
+      <% if @book.editable? %>
+        <div class="toc__blank-slate align-center justify-start">
+          <%= image_tag "blank-slate-arrows.svg", aria: { hidden: true }, size: 60, class: "colorize--black" %>
+          <span class="flex align-center gap-half"><span>🇺🇸</span> <span>Pick a page type to get started</span></span>
+          <span class="flex align-center gap-half"><span>🇪🇸</span> <span>Elige un tipo de página para comenzar</span></span>
+          <span class="flex align-center gap-half"><span>🇫🇷</span> <span>Choisissez un type de page pour commencer</span></span>
+          <span class="flex align-center gap-half"><span>🇮🇳</span> <span>शुरू करने के लिए एक पृष्ठ प्रकार चुनें</span></span>
+          <span class="flex align-center gap-half"><span>🇩🇪</span> <span>Wählen Sie einen Seitentyp, um zu beginnen</span></span>
+          <span class="flex align-center gap-half"><span>🇧🇷</span> <span>Escolha um tipo de página para começar</span></span>
+        </div>
+      <% end %>
+
+      <menu class="toc margin-none" tabindex="0" data-arrangement-target="container" data-action="<%= arrangement_actions %>">
+        <%= turbo_frame_tag :leaves, data: { arrangement_target: "list" } do -%>
+          <%= render partial: "leaves/leaf", collection: @leaves, as: :leaf -%>
+        <% end -%>
+      </menu>
+
+      <div data-arrangement-target="layer" class="toc"></div>
+      <div data-arrangement-target="dragImage" class="arrangement-drag-image"></div>
+    </div>
+  <% end %>
+<% end %>
+
+<% content_for :footer do %>
+  <nav class="book__nav flex align-center justify-center">
+    <a href="https://once.com/writebook" class="product__wordmark btn btn--plain txt-medium" target="_blank">
+      <%= image_tag "writebook-icon.svg", aria: { hidden: true }, size: 24 %>
+      <span>Made with Writebook</span>
+    </a>
+  </nav>
+<% end %>

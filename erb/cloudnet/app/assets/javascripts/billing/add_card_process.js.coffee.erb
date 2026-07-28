@@ -1,0 +1,377 @@
+$ ->
+  card_form     = "#jg-card-form"
+  card_button   = "#cc_card_submit"
+  card_alert    = "#cc_card_alert"
+
+  cc_month      = '#cc_month'
+  cc_year       = '#cc_year'
+  cc_cvc        = '#cc_cvc'
+  cc_card       = '#cc_number'
+
+  cc_addr1      = '#cc_address1'
+  cc_addr2      = '#cc_address2'
+  cc_country    = '#cc_country'
+  cc_city       = '#cc_city'
+  cc_region     = '#cc_region'
+  cc_postal     = '#cc_postal_code'
+  cc_cardholder = '#cc_holder_name'
+  
+  phone_num     = '#user_phone_number'
+  phone_btn     = '#verify-phone-button'
+  pin_num       = '#phone_verification_pin'
+  pin_btn       = '#confirm-phone-pin'
+  more_btn      = '#more-phone-pin'
+
+  addCard = (card) ->
+    account_cards.push card
+
+  disableAddCardButton = ->
+    $(card_button).text("Please wait, verifying card...")
+    $(card_button).attr('disabled', 'disabled')
+
+  enableAddCardButton = ->
+    $(card_button).removeAttr('disabled')
+    $(card_button).text("Add Card")
+
+  showMessages = (messages, type) ->
+    alert_box = $("#jg-add-card").find('#cc_card_alert')
+    alert_box.html "<div class='alert alert-#{type}'>#{messages}</div>"
+    $('#jg-add-card').scrollTop(0)
+
+  hideMessages = ->
+    alert_box = $("#jg-add-card").find('#cc_card_alert').first()
+    alert_box.html ""
+
+  showErrorMessages = (errors) ->
+    showMessages errors.join(', '), "danger"
+
+  showWarningMessages = (warnings) ->
+    showMessages warnings.join(', '), "warning"
+
+  showSuccessMessage = (success) ->
+    showMessages success, "success"
+  
+  resetCardFields = ->
+    $(cc_month).val("")
+    $(cc_year).val("")
+    $(cc_cvc).val("")
+    $(cc_card).val("")
+    # $(cc_country).val("") // This conflicts with Select2!
+    $(cc_addr1).val("")
+    $(cc_addr2).val("")
+    $(cc_city).val("")
+    $(cc_region).val("")
+    $(cc_postal).val("")
+    $(cc_cardholder).val("")
+
+  validateCardFields = ->
+    errors = []
+    errors.push "Card number is not valid" if !$.payment.validateCardNumber($(cc_card).val())
+    errors.push "Card expiry month/year is not valid" if !$.payment.validateCardExpiry($(cc_month).val(), $(cc_year).val())
+    errors.push "Card CVC number is not valid (the CVC is usually the last 3 digits on the back of your card or the 4 digits on the top if you have an AMEX card)" if !$.payment.validateCardCVC($(cc_cvc).val(), $.payment.cardType($(cc_card).val()))
+    errors.push "Address Line 1 is not valid" if $(cc_addr1).val().length <= 1
+    errors.push "Country selected is not valid" if $(cc_country).val().length <= 1
+    errors.push "City entered is not valid" if $(cc_city).val().length < 2
+    errors.push "Region entered is not valid" if $(cc_region).val().length < 2
+    errors.push "Postal Code entered is not valid" if $(cc_postal).val().length < 1
+    errors.push "Card Holder Name entered is not valid" if $(cc_cardholder).val().length < 1
+    return errors
+
+  validateCard = ->
+    card_number = $(cc_card).val()
+    cvc         = $(cc_cvc).val()
+
+    data = 
+      card:
+        address1:     $(cc_addr1).val()
+        address2:     $(cc_addr2).val()
+        last4:        card_number.substr(card_number.length - 4);
+        bin:          card_number.slice(0, 6)
+        city:         $(cc_city).val()
+        country:      $(cc_country).val()
+        region:       $(cc_region).val()
+        postal:       $(cc_postal).val()
+        expiry_month: $(cc_month).val()
+        expiry_year:  $(cc_year).val()
+        cardholder:   $(cc_cardholder).val()
+
+    $.ajax 
+      type: "POST",
+      data: data,
+      url: '/billing/validate_card',
+      dataType: "JSON",
+      success: (response) ->
+        if response.assessment == "safe"
+          sendCardToPaymentProcessor(response.card_id, data, card_number, cvc)
+        else if response.assessment == "validate"
+          sendCardToPaymentProcessor(response.card_id, data, card_number, cvc)
+        else if response.assessment == "rejected"
+          showErrorMessages ["Your card could not be validated and has been rejected. Please try a different card"]
+          enableAddCardButton()
+        else
+          showErrorMessages ["We are currently experiencing some issues validating your card. Please try again later"]
+          enableAddCardButton()
+      error: (xhr, status, error) ->
+        showErrorMessages xhr.responseJSON.error
+        enableAddCardButton()
+
+  sendCardToPaymentProcessor = (card_id, data, number, cvc) ->
+    Stripe.card.createToken
+      number:           number,
+      cvc:              cvc,
+      exp_month:        data.card.expiry_month,
+      exp_year:         data.card.expiry_year,
+      address_zip:      data.card.postal,
+      address_country:  data.card.country,
+      address_state:    data.card.region,
+      name:             data.card.cardholder
+    , (status, response) ->
+      if response.error
+        showErrorMessages [response.error.message]
+        enableAddCardButton()
+      else
+        token = response['id'];
+        saveCardToken(card_id, token)
+
+  saveCardToken = (card_id, token) ->
+    $.ajax 
+      type: "POST",
+      data: { card_id: card_id, token: token },
+      url: '/billing/add_card_token',
+      dataType: "JSON",
+      success: (response) ->
+        if response.requires_validation == 1
+          showSuccessMessage("Card has been added successfully but any servers created using this card will be placed in a validation queue for approval")
+        else
+          showSuccessMessage("Card has been added successfully")
+        addCard(response)
+        $('#payg-add-card').modal('hide')
+        reloadAddfunds()
+        $('#jg-payg-widget').trigger('payg-topup-complete')
+        resetCardFields()
+        enableAddCardButton()
+        $(card_form).trigger($.Event("add_card", {}))
+      error: (xhr, status, error) ->
+        showErrorMessages ["We are currently experiencing some issues validating your card. Please try again later"]
+        enableAddCardButton()
+
+  bindAddCardEvents = ->
+    $(document).on "click", "#cc_card_submit", (e) ->
+      e.preventDefault()
+      disableAddCardButton()
+      hideMessages()
+  
+      validation_errors = validateCardFields()  
+      if validation_errors.length > 0
+        showErrorMessages(validation_errors)
+        enableAddCardButton()
+        return
+    
+      validateCard()
+  
+  $(document).on "click", "#add-card-button", (e) ->
+    e.preventDefault()
+    $('#payg-add-funds').modal('hide')
+    $('#payg-add-card').modal('show')
+
+  $(document).on "click", "#add-funds-button", (e) ->
+    e.preventDefault()
+    reloadAddfunds()
+
+  reloadAddfunds = ->    
+    $('#payg-add-funds').on 'show.bs.modal', (e) -> 
+      $("#payg-add-funds .modal-body").html """
+        <div class="jg-widget-form pure-g-r clearfix">
+          <div>
+            <p>
+              Please wait, loading Wallet information...
+            </p>
+          </div>
+        </div>
+      """
+    
+    $("#payg-add-funds").modal("show")
+      
+    $.ajax 
+      type: "GET",
+      url: "/payg/show_add_funds",
+      dataType: "html",
+      success: (response) ->
+        $("#payg-add-funds .modal-body").html(response)
+        $("#payg_amount").select2()
+
+  bindAddCardEvents()
+  
+  isPhoneEnabled = ->
+    $(phone_num).attr("disabled") != "disabled"
+  
+  setCookie = (key, value) ->
+    expires = new Date
+    expires.setTime expires.getTime() + 30 * 24 * 60 * 60 * 1000
+    document.cookie = key + '=' + value + ';expires=' + expires.toUTCString()
+    return
+
+  getCookie = (key) ->
+    keyValue = document.cookie.match('(^|;) ?' + key + '=([^;]*)(;|$)')
+    if keyValue then keyValue[2] else null
+  
+  setCountrySelect = (val) ->
+    $(cc_country).select2("val", val)
+  
+  bindIntlInput = ->
+    $(phone_num).intlTelInput
+      allowDropdown: isPhoneEnabled()
+      initialCountry: 'auto'
+      geoIpLookup: (callback) ->
+        countryCodeCookie = getCookie('countryCode')
+        if countryCodeCookie != null
+          callback countryCodeCookie
+          setCountrySelect(countryCodeCookie)
+        else
+          $.get('https://freegeoip.net/json/', (->
+          )).always (resp) ->
+            countryCode = if resp and resp.country_code then resp.country_code else ''
+            setCookie('countryCode', countryCode)
+            setCountrySelect(countryCode)
+            callback countryCode
+            return  
+        return
+      preferredCountries: ["us", "gb", "ca", "au"]
+      utilsScript: "<%= asset_path('intlTelInput/utils.js') %>"
+  
+  bindIntlInput()
+  
+  $('#phone-number-verification').hide()
+  
+  disablePhone = ->
+    # $(phone_btn).text("Please wait...")
+    $(phone_btn).attr('disabled', 'disabled')
+    $(phone_num).attr('disabled', 'disabled')
+
+  enablePhone = ->
+    $(phone_num).removeAttr('disabled')
+    $(phone_btn).removeAttr('disabled')
+    # $(phone_btn).text("Verify")
+  
+  disablePin = ->
+    # $(pin_btn).text("Please wait...")
+    $(pin_btn).attr('disabled', 'disabled')
+    $(pin_num).attr('disabled', 'disabled')
+    $(more_btn).attr('disabled', 'disabled')
+
+  enablePin = ->
+    $(pin_num).removeAttr('disabled')
+    $(more_btn).removeAttr('disabled')
+    $(pin_btn).removeAttr('disabled')
+    # $(pin_btn).text("Confirm")
+  
+  showPhoneVerificationErrors = (errors) ->
+    $('#error-message').html(errors.join(', '))
+    $('#verify-phone').addClass("has-error")
+    $('#error-message').removeClass("hidden")
+    resetPhoneSuccess()
+  
+  showPhoneVerificationSuccess = (message) ->
+    resetPhoneNum()
+    $('#success-message').html(message)
+    $('#success-message').removeClass("hidden")
+    $('#verify-phone').addClass("has-success")
+  
+  resetPhoneSuccess = ->
+    $('#verify-phone').removeClass("has-success")
+    $('#success-message').addClass("hidden")
+  
+  resetPhoneNum = ->
+    $('#verify-phone').removeClass("has-error")
+    $('#error-message').addClass("hidden")
+  
+  $(document).on "click", "#verify-phone-button", (e) ->
+    e.preventDefault()
+    resetPhoneNum()
+    if $.trim($(phone_num).val())
+      full_phone_num = $(phone_num).intlTelInput("getNumber")
+      if $(phone_num).intlTelInput("isValidNumber")
+        $.ajax
+          type: "POST",
+          data: { phone_number: full_phone_num },
+          url: "/phone_numbers",
+          dataType: "JSON",
+          beforeSend: ->
+            disablePhone()
+          success: (response) ->
+            enablePhone()
+            $('#phone-number-input').toggle('slide')
+            $('#phone-number-verification').toggle('slide')
+            $('#phone_verification_pin').val('')
+            $('#phone_verification_pin').focus()
+            showPhoneVerificationSuccess("PIN has been sent to your phone number for verification")
+          error: (xhr, status, error) ->
+            enablePhone()
+            showPhoneVerificationErrors xhr.responseJSON.error
+      else
+        $('#verify-phone').addClass("has-error")
+        $('#error-message').removeClass("hidden")
+    else
+      $('#verify-phone').addClass("has-error")
+      $('#error-message').removeClass("hidden")
+  
+  $(document).on "keyup change", "#user_phone_number, #phone_verification_pin", (e) ->
+    resetPhoneNum()
+  
+  $(document).on "click", "#retry-phone-pin", (e) ->
+    e.preventDefault()
+    resetPhoneNum()
+    $('#phone-number-verification').toggle('slide')
+    $('#phone-number-input').toggle('slide')
+  
+  $(document).on "click", "#change-phone-num", (e) ->
+    e.preventDefault()
+    $.ajax
+      type: "POST",
+      url: "/phone_numbers/reset",
+      dataType: "JSON",
+      success: (response) ->
+        resetPhoneNum()
+        $("#phone-number-input").html(response.html_content)
+        bindIntlInput()
+      error: (xhr, status, error) ->
+        showPhoneVerificationErrors xhr.responseJSON.error
+  
+  $(document).on "click", "#resend-phone-pin", (e) ->
+    e.preventDefault()
+    $.ajax
+      type: "POST",
+      url: "/phone_numbers/resend",
+      dataType: "JSON",
+      beforeSend: ->
+        disablePin()
+      success: (response) ->
+        resetPhoneNum()
+        enablePin()
+        $('#phone_verification_pin').focus()
+        showPhoneVerificationSuccess("You will receive a phone call with PIN shortly")
+      error: (xhr, status, error) ->
+        enablePin()
+        showPhoneVerificationErrors xhr.responseJSON.error
+  
+  $(document).on "click", "#confirm-phone-pin", (e) ->
+    e.preventDefault()
+    $.ajax
+      type: "POST",
+      data: { phone_verification_pin: $("#phone_verification_pin").val() },
+      url: "/phone_numbers/verify",
+      dataType: "JSON",
+      beforeSend: ->
+        disablePin()
+      success: (response) ->
+        enablePin()
+        $("#phone-number-input").html(response.html_content)
+        $('#phone-number-verification').toggle('slide')
+        $('#phone-number-input').toggle('slide')
+        bindIntlInput()
+        showPhoneVerificationSuccess("Thank you! Your phone number is now verified")
+      error: (xhr, status, error) ->
+        enablePin()
+        $("#phone_verification_pin").val('')
+        $('#phone_verification_pin').focus()
+        showPhoneVerificationErrors xhr.responseJSON.error

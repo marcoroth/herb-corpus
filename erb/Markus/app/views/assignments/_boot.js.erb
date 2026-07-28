@@ -1,0 +1,171 @@
+<%= javascript_tag nonce: true do %>
+  var grace_periods = null;
+  var penalty_decay_periods = null;
+  var penalty_periods = null;
+
+  function create_grace_periods() {
+    if(!grace_periods) {
+      grace_periods = new PeriodDeltaChain({
+        period_root_id: 'grace_periods',
+        date_format: I18n.t('time.format_string.js'),
+        due_date: $('#assignment_due_date').val()
+      });
+    }
+  }
+
+  function create_penalty_decay_periods() {
+    if(!penalty_decay_periods) {
+      penalty_decay_periods = new PeriodDeltaChain({
+        period_root_id: 'penalty_decay_periods',
+        date_format: I18n.t('time.format_string.js'),
+        due_date: $('#assignment_due_date').val()
+      });
+    }
+  }
+
+  function create_penalty_periods() {
+    if(!penalty_periods) {
+      penalty_periods = new PeriodDeltaChain({
+        period_root_id: 'penalty_periods',
+        date_format: I18n.t('time.format_string.js'),
+        due_date: $('#assignment_due_date').val()
+      });
+    }
+  }
+
+  function check_required_fields() {
+    var invalid = false;
+    $('input[required]:not([disabled])').each(function() {
+      if (this.value === '') {
+        invalid = true;
+      }
+    });
+
+    $('input[type="submit"]').prop('disabled', invalid);
+  }
+
+  function add_assignment_file() {
+    var new_id = new Date().getTime();
+    var input_id = `assignment_assignment_files_attributes_${new_id}_filename`;
+    var assignment_file = `
+      <p id="${input_id}_holder">
+          <label class="required" for="'${input_id}'">${I18n.t('attributes.filename')}</label>
+          <input type="text"
+                 required="required"
+                 pattern="^[\-\._a-zA-Z0-9][\-\/\._a-zA-Z0-9\\s]*$"
+                 name="assignment[assignment_files_attributes][${new_id}][filename]"
+                 id="${input_id}"
+                 class="assignment_file"
+                 autocomplete="off">
+          <a id="remove-assignment-file-${new_id}" class="small-indent">${I18n.t('delete')}</a>
+      </p>
+    `;
+    $('#assignment_files').append($(assignment_file));
+    $('#remove-assignment-file-'+new_id).click((e) => {
+      remove_assignment_file(input_id);
+      e.preventDefault();
+    })
+    $('#only_required_files_option').removeClass('disable');
+    document.getElementById('assignment_assignment_properties_attributes_only_required_files').disabled = false;
+  }
+
+  function remove_assignment_file(input_id) {
+    $('#' + input_id + '_holder').remove();
+    if ($('.assignment_file').length === 0) {
+      $('#only_required_files_option').addClass('disable');
+      document.getElementById('assignment_assignment_properties_attributes_only_required_files').disabled = true;
+    }
+  }
+
+  function add_period(id, periods) {
+    var last_period = $('#' + id + ' .period').last();
+    var new_period = last_period.clone();
+    var id_re = new RegExp(/([_\[])[0-9]+([_\]])/);
+    var repl = '$1' + new Date().getTime() + '$2';
+    new_period.find('input').each(function () {
+      if ($(this).attr('id')) {
+        $(this).attr('id', $(this).attr('id').replace(id_re, repl));
+      }
+      if ($(this).attr('name')) {
+        $(this).attr('name',
+                          $(this).attr('name').replace(id_re, repl));
+      }
+      $(this).val('');
+    });
+    new_period.find('label').each(function () {
+      $(this).attr('for', $(this).attr('for').replace(id_re, repl));
+    });
+    $('#' + id + '_table').append(new_period);
+
+    if (periods) {
+      refresh_event_listeners();
+      periods.refresh();
+    }
+  }
+
+  function refresh_event_listeners() {
+    $('.grace-period-hours').on("change", function() {
+      if (grace_periods) {
+        grace_periods.refresh();
+      }
+    })
+    $('.grace-period-delete').click(function(e) {
+      remove_period(e.target, grace_periods);
+      e.preventDefault();
+    })
+    $('.penalty-decay-period-hours').on("change", function() {
+      if (penalty_decay_periods) {
+        penalty_decay_periods.refresh();
+      }
+    })
+    $('.penalty-decay-period-delete').click(function(e) {
+      remove_period(e.target, penalty_decay_periods);
+      e.preventDefault();
+    })
+    $('.penalty-period-hours').on("change", function() {
+      if (penalty_periods) {
+        penalty_periods.refresh();
+      }
+    })
+    $('.penalty-period-delete').click(function(e) {
+      remove_period(e.target, penalty_periods);
+      e.preventDefault();
+    })
+  }
+
+  function remove_period(elem, periods) {
+    $(elem).parents('.period').remove();
+    if (periods) {
+      periods.refresh();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    // Handle periods and hiding/showing things
+    if ($('#assignment_due_date').val()) {
+      create_grace_periods();
+      create_penalty_decay_periods();
+      create_penalty_periods();
+
+      grace_periods.refresh();
+      penalty_decay_periods.refresh();
+      penalty_periods.refresh();
+
+      toggle_remark_requests(<%= @assignment.allow_remarks? %>);
+    }
+
+    // Handle required fields
+    check_required_fields();
+    $(document).on("change", $('input[required]'), check_required_fields)
+      .on("keyup", $('input[required]'), check_required_fields)
+      .on("click", $('#assignment_file_add_link'), check_required_fields);
+
+    // Initialize flatpickr calendar for different elements in the DOM
+    flatpickr("#assignment_due_date")
+    flatpickr("#assignment_assignment_properties_attributes_remark_due_date")
+    flatpickr(".assessment_section_properties_input")
+    flatpickr("#assignment_assignment_properties_attributes_start_time")
+    flatpickr("#assignment_visible_on")
+    flatpickr("#assignment_visible_until")
+  });
+<% end %>

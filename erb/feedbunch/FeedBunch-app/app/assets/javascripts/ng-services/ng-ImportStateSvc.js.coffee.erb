@@ -1,0 +1,87 @@
+########################################################
+# AngularJS service to load data import state data in the scope.
+########################################################
+
+angular.module('feedbunch').service 'importStateSvc',
+['$rootScope', '$timeout', 'csrfTokenSvc', 'feedsFoldersTimerSvc', 'userDataSvc', 'timerFlagSvc',
+($rootScope, $timeout, csrfTokenSvc, feedsFoldersTimerSvc, userDataSvc, timerFlagSvc)->
+
+  # Flag to indicate if a message should appear when the import job finishes running.
+  show_finished_message = false
+
+  # Constants for the different operations the web worker can perform
+  LOAD_JOB_STATE = 'load_job_state'
+  HIDE_JOB_ALERT = 'hide_job_alert'
+
+  # CSRF token
+  token = csrfTokenSvc.get_token()
+
+  # Web worker to retrieve state of import job
+  worker = new Worker '<%= asset_path 'workers/import_state_worker' %>'
+  worker.onmessage = (e) ->
+    if (e.data.status == 200 || e.data.status == 304) && e.data.operation == LOAD_JOB_STATE
+      import_state_loaded e.data.response
+    else if e.data.status == 401 || e.data.status == 422
+      $window.location.href = '/login'
+    else
+      if e.data.operation == LOAD_JOB_STATE
+        timerFlagSvc.start 'error_importing'
+    $rootScope.$digest()
+
+  #---------------------------------------------
+  # PRIVATE FUNCTION: Operations after the import job state has been loaded
+  #---------------------------------------------
+  import_state_loaded = (response)->
+    $rootScope.show_import_alert = response.show_alert
+    $rootScope.import_state = response.state
+    if response.state == "RUNNING"
+      # Update state from the server periodically while import is running
+      $rootScope.import_processed = response.import.processed
+      $rootScope.import_total = response.import.total
+      $timeout ->
+        load_import_state true
+      , 5000
+    else if response.state == "ERROR" && show_finished_message
+      timerFlagSvc.start 'error_importing'
+    else if response.state == "SUCCESS"
+      $rootScope.import_failures = response.failures
+      if show_finished_message
+        # Automatically load new feeds and folders without needing a refresh
+        feedsFoldersTimerSvc.load_data()
+        userDataSvc.load_data()
+        timerFlagSvc.start 'success_importing'
+
+  #---------------------------------------------
+  # PRIVATE FUNCTION: load import process state via AJAX
+  #
+  # Note.- The first time this is invoked on page load by the angular controller, passing
+  # a false to the "show_message" argument. This means that if the import is not running
+  # (error, success or none, doesn't matter), no alert will be shown.
+  #
+  # However if the import is found to be running, the function will be called every 5 seconds, with
+  # a true to the "show_message" argument.
+  #
+  # Basically this means that if when the page is loaded the import is running, and it finishes
+  # afterwards, then and only then will an alert be displayed. Also when this happens new feeds and
+  # folders will be inserted in the model automatically.
+  #---------------------------------------------
+  load_import_state = (show_message=false)->
+    show_finished_message = show_message
+    worker.postMessage {operation: LOAD_JOB_STATE, token: token}
+
+  service =
+
+    #---------------------------------------------
+    # Load import process state via AJAX into the root scope
+    #---------------------------------------------
+    load_data: load_import_state
+
+    #---------------------------------------------
+    # Hide the import state alert and notify the server via AJAX that it should not be displayed again.
+    #---------------------------------------------
+    hide_alert: ->
+      $rootScope.show_import_alert = false
+      worker.postMessage {operation: HIDE_JOB_ALERT, token: token}
+
+  return service
+]

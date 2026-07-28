@@ -1,0 +1,84 @@
+<%= content_for :title do %>
+  <%= @human.handle %>
+<% end %>
+
+<div class="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto">
+  <h1 class="text-2xl font-bold text-gray-900 mb-6"><%= @human.handle %></h1>
+
+  <div class="space-y-6">
+    <% if current_human && current_human != @human %>
+      <div>
+        <% if (follow = current_human.follows?(@human)) %>
+          <%= button_to(
+              "Unfollow",
+              follow_path(follow),
+              class: "rounded-button",
+              params: { followee_id: @human.id },
+              method: :delete
+            ) %>
+        <% else %>
+          <%= button_to(
+              "Follow",
+              follows_path,
+              class: "rounded-button",
+              params: { followee_id: @human.id },
+              method: :post
+            ) %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div>
+      <p class="text-gray-600 italic mb-3">
+        Joined Seasoning on
+        <%= l(@human.created_at.to_date, format: :default) %>
+      </p>
+
+      <nav class="border-b border-gray-200">
+        <div class="flex space-x-8">
+          <%= link_to "reviews (#{@human.season_reviews.count})", profile_reviews_path(@human.handle), class: "py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 text-sm font-medium" %>
+
+          <% if current_human == @human %>
+            <%= link_to "Stats", profile_stats_path(@human.handle), class: "py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 text-sm font-medium" %>
+          <% end %>
+        </div>
+      </nav>
+    </div>
+
+    <% if @human.share_currently_watching? %>
+      <div>
+        <h2 class="text-lg font-medium text-gray-900 mb-4">
+          Currently watching (<%= @human.currently_watching.count %>)
+        </h2>
+
+        <% if @human.currently_watching.any? %>
+          <% my_shows_by_show_id = if current_human == @human
+              current_human.my_shows.currently_watching.index_by(&:show_id)
+            else
+              {}
+            end %>
+          <div class="flex flex-wrap gap-4">
+            <% @human.currently_watching.each do |show| %>
+              <div class="w-32">
+                <%= link_to show_path(show.slug), class: "block hover:opacity-75 transition-opacity" do %>
+                  <div class="mb-2">
+                    <% badge = my_shows_by_show_id[show.id]&.unwatched_episode_badge %>
+                    <%= render "poster", size: "small", url: show.poster.url, show: show, badge: badge %>
+                  </div>
+
+                  <div class="text-sm text-gray-700 leading-tight">
+                    <%= show.title %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <p class="text-gray-600">
+            <%= @human.handle %> is not currently watching anything
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

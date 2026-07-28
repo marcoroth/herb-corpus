@@ -1,0 +1,125 @@
+<h1>
+  <%= image_tag @user.avatar_url(100), width: 50, height: 50, alt: @user %>
+  <%= @user %>
+  <%= link_to fa_icon(@user.host_type.downcase), @user.repository_url, class: 'tip', title: "View #{@user.login} on #{@user.host_type}" %>
+</h1>
+<hr>
+
+<div class="row">
+  <div class="col-md-4">
+    <h3>Organisation Stats</h3>
+    <ul>
+      <li>
+        Repositories: <%= number_to_human @user.repositories.count %>
+      </li>
+      <li>
+        Unique packages depended upon: <%= number_to_human @user.favourite_projects.length %>
+      </li>
+      <li>
+        Total dependencies declared: <%= number_to_human @user.dependencies.count %>
+      </li>
+      <li>
+        Unique contributors: <%= number_to_human @user.contributors.visible.length %>
+      </li>
+      <li>
+        Total commits: <%= number_to_human @total_commits %>
+      </li>
+      <li>
+        Average dependencies per repo: <%= number_to_human @user.dependencies.count/@user.repositories.count.to_f %>
+      </li>
+    </ul>
+  </div>
+  <div class="col-md-4">
+    <h3>Package Manager Usage</h3>
+    <% dep_breakdown = @user.dependencies.group('platform').count %>
+    <ul>
+      <% dep_breakdown.sort_by {|_key, value| -value}.first(10).each do |k,v| %>
+        <li>
+          <%= k %>: <%= number_to_percentage(v/dep_breakdown.values.sum.to_f*100) %> (<%= number_to_human v %>)
+        </li>
+      <% end %>
+    </ul>
+  </div>
+  <div class="col-md-4">
+    <h3>Language Usage</h3>
+    <% lang_breakdown = @user.repositories.group('language').count %>
+    <ul>
+      <% lang_breakdown.sort_by {|_key, value| -value}.first(10).each do |k,v| %>
+        <li>
+          <%= k || 'None' %>: <%= number_to_percentage(v/lang_breakdown.values.sum.to_f*100) %> (<%= number_to_human v %>)
+        </li>
+      <% end %>
+    </ul>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <h3>Top Repositories</h3>
+
+    <% @top_repos.each do |repository| %>
+    <div class='project' style="border-color: <%= repository.color %>;">
+      <h5>
+        <%= link_to repository.full_name, repository_path(repository.to_param) %>
+        <small>
+          <%= fa_icon("lock") if repository.private? %>
+          <%= fa_icon("code-fork") if repository.fork? %>
+        </small>
+      </h5>
+
+      <div>
+        <%= emojify truncate(repository.description, :length => 100) %>
+      </div>
+
+      <small>
+        <%= fa_icon repository.host_type.downcase %>
+        <% if repository.removed? %>
+          <%= fa_icon('exclamation-triangle') %> This repository is no longer available
+        <% elsif repository.deprecated? %>
+          <%= fa_icon('exclamation-triangle') %> This repository is deprecated -
+        <% elsif repository.unmaintained? %>
+          <%= fa_icon('exclamation-triangle') %> This repository is no longer maintained -
+        <% else %>
+          <% if repository.language.present? %>
+            <%= link_to repository.language, language_path(repository.language) %> -
+          <% end %>
+          <% if repository.license.present? %>
+            <%= linked_licenses [repository.license] %> -
+          <% end %>
+        <% end %>
+        <% unless repository.removed? %>
+          <% if repository.pushed_at && repository.pushed_at > repository.created_at + 1.minute %>
+            Last pushed <%= timeago_tag repository.pushed_at %>
+          <% elsif repository.updated_at && repository.updated_at > repository.created_at + 1.minute %>
+            Updated <%= timeago_tag repository.updated_at %>
+          <% else %>
+            Published <%= timeago_tag repository.created_at %>
+          <% end %>
+        <% end %>
+        <br>
+        <% unless repository.deprecated? || repository.unmaintained? %>
+          <% if repository.stargazers_count %>
+          <%= number_to_human repository.stars %> stars
+          <% end %>
+          <% if repository.forks > 0 %>
+            - <%= number_to_human repository.forks %> forks
+          <% end %>
+        <% end %>
+        - <%= number_to_human repository.contributors.count %> contributors
+        <% count = repository.contributors.sum(:count) %>
+        - <%= number_to_human count %> commits (<%= number_to_percentage(count/@total_commits.to_f*100) %>)
+        - <%= number_to_human repository.projects_dependencies.count %> dependencies
+      </small>
+    </div>
+    <% end %>
+    <%= link_to "See all #{@user}'s repositories", user_repositories_path(@user.to_param) %>
+  </div>
+  <div class="col-md-6">
+    <h3>Most used packages</h3>
+
+    <% @user.favourite_projects.limit(10).each do |project| %>
+      <%= render partial: 'project', object: project %>
+    <% end %>
+    <%= link_to "See all #{@user}'s most used packages", admin_organisation_dependencies_path(@user.to_param) %>
+  </div>
+</div>

@@ -1,0 +1,37 @@
+user root;
+worker_processes auto;
+pid /home/app/pids/nginx.pid;
+daemon off;
+load_module modules/ngx_http_image_filter_module.so;
+
+events {
+    worker_connections <%= ENV["NGINX_WORKER_CONNECTIONS"] || "65535" %>;
+    multi_accept on;
+    use epoll;
+}
+
+http {
+    sendfile on;
+    client_max_body_size <%= ENV["client_max_body_size"] || "8m" %>;
+    tcp_nopush off;
+    tcp_nodelay on;
+    limit_conn_zone $binary_remote_addr zone=one:100m;
+    keepalive_timeout 15;
+    types_hash_max_size 2048;
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    access_log /home/app/log/nginx-access.log;
+    error_log /home/app/log/nginx-error.log;
+    # DO NOT CHANGE THIS
+    gzip on;
+    gzip_disable "msie6";
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_buffers 16 8k;
+    gzip_http_version 1.1;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    # DO NOT CHANGE THIS
+    include /etc/nginx/homeland.conf;
+    include /etc/nginx/conf.d/*.conf;
+}

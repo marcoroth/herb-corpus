@@ -1,0 +1,70 @@
+<div class="row">
+  <% @service.data_sets.current.reverse.each_with_index do |set, i| %>
+    <% if i > 0 && i % 3 == 0 %>
+      </div>
+      <div class="row">
+    <% end %>
+    <div class="col-md-4 data-set">
+    <section class="panel panel-default">
+      <header class="panel-heading">
+        <h3 class="panel-title">
+          <span class="add-right-margin">
+            <%= link_to "Version #{set.version}", admin_service_data_set_path(@service,set) %></span>
+          <% if set.archiving? %>
+            <span class="label label-default">Archiving</span>
+          <% elsif set.active? %>
+            <span class="label label-success">Active</span>
+          <% elsif set.duplicating? %>
+            <span class="label label-info">Duplicating</span>
+          <% else %>
+            <span class="label label-default">Inactive</span>
+          <% end %>
+        </h3>
+      </header>
+      <div class="panel-body">
+        <% if set.number_of_places.zero? %>
+          <p class="alert alert-warning">No places are associated with this set. The imported data could be in the wrong format.</p>
+        <% end %>
+
+        <% if set.has_places_with_missing_gss_codes? %>
+          <p class="alert alert-warning missing-gss-warning">
+            This Service uses 'Local authority' as location match type and this dataset contains places that are missing GSS codes.
+          </p>
+        <% end %>
+
+        <dl>
+          <dt>Uploaded</dt>
+          <dd><%= set.created_at ? set.created_at.to_date.to_fs(:govuk_date) : "the beginning of time" %></dd>
+          <% unless set.change_notes.blank? %>
+            <dt>Change notes</dt>
+            <dd><%= set.change_notes %></dd>
+          <% end %>
+          <% unless set.number_of_places.zero? %>
+            <dt>Places</dt>
+            <dd><%= set.number_of_places %></dd>
+          <% end %>
+        </dl>
+        <% if set.processing_complete? %>
+          <hr>
+          <%= render partial: "/admin/data_sets/status", locals: { service: @service, dataset: set } %>
+
+          <hr>
+          <%= render partial: "/admin/data_sets/export", locals: { service: @service, dataset: set } %>
+
+        <% elsif set.processing_error.present? %>
+          <p class="alert alert-danger remove-bottom-margin"><%= set.processing_error %></p>
+        <% else %>
+          <p class="alert alert-info remove-bottom-margin">Places data is currently being processed.</p>
+        <% end %>
+        <% if set.unarchived? && set.processing_complete? %>
+          <hr>
+          <% unless set.active? %>
+            <%= button_to "Activate", activate_admin_service_data_set_path(@service, set), :method => "POST", :class => "btn btn-sm btn-primary pull-left add-right-margin" %>
+          <% end %>
+          <%= button_to "Duplicate", duplicate_admin_service_data_set_path(@service, set), :method => "POST", :class => "btn btn-sm btn-default duplicate", :title => "Use the data from Version #{set.version} as a basis for a new version" %>
+        <% end %>
+      </div>
+    </section>
+  </div>
+  <% end %>
+</div>

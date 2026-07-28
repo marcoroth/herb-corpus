@@ -1,0 +1,30 @@
+<%#
+kind: snippet
+name: saltstack_minion
+model: ProvisioningTemplate
+snippet: true
+description: |
+  Generates a Salt minion configuration file which is required for the Salt bootstraping.
+  The Salt master is configured based on the host parameter called "salt_master".
+  It can also statically assign grains based on the "salt_grains" host parameter.
+-%>
+master: <%= host_param('salt_master') %>
+log_level: warning
+
+autosign_grains:
+  - autosign_key
+
+<%#
+# Grains (http://docs.saltstack.com/en/latest/topics/targeting/grains.html#grains-in-the-minion-config)
+#
+# Possible parameters are:
+#
+# * {'cluster': 'alpha'}
+# * {'roles': ['webserver', 'frontend']}
+#
+-%>
+<% if plugin_present?('foreman_salt') -%>
+grains: <%= to_json(@host.derive_salt_grains(use_autosign: true)) %>
+<% else -%>
+grains: <%= host_param('salt_grains') ? to_json(host_param('salt_grains')) : '{}' %>
+<% end -%>

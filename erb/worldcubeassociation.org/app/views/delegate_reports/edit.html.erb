@@ -1,0 +1,83 @@
+<% provide(:title, "Report for #{@competition.name}") %>
+<% provide(:editing_delegate_report, true) %>
+
+<% add_to_packs("markdown_editor") %>
+
+<%= render layout: 'nav' do %>
+  <h2>Editing Delegate Report for <%= @competition.name%></h2>
+  <%= simple_form_for @delegate_report, url: delegate_report_path(@competition.id),
+                                        html: { class: "delegate-report are-you-sure" } do |f| %>
+    <%= f.hidden_field :updated_at %>
+
+    <% if @delegate_report.posted? %>
+      <%= f.input :discussion_url %>
+    <% end %>
+    <% @competition.delegate_report.schedule_url = link_to_competition_schedule_tab(@competition) if @competition.any_venues? %>
+    <%= @competition.any_venues? ? f.hidden_field(:schedule_url) : f.input(:schedule_url) %>
+
+    <% @delegate_report.md_sections.each do |section| %>
+      <%= f.input section, input_html: { class: "markdown-editor markdown-editor-image-upload" } %>
+
+      <% if section == :venue && @delegate_report.requires_setup_images? %>
+        <% @delegate_report.setup_images.each do |image| %>
+          <%= f.hidden_field :setup_images, multiple: true, value: image.signed_id %>
+        <% end %>
+
+        <%= f.input :setup_images, multiple: true, hint: t('simple_form.hints.delegate_report.setup_images', image_count: @delegate_report.required_setup_images_count), input_html: { multiple: true, accept: ActiveStorage.web_image_content_types.join(", ") } %>
+
+        <% if @delegate_report.setup_images.attached? %>
+          <div class="row">
+            <% @delegate_report.setup_images.each do |image| %>
+              <div class="col-sm-1 thumb">
+                <%= image_tag image.variant(:preview).processed %>
+
+                <% if @delegate_report.setup_images.count > @delegate_report.required_setup_images_count %>
+                  <%= link_to 'Delete', delegate_report_delete_image_path(competition_id: @delegate_report.competition_id, image_id: image.id), method: :delete %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%= f.input :wrc_feedback_requested, as: :boolean %>
+    <%= f.input :wrc_incidents %>
+    <%= f.input :wic_feedback_requested, as: :boolean, input_html: {id:"wic_feedback_checkbox", data: {confirm_message: I18n.t("simple_form.hints.delegate_report.wic_incident_alert")}} %>
+    <%= f.input :wic_incidents, hint: t("simple_form.hints.delegate_report.wic_incidents_html", wic_incident_alert: t("simple_form.hints.delegate_report.wic_incident_alert")) %>
+
+    <%= f.button :submit, class: "btn-primary" %>
+    <% can_see_delegate_report_submit_button = @delegate_report.can_see_submit_button?(@current_user) %>
+    <% can_submit_delegate_report = @delegate_report.can_submit?(@current_user) %>
+    <% if can_see_delegate_report_submit_button %>
+      <%= button_tag(type: 'submit',
+                     name: "delegate_report[posted]",
+                     value: true,
+                     disabled: !can_submit_delegate_report,
+                     class: "btn btn-danger",
+                     data: { confirm: "You are about to post your report, are you sure you want to do this? Once posted, a report cannot be changed." },
+                     title: can_submit_delegate_report ? "" : "You must first submit results before you can post the report.") do %>
+        Post the report
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const checkbox = document.getElementById("wic_feedback_checkbox");
+
+    if (checkbox) {
+      checkbox.addEventListener("change", function (e) {
+        if (checkbox.checked) {
+          const message = checkbox.dataset.confirmMessage;
+          if (!confirm(message)) {
+            e.preventDefault();
+            checkbox.checked = false;
+          }
+        }
+      });
+    }
+  });
+</script>

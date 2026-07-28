@@ -1,0 +1,102 @@
+<% content_for(:page_title) { page_title("View claims") } %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-full">
+    <h1 class="govuk-heading-xl">
+      Claims
+    </h1>
+
+    <%= link_to "Download report request file", admin_claims_path(format: :csv), class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Upload School Workforce Census data", new_admin_school_workforce_census_data_upload_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Upload TPS data", new_admin_tps_data_upload_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Upload DQT report", new_admin_qualification_report_upload_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Upload DQT HE Qualifications", new_admin_dqt_higher_education_qualification_upload_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Upload SLC data", new_admin_student_loans_data_upload_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Upload fraud prevention data", new_admin_fraud_risk_csv_upload_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <%= link_to "Reports", admin_reports_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button %>
+    <% if FeatureFlag.enabled?(:claimant_flagging) %>
+      <%= link_to(
+        "Upload flagged claimants CSV",
+        new_admin_claimant_flags_csv_upload_path,
+        class: "govuk-button govuk-button--secondary",
+        data: { module: "govuk-button" },
+        role: :button
+      ) %>
+    <% end %>
+    <% if FeatureFlag.enabled?("admin_task_lists") %>
+      <%= link_to("Tasks", admin_task_lists_path, class: "govuk-button govuk-button--secondary", data: { module: "govuk-button" }, role: :button) %>
+    <% end %>
+
+    <%= render partial: "allocations_form", locals: { filter_form: @filter_form } %>
+
+    <div id="filters">
+      <h2 id="filter" class="govuk-heading-m">Filter claims</h2>
+
+      <%= form_with model: @filter_form, scope: "filter", url: admin_claims_path(anchor: "filter"), method: :get, builder: GOVUKDesignSystemFormBuilder::FormBuilder do |f| %>
+        <div class="admin-filter-group">
+          <div>
+            <%= f.govuk_collection_select :team_member, @filter_form.team_member_select_options, :id, :name, label: { text: "Team member" } %>
+          </div>
+
+          <div>
+            <%= f.govuk_collection_select :policy, @filter_form.policy_select_options, :id, :name %>
+          </div>
+
+          <div>
+            <%= f.govuk_select(:status, label: { text: "Status" }) do %>
+              <% @filter_form.status_grouped_select_options.each do |group_name, menu_items| %>
+                <optgroup label="<%= group_name %>">
+                  <% menu_items.each do |name, value| %>
+                    <option value="<%= value %>" <%= "selected" if @filter_form.status == value %>>
+                      <%= name %>
+                    </option>
+                  <% end %>
+                </optgroup>
+              <% end %>
+            <% end %>
+          </div>
+
+          <div>
+            <%= f.govuk_submit "Apply filters", secondary: true, class: "admin-filter-group__button" %>
+            <%= govuk_link_to "Clear filters", admin_claims_path(filter: {reset: true}, anchor: "filter"), class: "button-link admin-filter-group__button" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @claims.any? %>
+      <h2 class="govuk-heading-m"><%= pluralize(@filter_form.count, "claim") %> <%= index_status_filter(@filter_form.status) %></h2>
+
+      <table class="govuk-table">
+        <thead class="govuk-table__head">
+          <tr class="govuk-table__row">
+            <th scope="col" class="govuk-table__header">Reference</th>
+            <th scope="col" class="govuk-table__header">Applicant Name</th>
+            <th scope="col" class="govuk-table__header">ID Verification</th>
+            <th scope="col" class="govuk-table__header">Policy</th>
+            <th scope="col" class="govuk-table__header">Submitted</th>
+            <th scope="col" class="govuk-table__header">Decision deadline</th>
+            <th scope="col" class="govuk-table__header">Assigned to</th>
+          </tr>
+        </thead>
+        <tbody class="govuk-table__body">
+          <% @claims.each do |claim| %>
+            <tr class="govuk-table__row">
+              <th scope="row" class="govuk-table__header"><%= link_to claim.reference, admin_claim_tasks_path(claim), class: "govuk-link" %></th>
+              <td class="govuk-table__cell"><%= claim.full_name %></td>
+              <td class="govuk-table__cell"><%= identity_confirmation_task_claim_verifier_match_status_tag(claim) %></td>
+              <td class="govuk-table__cell"><%= I18n.t("#{claim.policy.locale_key}.policy_acronym") %></td>
+              <td class="govuk-table__cell"><%= claim_submitted_at(claim) %></td>
+              <td class="govuk-table__cell"><%= l(claim.decision_deadline) if claim.decision_deadline %></td>
+              <td class="govuk-table__cell"><%= claim.assigned_to.present? ? claim.assigned_to.full_name.titleize : nil %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <%== render partial: "admin/shared/pagination", locals: { pagy: @pagy } %>
+    <% else %>
+      <h2 class="govuk-heading-m"><%= no_claims(params[:status])%></h2>
+    <% end %>
+  </div>
+</div>

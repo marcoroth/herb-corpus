@@ -1,0 +1,36 @@
+<%#
+kind: job_template
+name: Resolve Traces - Katello Script Default
+job_category: Katello
+description_format: 'Resolve Traces'
+feature: katello_host_tracer_resolve
+provider_type: script
+template_inputs:
+- name: Traces search query
+  description: Search query to provide traces to resolve
+  input_type: user
+  required: false
+%>
+
+<%
+commands = @host.traces_helpers(search: input('Traces search query'))
+reboot = commands.delete('reboot')
+-%>
+PATH="$PATH:/usr/bin:/usr/sbin:/bin:/sbin"
+<% if reboot -%>
+shutdown -r +1
+<% else -%>
+RETVAL=0
+<% commands.each do |command| -%>
+<%= command %>
+if [ $? -ne 0 ]; then
+  RETVAL=1
+fi
+<% end -%>
+RUN_TRACER_CMD='katello-tracer-upload'
+if [ "$(id -u)" -ne 0 ]; then
+  RUN_TRACER_CMD='sudo katello-tracer-upload'
+fi
+$RUN_TRACER_CMD
+exit $RETVAL
+<% end %>

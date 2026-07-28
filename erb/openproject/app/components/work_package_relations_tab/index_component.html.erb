@@ -1,0 +1,67 @@
+<%= component_wrapper(tag: "turbo-frame") do %>
+  <%=
+    if should_render_create_button?
+      flex_layout(justify_content: :space_between, align_items: :center, mb: 4) do |action_bar|
+        action_bar.with_column(pr: 1) do
+          render(Primer::Beta::Text.new(color: :muted)) do
+            t("#{I18N_NAMESPACE}.index.action_bar_title")
+          end
+        end
+
+        # Prevent the menu from overflowing on Safari
+        action_bar.with_column(flex_shrink: 0, ml: 2) do
+          render(
+            Primer::Alpha::ActionMenu.new(
+              test_selector: ADD_RELATION_ACTION_MENU,
+              menu_id: ADD_RELATION_ACTION_MENU
+            )
+          ) do |menu|
+            menu.with_show_button do |button|
+              button.with_leading_visual_icon(icon: :plus)
+              button.with_trailing_action_icon(icon: :"triangle-down")
+              t(:label_relation)
+            end
+
+            render_add_relations_menu_items(menu, FIRST_LEVEL_RELATION_MENU_TYPES)
+
+            if should_render_add_relations?
+              menu.with_sub_menu_item(
+                label: t("#{I18N_NAMESPACE}.relations.label_other_relations"),
+                menu_id: ADD_RELATION_SUB_MENU
+              ) do |sub_menu|
+                render_add_relations_menu_items(sub_menu, SECOND_LEVEL_RELATION_MENU_TYPES)
+              end
+            end
+          end
+        end
+      end
+    end
+  %>
+
+  <%=
+    flex_layout(mb: 3) do |flex|
+      if relation_groups.any?
+        relation_groups.each do |relation_group|
+          flex.with_row(mb: 4) do
+            render_relation_group(
+              title: t("#{I18N_NAMESPACE}.relations.label_#{relation_group.type}_plural").upcase_first,
+              relation_group:
+            ) do |relation_item|
+              render(
+                WorkPackageRelationsTab::RelationComponent.new(relation_item:)
+              )
+            end
+          end
+        end
+      else
+        flex.with_row do
+          render Primer::Beta::Blankslate.new(border: true, data: { test_selector: "no-relations-blankslate" }) do |component|
+            component.with_visual_icon(icon: "package-dependents")
+            component.with_heading(tag: :h4).with_content(t("#{I18N_NAMESPACE}.index.blankslate_heading"))
+            component.with_description { t("#{I18N_NAMESPACE}.index.blankslate_description") }
+          end
+        end
+      end
+    end
+  %>
+<% end %>

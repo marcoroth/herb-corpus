@@ -1,0 +1,81 @@
+<%= component_wrapper do %>
+<%= primer_form_with(
+      id: FORM_ID,
+      model: @relation,
+      **submit_url_options,
+      data: {
+        turbo: true,
+        update_work_package: true
+      }
+    ) do |f|
+      # Form fields section
+      flex_layout(mb: 3) do |flex|
+        flex.with_row do
+          if @base_errors&.any?
+            render(Primer::Alpha::Banner.new(mb: 3, icon: :stop, scheme: :danger)) { @base_errors.join("\n") }
+          end
+        end
+        flex.with_row do
+          # These are not available inside the render_inline_form block
+          # so we need to re-define them here. Figure out solution for this.
+          relation = @relation
+          lag_shown = show_lag?
+          field_value = displayable_field_value
+          relation_direction = direction
+          url = ::API::V3::Utilities::PathHelper::ApiV3Path.work_package_available_relation_candidates(@work_package.id, type: relation.relation_type_for(@work_package))
+          render_inline_form(f) do |my_form|
+            if relation.persisted?
+              my_form.text_field(
+                name: relation_direction,
+                label: WorkPackage.model_name.human,
+                visually_hide_label: false,
+                value: field_value,
+                readonly: true
+              )
+            else
+              my_form.hidden(
+                name: :relation_type,
+                value: relation.relation_type
+              )
+
+              my_form.autocompleter(
+                name: relation_direction,
+                label: WorkPackage.model_name.human,
+                required: true,
+                visually_hide_label: false,
+                autocomplete_options: {
+                  resource: "work_packages",
+                  url:,
+                  searchKey: "typeahead",
+                  openDirectly: false,
+                  focusDirectly: true,
+                  dropdownPosition: "bottom",
+                  appendTo: "##{DIALOG_ID}",
+                  data: { test_selector: TO_ID_FIELD_TEST_SELECTOR }
+                }
+              )
+            end
+
+            my_form.text_field(
+              name: :description,
+              label: Relation.human_attribute_name(:description),
+              autofocus: relation.persisted?
+            )
+
+            if lag_shown
+              my_form.text_field(
+                name: :lag,
+                type: :number,
+                min: Relation::MIN_LAG,
+                max: Relation::MAX_LAG,
+                label: I18n.t("work_package_relations_tab.lag.subject"),
+                caption: I18n.t("work_package_relations_tab.lag.caption"),
+                input_width: :small,
+                trailing_visual: { text: { text: I18n.t("datetime.units.day.other") } }
+              )
+            end
+          end
+        end
+      end
+    end %>
+<% end %>

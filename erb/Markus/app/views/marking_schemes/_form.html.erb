@@ -1,0 +1,45 @@
+<p class='section'>
+  <h3>
+    <% if @marking_scheme.new_record? %>
+      <%= I18n.t('helpers.submit.create',
+                 model: I18n.t('activerecord.models.marking_scheme.one')) %>
+    <% else %>
+      <%= I18n.t('helpers.submit.update',
+                 model: I18n.t('activerecord.models.marking_scheme.one')) %>
+    <% end %>
+  </h3>
+  <%= form_for [@current_course, @marking_scheme], as: :marking_scheme do |f| %>
+
+    <%= render 'shared/flash_message' %>
+
+    <div class='table'>
+      <table>
+        <tr>
+          <td><%= f.label :name, MarkingScheme.human_attribute_name(:name) %></td>
+          <td><%= f.text_field :name %></td>
+        </tr>
+
+        <% @all_gradable_items.each do |assessment| %>
+          <% marking_weight = assessment.marking_weights.find_or_initialize_by(marking_scheme_id: @marking_scheme.id) %>
+          <%= f.fields_for :marking_weights, marking_weight do |builder| %>
+            <tr>
+              <%= builder.hidden_field :type, value: (assessment.is_a?(Assignment)) ? 'Assignment' : 'GEF' %>
+              <%= builder.hidden_field :id, value: assessment.id %>
+              <td><%= builder.label "#{MarkingScheme.human_attribute_name(:weight)} #{assessment.short_identifier}" %></td>
+              <td><%= builder.text_field :weight %></td>
+            </tr>
+          <% end %>
+        <% end %>
+      </table>
+    </div>
+
+    <p>
+      <%= f.submit t(:save),
+                   name: 'submit',
+                   data: { disable_with: t('working') },
+                   class: 'button' %>
+      <%= link_to t(:cancel), course_marking_schemes_path(@current_course), class: 'button' %>
+    </p>
+
+  <% end %>
+</div>

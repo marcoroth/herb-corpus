@@ -1,0 +1,54 @@
+<%#
+kind: ptable
+name: Kickstart custom
+model: Ptable
+oses:
+- AlmaLinux
+- CentOS
+- CentOS_Stream
+- Fedora
+- RedHat
+- Rocky
+-%>
+<% if host_param('driverdisk_source') -%>
+driverdisk --source=<%= host_param('driverdisk_source') %>
+<% end -%>
+zerombr
+clearpart --all --initlabel
+<%
+  dev = host_param('part_device') || 'sda'
+  swap = host_param('part_swap_size') || '4096'
+  root = host_param('part_root_percent') || '100'
+  home = host_param('part_home_percent') || '0'
+  fstype = host_param('part_fstype') || 'xfs'
+  vgname = host_param('part_vgname') || "vg_#{dev}"
+  lvname_swap = host_param('part_swap_name') || 'lv_swap'
+  lvname_root = host_param('part_root_name') || 'lv_root'
+  lvname_home = host_param('part_home_name') || 'lv_home'
+  pxe_loader = @host.pxe_loader || ''
+-%>
+
+<% if pxe_loader.include?('UEFI') || pxe_loader.include?('BIOS') -%>
+  <%- if pxe_loader.include?('UEFI') -%>
+  part /boot/efi --fstype="efi" --ondisk=<%= dev %> --size=200 --fsoptions="umask=0077,shortname=efi"
+  <%- end -%>
+
+  <%- if (@host.operatingsystem.family == 'Redhat' && @host.operatingsystem.major.to_i >= 7 ) -%>
+  part /boot --fstype="<%= fstype %>" --ondisk=<%= dev %> --size=1024
+  <% else -%>
+  part /boot --fstype="ext4" --ondisk=<%= dev %> --size=1024
+  <% end -%>
+  part pv.01 --fstype="lvmpv" --ondisk=<%= dev %> --size=1024 --grow
+  volgroup <%= vgname %> --pesize=4096 pv.01
+  logvol swap --fstype="swap" --size=<%= swap %> --name=<%= lvname_swap %> --vgname=<%= vgname %>
+  logvol / --fstype="<%= fstype %>" --percent=<%= root %> --name=<%= lvname_root %> --vgname=<%= vgname %>
+  <% if home != '0' -%>
+  logvol /home --fstype="<%= fstype %>" --percent=<%= home %> --name=<%= lvname_home %> --vgname=<%= vgname %>
+  <% end -%>
+
+<% else -%>
+
+# fallback to autopart, PXE loader was set to: <%= @host.pxe_loader %>
+autopart <%= host_param('autopart_options') %>
+
+<% end -%>

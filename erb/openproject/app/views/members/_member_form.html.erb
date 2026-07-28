@@ -1,0 +1,131 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%= labelled_tabular_form_for(
+      :member, url: main_app.project_members_path,
+               method: :post,
+               html: { id: "members_add_form",
+                       class: "form -vertical -bordered -medium-compressed" },
+               data: {
+                 "members-form-target": "addMemberForm",
+                 controller: "user-limit",
+                 "user-limit-open-seats-value": OpenProject::Enterprise.open_seats_count,
+                 "user-limit-member-autocompleter-value": true
+               }
+    ) do |f| %>
+
+  <%=
+    render(
+      Primer::Beta::IconButton.new(
+        icon: :x,
+        scheme: :invisible,
+        classes: "hide-member-form-button form--close",
+        tooltip_direction: :se,
+        aria: { label: t("js.close_form_title") },
+        data: { action: "members-form#hideAddMemberForm" }
+      )
+    )
+  %>
+    <div id="new-member-message"></div>
+    <div class="grid-block">
+      <div class="grid-content medium-5 small-12 collapse -flex">
+        <div
+          class="form--field"
+          data-user-limit-target="inviteUserForm">
+          <%
+            user_id_title = I18n.t(:label_principal_search)
+
+            if current_user.admin?
+              user_id_title = "#{user_id_title}#{I18n.t(:label_principal_invite_via_email)}"
+            end
+          %>
+          <%= styled_label_tag :member_user_ids, user_id_title %>
+
+          <%= angular_component_tag "opce-members-autocompleter",
+                                    inputs: {
+                                      inputName: "member[user_ids]",
+                                      inputBindValue: "id",
+                                      url: "#{autocomplete_for_member_project_members_path}.json",
+                                      multiple: true
+                                    } %>
+        </div>
+      </div>
+      <div class="grid-content medium-8 small-12 -flex -with-button">
+        <div class="form--field">
+          <%= styled_label_tag :member_role_ids, title: t(:label_role_search) do
+                render OpenProject::Common::AttributeLabelComponent.new(
+                  attribute: "members",
+                  model: Project,
+                  tag: nil
+                ) do
+                  render(Primer::Beta::Text.new) { t(:label_role_search) }
+                end
+              end %>
+          <div class="form--field-container">
+            <div class="form--select-container -auto">
+              <% options = roles.collect { |obj| [obj.name, obj.id] } %>
+              <%= select_tag "member[role_ids][]", options_for_select(options),
+                             multiple: false,
+                             no_label: true,
+                             title: t(:label_role_search),
+                             tabIndex: 0,
+                             class: "form--select",
+                             id: "member_role_ids" %>
+            </div>
+          </div>
+        </div>
+        <div id="member-add-submit-button--container">
+          <%= f.button t(:button_add),
+                       class: "button -primary -with-icon icon-checkmark",
+                       id: "add-member--submit-button" %>
+        </div>
+      </div>
+    </div>
+
+  <% if OpenProject::Enterprise.user_limit.present? %>
+    <%=
+      render(
+        Primer::Alpha::Banner.new(
+          scheme: :warning,
+          icon: :alert,
+          classes: "d-none",
+          data: { "user-limit-target": "limitWarning" }
+        )
+      ) do
+    %>
+      <%=
+        link_translate(
+          "warning_user_limit_reached#{'_admin' if current_user.admin?}",
+          links: { upgrade_url: OpenProject::Enterprise.upgrade_url }
+        )
+      %>
+    <% end %>
+  <% end %>
+
+<% end %>

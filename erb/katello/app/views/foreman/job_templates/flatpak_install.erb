@@ -1,0 +1,46 @@
+<%#
+kind: job_template
+name: Flatpak - Install application on host
+job_category: Katello
+description_format: 'Install Flatpak application %{Application name} on host'
+provider_type: script
+template_inputs:
+- name: Flatpak remote name
+  description: Name of remote to use on host
+  input_type: user
+  required: false
+- name: Application name
+  description: Full Flatpak app ID (e.g. org.mozilla.firefox). Avoid short names like firefox to ensure the correct app is installed.
+  input_type: user
+  required: true
+- name: Launch a session bus instance
+  description: Launch a session bus instance for the flatpak application using 'dbus-run-session'. Requires package dbus-daemon on client. Select 'true' for machines without a display server.
+  input_type: user
+  required: false
+  options: "true\r\nfalse"
+  advanced: false
+  value_type: plain
+  default: 'false'
+%>
+
+<%
+  remote_name = input('Flatpak remote name')
+  app_name = input('Application name')
+  use_dbus_session = input('Launch a session bus instance') == 'true'
+%>
+<% if use_dbus_session %>
+sudo dbus-run-session bash -c '
+  echo "Installing flatpak app <%= app_name %> from <%= remote_name %>"
+  if ! output=$(flatpak install <%= remote_name %> <%= app_name %> --assumeyes 2>&1); then
+  echo "$output"
+  echo "Flatpak install failed"
+  exit 1
+  fi
+  echo "$output"
+'
+dbus_status=$?
+sudo pkill -TERM -f flatpak-oci-authenticator || true
+exit $dbus_status
+<% else %>
+sudo flatpak install <%= remote_name %> <%= app_name %> --assumeyes
+<% end %>

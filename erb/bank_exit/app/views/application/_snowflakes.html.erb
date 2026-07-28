@@ -1,0 +1,244 @@
+<%#
+  This partial encapsulates the snowflakes component, including all required HTML, CSS, and JavaScript.
+  The image assets are located in images/christmas.
+  Stimulus is intentionally not used to keep the component lightweight and portable.
+  Update this partial for any changes to the snowflake behavior, and manage image assets in images/christmas.
+%>
+
+<script nonce="<%= request.content_security_policy_nonce %>">
+  (function () {
+    const withSnowflakes = localStorage.getItem("with-snowflakes") || "true";
+
+    if (withSnowflakes === "false") {
+      document.documentElement.classList.add("snow-disabled");
+    }
+  })();
+</script>
+
+<div data-controller="snowflakes">
+  <div class="snow" aria-hidden="true" data-snowflakes-target="snow">
+    <div class="snow__layer">
+      <div class="snow__fall"></div>
+    </div>
+
+    <div class="snow__layer">
+      <div class="snow__fall"></div>
+    </div>
+
+    <div class="snow__layer">
+      <div class="snow__fall"></div>
+      <div class="snow__fall"></div>
+      <div class="snow__fall"></div>
+    </div>
+
+    <div class="snow__layer">
+      <div class="snow__fall"></div>
+    </div>
+  </div>
+
+  <label class="swap hover:text-primary motion-safe:transition-colors">
+    <input
+      id="snowflakes-toggler"
+      type="checkbox"
+      data-snowflakes-target="input"
+      data-action="click->snowflakes#switch"
+    >
+
+    <span class="swap-on">
+      <%= lucide_icon "snowflake", class: "h-5 w-5 fill-current inline-flex mr-1" %>
+      <%= t(".disable_snowflakes") %>
+    </span>
+
+    <span class="swap-off">
+      <%= lucide_icon "snowflake", class: "h-5 w-5 fill-current opacity-50 inline-flex mr-1" %>
+      <%= t(".enable_snowflakes") %>
+    </span>
+  </label>
+</div>
+
+<script nonce="<%= request.content_security_policy_nonce %>">
+  document.addEventListener("turbo:load", () => {
+    const controllers = document.querySelectorAll('[data-controller="snowflakes"]');
+
+    controllers.forEach((controller) => {
+      const input = controller.querySelector('[data-snowflakes-target="input"]');
+      if (!input) return;
+
+      const saved = localStorage.getItem("with-snowflakes") ?? "true";
+      const isEnabled = saved === "true";
+
+      input.checked = isEnabled;
+      updateSnowState(isEnabled);
+
+      input.addEventListener("click", () => {
+        const checked = input.checked;
+        updateSnowState(checked);
+        localStorage.setItem("with-snowflakes", checked);
+      });
+    });
+
+    function updateSnowState(enabled) {
+      document.documentElement.classList.toggle("snow-disabled", !enabled);
+    }
+  });
+</script>
+
+<style>
+  .snow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      overflow: hidden;
+  }
+
+  .snow__layer {
+      position: absolute;
+      left: -100px;
+      right: -100px;
+      animation: wind 5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+      perspective: 100px;
+      transform: translateX(-50px);
+  }
+
+  .snow__fall {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2000px;
+      background-image: url("<%= asset_path('christmas/snow-light.png') %>");
+      animation: fall 10s linear infinite;
+      will-change: transform;
+  }
+
+  .snow__layer:nth-child(1) {
+      animation-duration: 35s;
+  }
+
+  .snow__layer:nth-child(1) .snow__fall {
+      background-image: url("<%= asset_path('christmas/snow-blur.png') %>");
+      transform: translateZ(25px);
+      animation-name: fallblur;
+      width: calc(100vw + 2000px);
+      height: calc(100vh + 1000px);
+      left: -1000px;
+  }
+
+  .snow__layer:nth-child(2) {
+      animation: wind 5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+  }
+
+  .snow__layer:nth-child(2) .snow__fall {
+      background-image: url("<%= asset_path('christmas/snow-medium.png') %>");
+      animation-duration: 25s;
+  }
+
+  .snow__fall:nth-child(3) {
+      animation-duration: 10s;
+      background-size: 250px;
+  }
+
+  .snow__fall:nth-child(2) {
+      animation-duration: 20s;
+      background-size: 500px;
+  }
+
+  .snow__layer:nth-child(4) .snow__fall {
+      animation-duration: 5s;
+      transform: translateZ(50px);
+      animation-name: falllight;
+  }
+
+  @keyframes fall {
+      from {
+          transform: translateY(-1000px);
+      }
+  }
+
+  @keyframes falllight {
+      from {
+          transform: translateY(-1000px) translateZ(50px);
+      }
+  }
+
+  @keyframes fallblur {
+      from {
+          transform: translateY(-1000px) translateZ(25px);
+      }
+  }
+
+  @keyframes wind {
+      to {
+          transform: translateX(50px);
+      }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+      .snow__layer,
+      .snow__fall {
+          animation: none !important;
+      }
+  }
+
+  .snow-disabled {
+      .snow {
+          display: none !important;
+      }
+  }
+
+  @media (min-width: 1rem) {
+      .snow-stack {
+          --christmas-banner-height: 225px;
+
+          &::after {
+              background-size: cover;
+          }
+      }
+  }
+
+  @media (min-width: 64rem) {
+      .snow-stack {
+          --christmas-banner-height: 350px;
+
+          &::after {
+              background-size: auto;
+          }
+      }
+  }
+
+  .snow-stack {
+      position: relative;
+      padding-bottom: calc(var(--christmas-banner-height) + 16px);
+  }
+
+  .snow-stack::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: var(--christmas-banner-height);
+      pointer-events: none;
+      z-index: 1;
+      background-image: url("<%= asset_path('christmas/footer-banner.svg') %>");
+      background-repeat: repeat-x;
+  }
+
+  .custom-pin-icon {
+      position: relative;
+
+      &::before {
+          content: '';
+          position: absolute;
+          top: -18px;
+          left: -13px;
+          width: 40px;
+          height: inherit;
+          display: block;
+          background-repeat: no-repeat;
+          background-image: url("<%= asset_path('christmas/hat.svg') %>");
+      }
+  }
+</style>

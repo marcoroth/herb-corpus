@@ -1,0 +1,97 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% title = new_workspace_title(@new_project) %>
+<% html_title title %>
+
+<!-- not using with_enterprise_banner_guard so that dismissible banner doesn't interfere with step wizard layout -->
+<% if portfolio_management_feature_missing? %>
+  <%= render partial: "new_header", locals: { title: } %>
+  <%=
+    # not using with_enterprise_banner_guard so that dismissible banner doesn't interfere with step wizard layout
+    render EnterpriseEdition::BannerComponent.new(
+      :portfolio_management,
+      variant: :large,
+      image: "enterprise/portfolio-management.png"
+    )
+  %>
+<% else %>
+  <% cancel_href = workspace_creation_cancel_href(@new_project, @parent) %>
+
+  <%= render(StepWizard::PageLayoutComponent.new) do |layout| %>
+    <%=
+      layout.with_page_header do
+        render partial: "new_header", locals: { title: }
+      end
+    %>
+
+    <%= layout.with_wizard_content do %>
+      <% case params[:step] %>
+      <% when 1 %>
+        <%= render(Primer::Beta::Text.new(tag: :div, mb: 3, font_size: 5)) { I18n.t("create_#{@new_project.workspace_type}.template_heading") } %>
+        <%=
+          render Projects::TemplateSelectComponent.new(
+            project: @new_project,
+            template: @template,
+            parent: @parent,
+            current_user:
+          )
+        %>
+      <% when 2 %>
+        <%=
+          render Projects::NewComponent.new(
+            project: @new_project,
+            template: @template,
+            step: 2
+          )
+        %>
+      <% when 3 %>
+        <%= render(Primer::Beta::Text.new(tag: :div, mb: 3, font_size: 5)) { I18n.t("create_project.attributes_heading") } %>
+        <%=
+          render Projects::NewComponent.new(
+            project: @new_project,
+            template: @template,
+            step: 3
+          )
+        %>
+      <% end %>
+    <% end %>
+    <%=
+      layout.with_footer do
+        render Projects::ProjectCreationFooterComponent.new(
+          form_identifier: "project-create-form",
+          project: @new_project,
+          template: @template,
+          current_step: params.fetch(:step, 1).to_i,
+          cancel_href:
+        )
+      end
+    %>
+  <% end %>
+<% end %>

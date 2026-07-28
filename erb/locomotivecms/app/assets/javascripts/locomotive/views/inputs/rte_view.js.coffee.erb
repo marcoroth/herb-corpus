@@ -1,0 +1,136 @@
+Locomotive.Views.Inputs ||= {}
+
+class Locomotive.Views.Inputs.RteView extends Backbone.View
+
+  events:
+    'click a.style':        'open_styles_dialog'
+    'click a.table':        'open_table_dialog'
+    'click a.expand':       'expand'
+    'highlight textarea':   'highlight'
+
+  initialize: ->
+    _.bindAll(@, 'register_editor_events', 'on_content_change', 'resize')
+
+    @tokens = [
+      PubSub.subscribe 'application_view.resize', @resize
+    ]
+
+    @build_editor()
+
+  render: ->
+    @render_views()
+
+  build_editor: ->
+    $textarea = @$('textarea')
+
+    @editor = new wysihtml5.Editor $textarea.attr('id'),
+      toolbar:        "wysihtml5-toolbar-#{$textarea.attr('id')}"
+      useLineBreaks:  $textarea.data('inline')
+      parserRules:    wysihtml5ParserRules
+      stylesheets:    ['<%= stylesheet_path("locomotive/wysihtml5_editor") %>']
+      showToolbarDialogsOnSelection: false
+
+    @editor.on 'load', @register_editor_events
+
+  render_views: ->
+    @editor.on 'load', =>
+      @views = [
+        @build_and_render_view(Locomotive.Views.Inputs.Rte.LinkView),
+        @build_and_render_view(Locomotive.Views.Inputs.Rte.FileView),
+        @build_and_render_view(Locomotive.Views.Inputs.Rte.ImageView),
+        @build_and_render_view(Locomotive.Views.Inputs.Rte.TableView),
+        @build_and_render_view(Locomotive.Views.Inputs.Rte.EditTableView)
+      ]
+      console.log '[RTE] all views created and rendered'
+
+  expand: (event) ->
+    event.stopPropagation() & event.preventDefault()
+
+    $(@el).parents('.simple_form').toggleClass('rte-expanded')
+    $(@el).parents('.inputs').toggleClass('expanded')
+    $(@el).toggleClass('expanded')
+
+    @$style_popover.popover('hide') if @$style_popover?
+
+    @resize()
+
+  open_styles_dialog: (event) ->
+    $button = $(event.target).closest('a')
+    html    = $button.next('.style-dialog-content').html()
+
+    @$style_popover = @$style_popover || ($button.popover
+      placement:  'bottom'
+      content:    html
+      html:       true
+      sanitize:   false
+      title:      undefined)
+
+    @$style_popover.data('bs.popover').options.content = html
+    @$style_popover.popover('show')
+
+  build_and_render_view: (klass, command) ->
+    view  = new klass(el: @el, editor: @editor)
+    view.render()
+    view
+
+  register_editor_events: ->
+    # keyup events
+    @$('.wysihtml5-sandbox').contents().find('body').on 'keyup', =>
+      @on_content_change()
+
+    # Counter
+    count = @editor.currentView.doc.body.innerText.length
+    @$counter = $("<div class='wysihtml5-counter'>#{count}</div>").insertAfter(@$('> .form-wrapper'))
+
+    $(@editor.currentView.doc.body).on 'keyup', (event) =>
+      @$counter.html(event.currentTarget.innerText.length)
+
+    # double click (links)
+    @$('.wysihtml5-sandbox').contents().find('body').on 'dblclick', =>
+      selectedNode = @editor.composer.selection.getSelectedNode()
+      link         = wysihtml5.dom.getParentElement(selectedNode, { query: 'a' }, 4)
+
+      if link
+        @editor.toolbar.commandMapping['createLink:null'].link.click()
+
+    @editor.on 'change', @on_content_change
+    @editor.on 'aftercommand:composer', @on_content_change
+    @editor.on 'change_view', @resize
+
+  on_content_change: ->
+    PubSub.publish 'inputs.text_changed',
+      view:     @
+      content:  @editor.getValue()
+
+  highlight: (event) ->
+    @editor.focus()
+
+  resize: ->
+    $iframe   = @$('.form-wrapper .wysihtml5-sandbox')
+    $textarea = @$('.form-wrapper textarea')
+    $inputs   = $(@el).parents('.inputs')
+    $wrapper  = @$('.form-wrapper')
+
+    if $inputs.hasClass('expanded')
+      for $target in [$iframe, $textarea]
+        delta_height        = $wrapper.outerHeight() - $target.outerHeight()
+        wrapper_max_height  = $(@el).height() - ($wrapper.outerHeight() - $wrapper.height() + parseInt($wrapper.css('margin-top')) + parseInt($(@el).css('padding-bottom')))
+        height              = wrapper_max_height - delta_height
+
+        $target.data('height', $target.css('height')) unless $target.data('height')?
+        $target.css('min-height', height)
+    else
+      for $el in [$iframe, $textarea]
+        $el.css('min-height', $el.data('height'))
+
+  remove: ->
+    _.invoke @views, 'remove'
+    _.each @tokens, (token) -> PubSub.unsubscribe(token)
+
+    @editor.stopObserving('onLoad',   @register_keydown_event)
+    @editor.stopObserving('onChange', @on_content_change)
+
+    @editor.destroy()
+
+    super()
+

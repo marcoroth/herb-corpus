@@ -1,0 +1,50 @@
+<script src="https://js.stripe.com/v3/"></script>
+
+<script type="text/javascript">
+  var stripe = Stripe("<%= ENV.fetch('STRIPE_PUBLISHABLE_KEY') %>");
+  var elements = stripe.elements();
+
+  var cardElement = elements.create('card', {
+    style: {
+      base: {
+        fontSize: '16px',
+        color: '#333',
+        '::placeholder': { color: '#999' }
+      }
+    }
+  });
+
+  jQuery(function($) {
+    cardElement.mount('#card-element');
+
+    cardElement.on('change', function(event) {
+      var displayError = $('.js-payment-errors');
+      if (event.error) {
+        displayError.text(event.error.message).removeClass('hidden');
+      } else {
+        displayError.addClass('hidden').text('');
+      }
+    });
+
+    $('#credit-card-update').submit(function(e) {
+      e.preventDefault();
+      var $form = $(this);
+
+      $form.find('button').button('loading');
+
+      stripe.createPaymentMethod({
+        type: 'card',
+        card: cardElement
+      }).then(function(result) {
+        if (result.error) {
+          var displayError = $form.find('.js-payment-errors');
+          displayError.text(result.error.message).removeClass('hidden');
+          $form.find('button').button('reset');
+        } else {
+          $form.append($('<input type="hidden" name="stripe_payment_method_id" />').val(result.paymentMethod.id));
+          $form.get(0).submit();
+        }
+      });
+    });
+  });
+</script>

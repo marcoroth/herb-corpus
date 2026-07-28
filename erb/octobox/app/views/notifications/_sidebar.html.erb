@@ -1,0 +1,185 @@
+<ul class="nav nav-pills flex-column nav-filters">
+  <li role="presentation" class="nav-item">
+    <%= link_to root_path(per_page: params[:per_page]), { :class=>"nav-link #{'active' if @search.inbox_selected?}" } do %>
+      <%= octicon 'inbox', height: 16, class: 'sidebar-icon text-primary' %>
+      Inbox
+      <% if @search.inbox_selected? %>
+        <span class="badge badge-light"><%= @unread_notifications.sum(&:last) %></span>
+      <% end %>
+    <% end %>
+  </li>
+  <li role="presentation" class="nav-item">
+    <%= link_to root_path(archive: true, per_page: params[:per_page]), { :class=>"nav-link #{'active' if @search.archive_selected?}" } do %>
+      <%= octicon 'check', height: 16, class: 'sidebar-icon text-success' %>
+      Archive
+      <% if @search.archive_selected? %>
+        <span class="badge badge-light"><%= @unread_notifications.sum(&:last) %></span>
+      <% end %>
+    <% end %>
+  </li>
+  <li role="presentation" class="nav-item">
+    <%= link_to root_path(starred: true, per_page: params[:per_page]), { :class=>"nav-link #{'active' if starred_selected?}" } do %>
+      <%= octicon 'star-fill', height: 16, class: 'sidebar-icon star-active' %>
+      Starred
+      <% if starred_selected? %>
+        <span class="badge badge-light"><%= @unread_notifications.sum(&:last) %></span>
+      <% end %>
+    <% end %>
+  </li>
+</ul>
+
+<% if current_user.pinned_searches.present? || any_active_filters? %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% current_user.pinned_searches.sort_by(&:name).each do |pinned_search| %>
+      <li role="presentation" class="nav-item pinned_search">
+        <%= link_to root_path(q: pinned_search.query), { :class=>"nav-link #{'active' if search_query_matches?(@search.to_query, pinned_search.query)}", title: pinned_search.query } do %>
+          <%= octicon 'search', height: 16, class: 'sidebar-icon' %>
+          <%= pinned_search.name %>
+          <% if search_query_matches?(@search.to_query, pinned_search.query) %>
+            <span class="badge badge-light"><%= @total %></span>
+          <% else %>
+            <span class="badge badge-light pinned-search-count" data-url="<%= pinned_search_path(pinned_search, format: 'json') %>"><%= octicon 'sync', height: 12, class: 'spinning' %></span>
+          <% end %>
+        <% end %>
+      </li>
+    <% end %>
+    <% if any_active_filters? && !search_pinned?(@search.to_query) %>
+      <li  role="presentation" class="nav-item">
+        <%= link_to settings_path(q: @search.to_query, anchor: 'pinned-searches'), class: 'nav-link new_pinned_search' do %>
+          <%= octicon 'pin', height: 16, class: 'sidebar-icon' %>
+          Pin this search
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>
+
+<ul class="nav nav-pills flex-column nav-filters">
+  <%= filter_link :unread, false, @unread_notifications[false] do %>
+      <%= octicon 'eye', height: 16, class: 'sidebar-icon' %>
+      Read
+  <% end %>
+
+  <%= filter_link :unread, true, @unread_notifications[true] do %>
+      <%= octicon 'eye-closed', height: 16, class: 'sidebar-icon' %>
+      Unread
+  <% end %>
+</ul>
+
+<% if @states.keys.compact.any? %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% @states.sort_by{|state, count| state.to_s }.reverse_each do |state, count| %>
+      <% next if state.nil? %>
+      <%= filter_link :state, state, count do %>
+        <%= octicon 'square-fill', height: 24, class: "sidebar-icon text-#{state_label(state)}" %>
+        <%= state.underscore.humanize %>
+      <% end %>
+    <% end %>
+    <% if @draft > 0 %>
+      <%= filter_link :draft, true, @draft do %>
+        <%= octicon 'square-fill', height: 24, class: "sidebar-icon text-draft" %>
+        Draft
+      <% end %>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @unlabelled > 0 || @bot_notifications > 0 || @assigned > 0 %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% if @assigned > 0 %>
+      <%= filter_link :assigned, current_user.github_login, @assigned do %>
+        <%= octicon 'person', height: 16, class: 'sidebar-icon' %>
+        Assigned to you
+      <% end %>
+    <% end %>
+    <% if @bot_notifications > 0 %>
+      <%= filter_link :bot, true, @bot_notifications do %>
+        <%= octicon 'hubot', height: 18, class: 'sidebar-icon' %>
+        Bots
+      <% end %>
+    <% end %>
+
+    <% if @unlabelled > 0 %>
+      <%= filter_link :unlabelled, true, @unlabelled do %>
+        <%= octicon 'tag', height: 16, class: 'sidebar-icon' %>
+        Unlabelled
+      <% end %>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @types.any? %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% @types.sort_by{|type, count| type.downcase }.each do |type, count| %>
+      <%= filter_link :type, type, count do %>
+        <% if subject_type_icon(type).nil? %>
+            <span class='sidebar-icon'></span>
+        <% else %>
+            <%= octicon subject_type_icon(type), height: 16, class: 'sidebar-icon' %>
+        <% end %>
+        <%= type.underscore.gsub('repository', '').humanize %>
+
+      <% end %>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @reasons.any? %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% @reasons.sort_by{|reason, count| reason.downcase }.each do |reason, count| %>
+      <%= reason_filter_link reason, count do %>
+        <%= octicon 'dot-fill', height: 24, class: "sidebar-icon text-#{reason_label(reason)}" %>
+        <%= reason.underscore.humanize %>
+      <% end %>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @statuses.keys.compact.any? %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% @statuses.sort_by{ |status, count| status.to_s }.reverse_each do |status, count| %>
+      <% next if status.nil? %>
+      <%= filter_link :status, status, count do %>
+        <%= sidebar_notification_status(status) %>
+        <%= status.underscore.humanize %>
+      <% end %>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @visiblity && @visiblity.any? %>
+  <ul class="nav nav-pills flex-column nav-filters">
+    <% @visiblity.sort_by{|visiblity, count| visiblity.to_s }.each do |visiblity, count| %>
+      <%= filter_link :is_private, visiblity, count do %>
+        <% if visiblity %>
+          <%= octicon('lock', class: 'private-repo sidebar-icon') %> Private
+        <% else %>
+          <%= octicon('repo', class: 'sidebar-icon') %> Public
+        <% end %>
+      <% end %>
+    <% end %>
+  </ul>
+<% end %>
+
+<ul class="nav nav-pills flex-column nav-filters">
+  <% @unread_repositories.sort_by{|repo_name, count| repo_name.downcase }.group_by{|repo_name, count| repo_name.split('/')[0] }.each do |org, repos| %>
+    <%= org_filter_link :owner, org do %>
+      <%= image_tag "#{Octobox.config.github_domain}/#{org}.png?size=40", width: 20, class: 'img-rounded sidebar-avatar', alt: org %>
+      <%= org %>
+    <% end %>
+
+    <% repos.each do |repo_name, count| %>
+      <% repo_owner, repo_label = repo_name.split('/') %>
+
+      <%= repo_filter_link :repo, repo_name, count do %>
+        <% if @repositories && @repositories.find{|r| r.full_name == repo_name }.try(:private?) %>
+          <%= octicon('lock', class: 'private-repo') %>
+        <% else %>
+          <%= octicon('repo') %>
+        <% end %>
+        <%= repo_label %>
+      <% end %>
+     </li>
+    <% end %>
+  <% end %>
+</ul>

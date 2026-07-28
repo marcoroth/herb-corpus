@@ -1,0 +1,51 @@
+<div class="mb-4 location suppress-item-level-request-button-if-there-is-a-location-level-request-button">
+  <div class="mb-1 d-flex flex-wrap col-gap-3 justify-content-between align-items-center location-request" data-availability-target="location">
+    <h4 class="fs-15 mb-0"><%= render Searchworks4::PhysicalAvailabilityComponent::LocationComponent.new(location: location, document: document, classes: [], suppress_off_campus: false) %></h4>
+    <% summary = capture { render AccessPanels::LibraryLocationPopoverComponent.new(mhld: location.mhld) } %>
+    <% request_link = capture { render LocationRequestLinkComponent.for(document:, location:, library_code: library.code, hide_icon: true, classes: %w[btn btn-sm btn-secondary location-request-link text-nowrap ms-auto py-0]) } %>
+
+    <% if summary.present? %>
+      <div class="w-100 d-flex justify-content-between align-items-center gap-2">
+        <%= summary %>
+        <div class="ms-auto">
+          <%= request_link %>
+        </div>
+      </div>
+    <% else %>
+      <%= request_link %>
+    <% end %>
+
+  </div>
+
+  <% if location.mhld.present? %>
+    <% if location.mhld.first.latest_received %>
+      <div class='mhld note-highlight fs-14 d-inline-block mt-0'>Latest: <%= location.mhld.first.latest_received %></div>
+    <% end %>
+    <% location.mhld.filter_map(&:public_note).uniq.each do |public_note| %>
+        <div>
+          <div class='mhld note-highlight fs-14 d-inline-block'><%= public_note %></div>
+        </div>
+    <% end %>
+  <% end %>
+
+  <table class="w-100">
+    <caption class="visually-hidden">
+      <%= pluralize(location.items.count, 'item') %> in <%= library.name %> <%= location.name %>
+    </caption>
+    <thead class="visually-hidden">
+      <tr>
+        <th>Call number</th>
+        <th>Status</th>
+        <th class="visually-hidden">Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      <%= render AccessPanels::LocationItemComponent.with_collection(display_items, document:, consolidate_for_finding_aid: consolidate_items?) %>
+    </tbody>
+  </table>
+  <% if location_count? %>
+    <%= link_to(availability_modal_path(document, { library: library.code }), class: 'icon-link', data: { blacklight_modal: "trigger" }) do %>
+      Browse all <%= pluralize(location_count?, 'item') %> <i class="bi bi-chevron-double-right fs-14"></i>
+    <% end %>
+  <% end %>
+</div>

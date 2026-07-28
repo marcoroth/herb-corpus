@@ -1,0 +1,99 @@
+<% content_for :scripts do %>
+  <%= javascript_tag do %>
+    var BY_DAY_USER_TOMATOES_URL = '<%= by_day_user_tomatoes_url(@user, format: :json) %>',
+        BY_HOUR_USER_TOMATOES_URL = '<%= by_hour_user_tomatoes_url(@user, format: :json) %>';
+  <% end %>
+
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.7/jquery.flot.min.js"
+    integrity="sha256-Jndbja6Oz3w6VfEwbdK4BWVcnjfi9k2k7hmFYJZgt2Q="
+    crossorigin="anonymous"></script>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.7/jquery.flot.selection.min.js"
+    integrity="sha256-8WzAV3WHQIndMnKO9o6xzOkP8AAwLOeEJncVATWnFLg="
+    crossorigin="anonymous"></script>
+
+  <%= javascript_include_tag 'users', 'users_charts' %>
+<% end %>
+
+<div id="user">
+  <div class="row">
+    <div class="profile col-md-4">
+      <h1><%= user_name(@user) %></h1>
+      <div class="media">
+        <div class="profile_image media-left">
+          <%= profile_image(@user, 64, class: 'media-object') %>
+        </div>
+        <div class="profile_info media-body">
+          <%= @user.tomatoes.size %> <%= Tomato.model_name.human(count: @user.tomatoes.size).downcase %><br/>
+          <% @user.authorizations.external_providers.each do |authorization| %>
+            <%= link_to authorization.url, authorization.url %><br/>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%= content_for_user(@user) do %>
+    <div class="row">
+      <% Authorization::EXTERNAL_PROVIDERS.each do |provider| %>
+        <div class="col-md-4">
+          <%= render partial: 'authorizations/authorization', locals: { provider: provider, user: @user } %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="row" id="request_notification_permission">
+      <div class="col-md-6">
+        <h3><%= t('user.desktop_notifications') %></h3>
+        <p><%= t('user.desktop_notifications_description') %></p>
+        <p>
+          <strong>
+            <%= link_to "", "#" %>
+            <span id="notification_not_supported" style="display: none">
+              <%= t('user.notification_not_supported') %>
+            </span>
+          </strong>
+        </p>
+      </div>
+    </div>
+
+    <h3>Profile info</h3>
+    <dl class="dl-horizontal">
+      <dt>Time Zone</dt>
+      <dd><%= @user.time_zone || 'n/a' %></dd>
+      <dt>Currency</dt>
+      <dd><%= @user.currency %></dd>
+    </dl>
+
+    <dl class="dl-horizontal">
+      <dt>Work hours per day</dt>
+      <dd><%= @user.work_hours_per_day || 'n/a' %></dd>
+      <dt>Average hourly rate</dt>
+      <dd><%= hourly_rate(@user.average_hourly_rate, @user.currency) %></dd>
+      <dt>Effective work time</dt>
+      <dd><%= distance_of_time_in_words(@user.effective_work_time) if @user.effective_work_time %></dd>
+      <dt>Estimated revenues</dt>
+      <dd><%= money(@user.estimated_revenues, @user.currency_unit) || 'n/a' %></dd>
+    </dl>
+
+    <ul class="nav nav-pills">
+      <li role="presentation"><%= link_to 'Tomatoes', tomatoes_path %></li>
+      <li role="presentation"><%= link_to 'Projects', projects_path %></li>
+      <li role="presentation"><%= link_to 'Tags', tags_path %></li>
+      <li role="presentation"><%= link_to 'Export your tomatoes (csv)', tomatoes_path(format: :csv) %></li>
+      <li role="presentation"><%= link_to 'Edit profile', edit_user_path(@user) %></li>
+    </ul>
+  <% end %>
+</div>
+
+<h2>Tomatoes by day</h2>
+<div class="chart" id="tomatoes_by_day">
+  <%= image_tag 'loading.gif', class: 'loading' %>
+</div>
+<div class="chart overview" id="tomatoes_by_day_overview"></div>
+
+<h2>Tomatoes by hour</h2>
+<div class="chart" id="tomatoes_by_hour">
+  <%= image_tag 'loading.gif', class: 'loading' %>
+</div>

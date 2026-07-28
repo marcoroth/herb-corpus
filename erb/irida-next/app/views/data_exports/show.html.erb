@@ -1,0 +1,89 @@
+<%= turbo_refreshes_with method: :morph, scroll: :preserve %>
+<%= turbo_stream_from @data_export %>
+<%= render Viral::PageHeaderComponent.new(
+  title: @data_export.name || @data_export.id, id: @data_export.name.nil? ? nil : @data_export.id) do |component| %>
+  <%= component.with_buttons do %>
+    <div class="flex flex-col space-y-2 sm:flex-row sm:space-x-2">
+      <% if @data_export.status == 'ready' %>
+        <%= button_to(
+          t('common.actions.download'),
+          rails_blob_path(@data_export.file),
+          method: :get,
+          class: "button button-primary w-full",
+        ) %>
+      <% else %>
+        <button
+          class="
+            button button-default pointer-events-none cursor-not-allowed bg-slate-100
+            text-slate-600 dark:bg-slate-600 dark:text-slate-300 border-slate-100
+            dark:border-slate-600 w-full
+          "
+          disabled
+        ><%= t('common.actions.download') %>
+        </button>
+      <% end %>
+      <%= button_to(
+        t('common.actions.remove'),
+        data_export_path,
+        params: {
+          id: @data_export.id,
+        },
+        method: :delete,
+        data: {
+          turbo_method: :delete,
+          turbo_confirm:
+            t(
+              "data_exports.show.remove_button_confirmation",
+              name: @data_export.name || @data_export.id,
+            ),
+        },
+        class: "button button-default w-full",
+      ) %>
+    </div>
+  <% end %>
+<% end %>
+
+<div class="bg-white dark:bg-slate-800">
+  <%= render Pathogen::Tabs.new(
+    id: "data-export-tabs",
+    label: t(:"data_exports.show.tabs.title"),
+    default_index: @tab_index,
+    sync_url: true
+  ) do |tabs| %>
+    <% tabs.with_tab(
+      id: "summary-tab",
+      label: t(:"data_exports.show.tabs.summary"),
+      selected: @tab == "summary"
+    ) %>
+
+    <% if @data_export.status == 'ready' && @data_export.export_type != 'linelist' %>
+      <% tabs.with_tab(
+        id: "preview-tab",
+        label: t(:"data_exports.show.tabs.preview"),
+        selected: @tab == "preview"
+      ) %>
+    <% end %>
+
+    <% tabs.with_lazy_panel(
+      id: "summary-panel",
+      tab_id: "summary-tab",
+      frame_id: "summary-panel-content",
+      src_path: data_export_path(@data_export, tab: "summary"),
+      selected: @tab == "summary"
+    ) do %>
+      <%= render partial: "summary" %>
+    <% end %>
+
+    <% if @data_export.status == 'ready' && @data_export.export_type != 'linelist' %>
+      <% tabs.with_lazy_panel(
+        id: "preview-panel",
+        tab_id: "preview-tab",
+        frame_id: "preview-panel-content",
+        src_path: data_export_path(@data_export, tab: "preview"),
+        selected: @tab == "preview"
+      ) do %>
+        <%= render partial: "preview" %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

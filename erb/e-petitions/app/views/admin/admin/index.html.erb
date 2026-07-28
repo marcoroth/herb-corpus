@@ -1,0 +1,253 @@
+<h1>Petition admin</h1>
+
+<div class="grid-row">
+  <div class="column-two-thirds">
+    <%= form_tag [:admin, :search], enforce_utf8: false, class: "search-petitions", method: "get" do %>
+      <p>
+        Search for <label><%= radio_button_tag :type, "petition", checked: true %> petitions</label>
+        or <label><%= radio_button_tag :type, "signature" %> signatures</label>
+      </p>
+      <div class="search-inline">
+        <%= label_tag :q, "Search", class: "visuallyhidden" %>
+        <%= search_field_tag "q", "", class: "form-control", placeholder:"Enter a search query" %>
+        <%= submit_tag 'Search', name: nil, class: 'inline-submit' %>
+      </div>
+
+      <div class="search-period" style="display: none;">
+        <p>
+          <small>
+            Search the past
+            <label><%= radio_button_tag :window, "1800" %>30 minutes</label>
+            <label><%= radio_button_tag :window, "10800" %>3 hours</label>
+            <label><%= radio_button_tag :window, "43200" %>12 hours</label>
+            <label><%= radio_button_tag :window, "", true %>all time</label>
+          </small>
+        </p>
+      </div>
+
+      <details class="department-selector">
+        <summary><span>Departments</span></summary>
+        <div class="inline department-list">
+          <div class="panel-indent">
+            <p>
+              <small>
+                Match <label><input type="radio" name="dmatch" value="any" checked> any selected departments</label>
+                <label><input type="radio" name="dmatch" value="all"> all selected departments</label>
+                <label><input type="radio" name="dmatch" value="none"> no departments</label>
+              </small>
+            </p>
+            <% Department.by_name.each do |d| %>
+              <div class="multiple-choice">
+                <%= tag.input type: "checkbox", name: "depts[]", value: d.id, id: "depts_#{d.id}", checked: selected_depts.include?(d.id) %>
+                <%= tag.label d.label, for: "depts_#{d.id}", title: d.name %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </details>
+
+      <details class="tag-selector">
+        <summary><span>Tags</span></summary>
+        <div class="inline tag-list">
+          <div class="panel-indent">
+            <p>
+              <small>
+                Match <label><input type="radio" name="tmatch" value="any" checked> any selected tags</label>
+                <label><input type="radio" name="tmatch" value="all"> all selected tags</label>
+                <label><input type="radio" name="tmatch" value="none"> no tags</label>
+              </small>
+            </p>
+            <% Tag.by_name.each do |t| %>
+              <div class="multiple-choice">
+                <%= tag.input type: "checkbox", name: "tags[]", value: t.id, id: "tags_#{t.id}", checked: selected_tags.include?(t.id) %>
+                <%= tag.label t.name, for: "tags_#{t.id}", title: t.description %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </details>
+
+      <%= javascript_tag(nonce: true) do %>
+        $(document).ready(function() {
+          $('.search-petitions input[name="type"]').on('change', function() {
+            if (this.checked) {
+              if (this.value == 'signature') {
+                $('.search-petitions .tag-selector').hide();
+                $('.search-petitions .tag-selector input[type="checkbox"]').prop('disabled', true);
+                $('.search-petitions .department-selector').hide();
+                $('.search-petitions .department-selector input[type="checkbox"]').prop('disabled', true);
+                $('.search-petitions .search-period').show();
+                $('.search-petitions .search-period input[type="radio"]').prop('disabled', false);
+              } else {
+                $('.search-petitions .tag-selector').show();
+                $('.search-petitions .tag-selector input[type="checkbox"]').prop('disabled', false);
+                $('.search-petitions .department-selector').show();
+                $('.search-petitions .department-selector input[type="checkbox"]').prop('disabled', false);
+                $('.search-petitions .search-period').hide();
+                $('.search-petitions .search-period input[type="radio"]').prop('disabled', true);
+              }
+            }
+          });
+        });
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="column-two-thirds">
+    <div class="hub-actions grid-row">
+      <div class="moderation">
+        <div class="<%= "panel #{summary_class_name_for_in_moderation}" %>">
+          <%= link_to admin_petitions_url(state: :in_moderation) do %>
+            <div class="summary">
+              <div class="count">
+                <%= in_moderation_count %>
+              </div>
+              Moderation queue
+            </div>
+          <% end %>
+        </div>
+
+        <div class="panel">
+          <div class="details">
+            <div class="recently-in-moderation queue-stable">
+              <%= link_to admin_petitions_url(state: :recently_in_moderation) do %>
+                <%= recently_in_moderation_count %>
+                <% unless recently_in_moderation_untagged_count.zero? %>
+                 / <%= recently_in_moderation_untagged_count %>
+                <% end %>
+                <span class="label">0-11 days</span>
+              <% end %>
+            </div>
+
+            <div class="nearly-overdue-in-moderation queue-caution">
+              <%= link_to admin_petitions_url(state: :nearly_overdue_in_moderation) do %>
+                <%= nearly_overdue_in_moderation_count %>
+                <% unless nearly_overdue_in_moderation_untagged_count.zero? %>
+                 / <%= nearly_overdue_in_moderation_untagged_count %>
+                <% end %>
+                <span class="label">11-14 days</span>
+              <% end %>
+            </div>
+
+            <div class="overdue-in-moderation queue-danger">
+              <%= link_to admin_petitions_url(state: :overdue_in_moderation) do %>
+                <%= overdue_in_moderation_count %>
+                <% unless overdue_in_moderation_untagged_count.zero? %>
+                 / <%= overdue_in_moderation_untagged_count %>
+                <% end %>
+                <span class="label">&gt; 14 days</span>
+              <% end %>
+            </div>
+
+            <div class="tagged-in-moderation">
+              <%= link_to admin_petitions_url(state: :tagged_in_moderation) do %>
+                <%= tagged_in_moderation_count %><span class="label">Tagged</span>
+              <% end %>
+            </div>
+
+            <div class="untagged-in-moderation">
+              <%= link_to admin_petitions_url(state: :untagged_in_moderation) do %>
+                <%= untagged_in_moderation_count %><span class="label">Untagged</span>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ul>
+        <% action_counts do |counts| %>
+          <% counts.each do |state, count| %>
+            <li class="column-half action-<%= state.to_s.dasherize %>">
+              <%= link_to admin_petitions_url(state: state) do %>
+                <% if state == :awaiting_response %>
+                  <span class="graphic graphic-crest-large-white"></span>
+                <% elsif state == :awaiting_debate %>
+                  <span class="graphic graphic-portcullis-large-white"></span>
+                <% end %>
+                <%= action_count(state, count) %>
+              <% end %>
+            </li>
+          <% end %>
+        <% end %>
+      </ul>
+
+    </div>
+
+    <div class="hub-links">
+      <%= link_to "All Petitions", admin_petitions_path(state: :all) %> |
+      <%= link_to "Archived Petitions", admin_archived_petitions_path %> |
+      <%= link_to "Archived Signatures", admin_archived_signatures_path %> |
+      <%= link_to "Statistics", admin_stats_path %>
+    </div>
+  </div>
+
+  <div class="signature-trends column-third">
+    <% if current_user.is_a_sysadmin? %>
+      <dl>
+        <% if trending_domains? %>
+          <dd>
+            <details open>
+              <summary>Trending domains</summary>
+              <table class="trending-domains">
+                <% trending_domains.each do |domain, count| %>
+                  <tr>
+                    <td><%= link_to domain, admin_signatures_path(q: "@#{domain}") %></td>
+                    <td><%= number_with_delimiter(count) %></td>
+                  </tr>
+                <% end %>
+              </table>
+            </details>
+          </dd>
+        <% end %>
+
+        <% if trending_ips? %>
+          <dd>
+            <details open>
+              <summary>Trending IP addresses</summary>
+              <table class="trending-ips">
+                <% trending_ips.each do |ip, count| %>
+                  <tr>
+                    <td><%= link_to ip, admin_signatures_path(q: ip) %></td>
+                    <td><%= number_with_delimiter(count) %></td>
+                  </tr>
+                <% end %>
+              </table>
+            </details>
+          </dd>
+        <% end %>
+
+        <% if fraudulent_domains? %>
+          <dd>
+            <details>
+              <summary>Fraudulent domains</summary>
+              <table class="trending-domains">
+                <% fraudulent_domains.each do |domain, count| %>
+                  <tr>
+                    <td><%= link_to domain, admin_signatures_path(q: "@#{domain}") %></td>
+                    <td><%= number_with_delimiter(count) %></td>
+                  </tr>
+                <% end %>
+              </table>
+            </details>
+          </dd>
+        <% end %>
+
+        <% if fraudulent_ips? %>
+          <dd>
+            <details>
+              <summary>Fraudulent IP addresses</summary>
+              <table class="trending-ips">
+                <% fraudulent_ips.each do |ip, count| %>
+                  <tr>
+                    <td><%= link_to ip, admin_signatures_path(q: ip) %></td>
+                    <td><%= number_with_delimiter(count) %></td>
+                  </tr>
+                <% end %>
+              </table>
+            </details>
+          </dd>
+        <% end %>
+      </dl>
+    <% end %>
+  </div>
+</div>

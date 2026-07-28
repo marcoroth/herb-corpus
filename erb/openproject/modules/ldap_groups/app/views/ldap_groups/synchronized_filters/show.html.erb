@@ -1,0 +1,61 @@
+<% html_title(t(:label_administration), t("ldap_groups.synchronized_filters.plural"), h(@filter.name)) -%>
+
+<%= render LdapGroups::SynchronizedFilters::ShowPageHeaderComponent.new(filter: @filter) %>
+
+<%= error_messages_for @filter %>
+<% blocked = @filter.seeded_from_env? %>
+
+<% if blocked %>
+  <div class="op-toast -warning">
+    <div class="op-toast--content">
+      <%= t(:label_seeded_from_env_warning) %>
+    </div>
+  </div>
+<% end %>
+
+<section class="admin--edit-section">
+  <%= render(AttributeGroups::AttributeGroupComponent.new) do |component|
+        component.with_attribute(
+          key: @filter.class.human_attribute_name(:name),
+          value: @filter.name
+        )
+        component.with_attribute(
+          key: @filter.class.human_attribute_name(:group_name_attribute),
+          value: @filter.group_name_attribute
+        )
+        component.with_attribute(
+          key: @filter.class.human_attribute_name(:base_dn),
+          value: @filter.used_base_dn
+        )
+        component.with_attribute(
+          key: @filter.class.human_attribute_name(:sync_users),
+          value: if @filter.sync_users
+                   checked_image @filter.sync_users
+                 else
+                   t(:general_text_no)
+                 end
+        )
+        component.with_attribute(
+          key: @filter.class.human_attribute_name(:filter_string),
+          value: @filter.filter_string
+        )
+        component.with_attribute(
+          key: t("ldap_groups.synchronized_groups.plural"),
+          value: @filter.groups.count
+        )
+      end %>
+</section>
+
+<section class="admin--edit-section">
+  <%=
+    render(Primer::Beta::Subhead.new(hide_border: true)) do |subhead|
+      subhead.with_heading(size: :medium) { t("ldap_groups.synchronized_groups.plural") }
+      subhead.with_actions do
+        render(Primer::Beta::Button.new(tag: :a, href: synchronize_ldap_groups_synchronized_filter_path(@filter))) do
+          t("ldap_groups.label_synchronize")
+        end
+      end
+    end
+  %>
+  <%= render ::LdapGroups::SynchronizedGroups::TableComponent.new(rows: @filter.groups, show_inline_create: false, deletable: false) %>
+</section>

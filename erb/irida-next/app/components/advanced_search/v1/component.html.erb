@@ -1,0 +1,186 @@
+<%= tag.div(
+  id: "advanced-search",
+  data: {
+    action: "viral--dialog:close->advanced-search--v1#close",
+    controller: "advanced-search--v1",
+    "advanced-search--v1-open-value": @open,
+    "advanced-search--v1-status-value": @status,
+    "advanced-search--v1-has-errors-value": @search.errors.any?,
+    "advanced-search--v1-confirm-close-text-value": t("components.advanced_search_component.v1.confirm_close_text"),
+    "advanced-search--v1-list-input-outlet": ".list-input",
+    "advanced-search--v1-enum-fields-value": json_escape_data(@fields.fetch(:enum_fields, {})),
+    "advanced-search--v1-enum-operations-value": json_escape_data(enum_operation_options),
+    "advanced-search--v1-operations-value": json_escape_data(operation_options),
+  },
+) do %>
+  <%= viral_dialog(id: 'advanced-search-dialog', size: :large, open: @open) do |dialog| %>
+    <% dialog.with_trigger do %>
+      <div class="flex w-full grow flex-row rounded-lg" role="group">
+        <button
+          type="button"
+          class="<%= class_names("button button-default w-full focus-visible:z-10", { "rounded-e-none border-e-0": @status }) %>"
+          data-viral--dialog-target="trigger"
+          data-action="advanced-search--v1#renderSearch viral--dialog#open"
+          aria-label="<%= t("components.advanced_search_component.v1.title") %>"
+        >
+          <%= t("components.advanced_search_component.v1.title") %>
+        </button>
+
+        <% if @status %>
+          <button
+            type="button"
+            class="button rounded-s-none button-default"
+            data-action="advanced-search--v1#clearForm filters#submit"
+            aria-label="<%= t("components.advanced_search_component.v1.clear_aria_label") %>"
+          >
+            <%= icon(:x, size: :sm) %>
+          </button>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% dialog.with_header(title: t("components.advanced_search_component.v1.title")) %>
+
+    <div class="space-y-4">
+      <p class="text-base leading-relaxed text-slate-500 dark:text-slate-400">
+        <%= t("components.advanced_search_component.v1.description") %>
+      </p>
+
+      <p class="text-base leading-relaxed text-slate-500 dark:text-slate-400">
+        <% if Flipper.enabled?(:advanced_search_metadata_operators) %>
+          <%= t("components.advanced_search_component.v1.rules.metadata_operators") %>
+        <% else %>
+          <%= t("components.advanced_search_component.v1.rules.standard_operators") %>
+        <% end %>
+      </p>
+
+      <%= helpers.form_error_summary(@form) %>
+
+      <div class="mb-4"><%= render partial: "shared/form/required_field_legend" %></div>
+
+      <div class="space-y-4" data-advanced-search--v1-target="searchGroupsContainer"></div>
+
+      <div class="flex justify-end space-x-2">
+        <%= viral_button(data: { action: "advanced-search--v1#addGroup" }) do %>
+          <%= t("components.advanced_search_component.v1.add_group_button") %>
+        <% end %>
+      </div>
+
+      <template data-advanced-search--v1-target="searchGroupsTemplate">
+        <% @search.groups.each_with_index do |group, group_index| %>
+          <%= render AdvancedSearch::V1::GroupComponent.new(
+            form: @form,
+            group: group,
+            group_index: group_index,
+            group_number: group_index + 1,
+            show_remove_group_button: @search.groups.count > 1,
+            fields: @fields,
+            operations: @operations,
+          ) %>
+        <% end %>
+      </template>
+    </div>
+
+    <% dialog.with_primary_action(
+      "data-action": "viral--dialog#close filters#submit",
+    ) { t("components.advanced_search_component.v1.apply_filter_button") } %>
+
+    <% dialog.with_secondary_action do %>
+      <%= viral_button(data: { action: "advanced-search--v1#clearForm viral--dialog#close filters#submit" }) do %>
+        <%= t("components.advanced_search_component.v1.clear_filter_button") %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <template data-advanced-search--v1-target="listValueTemplate">
+    <%= @form.fields_for :groups, @search_group_class.new, child_index: "GROUP_INDEX_PLACEHOLDER" do |group_form| %>
+      <% condition = @search_condition_class.new(field: "__FIELD_PLACEHOLDER__", operator: "in") %>
+
+      <%= group_form.fields_for :conditions, condition, child_index: "CONDITION_INDEX_PLACEHOLDER" do |conditions_form| %>
+        <%= render AdvancedSearch::V1::ValueComponent.new(
+          conditions_form: conditions_form,
+          group_index: "GROUP_INDEX_PLACEHOLDER",
+          condition: condition,
+          condition_index: "CONDITION_INDEX_PLACEHOLDER",
+        ) %>
+      <% end %>
+    <% end %>
+  </template>
+
+  <template data-advanced-search--v1-target="listSelectValueTemplate">
+    <%= @form.fields_for :groups, @search_group_class.new, child_index: "GROUP_INDEX_PLACEHOLDER" do |group_form| %>
+      <% condition = @search_condition_class.new(field: "__FIELD_PLACEHOLDER__", operator: "in") %>
+
+      <%= group_form.fields_for :conditions, condition, child_index: "CONDITION_INDEX_PLACEHOLDER" do |conditions_form| %>
+        <%= render AdvancedSearch::V1::ValueComponent.new(
+          conditions_form: conditions_form,
+          group_index: "GROUP_INDEX_PLACEHOLDER",
+          condition: condition,
+          condition_index: "CONDITION_INDEX_PLACEHOLDER",
+          options: [],
+        ) %>
+      <% end %>
+    <% end %>
+  </template>
+
+  <template data-advanced-search--v1-target="valueTemplate">
+    <%= @form.fields_for :groups, @search_group_class.new, child_index: "GROUP_INDEX_PLACEHOLDER" do |group_form| %>
+      <% condition = @search_condition_class.new(field: "__FIELD_PLACEHOLDER__", operator: "=") %>
+
+      <%= group_form.fields_for :conditions, condition, child_index: "CONDITION_INDEX_PLACEHOLDER" do |conditions_form| %>
+        <%= render AdvancedSearch::V1::ValueComponent.new(
+          conditions_form: conditions_form,
+          group_index: "GROUP_INDEX_PLACEHOLDER",
+          condition: condition,
+          condition_index: "CONDITION_INDEX_PLACEHOLDER",
+        ) %>
+      <% end %>
+    <% end %>
+  </template>
+
+  <template data-advanced-search--v1-target="selectValueTemplate">
+    <%= @form.fields_for :groups, @search_group_class.new, child_index: "GROUP_INDEX_PLACEHOLDER" do |group_form| %>
+      <% condition = @search_condition_class.new(field: "__FIELD_PLACEHOLDER__", operator: "=") %>
+
+      <%= group_form.fields_for :conditions, condition, child_index: "CONDITION_INDEX_PLACEHOLDER" do |conditions_form| %>
+        <%= render AdvancedSearch::V1::ValueComponent.new(
+          conditions_form: conditions_form,
+          group_index: "GROUP_INDEX_PLACEHOLDER",
+          condition: condition,
+          condition_index: "CONDITION_INDEX_PLACEHOLDER",
+          options: [],
+        ) %>
+      <% end %>
+    <% end %>
+  </template>
+
+  <template data-advanced-search--v1-target="conditionTemplate">
+    <%= @form.fields_for :groups, @search_group_class.new, child_index: "GROUP_INDEX_PLACEHOLDER" do |group_form| %>
+      <%= render AdvancedSearch::V1::ConditionComponent.new(
+        groups_form: group_form,
+        group_index: "GROUP_INDEX_PLACEHOLDER",
+        condition: @search_condition_class.new,
+        condition_index: "CONDITION_INDEX_PLACEHOLDER",
+        condition_number: "CONDITION_LEGEND_INDEX_PLACEHOLDER",
+        fields: @fields,
+        operations: @operations,
+      ) %>
+    <% end %>
+  </template>
+
+  <template data-advanced-search--v1-target="groupTemplate">
+    <%= render AdvancedSearch::V1::GroupComponent.new(
+      form: @form,
+      group: @search_group_class.new,
+      group_index: "GROUP_INDEX_PLACEHOLDER",
+      group_number: "GROUP_LEGEND_INDEX_PLACEHOLDER",
+      show_remove_group_button: true,
+      fields: @fields,
+      operations: @operations,
+    ) %>
+  </template>
+
+  <template data-advanced-search--v1-target="emptySearchTemplate">
+    <%= @form.hidden_field :groups_attributes, value: '' %>
+  </template>
+<% end %>

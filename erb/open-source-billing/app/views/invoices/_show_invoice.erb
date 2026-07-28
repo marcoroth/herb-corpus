@@ -1,0 +1,147 @@
+<div class="container printable">
+  <div class="invoice_template">
+    <div class="new-invoice-holder invoice-position">
+      <% if @invoice.status == 'paid' %>
+        <%= image_tag("paid.png", size: '150x100', class: 'paid-logo') %>
+      <% end %>
+      <% if request.format.html? %>
+        <div class="new-invoice-header clearfix">
+          <div class="new-invoice-action-btn right">
+
+            <%= link_to raw("<i class='material-icons'>print</i>"),
+                        {:controller => 'invoices', :action => 'show',
+                         :id => @invoice.hashid, :format => "pdf"},
+                        :target => '_blank', title: t('views.common.print') %>
+            <%= link_to raw("<i class='material-icons'>history</i>"),
+                        {:controller => 'payments', :action => 'payments_history',
+                         id: @invoice.id, encrypted_id: params[:inv_id]},
+                        remote: true unless @invoice.payments.blank? %>
+          </div>
+          <% if @invoice.status != "paid" and OSB::CONFIG::PAYPAL[:enabled] == true %>
+            <span class="pull-right"><%= link_to t('pay_by_paypal'), @invoice.paypal_url("#{OSB::CONFIG::APP_PROTOCOL}://#{OSB::CONFIG::APP_HOST}/en/invoices/#{@invoice.hashid}", "#{OSB::CONFIG::APP_PROTOCOL}://#{OSB::CONFIG::APP_HOST}/en/invoices/paypal_payments", current_user), title: 'Paypal Payment', class: 'btn btn-draft' %></span>
+          <% end %>
+        </div>
+      <% end %>
+      <div class="info-section clearfix container company-info-section">
+        <div class="row">
+          <div class="info-left-section company_resize_logo">
+            <%= image_tag @invoice.company.logo.url if @invoice.company.logo.url.present? %>
+          </div>
+          <div class="info-right-section">
+            <%= Settings.invoice_header_text if Settings.invoice_header_text.present? %>
+          </div>
+        </div>
+        <div class="info-left-section">
+          <%= render partial: 'company_contact_info', locals: {company: @invoice.company} %>
+          <br>
+          <%= render partial: 'client_contact_info', locals: {client: @client} %>
+        </div>
+        <div class="info-right-section">
+          <%= render 'invoice_summary' %>
+        </div>
+      </div>
+      <div class="container items">
+        <div class="new-invoice-table-holder <%= tax_class %>">
+          <% if @invoice.invoice_type.eql?("ProjectInvoice")%>
+            <%= render partial: 'project_invoice_tasks', locals: {invoice: @invoice} %>
+          <% else %>
+            <%= render partial: 'invoice_items', locals: {invoice: @invoice} %>
+          <% end %>
+        </div>
+        <div class="new-invoice-footer">
+          <div class="right-section right">
+            <div class="invoice-total-left">
+              <strong class="invoice-total-title"><%= t('views.invoices.subtotal') %></strong>
+              <% if @invoice.discount_percentage.present? %>
+                <div class="new-invoice-footer-row">
+                  <span><%= t('views.common.discount') %></span>
+                  <select class="inline-select small-select" disabled>
+                    <option value="1"><%= @invoice.discount_percentage %><%= @invoice.discount_type %></option>
+                  </select>
+                </div>
+              <% end %>
+              <% if @invoice.tax.present? %>
+                <div class="new-invoice-footer-row invicetax">
+                  <span><%= t('views.common.tax') %>: </span>
+                  <span style="float: right;"><%= @invoice.tax.name %> <%= @invoice.tax.percentage %>%</span>
+                </div>
+              <% end %>
+
+              <% @invoice.tax_detail_with_discount.each do |tax, amount| %>
+                <div class="new-invoice-footer-row invicetax">
+                  <span style="float: right;"><%= tax %></span>
+                </div>
+              <% end %>
+
+              <div class="new-invoice-footer-row">
+                <span><%= t('views.common.total') %></span>
+              </div>
+              <div class="new-invoice-footer-row">
+                <span><%= t('views.invoices.amount_paid') %></span>
+              </div>
+              <div class="new-invoice-footer-row">
+                <span><%= t('views.invoices.amount_refund') %></span>
+              </div>
+              <strong class="invoice-total-title"><%= t('views.invoices.amount_due') %></strong>
+            </div>
+            <div class="invoice-total-right">
+              <strong class="invoice-total-title"><%=  @invoice.currency.unit %> <span><%= number_to_currency(@invoice.sub_total, unit: @invoice.currency.code ) %></span></strong>
+
+              <% if @invoice.discount_percentage.present? %>
+                <div class="new-invoice-footer-row">
+                  <span><%=  @invoice.currency.unit %></span>
+                  <em class="f-invoice-price"><%= number_to_currency(@invoice.discount_amount, unit: @invoice.currency.code )%></em>
+                </div>
+              <% end %>
+
+              <% if @invoice.tax.present? %>
+                <div class="new-invoice-footer-row invicetax">
+                  <span><%=  @invoice.currency.unit %></span>
+                  <em class="f-invoice-price"><%= number_to_currency(@invoice.invoice_tax_amount, unit: @invoice.currency.code )%></em>
+                </div>
+              <% end %>
+              <% @invoice.tax_detail_with_discount.each do |tax, amount| %>
+                <div class="new-invoice-footer-row invicetax">
+                  <span><%=  @invoice.currency.unit %></span>
+                  <em class="f-invoice-price"><%= number_to_currency(amount, unit: @invoice.currency.code )%></em>
+                </div>
+              <% end %>
+
+              <div class="new-invoice-footer-row">
+                <span><%=  @invoice.currency.unit %></span>
+                <em class="f-invoice-price"><%= number_to_currency(@invoice.invoice_total, unit: @invoice.currency.code )%></em>
+              </div>
+              <div class="new-invoice-footer-row">
+                <span><%=  @invoice.currency.unit %></span>
+                <em class="f-invoice-price"><%= number_to_currency(Payment.invoice_paid_amount(@invoice.id), unit:  @invoice.currency.code )%></em>
+              </div>
+              <div class="new-invoice-footer-row">
+                <span><%=  @invoice.currency.unit %></span>
+                <em class="f-invoice-price"><%= number_to_currency(@invoice.payments.refunds.sum('payment_amount'), unit:  @invoice.currency.code )%></em>
+              </div>
+
+              <strong class="invoice-total-title"><%=  @invoice.currency.unit %> <span><%= number_to_currency(@invoice.invoice_total - Payment.invoice_paid_amount(@invoice.id), unit: @invoice.currency.code) %></span></strong>
+            </div>
+
+          </div>
+
+        </div>
+        <!--        <br>-->
+        <div>
+          <div style="float:left; width: 50%;">
+            <strong  class="invoice-note">Notes</strong>
+            <p class="invoice-note"><%= simple_format(@invoice.notes, class: 'invoice-note') %></p>
+          </div>
+
+          <br/>
+        </div>
+        <div class="clearfix"></div>
+        <p class="report-copyrights"><%= Settings.invoice_footer_text if Settings.invoice_footer_text.present? %></p>
+<!--        <p class="report-copyrights"><%#= t('views.invoices.this_invoice_was_sent_using') %> <%#= link_to image_tag("m-bottom-logo.jpg", class: 'responsive-img'), 'http://opensourcebilling.org/' %></p>-->
+        <br/>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>

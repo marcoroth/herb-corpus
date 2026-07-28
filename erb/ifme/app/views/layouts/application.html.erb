@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="<%= @locale %>">
+  <head>
+    <title><%= page_title %></title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href="/manifest.json">
+    <meta name="description" content="<%= t('app_description') %>">
+    <meta name="theme-color" content="#6d0839">
+    <%= csrf_meta_tags %>
+    <% if (user_signed_in? && !static_page?) || secret_share_path? %>
+    <meta name="robots" content="none">
+    <% end %>
+    <%= cl_client_hints_meta_tag %>
+
+    <!-- .webp favicon for supported browsers -->
+    <link rel="icon" type="image/webp" href="/assets/favicon.webp">
+    <!-- .ico favicon for not supported browsers -->
+    <link rel="shortcut icon" href="/assets/favicon.ico" type="image/x-icon">
+    <link rel="alternate" type="application/rss+xml" title="if-me.org blog" href="https://medium.com/feed/ifme" />
+
+    <!-- Webpack Assets START -->
+    <!--
+      NOTE: Do not load multiple, separate webpack bundles, as it looks like
+      only the last one will load correctly in production, as though there is
+      a global registry and the last bundle overwrites the entire registry.
+    -->
+    <% if Rails.env.production? %>
+      <%= inline_css 'webpack_bundle.css' %>
+    <% else %>
+      <%= stylesheet_pack_tag 'webpack_bundle', media: 'all' %>
+    <% end %>
+    <script>window.__I18N__ = <%= raw i18n_translations_json %>;</script>
+    <%= javascript_pack_tag 'webpack_bundle', 'data-turbolinks-track': true, defer: true %>
+    <!-- Webpack Assets END -->
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <% if Rails.env.production? %>
+      <%= inline_css 'application.css' %>
+      <%= inline_js 'application.js' %>
+    <% else %>
+      <%= stylesheet_link_tag 'application', media: 'all', 'data-turbolinks-track': 'reload' %>
+      <%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %>
+    <% end %>
+
+    <% if user_signed_in? %>
+      <!-- Pusher -->
+      <% pusher_url = 'https://js.pusher.com/3.0/pusher.min.js' %>
+      <link rel="preconnect" href=<%= pusher_url %>>
+      <%= javascript_include_tag pusher_url, async: true %>
+      <%= tag :meta, name: 'pusher-key', content: ENV['PUSHER_KEY'] %>
+      <%= tag :meta, name: 'pusher-cluster', content: ENV['PUSHER_CLUSTER'] %>
+    <% end %>
+  </head>
+
+  <body class="content <%= (user_signed_in? && !static_page?) || secret_share_path? ? 'dashboard' : 'static' %>">
+    <%= react_component('SkipToContent', props: { id: 'mainContent' })%>
+    <%= react_component('Header', props: header_props) %>
+    <main>
+      <%= react_component('Toast', props: {
+        notice: notice.present? ? notice : '',
+        alert: alert.present? ? alert : '' ,
+        appendDashboardClass: (user_signed_in? && !static_page?) || secret_share_path? }) %>
+      <% if user_signed_in? && !static_page? %>
+        <div class="dashboardContent">
+          <div class="dashboardNav" role="navigation" aria-label="<%= t('navigation.user_menu') %>">
+            <%= react_component('HeaderProfile', props: { profile: header_props[:profile] }) %>
+            <%= render partial: "shared/dashboard_nav_links" %>
+            <%= render partial: "shared/dashboard_nav_actions" %>
+          </div>
+          <div class="dashboardSection" id="mainContent">
+            <%= render partial: "shared/page_title" %>
+            <%= yield %>
+          </div>
+        </div>
+      <% elsif secret_share_path? %>
+        <div class="secretShareContent">
+          <div class="gridItemBoxDark marginBottom">
+            <div class="gridRowSpaceBetween">
+              <div class="gridRowSpaceBetween">
+                <%= t('moments.secret_share.info_public') %>
+              </div>
+            </div>
+          </div>
+          <%= render partial: "shared/page_title" %>
+          <%= yield %>
+        </div>
+      <% else %>
+        <div class="staticContent" id="mainContent">
+          <%= render partial: "shared/page_title" %>
+          <%= yield %>
+        </div>
+      <% end %>
+    </main>
+    <%= render partial: "shared/footer" %>
+  </body>
+</html>

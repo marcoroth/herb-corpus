@@ -1,0 +1,89 @@
+<%=
+  component_wrapper(class: "op-meeting-section-container", data: wrapper_data_attributes) do
+    if @state == :show
+      grid_layout("op-meeting-section", tag: :div) do |grid|
+        grid.with_area(:"drag-handle", tag: :div, classes: "hide-when-print") do
+          if editable?
+            render(Primer::OpenProject::DragHandle.new(classes: "handle"))
+          end
+        end
+
+        grid.with_area(:content, tag: :span) do
+          render(Primer::Beta::Text.new(font_weight: :bold, mr: 2)) do
+            @meeting_section.title.presence || I18n.t("meeting_section.untitled_title")
+          end
+        end
+
+        if @meeting_section.agenda_items_sum_duration_in_minutes > 0
+          grid.with_area(:duration, Primer::Beta::Text, color: :subtle, mr: 1) do
+            render(Primer::Beta::Text.new(font_weight: :normal, color: :subtle)) do
+              render(OpenProject::Common::DurationComponent.new(@meeting_section.agenda_items_sum_duration_in_minutes, :minutes, abbreviated: true))
+            end
+          end
+        end
+
+        grid.with_area(:actions, tag: :div, justify_self: :end, classes: "hide-when-print") do
+          if editable?
+            render(Primer::Alpha::ActionMenu.new(data: { test_selector: "meeting-section-action-menu" })) do |menu|
+              menu.with_show_button(icon: "kebab-horizontal", "aria-label": t("settings.project_attributes.label_section_actions"), scheme: :invisible)
+
+              with_item_group(menu) { edit_action_item(menu) }
+
+              with_item_group(menu) do
+                add_agenda_item_action(menu)
+                add_work_package_action(menu)
+              end
+
+              with_item_group(menu) { move_actions(menu) } unless first? && last?
+              with_item_group(menu) { delete_action_item(menu) }
+            end
+          end
+        end
+      end
+    else
+      primer_form_with(
+        model: @meeting_section,
+        method: :put,
+        url: project_meeting_section_path(@meeting_section.meeting.project, @meeting_section.meeting, @meeting_section),
+        data: {
+          controller: "meetings--section-form scroll-into-view",
+          "meetings--section-form-cancel-url-value": cancel_edit_project_meeting_section_path(
+            @meeting_section.meeting.project,
+            @meeting_section.meeting,
+            @meeting_section
+          )
+        }
+      ) do |f|
+        flex_layout do |editable_title_form|
+          editable_title_form.with_column(flex: 1, mr: 2, pl: 2) do
+            render(MeetingSection::Title.new(f))
+          end
+
+          editable_title_form.with_column(mr: 2) do
+            render(MeetingSection::Submit.new(f))
+          end
+
+          editable_title_form.with_column do
+            render(
+              Primer::Beta::Button.new(
+                scheme: :secondary,
+                tag: :button,
+                data: {
+                  action: "click->meetings--submit#intercept",
+                  href: cancel_edit_project_meeting_section_path(
+                    @meeting_section.meeting.project,
+                    @meeting_section.meeting,
+                    @meeting_section
+                  ),
+                  method: "POST"
+                }
+              )
+            ) do |_c|
+              t("button_cancel")
+            end
+          end
+        end
+      end
+    end
+  end
+%>

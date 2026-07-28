@@ -1,0 +1,204 @@
+<div id="ticket-info" class="no-side-pad row">
+  <div class="col-md-3 col-lg-3 hidden-xs hidden-sm" id="left-col-user-info">
+    <%= render partial: 'admin/users/user_info_with_tickets', locals: { user: @topic.user } if @topic.user.present? %>
+  </div>
+
+  <div id="ticket-controls" class="col-md-9 col-xs-12 col-lg-9">
+    <div id="topic-options">
+      <%= render :partial => 'admin/topics/topic_options' %>
+    </div>
+    <h3 class="topic-number-name">
+
+      <%= show_responsive_nav %>
+      <span class="topic-number">#<%= @topic.id %></span>-
+      <%= best_in_place @topic, :name, url: admin_topic_path(@topic), :class => "edit-topic-name" -%>&nbsp;
+      <%= topic_added_from %><%= topic_anonymous_link %>
+
+    </h3>
+
+    <% if @posts  %>
+      <script>
+        Helpy.messages = '<%= j t(:collapsed_messages, count: (@posts.size-@topic.posts.notes.size)-2) %>';
+      </script>
+    <% end %>
+    <div id="posts">
+    <%= render :partial => 'admin/topics/post', :collection => @posts %>
+    </div>
+
+    <%= render partial: 'admin/topics/hidden_notes' if @topic.posts.notes.size > 0 %>
+
+    <div class="add-form">
+      <h4><%= t(:reply, default: 'Reply to this Topic') %>:</h4>
+      <%= simple_form_for Post.new_with_cc(@topic), url: admin_topic_posts_path(@topic), remote: true, multipart: true do |f| %>
+        <%= hidden_field_tag :authenticity_token, form_authenticity_token -%>
+
+        <%= content_tag(:div, '', class: 'fas fa-angle-down pull-right cc-bcc-toggle', role: 'button') %>
+        <div class="form-group">
+        <%= collection_radio_buttons :post, :kind, [
+            ['reply', t(:reply_option, default: "Reply")],
+            ['note', t(:internal_note, default: "Internal Note")] ], :first, :last, checked: 'reply' do |button| %>
+            <%= button.label(class: 'radio-inline') { button.radio_button + button.text } %>
+        <% end %>
+        </div>
+
+        <span class="cc-bcc <%= 'hidden' if @topic.posts.last.cc.blank? && @topic.posts.last.bcc.blank? %>">
+        <%= f.input :cc, label: false, placeholder: 'cc:' %>
+        <%= f.input :bcc, label: false, placeholder: 'bcc:' %>
+        </span>
+
+        <%= hidden_field_tag :client_id %>
+        <%= hidden_field_tag :from, 'admin' %>
+        <%= hidden_field_tag :status, params[:status] %>
+        <%= render partial: "admin/shared/assistant" %>
+        <%= f.input :body, as: :summernote, label: false, class: 'disable-empty' %>
+
+        <%= label_tag 'post_reply_id', "#{t(:select_common, default: 'Insert Common Reply')} (#{link_to(t(:edit, default: 'Edit'), admin_category_path(1), target: 'blank')})".html_safe, class: 'control-label' %>
+        <%= f.select_tag 'post[reply_id]', grouped_options_for_select(i18n_reply_grouped_options, nil, prompt: ''), class: 'form-control', id: 'post_reply_id' %>
+        <br/>
+
+        <div class="form-group">
+          <%= f.attachinary_file_field :screenshots if cloudinary_enabled? %>
+          <%= f.file_field :attachments, multiple: true unless cloudinary_enabled? %>
+        </div>
+
+        <%= f.submit t(:submit_reply), class: 'btn btn-warning disableable', disabled: false -%>
+        <label class="checkbox-inline" for "post_resolved">
+          <%= f.check_box :resolved, inline: true unless @topic.current_status == 'closed' %>
+          <%= t(:mark_as_resolved, default: "Mark as resolved") %>
+        </label>
+      <% end -%>
+
+    </div>
+  </div>
+
+</div>
+<%= summernote_lang_js %>
+<script>
+$('[data-provider="summernote"]').each(function(){
+  $(this).summernote({
+    lang: '<%= summernote_locale %>',
+    callbacks: {
+      onInit: function (e) {
+        $("#post_body").summernote("code", localStorage.getItem("topic_reply_draft_<%= @topic.id %>"));
+      }
+    },    
+    height: 150,
+    prettifyHtml: true,
+    toolbar: [
+      ['style', ['bold', 'italic', 'underline', 'clear']]
+    ],
+    placeholder: "<%= t(:type_reply, default: 'Type your reply, or select from a common message below') %>",
+    codemirror: {
+      theme: 'monokai',
+      mode: "htmlmixed",
+      tabsize: 2,
+      smartIndent: true,
+      lineNumbers: true,
+      lineWrapping: true,
+      tabMode: 'indent'
+    },
+    hint: [{
+      mentions: <%= User.respond_to?(:mentionable) ? raw(User.mentionable) : '[]' %>,
+      match: /\B@(\w*)$/,
+      search: function (keyword, callback) {
+        callback($.grep(this.mentions, function (item) {
+          return item.name.indexOf(keyword) == 0;
+        }));
+      },
+      template: function (item) {
+          return item.name;
+      },
+      content: function (item) {
+        return '@' + item.short;
+      }
+    },
+    {
+      match: /:([\-+\w]+)$/,
+      search: function (keyword, callback) {
+        callback($.grep(emojis, function (item) {
+          return item.indexOf(keyword)  === 0;
+        }));
+      },
+      template: function (item) {
+        var content = emojiUrls[item];
+        return '<img src="' + content + '" width="20" /> :' + item + ':';
+      },
+      content: function (item) {
+        var url = emojiUrls[item];
+        if (url) {
+          return $('<img />').attr('src', url).css('width', 20)[0];
+        }
+        return '';
+      }
+    }]
+  });
+});
+$.ajax({
+  url: 'https://api.github.com/emojis',
+  async: false
+}).then(function(data) {
+  window.emojis = Object.keys(data);
+  window.emojiUrls = data;
+});
+</script>
+<script>
+$(function () {
+  $("#new_post").sisyphus();
+  $(document).off('keyup').on('keyup', '.note-editable', function(){
+    localStorage.setItem("topic_reply_draft_<%= @topic.id %>", $("#post_body").summernote("code"));
+  });
+  //setInterval(function () {
+  //  localStorage.setItem("topic_reply_draft_<%= @topic.id %>", $("#post_body").summernote("code"));
+  //}, 3000); // every 5 second interval
+
+  $('#new_post').on('submit', function () {
+    localStorage.removeItem("topic_reply_draft_<%= @topic.id %>");
+  });
+});
+</script>
+
+<script type="text/javascript">
+Helpy.showhidenotes = function(){
+  $('.show-hide-notes').off().on('click', function(){
+    $('.kind-note').toggle();
+    $('.post-container.kind-reply.disallow-post-voting').show();
+    $('.collapsed-posts').hide();
+    return false;
+  });
+}
+
+//$(document).on('page:load', function(){
+
+  // Create selectize tag chooser
+  $('#topic_tag_list').selectize({
+    // plugins: ['remove_button'],
+    onBlur: function(){
+      $('.tag-form').submit();
+    }
+  });
+
+  // This opens and closes the tagging dropdown like a normal BS dropdown
+  $('.tag-toggle').on('click', function(e){
+    $(this).parent().toggleClass('open');
+  });
+
+  $('body').on('click', function (e) {
+    if (!$('span.left-col-dropdown').is(e.target)
+      && $('span.left-col-dropdown').has(e.target).length === 0
+      && $('.open').has(e.target).length === 0
+    ) {
+      $('span.left-col-dropdown').removeClass('open');
+    }
+  });
+
+  if ($('.kind-note').size() > 3) {
+    $('.sticky-note').show();
+    Helpy.showhidenotes();
+
+  } else {
+    $('.kind-note').show();
+    $('.sticky-note').hide();
+  }
+
+//});
+</script>

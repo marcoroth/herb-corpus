@@ -1,0 +1,49 @@
+<% read_only ||= false %>
+<% if !read_only && attachable.can_order_attachments? && attachable.attachments.many? %>
+<p class="govuk-body"><%= link_to "Reorder attachments", [:reorder, :admin, typecast_for_attachable_routing(attachable), Attachment], class: "govuk-link govuk-link--no-visited-state" %></p>
+<% end %>
+
+<ul class="govuk-list">
+  <% attachable.attachments.includes(:attachment_data).map.with_index(1) do |attachment, index| %>
+    <li class="govuk-grid-row">
+      <div class="govuk-grid-column-full">
+        <p class="govuk-body">
+          <strong>Title:</strong> <%= attachment.title %> <% unless attachment.attachment_data.blank? || attachment.attachment_data.all_asset_variants_uploaded? %><span class="govuk-tag govuk-tag--green">Processing</span><% end %>
+        </p>
+        <p class="govuk-body">
+          <strong>Type: </strong><%= attachment.is_a?(HtmlAttachment) ? attachment.readable_type : attachment.readable_type.capitalize %>
+        </p>
+        <p class="govuk-body">
+          <strong>Attachment: </strong><%= link_to_attachment(attachment, full_url: true, class: "govuk-link govuk-link--no-visited-state", data: { module: "CachebustLink" }, **attachment_preview_options(attachable)) %>
+        </p>
+        <% if attachable.allows_inline_attachments? && attachment.is_a?(FileAttachment) %>
+          <%= render "govuk_publishing_components/components/copy_to_clipboard", {
+            label: tag.strong("Link to this attachment:"),
+            copyable_content: "[AttachmentLink: #{attachment.filename}]",
+            button_text: "Copy Markdown",
+          } %>
+          <div class="app-view-edition-resource__markdown--padded">
+            <%= render "govuk_publishing_components/components/copy_to_clipboard", {
+              label: tag.strong("Embed this attachment:"),
+              copyable_content: "[Attachment: #{attachment.filename}]",
+              button_text: "Copy Markdown",
+            } %>
+          </div>
+        <% end %>
+      </div>
+      <% if read_only %>
+        <div class="app-view-edition-resource__actions govuk-grid-column-full">
+          <%= link_to("View attachment", [:edit, :admin, typecast_for_attachable_routing(attachable), attachment], class: "govuk-link govuk-link--no-visited-state", "aria-label": "View attachment: #{attachment.title}") %>
+        </div>
+      <% else %>
+        <div class="app-view-edition-resource__actions govuk-grid-column-full govuk-button-group">
+          <%= link_to("Edit attachment", [:edit, :admin, typecast_for_attachable_routing(attachable), attachment], class: "govuk-link govuk-link--no-visited-state", "aria-label": "Edit attachment: #{attachment.title}") %>
+          <%= link_to("Delete attachment", [:confirm_destroy, :admin, typecast_for_attachable_routing(attachable), attachment], class: "govuk-link govuk-link--no-visited-state gem-link--destructive", "aria-label": "Delete attachment: #{attachment.title}") %>
+        </div>
+      <% end %>
+    </li>
+    <% if attachment != attachable.attachments.includes(:attachment_data).last %>
+      <li aria-hidden="true"><hr class="app-view-edition-resource__section-break govuk-section-break govuk-section-break--visible"></li>
+    <% end %>
+  <% end %>
+</ul>

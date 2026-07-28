@@ -1,0 +1,60 @@
+function showCropMap(cropmap) {
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 18
+  }).addTo(cropmap);
+  var markers = new L.MarkerClusterGroup({showCoverageOnHover: false, maxClusterRadius: 20 });
+
+  var crop_icon = L.icon({
+    iconUrl: location.pathname + '.svg',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+  });
+
+  var things_to_map = location.pathname + '.json';
+  $.getJSON(things_to_map, function(crop) {
+    $.each(crop.plantings, function(i, planting) {
+      var owner = planting.owner;
+      if (owner.latitude && owner.longitude) {
+        var marker = new L.Marker(new L.LatLng(owner.latitude, owner.longitude),
+          {'icon': crop_icon});
+
+        var planting_url = "/plantings/" + planting.id;
+        var planting_link = "<a href='" + planting_url + "'>" + owner.login_name + "'s " + crop.name + "</a>";
+
+        var where = "<p><i>" + owner.location + "</i></p>";
+
+        var details = "<p>";
+        if (planting.quantity) {
+          details = details + "Quantity: " + planting.quantity + "<br/>";
+        }
+        if (planting.planted_from) {
+          details = details + "Planted from: " + planting.planted_from + "<br/>";
+        }
+        if (planting.sunniness) {
+          details = details + "Planted in: " + planting.sunniness+ "<br/>";
+        }
+        details = details + "</p>";
+        marker.bindPopup(planting_link + where + details).openPopup();
+        markers.addLayer(marker);
+      }
+    });
+  });
+
+  cropmap.addLayer(markers);
+}
+
+$(document).ready(function() {
+
+  if (document.getElementById("cropmap") !== null) {
+    L.Icon.Default.imagePath = '/assets';
+
+    var cropmap = L.map('cropmap').setView([0.0, -0.0], 2);
+    showCropMap(cropmap);
+  }
+
+  $('.btn.toggle.crop-hierarchy').click(function () {
+    $('.toggle.crop-hierarchy').toggleClass('hide');
+  });
+});

@@ -1,0 +1,64 @@
+<%- read_only ||= false -%>
+
+<li class="task deploy" id="task-<%= deploy.id %>" data-status="<%= deploy.status %>" data-release-status="<%= deploy.last_release_status.state %>">
+  <% cache deploy do %>
+    <% cache deploy.author do %>
+      <%= render 'shipit/shared/author', author: deploy.author %>
+    <% end %>
+    <a href="<%= stack_deploy_path(@stack, deploy) %>" class="status status--<%= deploy.status %>" data-tooltip="<%= deploy_status_in_words(deploy.status) %>">
+      <i class="status__icon"></i>
+      <span class="visually-hidden"><%= deploy_status_in_words(deploy.status) %></span>
+    </a>
+    <div class="commit-details">
+      <span class="commit-title">
+        <a href="<%= stack_deploy_path(@stack, deploy) %>">
+          <%= render_commit_message deploy.until_commit %>
+        </a>
+      </span>
+      <p class="commit-meta">
+        <% if @stack.release_status? %>
+          <%= link_to '#', data: {tooltip: deploy.last_release_status.description.presence} do %>
+            <i class="deploy-status__icon"></i>
+          <% end %>
+        <% end %>
+        <%= deploy.rollback? ? 'rolled back' : 'deployed' %>
+        <span class="sha"><%= link_to_github_deploy(deploy) %></span>
+        <span class="code-additions">+<%= deploy.additions %></span>
+        <span class="code-deletions">-<%= deploy.deletions %></span>
+        <% if deploy.ignored_safeties? %><span class="ignored-safeties">ignoring safeties</span><% end %>
+        <% if deploy.aborted_by %><span class="aborted-by">aborted by <%= deploy.aborted_by.login %></span><% end %>
+      </p>
+      <p class="commit-meta">
+        <% if read_only %>
+          <span class="utc-timecode">on <%= deploy.created_at.strftime('%Y-%m-%d %H:%M:%S') %> UTC</span>
+        <% else %>
+          <%= timeago_tag(deploy.created_at, force: true) %>
+        <% end %>
+        <% if deploy.duration? %>
+          in <%= deploy.duration %>
+        <% end %>
+      </p>
+    </div>
+
+    <% if @stack.release_status? %>
+      <div class="release-validation" >
+        <%= link_to stack_deploy_release_statuses_path(@stack, deploy), class: 'action-set-release-status action-reject-release', data: {tooltip: t('release.reject'), status: 'failure'} do %>
+          <i class="icon icon--reject"></i>
+        <% end %>
+        <%= link_to stack_deploy_release_statuses_path(@stack, deploy), class: 'action-set-release-status action-validate-release', data: {tooltip: t('release.validate'), status: 'success'} do %>
+          <i class="icon icon--validate"></i>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <% unless read_only %>
+    <div class="deploy-actions">
+      <% if deploy.rollbackable? %>
+        <%= rollback_button(deploy) %>
+      <% elsif deploy.currently_deployed? && !deploy.stack.active_task? %>
+        <%= redeploy_button(deploy.until_commit) %>
+      <% end %>
+    </div>
+  <% end %>
+</li>

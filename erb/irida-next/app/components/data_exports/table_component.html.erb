@@ -1,0 +1,148 @@
+<% if @has_data_exports %>
+  <%= render Viral::BaseComponent.new(**wrapper_arguments) do %>
+    <%= render Viral::BaseComponent.new(**system_arguments) do %>
+      <table
+        class="w-full text-left text-sm whitespace-nowrap text-slate-500 rtl:text-right dark:text-slate-400"
+        data-controller="table"
+        data-action="focusin->table#handleCellFocus"
+      >
+        <thead class="sticky top-0 z-10 bg-slate-50 text-xs text-slate-700 uppercase dark:bg-slate-700 dark:text-slate-300">
+          <tr>
+            <% @columns.each_with_index do |column, index| %>
+              <%= render_cell(
+              tag: 'th',
+              **helpers.aria_sort(column, @q.sorts[0].name, @q.sorts[0].dir),
+              scope: 'col',
+              classes: class_names('px-3 py-3')
+            ) do %>
+                <%= render Ransack::SortComponent.new(
+                  ransack_obj: @q,
+                  label: column_label(column),
+                  url: helpers.sorting_url(@q, column),
+                  field: column,
+                  data: {
+                    turbo_action: "replace",
+                  },
+                ) %>
+              <% end %>
+            <% end %>
+
+            <%= render_cell(
+              tag: 'th',
+              scope: 'col',
+              classes: class_names('px-3 py-3')
+            ) do %>
+              <%= t("data_exports.index.table_header.action") %>
+            <% end %>
+          </tr>
+        </thead>
+
+        <tbody class="divide-y divide-slate-200 overflow-y-auto bg-white dark:divide-slate-700 dark:bg-slate-800">
+          <% @data_exports.each do |data_export| %>
+            <%= render Viral::BaseComponent.new(**row_arguments(data_export)) do %>
+              <td class="px-3 py-3">
+                <%= link_to data_export.id,
+                helpers.data_export_path(data_export),
+                class:
+                  "text-slate-900 dark:text-slate-100 font-semibold underline hover:decoration-2" %>
+              </td>
+
+              <td class="px-3 py-3">
+                <% unless data_export.name.nil? %>
+                  <%= link_to data_export.name,
+                  helpers.data_export_path(data_export),
+                  class:
+                    "text-slate-900 dark:text-slate-100 font-semibold underline hover:decoration-2" %>
+                <% end %>
+              </td>
+
+              <td class="px-3 py-3">
+                <%= t(:"data_exports.types.#{data_export.export_type}") %>
+              </td>
+
+              <td class="px-3 py-3">
+                <% status_text = t("common.statuses.#{data_export.status}").upcase %>
+
+                <% if data_export.status == 'ready' %>
+                  <%= viral_pill(text: status_text, color: :green) %>
+                <% else %>
+                  <%= viral_pill(text: status_text, color: :slate) %>
+                <% end %>
+              </td>
+
+              <td class="px-3 py-3">
+                <%= helpers.local_date(data_export.created_at, :long) %>
+              </td>
+
+              <td class="px-3 py-3">
+                <% unless data_export.expires_at.nil? %>
+                  <%= helpers.local_date(data_export.expires_at, :long) %>
+                <% end %>
+              </td>
+
+              <td class="space-x-2 px-3 py-3">
+                <% if data_export.status == 'ready' %>
+                  <%= button_to t('common.actions.download'),
+                  helpers.rails_blob_path(data_export.file),
+                  data: {
+                    turbo: false,
+                  },
+                  method: :get,
+                  aria: {
+                    label:
+                      (
+                        t(
+                          :"data_exports.index.actions.download_aria_label",
+                          name: data_export.name || data_export.id,
+                        )
+                      ),
+                  },
+                  class:
+                    "inline-flex min-h-6 items-center font-medium text-blue-600 underline dark:text-blue-400 hover:decoration-2 cursor-pointer" %>
+                <% end %>
+
+                <%= button_to t('common.actions.delete'),
+                helpers.data_export_path(data_export),
+                data: {
+                  turbo_method: :delete,
+                  turbo_confirm:
+                    (
+                      t(
+                        :"data_exports.index.delete_confirmation",
+                        name: data_export.name || data_export.id,
+                      )
+                    ),
+                },
+                method: :delete,
+                aria: {
+                  label:
+                    (
+                      t(
+                        :"data_exports.index.actions.delete_aria_label",
+                        name: data_export.name || data_export.id,
+                      )
+                    ),
+                },
+                class:
+                  "inline-flex min-h-6 items-center font-medium text-blue-600 underline dark:text-blue-400 hover:decoration-2 cursor-pointer" %>
+              </td>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+
+    <%= render Viral::Pagy::FullComponent.new(
+      @pagy,
+      item: t("data_exports.index.limit.item"),
+    ) %>
+  <% end %>
+<% else %>
+  <div class="empty_state_message">
+    <%= viral_empty(
+      title: @empty[:title],
+      description: @empty[:description],
+      icon_name: DataExport.icon,
+    ) %>
+  </div>
+<% end %>

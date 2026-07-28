@@ -1,0 +1,98 @@
+<% content_for :page_title, "Adding #{attachment.attachable_model_name} #{attachment.readable_type} attachment" %>
+<% content_for :title, "Edit file attachments" %>
+<% content_for :context, "Attachments for #{attachment.attachable_model_name}" %>
+<% content_for :error_summary, attachment_errors(@upload.attachments) %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-two-thirds">
+    <div class="govuk-!-margin-bottom-8">
+      <%= form_for @upload, url: polymorphic_url([:admin, typecast_for_attachable_routing(attachable), @upload]) do |form| %>
+        <% @upload.attachments.each.with_index do |attachment, i| %>
+          <%= form.fields_for :attachments, attachment do |attachment_fields| %>
+
+            <% name = "upload[attachments][#{i}]" %>
+
+            <%= render "govuk_publishing_components/components/fieldset", { legend_text: "File: #{attachment.new_record? && attachment.attachment_data.new_filename.present? ? attachment.attachment_data.new_filename : attachment.attachment_data.filename}", heading_level: 2, heading_size: "l" } do %>
+
+              <%= render "admin/shared/attachments/fields", form: attachment_fields, attachment:, attachable:, heading_size: "s", heading_level: 3, subheading_size: "m", name:, margin_bottom: 4 %>
+
+              <%= attachment_fields.fields_for(:attachment_data, include_id: false) do |attachment_data_fields| %>
+                <% attachment_data = attachment.attachment_data %>
+
+                <%= hidden_field_tag "#{name}[attachment_data_attributes][to_replace_id]", attachment_data_fields.object.to_replace_id || attachment_data_fields.object.id %>
+
+                <%= hidden_field_tag "#{name}[attachment_data_attributes][keep_or_replace]", attachment_data.keep_or_replace %>
+                <%= hidden_field_tag "#{name}[attachment_data_attributes][new_filename]", attachment_data.new_filename %>
+
+                <% if attachment_data.keep_existing_file? || attachment_data.errors[:file].present? %>
+                  <%= render "govuk_publishing_components/components/radio", {
+                    heading: "Matching attachment filename",
+                    name: "#{name}[attachment_data_attributes][keep_or_replace]",
+                    id: "#{name}_attachment_data_keep_or_replace",
+                    heading_level: 3,
+                    items: [
+                      {
+                        id: "#{name}_attachment_data_keep_or_replace_keep",
+                        value: "keep",
+                        text: "Keep both files",
+                        checked: true,
+                        conditional: render("govuk_publishing_components/components/input", {
+                            id: "#{name}_attachment_data_new_filename",
+                            name: "#{name}[attachment_data_attributes][new_filename]",
+                            label: {
+                              text: "Name for new file",
+                              bold: true,
+                            },
+                            error_items: errors_for(attachment_data.errors, :new_filename),
+                            value: attachment_data.new_filename,
+                          }
+                        ),
+                      },
+                      {
+                        id: "#{name}_attachment_data_keep_or_replace_replace",
+                        value: "replace",
+                        text: "Replace the existing file",
+                      },
+                    ].concat(@upload.attachments.many? ? [
+                      {
+                        id: "#{name}_attachment_data_keep_or_replace_reject",
+                        value: "reject",
+                        text: "Do not upload this file",
+                      },
+                    ] : []),
+                  } %>
+                <% end %>
+
+                <%= hidden_field_tag "#{name}[attachment_data_attributes][file_cache]", attachment_data_fields.object.file_cache %>
+              <% end %>
+
+              <% unless attachment.new_record? %>
+                <%= hidden_field_tag "#{name}[id]", attachment.id %>
+              <% end %>
+
+              <%= hidden_field_tag "#{name}[accessible]", "0" %>
+              <%= render "govuk_publishing_components/components/checkboxes", {
+                name: "#{name}[accessible]",
+                items: [
+                  {
+                    label: "Attachment is accessible",
+                    value: "1",
+                    checked: attachment.accessible,
+                  },
+                ],
+              } %>
+            <% end %>
+          <% end %>
+
+          <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
+        <% end %>
+
+        <div class="govuk-button-group">
+          <%= render "govuk_publishing_components/components/button", { text: "Save" } %>
+
+          <%= link_to("Cancel", attachable_attachments_path(attachable), class: "govuk-link govuk-link--no-visited-state") %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,92 @@
+<div class="klax-section klax-topper">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12">
+        <h1>Comparing Snapshots</h1>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-6">
+        <p class="lead">Below are two versions of <b><%= @page&.name || @page&.url %></b> which has changed <%= @page.num_changes %> times since <%= @page.created_at.strftime("%A, %B %d, %Y") %> when <%= @page&.user&.display_name || 'someone' %> began watching it.</p>
+      </div>
+      <div class="col-md-3">
+        <!-- negative space -->
+      </div>
+      <div class="col-md-3">
+        <%= link_to 'Past Snapshots', snapshots_page_path(@page), class: 'btn btn-default btn-lg btn-block' %>
+        <%= link_to 'Snapshot HTML', show_page_snapshot_html_path(@after.id), class: 'btn btn-default btn-lg btn-block' %>
+        <%= link_to 'Go to Source', @page.url, class: 'btn btn-default btn-lg btn-block' %>
+        <%= link_to 'Edit', edit_page_path(@page), class: 'btn btn-default btn-lg btn-block' %>
+      </div>
+    </div>
+  </div><!-- /.container -->
+</div>
+
+<div class="klax-section klax-spacer-lg">
+  <div class="container klax-spacer-md">
+    <div class="row klax-spacer-md">
+      <div class="col-md-12">
+        <h4>Snapshots from <code class="klax-code-after"><%= @after.created_at.strftime("%A, %B %d, %Y at %H:%M") %></code> and <code class="klax-code-before"><%= @before.updated_at.strftime("%A, %B %d, %Y at %H:%M") %></code></h4>
+      </div>
+    </div>
+    <%= simple_form_for(@change, html: { class: 'horizontal-form' }) do |f| %>
+      <div class="form-group form-group-lg">
+        <label class="col-sm-1">What changed?</label>
+        <div class="col-md-11">
+          <div class="input-group">
+            <%= f.text_field :summary, label: false, class: 'form-control' %>
+            <span class="input-group-btn">
+              <%= f.button :submit, 'Save', class: "btn btn-default btn-lg btn-block form-control" %>
+            </span>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="container diff-container klax-spacer-md">
+    <div class="row klax-spacer-md">
+      <%= sanitize Diffy::Diff.new(@before.match_text, @after.match_text, context: 2).to_s(:html), tags: %w[div span ul li del ins strong], attributes: %w[class] %>
+    </div>
+  </div>
+</div>
+
+<div class="klax-section klax-spacer-lg">
+  <div class="container">
+    <div class="row klax-spacer-md">
+      <div class="col-md-12">
+        <h4>Activity</h4>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-md-4 klax-spacer-md">
+        <h2><%= @page.num_changes %></h2>
+        <p class="lead">total times the item has changed since you started watching it, which was <%= @page.created_at.strftime("%A, %B %d, %Y at %H:%M") %>.</p>
+      </div>
+      <div class="col-md-4 klax-spacer-md">
+        <h2><%= distance_of_time_in_words(@page.calculate_median(@page.snapshot_time_deltas)) %></h2>
+        <p class="lead">amount of time, roughly, between each change. We anticipate the next change will occur on <%= @page.predicted_snapshot.strftime("%A, %B %d, %Y at %H:%M") %>.</p>
+      </div>
+      <div class="col-md-4 klax-spacer-md">
+        <h2><%= time_ago_in_words @page.page_snapshots.last.created_at %></h2>
+        <p class="lead">since the last change was captured at <%= @page.page_snapshots.last.created_at.strftime("%A, %B %d, %Y at %H:%M") %></p>
+      </div>
+    </div>
+  </div><!-- /.container -->
+</div>
+
+<script>
+
+$(".diff li").each(function(i){
+  var contents = $(this).html();
+  var contents = "<a class=\"klax-line-anchor\" name=\"" + (i + 1) + "\"></a><a data-line=\"" + (i + 1) + "\" href=\"#" + (i + 1) + "\">" + contents + "</a>";
+  $(this).html(contents);
+});
+var hash = window.location.hash.substr(1);
+if (hash) { $(".diff a[data-line="+hash+"]").addClass("klax-line-selected"); }
+$(".diff a").click(function(){
+  $(".diff a").removeClass("klax-line-selected");
+  $(this).addClass("klax-line-selected");
+});
+
+</script>

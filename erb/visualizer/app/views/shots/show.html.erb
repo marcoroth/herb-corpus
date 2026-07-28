@@ -1,0 +1,66 @@
+<% content_for(:html_title) { "Visualizer | #{@shot.profile_title}" } %>
+<% content_for(:head) do %>
+  <meta name="description" content="<%= meta_description(@shot) %>">
+  <meta property="og:title" content="<%= @shot.profile_title %>">
+  <meta property="og:url" content="https://visualizer.coffee/shots/<%= @shot.id %>">
+  <meta property="og:description" content="<%= meta_description(@shot) %>">
+<% end %>
+<% tasting_series = [tasting_assessment_series(@shot, name: @shot.profile_title.presence || "Shot")].compact %>
+<%= render "shot_header_row" %>
+<% show_tasting_assessment = tasting_series.any? %>
+<% show_image = @shot.image.attached? && @shot.image.variable? %>
+<% width_class = (show_tasting_assessment || show_image) ? "md:w-full" : "md:w-2/3" %>
+<div class="py-6 px-4 mx-auto max-w-7xl sm:px-6 lg:px-8">
+  <div class="flex flex-col md:flex-row">
+    <div class="<%= (show_tasting_assessment || show_image) ? "md:w-1/2" : "md:w-full" %>">
+      <%= render "details", shot: @shot, name: false %>
+      <h3 class="mt-3 text-l dark:text-neutral-300">Compare</h3>
+      <div class="flex flex-col mt-3" data-controller="related-shots" data-related-shots-shot-id-value="<%= @shot.id %>">
+        <% if Current.user %>
+          <div class="flex-1 mb-2 <%= width_class %>">
+            <select class="standard-input" data-action="related-shots#compare">
+              <option>With one of your recent shots</option>
+              <% @related_shots.each do |id, title, bean_type, time| %>
+                <% next if id == @shot.id %>
+                <option value="<%= id %>">
+                  <% title = "#{bean_type} (#{title})" if bean_type.present? %>
+                  <%= [title, time.in_time_zone(Current.timezone).to_formatted_s(:long)].join(" @ ") %>
+                </option>
+              <% end %>
+            </select>
+          </div>
+        <% end %>
+        <div class="flex-1 <%= width_class %>">
+          <input class="standard-input" type="text" data-action="related-shots#urlCompare" placeholder="With any shot via its URL" autocomplete="off">
+        </div>
+      </div>
+    </div>
+    <% if show_tasting_assessment || show_image %>
+      <div class="mt-3 md:mt-0 md:ml-3 md:w-1/2">
+        <% if show_tasting_assessment %>
+          <%= render "tasting_assessment", categories: tasting_assessment_categories, series: tasting_series %>
+        <% end %>
+        <% if show_image %>
+          <%= link_to @shot.image, target: "_blank" do %>
+            <%= image_tag @shot.image.variant(:display), class: "rounded-lg mx-auto #{'mt-3' if show_tasting_assessment}" %>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+<% if @chart %>
+  <div data-controller="shot-charts"
+       data-shot-charts-shot-data-value="<%= (@chart.shot_chart || []).to_json %>"
+       data-shot-charts-shot-stages-value="<%= (@chart.stages || []).to_json %>"
+       data-shot-charts-temperature-data-value="<%= (@chart.temperature_chart || []).to_json %>">
+    <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+      <div id="shot-chart" data-shot-charts-target="shotChart"></div>
+    </div>
+    <% if @chart.temperature_chart.present? %>
+      <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+        <div id="temperature-chart" data-shot-charts-target="temperatureChart"></div>
+      </div>
+    <% end %>
+  </div>
+<% end %>

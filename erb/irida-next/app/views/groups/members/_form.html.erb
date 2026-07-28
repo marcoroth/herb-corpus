@@ -1,0 +1,133 @@
+<div class="mb-6 text-lg font-normal text-slate-500 dark:text-slate-400">
+  <p class="dark:text-slate-400"><%= I18n.t("groups.members.new.description", name: @namespace.human_name) %></p>
+</div>
+
+<%= form_with(model: @new_member, url: group_members_path(tab: @tab), data:
+  if Flipper.enabled?(:v2_select2, Current.user)
+    { controller: "select2--v2" }
+  else
+    { controller: "select2--v1" }
+  end, method: :post, html: { novalidate: true }) do |form| %>
+  <% form_id = "group-add-member-select2" %>
+  <% expires_at_id = "group-add-member-expires-at" %>
+
+  <div class="grid gap-4">
+    <%= form_error_summary(
+      form,
+      target_overrides: { user: form_id, user_id: form_id, expires_at: "#{expires_at_id}-input" }
+    ) %>
+
+    <%= render partial: "shared/form/required_field_legend" %>
+
+    <% invalid_user_id = @new_member.errors.include?(:user) || @new_member.errors.include?(:user_id) %>
+
+    <div class="form-field <%= 'invalid' if invalid_user_id %>">
+      <%= form.label :user_id, t("groups.members.new.user_select"),
+                     for: form_id,
+                     class: "mb-1 block text-sm font-medium text-slate-900 dark:text-white",
+                     data: { required: true } %>
+
+      <%= render Select2Component.new(form:, name: :user_id, id: form_id, selected_value: @new_member.user_id, aria_invalid: invalid_user_id, field_hint: true) do |select| %>
+        <% @available_users.each do |user| %>
+          <% select.with_option(
+                      value: user.id,
+                      label: user.email,
+                    ) do %>
+            <span class="pointer-events-none block font-semibold text-slate-900 dark:text-slate-400">
+              <%= user.email %>
+            </span>
+
+            <span class="pointer-events-none block text-slate-600 dark:text-white"><%= user.full_name %></span>
+          <% end %>
+        <% end %>
+
+        <%= select.with_empty_state do %>
+          <%= t(:"groups.members.new.empty_state") %>
+        <% end %>
+      <% end %>
+
+      <% if invalid_user_id %>
+        <%= render "shared/form/field_errors",
+        id: form.field_id(:user_id, "error"),
+        errors: @new_member.errors.full_messages_for(:user) %>
+      <% end %>
+
+      <p id="<%= form.field_id(:user_id, "hint") %>" class="field-hint"><%= t("groups.members.new.user_hint") %></p>
+    </div>
+
+    <% invalid_access_level = @new_member.errors.include?(:access_level) %>
+
+    <div class="form-field <%= 'invalid' if invalid_access_level %>">
+      <%= form.label :access_level, data: { required: true } %>
+
+      <%= form.select :access_level,
+                  @access_levels,
+                  {},
+                  {
+                    required: true,
+                    aria: {
+                      describedby: [
+                        (
+                          if invalid_access_level
+                            form.field_id(:access_level, "error")
+                          else
+                            nil
+                          end
+                        ),
+                        form.field_id(:access_level, "hint"),
+                      ].join(" "),
+                      invalid: invalid_access_level,
+                      required: true,
+                    },
+                    value: @new_member.access_level,
+                  } %>
+
+      <% if invalid_access_level %>
+        <%= render "shared/form/field_errors",
+        id: form.field_id(:access_level, "error"),
+        errors: @new_member.errors.full_messages_for(:access_level) %>
+      <% end %>
+
+      <p id="<%= form.field_id(:access_level, "hint") %>" class="field-hint">
+        <%= t("groups.members.new.access_level_hint") %>
+      </p>
+    </div>
+
+    <% invalid_expires_at = @new_member.errors.include?(:expires_at) %>
+
+    <!--
+  id requires manual naming override (rather than using default form name)
+  as to not have id collision with update member's datepicker
+-->
+    <div class="form-field <%= 'invalid' if invalid_expires_at %>">
+      <%= combobox_datepicker(
+        id: expires_at_id,
+        label: t("activerecord.attributes.member.expires_at"),
+        input_name: "member[expires_at]",
+        errored: invalid_expires_at
+      ) %>
+
+      <% if invalid_expires_at %>
+        <%= render "shared/form/field_errors",
+      id: "#{expires_at_id}_error",
+      errors: @new_member.errors[:expires_at] %>
+      <% end %>
+    </div>
+
+    <div class="flex justify-start gap-1">
+      <%= form.submit t(:"groups.members.new.add_member_to_group"),
+                  class: "button button-primary",
+                  disabled: true,
+                  data:
+                    if Flipper.enabled?(:v2_select2, Current.user)
+                      { "select2--v2-target": "submitButton" }
+                    else
+                      { "select2--v1-target": "submitButton" }
+                    end %>
+
+      <button type="button" class="button button-default" data-action="click->viral--dialog#close">
+        <%= t('common.actions.cancel') %>
+      </button>
+    </div>
+  </div>
+<% end %>

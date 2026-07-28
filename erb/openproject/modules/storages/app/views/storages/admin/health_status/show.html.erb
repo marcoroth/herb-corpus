@@ -1,0 +1,113 @@
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% page_title = I18n.t("storages.health.title") %>
+
+<% html_title(t(:label_administration), t(:project_module_storages), @storage.name, page_title) -%>
+
+<%= turbo_frame_tag "health_status_report", refresh: :morph do %>
+  <%=
+    render(Primer::OpenProject::PageHeader.new) do |header|
+      header.with_title { page_title }
+      header.with_description do
+        if @report.present?
+          I18n.t("storages.health.checked", datetime: format_time(@report.created_at))
+        else
+          I18n.t("storages.health.no_report")
+        end
+      end
+      header.with_breadcrumbs(
+        [
+          { href: admin_index_path, text: t("label_administration") },
+          { href: admin_settings_storages_path, text: t("project_module_storages") },
+          { href: edit_admin_settings_storage_path(@storage), text: @storage.name },
+          page_title
+        ]
+      )
+    end
+  %>
+
+  <% if @report.present? %>
+    <%=
+      button_label = I18n.t("storages.health.actions.rerun_checks")
+      download_label = I18n.t("storages.health.actions.download_report")
+
+      render(Primer::OpenProject::SubHeader.new) do |subheader|
+        subheader.with_action_button(
+          scheme: :secondary,
+          leading_icon: :download,
+          label: download_label,
+          tag: :a,
+          href: admin_settings_storage_health_status_report_path(@storage, format: :txt),
+          data: { turbo: true }
+        ) do
+          download_label
+        end
+
+        subheader.with_action_button(
+          scheme: :primary,
+          leading_icon: "op-reload",
+          label: button_label,
+          tag: :a,
+          href: admin_settings_storage_health_status_report_path(@storage),
+          data: { turbo_method: :post, turbo: true }
+        ) do
+          button_label
+        end
+      end
+    %>
+  <% end %>
+
+  <%=
+    render(Primer::Alpha::Layout.new(stacking_breakpoint: :lg)) do |page|
+      page.with_sidebar(col_placement: :end, row_placement: :end)
+      page.with_main do
+  %>
+
+      <% if @report.present? %>
+        <%= render(HealthReports::ReportComponent.new(@report, i18n_scope: "storages.health.checks")) %>
+      <% else %>
+        <%=
+          render(Primer::Beta::Blankslate.new(border: true)) do |placeholder|
+            placeholder.with_visual_icon(icon: :meter)
+            placeholder.with_heading(tag: :h3) { I18n.t("storages.health.no_report") }
+            placeholder.with_description { I18n.t("storages.health.no_report_description") }
+            placeholder.with_primary_action(
+              href: admin_settings_storage_health_status_report_path(@storage),
+              data: { turbo_method: :post, turbo: true },
+              aria: { label: I18n.t("storages.health.actions.run_checks") }
+            ) do
+              I18n.t("storages.health.actions.run_checks")
+            end
+          end
+        %>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

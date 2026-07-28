@@ -1,0 +1,224 @@
+<%# Merge preview modal showing field comparison and association stats %>
+<%
+  # Helper to determine default selection for a field
+  # Returns :source if source should be selected by default
+  #   - Target empty + source present: prefer source
+  #   - Both equal: prefer source (arbitrary but consistent)
+  #   - Otherwise (target has a differing value, or source empty): prefer target
+  def default_selection(target_value, source_value)
+    prefer_source = (target_value.blank? && source_value.present?) ||
+                    (target_value.present? && target_value == source_value)
+    # Assigned to a local (rather than returned bare) so herb's erb-no-unused-literals rule —
+    # which can't tell a bare symbol literal is this inline-ERB def's return value — sees it used.
+    selection = prefer_source ? :source : :target
+    selection
+  end
+
+  # Helper to check if values are effectively the same (both blank or equal)
+  def values_same?(target_value, source_value)
+    (target_value.blank? && source_value.blank?) || target_value == source_value
+  end
+
+  # Field definitions: [field_key, label, target_value, source_value]
+  fields = [
+    ["name", "Name", "#{target.first_name} #{target.last_name}".strip, "#{source.first_name} #{source.last_name}".strip],
+    ["email", "Email", target.email, source.email],
+    ["phone_number", "Phone", target.phone_number, source.phone_number],
+    ["student_id", "Student ID", target.student_id, source.student_id],
+    ["associate_id", "Associate ID", target.associate_id, source.associate_id],
+  ]
+
+  stats = source.merge_stats_as_source(target)
+%>
+
+<%= render CardComponent.new(title: "Merge Preview", flush: true) do %>
+  <%= form_with url: absorb_admin_user_path(target), method: :post,
+              data: { controller: "field-choice", turbo: local_assigns[:in_modal] ? nil : false } do |f| %>
+    <%= hidden_field_tag :source_user_id, source.id %>
+
+    <div class="p-4">
+      <p class="text-gray-500 mb-3">
+        Select which values to keep for each field. All associations will be transferred from
+        <strong><%= source.name_or_email %></strong> to <strong><%= target.name_or_email %></strong>.
+      </p>
+
+      <table class="table table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 20%">Field</th>
+            <th style="width: 40%">
+              <%= render(BadgeComponent.new(type: :primary)) { "TARGET" } %>
+              <%= target.name_or_email %>
+            </th>
+            <th style="width: 40%">
+              <%= render(BadgeComponent.new(type: :secondary)) { "SOURCE" } %>
+              <%= source.name_or_email %>
+              <small class="text-gray-500">(will be deleted)</small>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <% fields.each do |field_key, label, target_val, source_val| %>
+            <% select_source = default_selection(target_val, source_val) == :source %>
+            <% same_values = values_same?(target_val, source_val) %>
+            <tr class="<%= 'table-secondary text-gray-500' if same_values %>">
+              <td><strong><%= label %></strong></td>
+              <td>
+                <div class="form-check">
+                  <%= tag.input(type: "radio",
+                         class: "form-check-input",
+                         name: "field_choice[#{field_key}]",
+                         id: "keep_target_#{field_key}",
+                         value: "target",
+                         checked: !select_source,
+                         data: { action: "change->field-choice#toggle" }) %>
+                  <label class="form-check-label" for="keep_target_<%= field_key %>">
+                    <%= target_val.presence || tag.em("(empty)", class: "text-gray-500") %>
+                  </label>
+                </div>
+              </td>
+              <td>
+                <div class="form-check">
+                  <%= tag.input(type: "radio",
+                         class: "form-check-input",
+                         name: "field_choice[#{field_key}]",
+                         id: "keep_source_#{field_key}",
+                         value: "source",
+                         checked: select_source,
+                         data: { action: "change->field-choice#toggle" }) %>
+                  <label class="form-check-label" for="keep_source_<%= field_key %>">
+                    <%= source_val.presence || tag.em("(empty)", class: "text-gray-500") %>
+                  </label>
+                  <% if select_source %>
+                    <input type="hidden" name="keep_from_source[]" value="<%= field_key %>" id="hidden_<%= field_key %>">
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+
+          <%# Avatar row %>
+          <% avatar_select_source = default_selection(target.avatar.attached?, source.avatar.attached?) == :source %>
+          <% avatar_same = target.avatar.attached? == source.avatar.attached? && (!target.avatar.attached? || target.avatar.blob_id == source.avatar.blob_id) %>
+          <tr class="<%= 'table-secondary text-gray-500' if avatar_same %>">
+            <td><strong>Avatar</strong></td>
+            <td>
+              <div class="form-check">
+                <%= tag.input(type: "radio",
+                       class: "form-check-input",
+                       name: "field_choice[avatar]",
+                       id: "keep_target_avatar",
+                       value: "target",
+                       checked: !avatar_select_source,
+                       data: { action: "change->field-choice#toggle" }) %>
+                <label class="form-check-label" for="keep_target_avatar">
+                  <% if target.avatar.attached? %>
+                    <%= render 'shared/image', image: target.avatar, variant: square_thumb_variant(50), eager_load: false, image_options: { class: "rounded" } %>
+                  <% else %>
+                    <em class="text-gray-500">(no avatar)</em>
+                  <% end %>
+                </label>
+              </div>
+            </td>
+            <td>
+              <div class="form-check">
+                <%= tag.input(type: "radio",
+                       class: "form-check-input",
+                       name: "field_choice[avatar]",
+                       id: "keep_source_avatar",
+                       value: "source",
+                       checked: avatar_select_source,
+                       data: { action: "change->field-choice#toggle" }) %>
+                <label class="form-check-label" for="keep_source_avatar">
+                  <% if source.avatar.attached? %>
+                    <%= render 'shared/image', image: source.avatar, variant: square_thumb_variant(50), eager_load: false, image_options: { class: "rounded" } %>
+                  <% else %>
+                    <em class="text-gray-500">(no avatar)</em>
+                  <% end %>
+                </label>
+                <% if avatar_select_source %>
+                  <input type="hidden" name="keep_from_source[]" value="avatar" id="hidden_avatar">
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h6 class="mt-4">Associations to transfer from SOURCE (<%= source.name_or_email %>):</h6>
+      <ul class="flex flex-col mb-3">
+        <li class="list-row flex justify-between items-center">
+          Team memberships
+          <span>
+            <%= render(BadgeComponent.new(type: :primary, pill: true)) { stats[:team_memberships][:total].to_s } %>
+            <% if stats[:team_memberships][:overlapping] > 0 %>
+              <small class="text-gray-500">(<%= stats[:team_memberships][:overlapping] %> overlap - roles will be merged with "/")</small>
+            <% end %>
+          </span>
+        </li>
+        <li class="list-row flex justify-between items-center">
+          Staffing jobs
+          <span>
+            <%= render(BadgeComponent.new(type: :primary, pill: true)) { stats[:staffing_jobs][:total].to_s } %>
+            <% if stats[:staffing_jobs][:unlinked] > 0 %>
+              <small class="text-warning">(<%= stats[:staffing_jobs][:unlinked] %> unlinked)</small>
+            <% end %>
+          </span>
+        </li>
+        <li class="list-row flex justify-between items-center">
+          Staffing debts
+          <span>
+            <%= render(BadgeComponent.new(type: :primary, pill: true)) { stats[:staffing_debts][:total].to_s } %>
+            <% if stats[:staffing_debts][:unlinked] > 0 %>
+              <small class="text-warning">(<%= stats[:staffing_debts][:unlinked] %> unlinked)</small>
+            <% end %>
+          </span>
+        </li>
+        <li class="list-row flex justify-between items-center">
+          Maintenance debts
+          <span>
+            <%= render(BadgeComponent.new(type: :primary, pill: true)) { stats[:maintenance_debts][:total].to_s } %>
+            <% if stats[:maintenance_debts][:unlinked] > 0 %>
+              <small class="text-warning">(<%= stats[:maintenance_debts][:unlinked] %> unlinked)</small>
+            <% end %>
+          </span>
+        </li>
+        <li class="list-row flex justify-between items-center">
+          Maintenance credits
+          <span>
+            <%= render(BadgeComponent.new(type: :primary, pill: true)) { stats[:maintenance_credits][:total].to_s } %>
+            <% if stats[:maintenance_credits][:unlinked] > 0 %>
+              <small class="text-warning">(<%= stats[:maintenance_credits][:unlinked] %> unlinked)</small>
+            <% end %>
+          </span>
+        </li>
+        <% if stats[:roles].any? %>
+          <li class="list-row flex justify-between items-center">
+            Roles
+            <span>
+              <% stats[:roles].each do |role| %>
+                <%= render(BadgeComponent.new(type: :info)) { role } %>
+              <% end %>
+            </span>
+          </li>
+        <% end %>
+      </ul>
+
+      <%= render AlertComponent.new(type: :warning) do %>
+        <strong>Warning:</strong> <strong><%= source.name_or_email %></strong> will be permanently deleted after merge.
+        <% if stats[:team_memberships][:overlapping] > 0 %>
+          <br><small>Team members on the same shows will have their roles concatenated with "/".</small>
+        <% end %>
+      <% end %>
+    </div>
+
+    <div class="px-4 py-3 border-t border-gray-200 bg-gray-50 flex justify-between">
+      <% if local_assigns[:in_modal] %>
+        <button type="button" class="<%= btn_classes(:secondary) %>" data-action="click->merge-modal#close">Cancel</button>
+      <% else %>
+        <%= link_to "Cancel", admin_user_path(target), class: btn_classes(:secondary) %>
+      <% end %>
+      <button type="submit" class="<%= btn_classes(:danger) %>">Confirm Merge</button>
+    </div>
+  <% end %>
+<% end %>

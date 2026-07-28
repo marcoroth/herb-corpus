@@ -1,0 +1,76 @@
+<%=
+  component_wrapper(tag: "turbo-frame") do
+    render(Primer::OpenProject::SubHeader.new(data: sub_header_data_attributes)) do |subheader|
+      subheader.with_filter_input(
+        name: "name_and_identifier",
+        label: t("projects.index.search.label"),
+        value: filter_input_value,
+        placeholder: t("projects.index.search.placeholder"),
+        leading_visual: {
+          icon: :search,
+          size: :small
+        },
+        clear_button_id: clear_button_id,
+        data: filter_input_data_attributes
+      )
+
+      subheader.with_filter_component do
+        render(Projects::ProjectFilterButtonComponent.new(query: @query, disabled: @disable_buttons))
+      end
+
+      for_a_single_new_allowed_type do |new_type|
+        subheader.with_action_button(
+          tag: :a,
+          href: new_workspace_path(new_type),
+          scheme: :primary,
+          leading_icon: :plus,
+          label: new_workspace_label(new_type),
+          disabled: @disable_buttons,
+          size: :medium,
+          data: { "test-selector": "workspace-new-button" }
+        ) do |button|
+          unless workspace_type_enterprise_feature_allowed?(new_type)
+            button.with_trailing_visual_icon(icon: :"op-enterprise-addons", classes: "upsell-colored")
+          end
+          new_workspace_label(new_type)
+        end
+      end
+
+      for_multiple_new_allowed_types do |new_types|
+        subheader.with_action_menu(
+          leading_icon: :plus,
+          trailing_icon: :"triangle-down",
+          label: I18n.t(:button_add),
+          button_arguments: { scheme: :primary, "aria-label": I18n.t(:button_add) }
+        ) do |menu|
+          new_types.each do |new_type|
+            menu.with_item(
+              tag: :a,
+              href: new_workspace_path(new_type),
+              scheme: :default,
+              leading_icon: :plus,
+              label: new_workspace_label(new_type),
+              disabled: @disable_buttons,
+              size: :medium
+            ) do |item|
+              item.with_leading_visual_icon(icon: helpers.workspace_icon(new_type))
+              unless workspace_type_enterprise_feature_allowed?(new_type)
+                item.with_trailing_visual_icon(icon: :"op-enterprise-addons", classes: "upsell-colored")
+              end
+            end
+          end
+        end
+      end
+
+      subheader.with_bottom_pane_component do
+        render(
+          Projects::ProjectsFiltersComponent.new(
+            query: @query,
+            lazy_loaded_path: :projects_filters_path,
+            initially_expanded: filters_expanded?
+          )
+        )
+      end
+    end
+  end
+%>

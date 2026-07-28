@@ -1,0 +1,87 @@
+<%-
+  # Copyright (C) 2012 - present Instructure, Inc.
+  #
+  # This file is part of Canvas.
+  #
+  # Canvas is free software: you can redistribute it and/or modify it under
+  # the terms of the GNU Affero General Public License as published by the Free
+  # Software Foundation, version 3 of the License.
+  #
+  # Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
+  # WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+  # A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+  # details.
+  #
+  # You should have received a copy of the GNU Affero General Public License along
+  # with this program. If not, see <http://www.gnu.org/licenses/>.
+-%><!DOCTYPE html>
+<html dir="<%= I18n.rtl? ? 'rtl' : 'ltr' %>" lang=<%= raw I18n.locale.to_json %>>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="<%= brand_variable('ic-brand-global-nav-bgd') %>">
+  <%==
+    login_metadata = (yield :login_metadata).presence
+    %Q(<meta name="description" content="#{login_metadata}">) if login_metadata
+  %>
+  <% unless @allow_robot_indexing %><meta name="robots" content="noindex,nofollow" /><% end %>
+  <%= include_custom_meta_tags %>
+  <% if @sentry_trace.present? %><meta name="sentry-trace" content="<%= @sentry_trace %>"/><% end %>
+  <title><%= @page_title || (yield :page_title).presence || t('default_page_title', "Canvas LMS") %></title>
+
+  <%= preload_link_tag(font_path("/fonts/lato/extended/Lato-Regular.woff2"), { as: "font", type: "font/woff2", crossorigin: 'anonymous' }) %>
+  <%= preload_link_tag(font_path("/fonts/lato/extended/Lato-Bold.woff2"), { as: "font", type: "font/woff2", crossorigin: 'anonymous' }) %>
+  <%= preload_link_tag(font_path("/fonts/lato/extended/Lato-Italic.woff2"), { as: "font", type: "font/woff2", crossorigin: 'anonymous' }) %>
+  <%= stylesheet_link_tag(css_url_for('fonts')) %>
+  <%= stylesheet_link_tag(active_brand_config_url('css'), media: "all") %>
+  <% if @js_env %>
+  <script type="text/javascript">
+    window.CANVAS_COOKIE_CONSENT_STATE = <%= @js_env[:PRE_COOKIE_CONSENT] %>;
+  </script>
+  <% end %>
+  <% if @js_env && @js_env[:ONETRUST_CONSENT_DOMAIN_ID].present? %>
+  <script src="https://cdn.cookielaw.org/consent/<%= @js_env[:ONETRUST_CONSENT_DOMAIN_ID] %>/otSDKStub.js" data-document-language="true" type="text/javascript" charset="UTF-8" data-domain-script="<%= @js_env[:ONETRUST_CONSENT_DOMAIN_ID] %>" ></script>
+  <script type="text/javascript">
+    if (window.ENV && window.ENV['RAILS_ENVIRONMENT'] === 'development') {
+      console.warn("OneTrust will initialize.");
+    }
+    window.addEventListener('OneTrustGroupsUpdated', e => {
+      if (e.detail.includes('C0002')) {
+        window.CANVAS_COOKIE_CONSENT_STATE = true;
+      } else {
+        window.CANVAS_COOKIE_CONSENT_STATE = false;
+      }
+    });
+  function OptanonWrapper() {
+    OneTrust.OnConsentChanged(function() {
+      console.log(`OneTrust cookie consent preferences have been updated: ${JSON.stringify(OnetrustActiveGroups)}`);
+    });
+   }
+  </script>
+  <% end %>
+  <% unless params && (params[:controller]&.starts_with?('login/') || params[:controller]&.starts_with?('oauth'))  # some windows apps need to do the oauth login dance from an ie11 webview %>
+  <% end %>
+  <%= yield :head %>
+  <%= benchmark("include_css_bundles") { include_css_bundles } %>
+  <%= favicon_link_tag(brand_variable('ic-brand-apple-touch-icon'), rel: 'apple-touch-icon', type: nil) %>
+  <%= favicon_link_tag(favicon) %>
+  <% @content_for_head&.each do |string| %>
+  <%= string %><% end %>
+  <%= include_account_css unless @exclude_account_css %>
+  <%= render_datadog_rum_js %>
+  <script>if (navigator.userAgent.match(/(MSIE|Trident\/)/)) location.replace('/ie-is-not-supported.html')</script>
+  <% js_bundle :navigation_header unless @headers == false %>
+  <% js_env({ active_context_tab: get_active_tab }) %>
+  <script>
+    INST = <%= benchmark("rendering INST") { raw(inst_env.to_json) } %>;
+    ENV = <%= benchmark("rendering ENV") { raw(render_js_env) } %>;
+    BRANDABLE_CSS_HANDLEBARS_INDEX = <%= benchmark("rendering BRANDABLE_CSS_HANDLEBARS_INDEX") { raw(BrandableCSS.handlebars_index_json) } %>
+      REMOTES = <%= benchmark("rendering REMOTES") { raw(remote_env.to_json) } %>;
+  </script>
+  <%= benchmark("include_head_js") { include_head_js } %>
+  <% @xhrs_to_prefetch_from_controller&.each do |(args, kwargs)| -%>
+    <%= prefetch_xhr(*args, **kwargs) %>
+  <% end -%>
+  <% if @include_recaptcha %><script src="https://www.google.com/recaptcha/api.js?render=explicit&hl=<%= I18n.locale %>" async></script><% end %>
+  <% deferred_js_bundle :usage_metrics if (load_usage_metrics? || load_consented_usage_metrics?) %>
+</head>

@@ -1,0 +1,180 @@
+<div class="card user-profile mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between">
+      <h1>
+        <small>
+          <% unless  @member.active %>
+            <%= t ".inactive" %>
+          <% end %>
+        </small>
+        <%= @member.display_name_with_uid %>
+        <small>
+          <% if @user.superadmin? %>
+            <span class="badge label-important">
+              <%= t ".superadmin" %>
+            </span>
+          <% end %>
+        </small>
+      </h1>
+      <ul class="nav nav-pills justify-content-end">
+        <% if admin? || @user == current_user %>
+          <li class="nav-item">
+            <%= link_to edit_user_path(@user), class: 'nav-link' do %>
+              <%= glyph :pencil, t('global.edit') %>
+              <span><%= t "global.edit" %></span>
+            <% end %>
+          </li>
+        <% end %>
+        <% if admin? || @user != current_user %>
+          <li class="nav-item">
+            <%= link_to new_transfer_path(id: @user.id, destination_account_id: @member.account.id), class: 'nav-link' do %>
+              <%= glyph :time, t('global.give_time') %>
+              <span><%= t "global.give_time" %></span>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="row">
+      <%= render "users/avatar" %>
+
+      <div class="col-sm-9 col-7 break-word">
+        <%= m @user.description %>
+        <dl class="row">
+          <% if @user.has_valid_email? %>
+            <dt class="col-sm-3 text-end">
+              <%= User.human_attribute_name(:email) %>
+            </dt>
+            <dd class="col-sm-9">
+              <%= mail_to @user.email %>
+            </dd>
+          <% end %>
+          <% phones = [@user.phone, @user.alt_phone].select(&:present?) %>
+          <% if phones.present? %>
+            <dt class="col-sm-3 text-end">
+              <%= t(".phone", count: phones.size) %>
+            </dt>
+            <dd class="col-sm-9">
+              <% phones.each_with_index do |phone, index| %>
+                <%= "—" if index != 0 %>
+                <%= phone_to phone %>
+              <% end %>
+            </dd>
+          <% end %>
+          <% if @user.postcode.present? %>
+            <dt class="col-sm-3 text-end">
+              <%= t "activerecord.attributes.user.postcode" %>
+            </dt>
+            <dd class="col-sm-9">
+              <%= @user.postcode %>
+            </dd>
+          <% end %>
+          <% if @member.tags.present? %>
+            <dt class="col-sm-3 text-end">
+              <%= t "application.navbar.tags" %>
+            </dt>
+            <dd class="col-sm-9">
+              <% @member.tags.each do |tag| %>
+                <span class="badge rounded-pill bg-info">
+                  <%= link_to users_path tag: tag do %>
+                    <%= glyph(:tag) %>
+                    <%= tag %>
+                  <% end %>
+                </span>
+              <% end %>
+            </dd>
+          <% end %>
+        </dl>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="row mb-4">
+  <div class="col-sm-6 offers">
+    <div class="card break-word">
+      <div class="card-header card-title d-flex justify-content-between">
+        <%= Offer.model_name.human(count: :many) %>
+        <% if @user == current_user %>
+          <a href="<%= new_offer_path %>">
+            <%= glyph :plus %>
+          </a>
+        <% end %>
+      </div>
+        <% @member.offers.active.each do |post| %>
+          <div class="row card-body">
+            <div class="col-sm-3">
+              <%= link_to post, post %>
+            </div>
+            <div class="col-sm-8">
+              <%= sanitize strip_tags(post.rendered_description.to_html) %>
+            </div>
+            <div class="col-sm-1">
+              <% if @user != current_user %>
+                <%= link_to new_transfer_path(id: @user.id, destination_account_id: @member.account.id, offer: post.id) do %>
+                  <%= glyph :time %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </table>
+    </div>
+  </div>
+  <div class="col-sm-6 inquiries">
+    <div class="card break-word">
+      <div class="card-header card-header card-title d-flex justify-content-between">
+        <%= Inquiry.model_name.human(count: :many) %>
+        <% if @user == current_user %>
+          <a href="<%= new_inquiry_path %>">
+            <%= glyph :plus %>
+          </a>
+        <% end %>
+      </div>
+        <% @member.inquiries.active.each do |post| %>
+          <div class="row card-body">
+            <div class="col-sm-3">
+              <%= link_to post, post %>
+            </div>
+            <div class="col-sm-9">
+              <%= sanitize strip_tags(post.rendered_description.to_html) %>
+            </div>
+          </div>
+        <% end %>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="row mb-4">
+  <div class="col-sm-4">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <%= t(".accounts") %>
+        </h3>
+      </div>
+      <div class="card-body">
+        <% if @member.manager %>
+          <p><span class="badge bg-secondary">ADMIN</span></p>
+        <% end %>
+        <p>
+          <strong>
+            <%= t(".created_at") %>
+          </strong>
+          <%= @member.entry_date ? l(@member.entry_date, format: :long) : mdash %>
+          <br/>
+          <strong>
+            <%= t(".user_no") %>
+          </strong>
+          <%= @member.member_uid || mdash %>
+          <br/>
+          <strong class="lead <%= green_red(@member.account&.balance) %>">
+            <%= t(".balance") %>
+            <%= seconds_to_hm(@member.account.try(:balance)) %>
+          </strong>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%= render 'shared/movements' %>

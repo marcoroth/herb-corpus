@@ -1,0 +1,112 @@
+<% content_for :page_title, @execution.to_s %>
+<% content_for :page_subtitle, "Dauerauftrag" %>
+
+<div class="container-fluid">
+  <%= render PageHeaderComponent.new(title: "#{@execution.recurring_order.name} - #{@execution.to_s}", subtitle: "Dauerauftrag", button_text: "Bearbeiten", button_url: edit_recurring_order_execution_path(@execution)) do |header| %>
+    <% header.with_labeled_avatar(title: @execution.client&.name, description: "Kunde", user: @execution.client, size: 'md') %>
+    <% header.with_labeled_avatar(title: @execution.leader&.name, description: "Bauleiter/in", user: @execution.leader, size: 'md') %>
+
+    <%= header.with_body_content do |tabs| %>
+      <%= render RecurringOrderYearsComponent.new(recurring_order: @execution.recurring_order) %>
+    <% end %>
+  <% end %>
+
+  <% if false %>
+    <div class="tw-grid tw-grid-cols-[auto,repeat(52,30px)] tw-justify-items-start tw-overflow-scroll tw-pb-6">
+      <div class="tw-text-xs tw-sticky tw-left-0 tw-bg-white tw-border tw-border-black tw-w-full tw-grid tw-content-center tw-px-2">KW</div>
+      <% 52.times do |i| %>
+        <div class="tw-text-center tw-text-xs tw-w-full tw-mb-3 tw-border tw-border-black tw-bg-white tw-h-full tw-grid tw-content-center"><%= i + 1 %></div>
+      <% end %>
+
+      <% @execution.appointment_series.each do |series| %>
+        <div class="tw-sticky tw-left-0 tw-bg-white tw-border tw-border-black tw-w-full tw-text-xs tw-grid tw-content-center tw-px-2"><%= link_to series.name, edit_appointment_series_path(series) %></div>
+
+        <% if series.appointments.any? %>
+          <% 52.times do |i| %>
+            <% appointments = series.appointments.where(start_time: (@execution.start_date + i.weeks).to_time.all_week).to_a %>
+            <div class="tw-border tw-border-black tw-h-[30px] tw-w-full tw-text-center tw-text-xs tw-grid tw-content-center <%= appointments.map { |a| a.user_blocks.map(&:has_conflict) }.flatten.reduce(:&) ? "tw-bg-red-300 hover:tw-bg-red-200" : "tw-bg-white hover:tw-bg-gray-100" %>"><%= appointments.count.positive? ? appointments.count : "-" %></div>
+          <% end %>
+
+        <% else %>
+          <div class="tw-col-start-[2] tw-col-end-[54] tw-border tw-border-black tw-h-[30px] tw-w-full tw-text-center tw-text-xs tw-grid tw-content-center tw-bg-white hover:tw-bg-gray-100"><%= "-" %></div>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="tw-grid tw-grid-cols-[auto,auto,auto,auto,repeat(12,auto)] tw-justify-items-start tw-overflow-scroll tw-pb-6">
+    <div class="tw-text-xs tw-sticky tw-left-0 tw-bg-white tw-border tw-border-black tw-w-full tw-grid tw-content-center tw-px-2">Name/Tätigkeit</div>
+
+    <div class="tw-text-xs tw-w-full tw-mb-3 tw-border tw-border-black tw-bg-white tw-h-full tw-grid tw-content-center tw-px-2">Art</div>
+    <div class="tw-text-xs tw-w-full tw-mb-3 tw-border tw-border-black tw-bg-white tw-h-full tw-grid tw-content-center tw-px-2">Details</div>
+    <div class="tw-text-xs tw-w-full tw-mb-3 tw-border tw-border-black tw-bg-white tw-h-full tw-grid tw-content-center tw-px-2">Status</div>
+
+    <% 12.times do |i| %>
+      <div class="tw-text-center tw-text-xs tw-w-full tw-mb-3 tw-border tw-border-black tw-bg-white tw-h-full tw-grid tw-content-center"><%= I18n.t("date.month_names")[i + 1][0..2] rescue "-" %></div>
+    <% end %>
+
+    <% @execution.appointment_series.each do |series| %>
+      <%= render partial: "appointment_series/row", locals: { series: series } %>
+    <% end %>
+
+    <% @execution.appointment_outlines.each do |outline| %>
+      <%= render partial: "appointment_outlines/row", locals: { outline: outline } %>
+    <% end %>
+  </div>
+
+  <div class="row tw-mt-16">
+    <div class="col-12 col-xl-8">
+      <% @execution.all_appointments.sort_by(&:start_time).group_by { |a| a.start_time.month }.each do |month, appointments| %>
+        <h4 class="text-muted"><%= I18n.t("date.month_names")[month] %></h4>
+
+        <div class="row">
+          <% appointments.each do |appointment| %>
+            <div class="col-6">
+              <%= link_to appointment do %>
+                <%= render AppointmentCardComponent.new(appointment: appointment, duration: false) %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if @execution.all_appointments.none? && @execution.end_date >= Date.current %>
+        <%= render ExecutionNewAppointmentComponent.new(execution: @execution) %>
+      <% else %>
+        <% if @execution.all_appointments.none? %>
+          <%= render CardComponent.new do |card| %>
+            <%= card.with_body do %>
+              Keine Termine im Jahr <%= @execution.year %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <div class="col-12 col-xl-4">
+      <% if @execution.all_appointments.any? && @execution.end_date >= Date.current %>
+        <div class="col-12">
+          <%= render ExecutionNewAppointmentComponent.new(execution: @execution) %>
+        </div>
+      <% end %>
+
+      <%= render CardListComponent.new do |list| %>
+        <%= list.with_item(title: "Mitarbeiter") do %>
+          <%= render AvatarGroupComponent.new(users: @execution.group&.users) %>
+          <%= link_to "+", edit_recurring_order_execution_path(@execution), class: "btn btn-sm btn-rounded-circle btn-white", data: { toggle: "modal"} %>
+        <% end %>
+        <%= list.with_item(title: "Start-Datum", value: @execution.start_date.to_fs(:default)) %>
+        <%= list.with_item(title: "End-Datum", value: @execution.end_date.to_fs(:default)) %>
+        <%= list.with_item(title: "Erstellt am", value: @execution.created_at.to_fs(:default)) %>
+        <%= list.with_item(title: "Auftragsnummer", value: @execution.report_number) %>
+        <%= list.with_item(title: "Adresse", value: @execution.address) %>
+        <%= list.with_item(title: "Ort", value: link_to(@execution.place), separator: false) %>
+      <% end %>
+
+      <% if @next_appointment %>
+        <%= render AppointmentCardComponent.new(appointment: @next_appointment, header: "Nächster Termin", duration: false) %>
+      <% end %>
+    </div>
+  </div>
+
+</div>

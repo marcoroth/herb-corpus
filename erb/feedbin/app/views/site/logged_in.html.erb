@@ -1,0 +1,143 @@
+<% present @user do |user_presenter| %>
+    <% @class = "app nothing-selected hide-search #{user_presenter.setting_classes}" %>
+    <% @behavior = "class_target" %>
+    <% content_for :head do %>
+        <script>
+            if (window.feedbin == null) {
+                window.feedbin = {};
+            }
+            feedbin.data = <%= raw json_escape(@data.to_json) %>;
+            feedbin.data.tagNames = <%= raw json_escape(@user.tag_names.to_json) %>;
+            feedbin.count_data = <%= raw json_escape(@count_data.to_json) %>;
+            feedbin.data.viewMode = "<%= user_presenter.view_mode %>";
+            feedbin.Counts.get(feedbin.count_data);
+        </script>
+        <%= render partial: 'shared/update_styles' %>
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="<%= @user.theme == "auto" ? Colors.fetch("day") : Colors.fetch(@user.theme) %>">
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="<%= @user.theme == "auto" ? Colors.fetch("dusk") : Colors.fetch(@user.theme) %>">
+    <% end %>
+    <%= render partial: 'shared/notification' %>
+    <div class="loading-app">
+        <%= svg_tag "logo", inline: true %>
+    </div>
+    <div class="app-wrap fade sm:group-data-[browser-name=safari]/body:border-t">
+        <div class="feeds-column app-panel" data-behavior="content_column" data-resizable-name="feeds" style="<%= user_presenter.feeds_width_style %>" data-controller="toolbar" data-toolbar-section-value="feeds-column" data-action="click->toolbar#show">
+            <div class="inner-column">
+                <div class="top-toolbar">
+                    <button type="button" class="show-subscribe" data-behavior="show_subscribe" data-open-dialog="<%= Dialog::AddFeed.dom_id %>"><%= svg_tag "icon-plus", size: "16x16" %></button>
+                    <%= render partial: 'shared/view_mode' %>
+                    <%= render partial: 'shared/hamburger_menu_button' %>
+                </div>
+                <div class="feeds showing-audio-player" data-behavior="droppable" data-action="scroll->toolbar#scroll">
+                    <%= render partial: 'shared/view_mode' %>
+                    <ul data-behavior="feeds_target" data-controller="sourceable" class="feeds-target feed-list">
+                        <%= render partial: 'feeds/feeds', locals: {collections: @feed_data[:collections], saved_searches: @feed_data[:saved_searches], tags: @feed_data[:tags], feeds: @feed_data[:feeds], page_feed: @feed_data[:page_feed]} %>
+                    </ul>
+                </div>
+                <%= render partial: 'shared/audio_player' %>
+                <%= render partial: 'shared/feeds_toolbar' %>
+            </div>
+        </div>
+        <div class="entries-column app-panel" data-behavior="content_column" data-resizable-name="entries" style="<%= user_presenter.entries_width_style %>" data-controller="toolbar"  data-toolbar-section-value="entries-column" data-action="click->toolbar#show">
+            <div class="entries-header" data-behavior="entries_header">
+                <button class="back-button" data-behavior="show_feeds_panel">
+                    <%= svg_tag "icon-arrow", size: "9x15" %>
+                </button>
+                <span class="feed-title-wrap"><span data-behavior="user_title"></span></span>
+                <div class="search-button">
+                  <%= render App::SearchButtonComponent.new %>
+                </div>
+            </div>
+            <div class="entries" data-action="scroll->toolbar#scroll" data-toolbar-section-value="entries-column" data-action="click->toolbar#show mousemove->toolbar#mousing" >
+                <%= render App::SearchFormComponent.new(params: params) %>
+                <ul data-behavior="entries_target" class="entries-target"></ul>
+            </div>
+            <%= render partial: 'shared/feeds_toolbar' %>
+        </div>
+        <div class="entry-column app-panel" data-behavior="content_column" data-controller="toolbar" data-toolbar-section-value="entry-column" data-action="click->toolbar#show show-entry-basement@window->toolbar#show show-entry@window->toolbar#showWithoutAnimation mousemove->toolbar#mousing" >
+            <div class="entry-inner-column">
+                <div class="account-toolbar">
+                    <div class="entry-buttons">
+                        <%= render partial: 'shared/app_settings' %>
+                    </div>
+                </div>
+                <div class="entry-basement">
+                    <% @user.supported_sharing_services.each do |service| %>
+                        <% if service.has_share_sheet? %>
+                          <%= render App::EntryBasementContainer.new(target: "#{service.service_id}_share_panel") do %>
+                            <%= render partial: "supported_sharing_services/share_form_#{service.service_id}", locals: {service: service} %>
+                          <% end %>
+                        <% end %>
+                    <% end %>
+                    <%= render App::EntryBasementContainer.new(target: "mute_panel") do %>
+                      <%= render App::MuteForm.new %>
+                    <% end %>
+                </div>
+                <div class="entry-meta" data-behavior="entry_meta_target" data-toolbar-target="toolbar"></div>
+                <div class="inner-column">
+                    <div class="entry-content-wrap <%= user_presenter.content_classes %>" data-font-size="<%= user_presenter.font_size %>"  data-font="<%= user_presenter.font %>" data-behavior="entry_content_target">
+                            <div class="splash">
+                                <div class="splash-inner">
+                                    <%= svg_tag "logo", inline: true %>
+                                    <% if signed_in? && current_user.plan.stripe_id == 'trial' %>
+                                    <div class="trial-time">
+                                        <div class="remaining-time"><%= pluralize(current_user.days_left, 'day') %> left</div>
+                                        <%= link_to settings_billing_path, class: 'button' do %>
+                                            Subscribe Now
+                                        <% end %>
+                                    </div>
+                                    <% end %>
+                                </div>
+                            </div>
+
+                        <div data-behavior="inner_content_target"></div>
+                    </div>
+                    <div class="bottom-toolbar entry-bottom-toolbar" data-toolbar-target="toolbar">
+                        <button class="navigation-button button-previous" data-behavior="open_previous_entry needs_previous">
+                            <div class="icon-previous">
+                                <%= svg_tag "icon-arrow" %>
+                            </div>
+                        </button>
+                        <button class="navigation-button button-next" data-behavior="open_next_entry needs_next">
+                            <div class="icon-next">
+                                <%= svg_tag "icon-arrow" %>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="hide" data-behavior="pagination"></div>
+
+    <%= render Dialog::All.new %>
+
+    <%= render partial: "shared/readability_loading" %>
+    <%= render partial: "shared/saved_searches_count" %>
+    <%= render partial: "shared/format" %>
+    <%= render partial: "shared/link_actions" %>
+
+    <%= form_tag(cache_extracts_path, method: :get, class: 'hide', remote: true, data: {behavior: 'extract_cache_form'}) do %>
+        <%= hidden_field_tag 'url', nil %>
+    <% end %>
+
+    <%= one_time_content && one_time_content.html_safe %>
+
+    <script>
+        <%= render partial: 'shared/message_flash', locals: {flash: flash} %>
+    </script>
+    <% if @entries.present? %>
+    <script>
+        $(function() {
+            feedbin.selectedEntry = {
+              id: <%= @entries.first.first %>,
+              feed_id: <%= @entries.first.last[:feed_id] %>,
+              container: null
+            }
+            $.extend(feedbin.entries, <%= @entries.to_json.html_safe %>);
+            feedbin.showEntry(<%= params[:id] %>);
+            $('[data-behavior~=toggle_full_screen]')[0]?.click()
+        })
+    </script>
+    <% end %>
+<% end %>

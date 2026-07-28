@@ -1,0 +1,120 @@
+<% content_for :title, "Edit Item #{@item.description}" %>
+<% content_for :tabs, render("items/tabs") %>
+
+<% content_for :content_size, "col-sm-9 col-md-10" %>
+
+<% content_for :messages do %>
+  <% if @item.deleted? %>
+    <%= render partial: "common/flash", locals: { messages: { warning: "'#{@item.description}' is deleted." } } %>
+  <% end %>
+<% end %>
+
+<% content_for :sidebar do %>
+  <%= render "common/category_nav" %>
+<% end %>
+
+<% content_for :content do %>
+  <%= render partial: "items/item_bin_row_template" %>
+
+  <input type="hidden" id="data-bins" data-value="<%= Bin.not_deleted.to_json %>" />
+  <input type="hidden" id="data-item-program-ratios" data-value="<%= ItemProgramRatio.to_json %>" />
+  <input type="hidden" id="data-item-selected-bins" data-value="<%= @item.bins.map(&:id).map(&:to_s).to_json %>" />
+
+  <h4>
+    <%= controller.action_name.humanize %> Item
+    <%= link_to '', edit_stock_item_path(@item), class: 'pull-right btn btn-default btn-xs glyphicon glyphicon-th-list', title: 'Edit Item Stock' if @item.persisted? %>
+  </h4>
+
+  <%= form_for @item, data: { live_guarded: true } do |f| %>
+    <div class="form-group">
+      <%= f.label :category, 'Category:' %>
+      <%= f.collection_select(:category_id, Category.all, :id, :description, { include_blank: "Please choose ..." }, { class: "form-control", disabled: @item.deleted? }) %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :description, 'Description:' %>
+      <%= f.text_field :description, class: "form-control", disabled: @item.deleted? %>
+    </div>
+
+    <div class="row">
+      <div class="col-xs-4">
+        <div class="form-group">
+          <%= f.label :value, 'Value:' %>
+          <div class="input-group">
+            <span class="input-group-addon">$</span>
+            <%= f.text_field :value, value: number_to_currency(@item.value, unit: "", precision: 2), class: "form-control", disabled: @item.deleted?, data: { guard: "moneynodollar", guard_moneynodollar_min: "0.01" } %>
+          </div>
+        </div>
+      </div>
+
+      <% if @item.persisted? %>
+        <div class="col-xs-4">
+          <div class="form-group">
+            <%= f.label 'Quantity In Stock:', class: "control-label" %>
+            <p class="form-control-static"><%= @item.current_quantity %></p>
+          </div>
+        </div>
+      <% else %>
+        <div class="col-xs-4">
+          <div class="form-group">
+            <%= f.label :current_quantity, 'Quantity in Stock:', class: "control-label" %>
+            <%= f.text_field :current_quantity, class: "form-control" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label "item_program_ratio_id", "Program Ratios:" %>
+      <%= f.collection_select(:item_program_ratio_id, ItemProgramRatio.order(:name).all, :id, :name, {}, { class: "form-control", disabled: @item.deleted? }) %>
+    </div>
+
+    <div class="row">
+      <div class="col-xs-12">
+        <% Program.order(:name).to_a.each do |program| %>
+          <div id="program-percent-container-<%= program.id %>" class="program-percent-container" style="display: none;">
+            <span id="program-percent-<%= program.id %>"></span>% - <%= program.name %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <br />
+
+    <div class="row">
+      <div class="col-xs-12">
+        <%= f.hidden_field :updating_bins, value: "true" %>
+        <table id="item-bins-table" class="table table-hover table-striped table-editable" data-table-editable-allow-no-rows data-table-editable-row-template-id="item-bin-row-template">
+          <thead>
+            <tr>
+              <th>Bin</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <%# Dynamically generated %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-xs-12">
+        <div class="form-group">
+          <button type="button" class="btn btn-default table-editable-add" data-table-editable-for="item-bins-table">
+            <span class="glyphicon glyphicon-plus" aria-hidden="true"></span> Add Bin
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <%= f.submit "Save", class: "btn btn-primary", disabled: @item.deleted? %>
+    <%= link_to "Cancel", cancel_new_item_path, type: "button", class: "btn btn-default" %>
+    <% if @item.deleted? %>
+      <%= link_to "Restore", restore_item_path, method: :patch, class: "btn btn-success pull-right", data: confirm(title: "Restoring Item: #{@item.description}") %>
+    <% else %>
+      <%= link_to "Delete", @item, method: :delete, class: "btn btn-danger pull-right", data: confirm(title: "Deleting Item: #{@item.description}") if @item.persisted? %>
+    <% end %>
+  <% end %>
+<% end %>

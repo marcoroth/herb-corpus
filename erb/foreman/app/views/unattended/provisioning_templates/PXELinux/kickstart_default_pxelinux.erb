@@ -1,0 +1,44 @@
+<%#
+kind: PXELinux
+name: Kickstart default PXELinux
+model: ProvisioningTemplate
+oses:
+- AlmaLinux
+- CentOS
+- CentOS_Stream
+- Fedora
+- RedHat
+- Rocky
+description: |
+  The template to render PXELinux bootloader configuration for kickstart based distributions.
+  The output is deployed on the host's subnet TFTP proxy.
+test_on:
+- host4dhcp
+- host6dhcp
+- host4and6dhcp
+- host4static
+- host6static
+-%>
+# This file was deployed via '<%= template_name %>' template
+<%
+  rhel_compatible = @host.operatingsystem.family == 'Redhat' && @host.operatingsystem.name != 'Fedora'
+  os_major = @host.operatingsystem.major.to_i
+  os_minor = @host.operatingsystem.minor.to_i
+  timeout = host_param('loader_timeout').to_i * 10
+  timeout = 100 if timeout.nil? || timeout <= 0
+-%>
+DEFAULT menu
+MENU TITLE Booting into OS installer (ESC to stop)
+TIMEOUT <%= timeout %>
+ONTIMEOUT installer
+
+LABEL installer
+MENU LABEL <%= template_name %>
+KERNEL <%= @kernel %>
+APPEND initrd=<%= @initrd %> <%= pxe_kernel_options %> <%= snippet("kickstart_kernel_options").strip %>
+<% if @host.architecture.to_s.match(/s390x?/i) %>
+INITRD <%= @initrd %>
+<% end %>
+IPAPPEND 2
+
+<%= snippet_if_exists(template_name + " custom menu") %>

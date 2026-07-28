@@ -1,0 +1,66 @@
+<% if restitution_globale.present? && derniere_evaluation_complete.present? %>
+  <% diag_risques_entreprise = restitution_globale.diag_risques_entreprise %>
+  <% evaluation_impact_general = restitution_globale.evaluation_impact_general %>
+  <% synthese_diag = diag_risques_entreprise&.partie&.synthese %>
+  <% pourcentage_risque_raw = synthese_diag&.dig("pourcentage_risque") || synthese_diag&.dig(:pourcentage_risque) || diag_risques_entreprise&.synthese&.dig(:pourcentage_risque) %>
+  <% pourcentage_risque = pourcentage_risque_raw.nil? ? nil : pourcentage_risque_raw.to_i %>
+  <% synthese_impact = evaluation_impact_general&.synthese %>
+  <% synthese_impact_partie = evaluation_impact_general&.partie&.synthese %>
+  <% score_cout = synthese_impact&.dig(:score_cout) || synthese_impact_partie&.dig("score_cout") || synthese_impact_partie&.dig(:score_cout) %>
+  <% risques_presenter = Evaluations::DiagnosticPro::RisquesPresenter.new(pourcentage_risque: pourcentage_risque) %>
+  <% palier_risque = pourcentage_risque.present? ? risques_presenter.palier : nil %>
+  <% couts_presenter = Evaluations::DiagnosticPro::CoutsPresenter.new(synthese: { score_cout: score_cout }, i18n: self) %>
+  <% palier_cout = score_cout.present? ? couts_presenter.lettre(:score_cout) : nil %>
+  <% palier_situation = diag_risques_entreprise&.palier %>
+  <% synthese_pour_cout = (synthese_impact || synthese_impact_partie&.symbolize_keys || {}).merge(score_cout: score_cout) %>
+  <% contenu_cout = score_cout.present? ? Evaluations::DiagnosticPro::CoutsPresenter.new(synthese: synthese_pour_cout, i18n: self).contenu_cout : nil %>
+  <% afficher_bloc = palier_risque.present? && palier_situation.present? %>
+
+  <% if afficher_bloc %>
+    <section class="derniere-reponse-complete section-tableau-bord-eva-pro">
+      <h3 class="derniere-reponse-complete__titre">
+        <%= t("admin.dashboard.derniere_reponse_complete.titre") %>
+      </h3>
+      <p class="derniere-reponse-complete__texte">
+        <%= t("admin.dashboard.derniere_reponse_complete.texte") %>
+      </p>
+      <div class="derniere-reponse-complete__diagnostique">
+        <div class="derniere-reponse-complete__diagnostique-item">
+          <%= render ChiffreCleComponent.new(
+            palier: palier_risque,
+            prefixe: t("admin.dashboard.derniere_reponse_complete.risque_prefixe"),
+            chiffre: "#{pourcentage_risque} %"
+          ) %>
+        </div>
+        <% if palier_cout.present? && contenu_cout.present? %>
+          <div class="derniere-reponse-complete__diagnostique-item">
+            <%= render ChiffreCleComponent.new(
+              palier: palier_cout,
+              prefixe: t("admin.dashboard.derniere_reponse_complete.couts_prefixe"),
+              chiffre: contenu_cout[:titre],
+              suffixe: t("admin.dashboard.derniere_reponse_complete.couts_suffixe")
+            ) %>
+          </div>
+        <% else %>
+          <div class="derniere-reponse-complete__diagnostique-item">
+            <%= render ChiffreCleComponent.new(
+              palier: "C - Moyen",
+              prefixe: t("admin.dashboard.derniere_reponse_complete.couts_prefixe"),
+              chiffre: t("admin.dashboard.derniere_reponse_complete.couts_non_disponible")
+            ) %>
+          </div>
+        <% end %>
+        <div class="derniere-reponse-complete__diagnostique-item">
+          <%= render ChiffreCleComponent.new(
+            palier: palier_situation,
+            prefixe: t("bilan_eva_pro.prefixe"),
+            chiffre: t("bilan_eva_pro.chiffre_cle.#{palier_situation}")
+          ) %>
+        </div>
+      </div>
+      <%= render BoutonDsfrComponent.new(admin_evaluation_evapro_path(derniere_evaluation_complete), type: :secondary) do %>
+        <%= t("admin.dashboard.derniere_reponse_complete.consulter_diagnostique") %>
+      <% end %>
+    </section>
+  <% end %>
+<% end %>

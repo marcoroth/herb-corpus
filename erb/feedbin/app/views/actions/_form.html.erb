@@ -1,0 +1,124 @@
+<%= form_for(@action, as: :action_params, remote: true) do |form| %>
+  <div class="mb-8">
+    <%= render Settings::H2Component.new do %>
+      <%= form.label :title, "Name" %>
+    <% end %>
+    <%= render Form::TextInputComponent.new do |text| %>
+      <% text.input do %>
+        <%= form.text_field :title, class: "peer text-input" %>
+      <% end %>
+    <% end %>
+  </div>
+  <div class="mb-8">
+    <%= render Settings::H2Component.new do %>
+      <%= form.label :query, "Search Terms" %>
+    <% end %>
+    <%= render Form::TextInputComponent.new do |text| %>
+      <% text.input do %>
+        <%= form.text_area :query, rows: @action&.query&.length.to_i > 70 ? 3 : 1, placeholder: 'For example: title.exact:"[Sponsor]"', autocorrect: "off", autocapitalize: "off", spellcheck: false, class: "peer text-input" %>
+      <% end %>
+    <% end %>
+    <p class="text-sm text-500 mt-2">Actions support the same <a href="/help/search-syntax" target="_blank">syntax as searches</a>.</p>
+  </div>
+
+  <% if @user.taggings.present? %>
+    <div class="mb-8">
+      <%= render Settings::H2Component.new do %>
+        Article is in Tag
+      <% end %>
+      <ul class="border-y max-h-[240px] overflow-scroll resize-y">
+        <%= form.collection_check_boxes(:tag_ids, @user.feed_tags, :id, :name) do |builder| %>
+          <li class="group">
+            <%= builder.check_box class: "peer" %>
+            <%= builder.label class: "group flex gap-2 items-center py-3 border-b group-last:border-b-0" do %>
+              <%= render Form::CheckboxComponent.new %>
+              <%= builder.text %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="mb-8">
+    <%= render Settings::H2Component.new do %>
+      Article is in Feed
+    <% end %>
+
+    <div class="flex py-3 border-y border-b-0">
+      <%= form.check_box :all_feeds, id: "include_all_feeds", class: "peer", data: {behavior: 'check_feeds'} %>
+      <label class="group flex items-center gap-2" for="include_all_feeds">
+        <%= render Form::CheckboxComponent.new %> Include all
+      </label>
+      <div class="max-w-[150px] ml-auto">
+        <%= render Form::TextInputComponent.new do |text| %>
+          <% text.input do %>
+            <input type="text" class="text-input" data-behavior="feed_search" placeholder="Filter" />
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+    <ul class="border-b max-h-[240px] overflow-scroll resize-y" data-behavior="search_results">
+      <%= form.collection_check_boxes(:feed_ids, @user.feeds.include_user_title, :string_id, :title) do |builder| %>
+        <li class="group border-t" data-sort-name="<%= builder.text.downcase %>">
+          <%= builder.check_box feed_checkbox_options(form).merge(class: "peer") %>
+          <%= builder.label title: builder.object.feed_url, class: "group flex gap-2 items-center py-3" do %>
+            <%= render Form::CheckboxComponent.new %>
+            <%= builder.text %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+
+
+  <%= render Settings::ControlGroupComponent.new class: "mb-14" do |group| %>
+    <% group.header do %>
+      Actions
+    <% end %>
+
+    <%= form.collection_check_boxes(:actions, Feedbin::Application.config.action_names, :value, :label) do |builder| %>
+      <% group.item data: {behavior: "action_#{builder.value}"} do %>
+        <%= builder.check_box class: "peer" %>
+        <%= builder.label class: "group" do %>
+          <%= render Settings::ControlRowComponent.new do |row| %>
+            <% row.title { builder.text } %>
+            <% row.control { render Form::SwitchComponent.new } %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% group.description do %>
+      <%= render partial: "push_data" %>
+    <% end %>
+
+  <% end %>
+
+  <%= render Settings::ControlGroupComponent.new class: "mb-14" do |group| %>
+    <% group.header do %>
+      Options
+    <% end %>
+    <% group.item do %>
+      <%= form.check_box :apply_action, class: "peer" %>
+      <%= form.label :apply_action, class: "group" do %>
+
+      <%= render Settings::ControlRowComponent.new do |row| %>
+        <% row.title { "Mark existing matches as read" } %>
+        <% row.control { render Form::SwitchComponent.new } %>
+      <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= render Settings::ButtonRowComponent.new do %>
+    <%= form.submit "Save", name: 'commit', class: "button ui-helper-hidden-accessible", tabindex: "-1" %>
+    <% if @action.persisted? %>
+      <%= link_to 'Delete', @action, method: :delete, class: 'button button-secondary' , data: { confirm: 'Are you sure you want to delete this action?' } %>
+    <% end %>
+    <button type="submit" name="preview" class="button button-secondary" data-open-dialog="<%= Dialog::ActionResults.dom_id %>">View Results</button>
+    <button type="submit" name="commit" class="button">Save</button>
+  <% end %>
+
+
+<% end %>

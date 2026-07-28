@@ -1,0 +1,159 @@
+<%=
+  component_wrapper do
+    primer_form_with(**form_options) do |f|
+      flex_layout(mb: 3) do |modal_body|
+        if @meeting.errors[:base].present?
+          modal_body.with_row do
+            render(Primer::Alpha::Banner.new(mb: 3, icon: :stop, scheme: :danger)) { @meeting.errors[:base].join("\n") }
+          end
+        end
+
+        if @project.nil?
+          modal_body.with_row(mb: 3) do
+            render(Meeting::ProjectAutocompleter.new(f, meeting: @meeting))
+          end
+        end
+
+        if show_template_selector?
+          modal_body.with_row(mb: 3) do
+            render(Meeting::TemplateAutocompleter.new(f, project: effective_project, disabled: template_selector_disabled?, placeholder: template_selector_placeholder, selected_id: @copy_from&.id))
+          end
+        end
+
+        unless @template
+          modal_body.with_row do
+            render(Meeting::Title.new(f))
+          end
+        end
+
+        unless @template
+          modal_body.with_row(mt: 3) do
+            render(Meeting::Location.new(f, meeting: @meeting))
+          end
+
+          modal_body.with_row(mt: 3) do
+            render(Meeting::TimeGroup.new(f, meeting: @meeting))
+          end
+        end
+
+        if !@template && @meeting.is_a?(RecurringMeeting)
+          modal_body.with_row(mt: 3) do
+            flex_layout(classes: "FormControl-horizontalGroup") do |frequency_row|
+              frequency_row.with_column(flex: 1) do
+                render(RecurringMeeting::Frequency.new(f))
+              end
+
+              frequency_row.with_column(
+                flex: 1,
+                style: "visibility: #{@meeting.frequency_working_days? ? 'hidden' : 'visible'}",
+                data: {
+                  target_name: "frequency",
+                  not_value: "working_days",
+                  set_visibility: "true",
+                  "show-when-value-selected-target": "effect"
+                }
+              ) do
+                render(RecurringMeeting::Interval.new(f))
+              end
+            end
+          end
+
+          modal_body.with_row(
+            mt: 3,
+            hidden: !@meeting.frequency_monthly_day_of_month?,
+            data: {
+              value: "monthly_day_of_month",
+              target_name: "frequency",
+              "show-when-value-selected-target": "effect"
+            }
+          ) do
+            render(RecurringMeeting::DayOfMonth.new(f))
+          end
+
+          modal_body.with_row(
+            mt: 3,
+            hidden: !@meeting.frequency_monthly_nth_weekday?,
+            data: {
+              value: "monthly_nth_weekday",
+              target_name: "frequency",
+              "show-when-value-selected-target": "effect"
+            }
+          ) do
+            flex_layout(classes: "FormControl-horizontalGroup") do |monthly_pattern_row|
+              monthly_pattern_row.with_column(flex: 1) do
+                render(RecurringMeeting::MonthlyOrdinal.new(f))
+              end
+              monthly_pattern_row.with_column(flex: 1) do
+                render(RecurringMeeting::MonthlyWeekday.new(f))
+              end
+            end
+          end
+
+          modal_body.with_row(mt: 1) do
+            render(RecurringMeetings::HumanScheduleComponent.new(recurring_meeting: @meeting))
+          end
+
+          modal_body.with_row(mt: 3) do
+            flex_layout(classes: "FormControl-horizontalGroup") do |frequency_row|
+              frequency_row.with_column(flex: 1) do
+                render(RecurringMeeting::EndAfter.new(f))
+              end
+
+              frequency_row.with_column(flex: 1) do
+                flex_layout do |end_after|
+                  end_after.with_row(
+                    hidden: !@meeting.end_after_specific_date?,
+                    data: {
+                      value: "specific_date",
+                      target_name: "end_after",
+                      "show-when-value-selected-target": "effect"
+                    }
+                  ) do
+                    render(RecurringMeeting::SpecificDate.new(f, meeting: @meeting))
+                  end
+
+                  end_after.with_row(
+                    hidden: !@meeting.end_after_iterations?,
+                    data: {
+                      value: "iterations",
+                      target_name: "end_after",
+                      "show-when-value-selected-target": "effect"
+                    }
+                  ) do
+                    render(RecurringMeeting::Iterations.new(f))
+                  end
+                end
+              end
+            end
+          end
+        end
+
+        if @copy_from
+          modal_body.with_row do
+            render(Meeting::CopiedFrom.new(f, id: @copy_from.id))
+          end
+
+          unless @copy_from.onetime_template?
+            modal_body.with_row(mt: 3) do
+              render(Meeting::CopyItems.new(f))
+            end
+
+            modal_body.with_row(mt: 3) do
+              render(Meeting::CopyParticipants.new(f))
+            end
+
+            modal_body.with_row(mt: 3) do
+              render(Meeting::CopyAttachments.new(f))
+            end
+          end
+        end
+
+        if !@template && @meeting.is_a?(RecurringMeeting) && @meeting.persisted?
+          modal_body.with_row(mt: 3) do
+            render(Meetings::EmailUpdatesBannerComponent.new(@meeting))
+          end
+        end
+      end
+    end
+  end
+%>

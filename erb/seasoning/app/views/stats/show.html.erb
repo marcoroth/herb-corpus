@@ -1,0 +1,116 @@
+<%= content_for :title do %>
+  <%= @human.handle %> &rsquo;s stats for <%= @year %>
+<% end %>
+
+<div class="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto">
+  <div class="text-center mb-8">
+    <h1 class="text-4xl font-bold text-gray-900 mb-2">
+      <%= link_to @human.handle, human_profile_path(@human.handle), class: "text-blue-600 hover:text-blue-800 hover:underline" %>
+      's <%= @year %> stats
+    </h1>
+
+    <% if @filter == 'reviewed-in' %>
+      <p class="text-lg text-gray-600">
+        <%= @human.handle %> reviewed
+        <%= pluralize(@reviews.count, "season") %> in <%= @year %>
+      </p>
+    <% else %>
+      <p class="text-lg text-gray-600">
+        <%= @human.handle %> reviewed
+        <%= pluralize(@reviews.count, "season") %> that aired in <%= @year %>
+      </p>
+    <% end %>
+  </div>
+
+  <div class="flex bg-gray-100 rounded-lg p-1 mb-6 max-w-fit mx-auto">
+    <%= link_to profile_stat_path(@human.handle, "reviewed-in", @year),
+        class: "px-4 py-2 rounded-md text-sm font-medium transition-colors #{@filter == 'reviewed-in' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}",
+        "aria-current": (@filter == "reviewed-in" ? "page" : nil) do %>
+      Reviewed in <%= @year %>
+    <% end %>
+
+    <%= link_to profile_stat_path(@human.handle, "aired-in", @year),
+        class: "px-4 py-2 rounded-md text-sm font-medium transition-colors #{@filter == 'aired-in' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}",
+        "aria-current": (@filter == "aired-in" ? "page" : nil) do %>
+      Aired in <%= @year %>
+    <% end %>
+  </div>
+
+  <% if @reviews.any? %>
+    <% rated_reviews = @reviews.where.not(rating: nil).order(rating: :desc, created_at: :desc).limit(25) %>
+    <% if rated_reviews.any? %>
+      <div class="top-favorites mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">
+          <%= @human.handle %>'s favorites
+        </h2>
+
+        <div class="space-y-3">
+          <% rated_reviews.each_with_index do |review, index| %>
+            <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+              <div class="text-2xl font-bold text-gray-400 w-8">
+                #<%= index + 1 %>
+              </div>
+
+              <div class="flex-shrink-0">
+                <%= link_to proper_review_path(review), class: "block hover:opacity-75" do %>
+                  <%= render "poster", url: review.season.poster.url, show: review.season.show, size: "small" %>
+                <% end %>
+              </div>
+
+              <div class="flex-1">
+                <div class="font-semibold text-gray-900 mb-1">
+                  <%= review.season.show.title %> - <%= review.season.name %>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <%= render "star_rating", rating: review.rating %>
+
+                  <span class="text-sm text-gray-600">
+                    (<%= review.rating %>/10)
+                  </span>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    <div class="all-reviews mb-8">
+      <% if @filter == 'reviewed-in' %>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">
+          Everything reviewed in <%= @year %>
+        </h2>
+      <% else %>
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">
+          Everything that aired in <%= @year %>
+        </h2>
+      <% end %>
+
+      <div class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
+        <% @reviews.order(created_at: :asc).each do |review| %>
+          <div class="text-center">
+            <%= link_to proper_review_path(review), class: "block hover:opacity-75", title: "#{review.season.show.title} - #{review.season.name}\nReviewed #{l(review.created_at.to_date)}" do %>
+              <%= render "poster", url: review.season.poster.url, show: review.season.show, size: "small" %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <p class="text-gray-600 text-center mb-8">No reviews yet!</p>
+  <% end %>
+
+  <div class="year-navigation flex justify-between items-center">
+    <div>
+      <%= link_to "← #{@previous_year}", profile_stat_path(@human.handle, @filter, @previous_year), class: "rounded-button" %>
+    </div>
+
+    <div class="text-xl font-semibold"><%= @year %></div>
+
+    <div>
+      <% if @has_next_year %>
+        <%= link_to "#{@next_year} →", profile_stat_path(@human.handle, @filter, @next_year), class: "rounded-button" %>
+      <% end %>
+    </div>
+  </div>
+</div>

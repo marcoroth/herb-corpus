@@ -1,0 +1,128 @@
+<%= javascript_tag do %>
+  window.localStorage.setItem('expanded_all_tasks', "false");
+  $(document).ready(function () {
+    $("#loading").hide();
+  });
+$(function(){
+  $('#expandall_arrow').click(function(){
+        $("#loading").show();
+    });
+
+  $(document).ajaxStop(function(){
+        $("#loading").hide();
+    });
+    });
+<% end %>
+<div id="loading" class="loading" style="display:nont">Loading&#8230;</div>
+<div id="selection_table">
+  <% i = 1 %>
+  <ul class="tabs" data-tab>
+      <li class="tab-title active"><a href="#scheduled_tasks">Scheduled</a></li>
+      <li class="tab-title"><a href="#on_demand_tasks">On Demand</a></li>
+      <li class="tab-title"><a href="#callback_tasks">Callback</a></li>
+      
+    </ul>
+    <div class="tabs-content">
+      <div class="content active" id="scheduled_tasks">
+        <% scheduled_tasks = @tasks.select{|t| t.run_type == "scheduled"}.group_by(&:group).sort %>
+        <% scheduled_tasks.each do |group, tasks| %>
+          <nav class="tab-bar">
+            <section class="tab-bar-section">
+              <h1>Group <%= i %></h1>
+            </section>
+          </nav>
+          <% i += 1 %>
+
+          <%= render partial: 'tasks_table', locals: {tasks: tasks} %>
+        <% end %>
+        <%= link_to 'New Task', new_task_path, class: "button" if can? :create, Task %>
+        <%= link_to 'Run All Enabled Tasks', run_tasks_path, class: "button alert" if can? :run, Task  %>
+      </div>
+      <div class="content" id="on_demand_tasks">
+        <nav class="tab-bar">
+          <section class="tab-bar-section">
+            <h1>On Demand Tasks</h1>
+          </section>
+        </nav>
+        
+        <% on_demand_tasks = @tasks.select{|t| t.run_type == "on_demand"}.sort %>
+        <%= render partial: 'tasks_table', locals: {tasks: on_demand_tasks, hide_frequency: true} %>
+      </div>
+      <div class="content" id="callback_tasks">
+        <nav class="tab-bar">
+          <section class="tab-bar-section">
+            <h1>Callback Tasks</h1>
+          </section>
+        </nav>
+        <% callback_tasks = @tasks.select{|t| t.run_type == "callback"}.sort %>
+        <%= render partial: 'tasks_table', locals: {tasks: callback_tasks,  hide_frequency: true} %>
+      </div>
+
+    </div>
+
+  
+</div>
+
+<%= content_for :sidebar do %>
+  <div class="sidebar">
+    <nav class="tab-bar">
+      <section class="tab-bar-section">
+        <h1>Actions</h1>
+      </section>
+    </nav>
+    <section class="panel sidepanel">
+      <%= form_tag bulk_update_tasks_path, method: :post, :id=>"update_multiple_form" do %>
+        <dl class="dl-horizontal">
+          <dt class="half">Move to:</dt>
+          <dd>
+            <a href="#" data-dropdown="drop_move" class="button dropdown tiny secondary">Choose group</a><br>
+            <ul id="drop_move" data-dropdown-content class="f-dropdown">
+              <% groups = Task.select(&:group).map(&:group).uniq.sort.each_with_index.map{|g,i| [g,"Group #{i+1}"]}
+            groups << [groups.try(:last).try(:first).to_i+1, "New Group"]
+           %>
+              <% groups.each do |group| %>
+                <li><%= link_to group.last, "#", method: :post, class: "update_multiple_link", data: {commit: "Change Group", group_id: group.first} %></li>
+              <% end %>
+            </ul>
+          </dd>
+        </dl>
+        <% if can? :enable, Task %>
+          <%= submit_tag "Enable", :method=>:post, :class=>"button small update_multiple_button" %>
+        <% end %>
+        <% if can? :disable, Task %>
+          <%= submit_tag "Disable", :method=>:post, :class=>"button small update_multiple_button" %>
+        <% end %>
+        <% if can? :run, Task %>
+          <%= submit_tag "Run", :method=>:post, :class=>"button small update_multiple_button" %>
+        <% end %>
+        <% if can? :destroy, Task %>
+          <%= submit_tag "Delete", :method=>:delete, :class=>"button small alert update_multiple_button", data: {:confirm=>"Are you sure you want to delete these tasks?"} %>
+        <% end %>
+      <% end %>
+    </section>
+    <!-- Where scheduling sidebar section begins -->
+    <nav class="tab-bar">
+      <section class="tab-bar-section">
+        <h1>Schedule Tasks</h1>
+      </section>
+    </nav>
+    <section class="panel sidepanel">
+      <%= form_tag schedule_tasks_path, method: :post, :id=>"schedule_tasks_form" do %>
+        <p>
+          Schedule selected tasks to run every DD:HH:MM
+        </p>
+        <p>
+          Minutes <%= select_tag :minute, options_for_select(["*"]+(0..59).to_a) %>
+          Hours <%= select_tag :hour, options_for_select(["*"]+(0..23).to_a) %>
+          Day of month <%= select_tag :day, options_for_select(["*"]+(1..31).to_a) %>
+          Month <%= select_tag :month, options_for_select(["*"]+(1..12).to_a) %>
+          Day of Week <%= select_tag :day_of_week, options_for_select(["*"]+(0..6).to_a) %>
+          
+          
+        </p>
+        <%= submit_tag "Schedule", :method=>:post, :class=>"button small schedule_tasks_button" %>
+        <%= submit_tag "Unschedule", :method=>:post, :class=>"button small alert schedule_tasks_button" %>
+      <% end %>
+    </section>
+  </div>
+<% end %>

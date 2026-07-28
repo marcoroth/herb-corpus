@@ -1,0 +1,166 @@
+<% if user_signed_in? %>
+  <nav class="navbar navbar-default <%= "navbar-stockaid-#{Rails.env}" unless Rails.env.production? %>">
+    <div class="container-fluid">
+      <ul class="nav navbar-nav">
+        <%= tab("Orders", orders_path, active == "orders") %>
+
+        <% if current_user.can_view_donations? %>
+          <%= tab("Donations", donations_path, active == "donations") %>
+        <% end %>
+
+        <% if current_user.can_view_donations? %>
+          <%= tab("Purchases", purchases_path, active == "purchases") %>
+        <% end %>
+
+        <% if current_user.can_view_items? %>
+          <%= tab("Inventory", items_path, active == "inventory") %>
+        <% end %>
+
+        <% if current_user.can_create_organization? || current_user.can_update_organization? %>
+          <%= tab("Organizations", organizations_path, active == "organizations") %>
+        <% end %>
+
+        <% if current_user.can_view_donors? %>
+          <%= tab("Donors", donors_path, active == "donors") %>
+        <% end %>
+
+        <% if current_user.can_view_and_edit_surveys? %>
+          <%= tab("Surveys", surveys_path, active == "surveys") %>
+        <% end %>
+
+        <% if current_user.can_invite_user? || current_user.can_update_user? %>
+          <%= tab("Users", users_path, active == "users") %>
+        <% end %>
+
+        <% if current_user.can_access_counties? || current_user.can_view_integrations? || current_user.can_view_and_edit_revenue_streams? || current_user.can_view_vendors? %>
+          <li class="dropdown <%= "active" if %w[counties integrations revenue_streams vendors].include?(active) %>">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Other <span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <% if current_user.can_access_counties? %>
+                <li><%= link_to "Counties", counties_path %></li>
+              <% end %>
+
+              <% if current_user.can_view_and_edit_revenue_streams? %>
+                <li><%= link_to "Revenue Streams", revenue_streams_path %></li>
+              <% end %>
+
+              <% if current_user.can_view_vendors? %>
+                <li><%= link_to "Vendors", vendors_path %></li>
+              <% end %>
+
+              <% if current_user.can_view_integrations? %>
+                <li><%= link_to "Integrations (deprecated)", integrations_path %></li>
+              <% end %>
+            </ul>
+          </li>
+        <% end %>
+
+        <% if current_user.can_view_reports? %>
+          <li class="dropdown <%= "active" if active == "reports" %>">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Reports <span class="caret"></span></a>
+            <ul class="dropdown-menu">
+              <li><%= link_to "Value By County", value_by_county_reports_path %></li>
+              <li><%= link_to "Value By Donor", value_by_donor_reports_path %></li>
+              <li><%= link_to "Total Inventory Value", total_inventory_value_reports_path %></li>
+              <li><%= link_to "Inventory Adjustments", inventory_adjustments_reports_path %></li>
+              <li><%= link_to "Price Point Variace Report", price_point_variance_reports_path %></li>
+              <li><%= link_to "Graphs", graphs_reports_path %></li>
+              <li><%= link_to "Donor Receipts", donor_receipts_reports_path %></li>
+
+              <% if current_user.can_export? %>
+                <li role="separator" class="divider"></li>
+                <li><%= link_to "Export Master Inventory", exports_path, data: { turbolinks: false } %></li>
+                <li role="separator" class="divider"></li>
+              <% end %>
+            </ul>
+          </li>
+        <% end %>
+
+        <% if help_links.present? || current_user.can_edit_help_links? %>
+          <li class="dropdown <%= "active" if active == "help_links" %>">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">More Links <span class="caret"></span></a>
+
+            <ul class="dropdown-menu">
+              <% help_links.each do |help_link| %>
+                <li><%= link_to help_link.label, help_link.url %></li>
+              <% end %>
+
+              <% if current_user.can_edit_help_links? %>
+                <li role="separator" class="divider"></li>
+                <li><%= link_to "Edit More Links", help_links_path %></li>
+              <% end %>
+            </ul>
+          </li>
+        <% end %>
+
+        <li class="visible-xs"><%= link_to "Logout", destroy_user_session_path, method: :delete %></li>
+      </ul>
+
+      <ul class="nav navbar-nav navbar-right hidden-xs">
+        <% if Rails.env.development? %>
+          <li class="navbar-text">
+            <span class="label label-info">dev</span>
+          </li>
+        <% elsif Rails.env.review? %>
+          <li class="navbar-text">
+            <span class="label label-primary">review</span>
+          </li>
+        <% elsif Rails.env.staging? %>
+          <li class="navbar-text">
+            <span class="label label-danger">staging</span>
+          </li>
+        <% end %>
+
+        <% if current_user.super_admin? && ENV["STOCKAID_GOOGLE_HANGOUT"].present? %>
+          <%= tab("Google Hangout", ENV["STOCKAID_GOOGLE_HANGOUT"], false) %>
+        <% end %>
+
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+            <%= notifications_badge %>
+            <%= current_user.email %>
+            <span class="caret"></span>
+          </a>
+          <ul class="dropdown-menu">
+            <% if current_user.can_backup? %>
+              <li><%= link_to "Download Backup", backup_path, data: { turbolinks: false } %></li>
+              <li role="separator" class="divider"></li>
+            <% end %>
+
+            <% if current_user.can_view_profiler_results? %>
+              <li><%= link_to Profiler.toggle_label(session), toggle_profiler_path, method: :post %></li>
+              <li role="separator" class="divider"></li>
+            <% end %>
+
+            <% if current_user.super_admin? && ENV["STOCKAID_STAGING_LINK"].present? %>
+              <li><%= link_to "Staging StockAid", ENV["STOCKAID_STAGING_LINK"], target: :_blank %></li>
+              <li role="separator" class="divider"></li>
+            <% end %>
+
+            <% if !Rails.env.production? && Rails.application.config.action_mailer.delivery_method == :letter_opener_web %>
+              <li><%= link_to "View Emails", letter_opener_web_path, target: "_blank" %></li>
+              <li role="separator" class="divider"></li>
+            <% end %>
+
+            <% if current_user.can_view_integrations? %>
+              <li><%= link_to "NetSuite Errors", net_suite_errors_path %></li>
+              <li role="separator" class="divider"></li>
+            <% end %>
+
+            <% if current_user.can_subscribe_to_notifications? %>
+              <li>
+                <%= link_to notifications_path do %>
+                  <%= notifications_badge %> Notifications
+                <% end %>
+              </li>
+              <li role="separator" class="divider"></li>
+            <% end %>
+
+            <li><%= link_to "Edit User", edit_user_path(current_user) %></li>
+            <li><%= link_to "Logout", destroy_user_session_path, method: :delete %></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </nav>
+<% end %>

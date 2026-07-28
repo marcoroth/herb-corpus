@@ -1,0 +1,111 @@
+<div class="flex max-w-4xl flex-col gap-8 p-4">
+  <section>
+    <%= pathogen_heading(level: 3, class: "mb-2") { "Click-through after hide" } %>
+
+    <%= pathogen_supporting(variant: :muted, class: "mb-4") do %>
+      Manual visual regression check for a bug where a tooltip becomes hidden but still blocks clicks on elements
+      underneath it.
+    <% end %>
+
+    <div class="rounded-[var(--pvc-radius-panel)] border border-[var(--pvc-color-border)] bg-[var(--pvc-color-surface)] p-4">
+      <ol class="list-decimal space-y-1 pl-5 text-sm text-[var(--pvc-color-text-muted)]">
+        <li>Hover the “Tooltip trigger” button to show the tooltip.</li>
+        <li>Move your mouse away to hide the tooltip.</li>
+
+        <li>
+          Immediately click the “Underlying action” button. The click counter should increment every time after the
+          tooltip closes.
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="rounded-[var(--pvc-radius-panel)] border border-[var(--pvc-color-border)] bg-[var(--pvc-color-surface)] p-4">
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <%= pathogen_supporting(tag: :span, variant: :muted) { "Underlying action clicks" } %>
+
+          <p id="pv-tooltip-clicks" class="mt-1 text-3xl font-semibold text-[var(--pvc-color-text)]">0</p>
+        </div>
+
+        <%= render Pathogen::Button.new(id: "pv-tooltip-reset", tone: :neutral, emphasis: :outline, size: :small, text: "Reset") %>
+      </div>
+
+      <div
+        class="
+          rounded-[var(--pvc-radius-panel)] border border-[var(--pvc-color-border)]
+          bg-[var(--pvc-color-surface-muted)] p-6
+        "
+      >
+        <div class="flex flex-col items-center gap-3">
+          <div
+            data-controller="pathogen--tooltip"
+            data-pathogen--tooltip-portal-aria-label-value="<%= Pathogen::Tooltip.portal_aria_label %>"
+            class="flex flex-col items-center"
+          >
+            <%= render Pathogen::Button.new(
+                  tone: :neutral,
+                  emphasis: :outline,
+                  size: :small,
+                  text: "Tooltip trigger",
+                  aria: { describedby: "pv-tooltip-1" },
+                  data: { "pathogen--tooltip-target": "trigger" }
+                ) %>
+
+            <%= render Pathogen::Tooltip.new(
+              id: "pv-tooltip-1",
+              text: "I should not block clicks after I hide.",
+              placement: :bottom,
+            ) %>
+          </div>
+
+          <%= render Pathogen::Button.new(id: "pv-underlying-action", tone: :primary, emphasis: :solid, text: "Underlying action") %>
+
+          <%= pathogen_supporting(tag: :span, variant: :muted, class: "max-w-xl text-center") do %>
+            Tooltip placement is <%= pathogen_code { ":bottom" } %>. While open, it overlaps the button above; after it
+            hides, the button must be clickable immediately.
+          <% end %>
+        </div>
+      </div>
+
+      <div
+        class="
+          mt-4 rounded-[var(--pvc-radius-panel)] border border-[var(--pvc-color-border)]
+          bg-[var(--pvc-color-surface-muted)] p-3
+        "
+      >
+        <%= pathogen_supporting(tag: :span, class: "font-semibold text-[var(--pvc-color-text)]") { "What “broken” looks like" } %>
+
+        <%= pathogen_supporting(variant: :muted, class: "mt-2") do %>
+          If the tooltip is visually hidden but still intercepting pointer events, clicks on “Underlying action” will
+          not increment the counter even though the tooltip looks gone.
+        <% end %>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script nonce="<%= request.content_security_policy_nonce %>">
+  (function () {
+    const clicksEl = document.getElementById("pv-tooltip-clicks");
+    const actionBtn = document.getElementById("pv-underlying-action");
+    const resetBtn = document.getElementById("pv-tooltip-reset");
+    if (!clicksEl || !actionBtn || !resetBtn) return;
+
+    let clicks = 0;
+    const render = () => {
+      clicksEl.textContent = String(clicks);
+    };
+
+    actionBtn.addEventListener("click", () => {
+      clicks += 1;
+      render();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      clicks = 0;
+      render();
+    });
+  })();
+</script>

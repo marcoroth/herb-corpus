@@ -1,0 +1,72 @@
+<%# <% provide(:title, "Editing poll ##{@poll.id}") %>
+
+<div class="container">
+
+  <h3><%= yield(:title) %></h3>
+
+  <% is_actually_confirmed = Poll.find(@poll.id).confirmed? %>
+  <% if is_actually_confirmed %>
+    <% if @poll.over? %>
+      <%= alert :danger do %>
+        This poll is closed (deadline has passed). Check out the <%= link_to "results", polls_results_path(@poll) %>.
+      <% end %>
+    <% else %>
+      <%= alert :info do %>
+        This poll is open to <%= link_to "voting", polls_vote_path(@poll) %>. Editing question or options is not allowed.
+      <% end %>
+    <% end %>
+    <script>
+    $(document).ready(function() {
+      $("#poll_question").prop("disabled", true);
+      //$("#poll_multiple").prop("readonly", true);
+      $("#poll_comment").prop("disabled", true);
+      $(".nested-fields").children().prop("disabled", true);
+      $(".add_fields").hide();
+      $(".nested-fields").find('a').hide();
+      $("#confirm").hide();
+    });
+    </script>
+  <% else %>
+    <%= alert :info do %>
+      This poll is not open to voting. You can see a preview <%= link_to 'here', polls_vote_path, target: '_blank' %>.
+      Click confirm when you're ready to enable voting!
+    <% end %>
+  <% end %>
+
+  <%= horizontal_simple_form_for @poll, html: { class: 'are-you-sure no-submit-on-enter' } do |f| %>
+    <%= f.input :question %>
+    <%= f.input :comment, label: "Room for additional information" %>
+    <%= f.input :multiple, label: "Allow multiple answers", disabled: is_actually_confirmed %>
+    <%= f.input :deadline, as: :datetime_picker, hint: "Note: Deadline is in UTC time" %>
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        Options
+      </div>
+      <div class="panel-body">
+        <%= f.fields_for :poll_options do |options_form| %>
+          <%= render 'poll_option_fields', f: options_form %>
+        <% end %>
+
+        <div class="links">
+          <%= link_to_add_association button_tag(raw("#{ui_icon("plus")} Add option"), type: "button", class: "btn btn-primary"), f, :poll_options %>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="col-sm-offset-2 col-sm-10">
+        <%= f.button :submit, class: "btn-primary" %>
+        <% if !@poll.confirmed? %>
+          <%= link_to button_tag('Delete', type: "button", class: "btn btn-danger"), @poll, method: :delete, data: { confirm: "Are you sure you want to delete this poll? There is no going back." } %>
+        <% end %>
+        <%= button_tag(type: "submit", id: "confirm", name: "commit", value: "Confirm", class: "btn btn-success", data: { confirm: "Are you sure you want to confirm this poll? You will no longer be able to add, edit or delete options." }) do %>
+          Confirm
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+  <%= link_to polls_path, class: "btn btn-default" do %>
+    <%= ui_icon("undo") %> Back to Polls
+  <% end %>
+
+</div>

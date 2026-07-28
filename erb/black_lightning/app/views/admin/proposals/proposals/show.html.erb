@@ -1,0 +1,34 @@
+<% fields = {
+  proposal_labels: { type: 'content', content: proposal_labels(@proposal, false) },
+  status: @proposal.formatted_status,
+  call: get_link(@proposal.call, :show),
+  submission_deadline:  l(@proposal.call.submission_deadline, format: :longy),
+  editing_deadline: l(@proposal.call.editing_deadline, format: :longy),
+  publicity_text: render_markdown(@proposal.publicity_text),
+  proposal_text: render_markdown(@proposal.proposal_text),
+  team_members: { type: 'content', content: render('/shared/admin_show_team_members', team_members: @proposal.team_members.ordered, deadline: @proposal.call.editing_deadline) },
+  questions_and_answers: { type: 'content', header: 'Questions', content: render(Admin::QuestionsAndAnswersComponent.new(answers: @proposal.answers)) }
+} %>
+
+<% content_for :extra_show_actions do %>
+  <%= get_link @proposal, :convert, http_method: :put, additional_condition: @proposal.successful? %>
+
+  <% if can?(:approve, @proposal) && @proposal.awaiting_approval? %>
+      <% if @proposal.has_debtors %>
+        <% confirm = "Approving #{ @proposal.show_title}" %>
+        <% detail = "Warning: You are attempting to approve a show with debtors.\n Please type 'Ignoring Debt' to confirm" %>
+        <% type_confirm = 'Ignoring Debt' %>
+      <% end %>
+
+      <%= get_link @proposal, :approve, confirm: confirm, detail: detail, type_confirm: type_confirm %>
+      <%= get_link @proposal, :reject %>
+  <% end %>
+
+  <% if can?(:approve, @proposal) && @proposal.approved? %>
+      <%= get_link @proposal, :mark_successful %>
+      <%= get_link @proposal, :mark_unsuccessful %>
+  <% end %>
+<% end %>
+
+<% show_actions_args = { index_link_params: { link_text: 'View Other Proposals', link_target: admin_proposals_call_proposals_path(@proposal.call)} } %>
+<%= render('shared/pages/show', object: @proposal, fields: fields, show_actions_args: show_actions_args ) %>

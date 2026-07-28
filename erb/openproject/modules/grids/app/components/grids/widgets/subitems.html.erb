@@ -1,0 +1,120 @@
+<%#-- copyright
+
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<%=
+  widget_wrapper do |container|
+    container.with_header(title:) do |header|
+      header.with_action_menu(
+        menu_arguments: {},
+        button_arguments: { icon: :plus,
+                            scheme: :invisible,
+                            aria: { label: I18n.t(:button_add_sub_item) } }
+      ) do |menu|
+        if can_create_sub_programs?
+          menu.with_item(
+            label: I18n.t(:label_program),
+            tag: :a,
+            href: create_sub_program_path
+          ) do |item|
+            item.with_leading_visual_icon(icon: :versions)
+          end
+        end
+
+        if can_create_sub_projects?
+          menu.with_item(
+            label: I18n.t(:label_project),
+            tag: :a,
+            href: create_sub_project_path
+          ) do |item|
+            item.with_leading_visual_icon(icon: :project)
+          end
+        end
+      end
+    end
+
+    if can_view_subprojects?
+      if has_subitems?
+        displayed_subitems.each do |child|
+          container.with_row do
+            flex_layout do |row|
+              row.with_column do
+                render(Primer::Beta::Text.new(color: :subtle)) do
+                  concat render Primer::Beta::Octicon.new(
+                    icon: helpers.workspace_icon(child.workspace_type),
+                    mr: 1,
+                    color: :subtle,
+                    "aria-label": child.workspace_label
+                  )
+                  concat child.workspace_label
+                end
+              end
+
+              row.with_column(ml: 2) do
+                render(Primer::Beta::Link.new(href: project_path(child))) { child.name }
+              end
+
+              row.with_column(ml: 2) do
+                render(Projects::StatusBadgeComponent.new(project: child))
+              end
+            end
+          end
+        end
+
+        if has_more_subitems?
+          container.with_footer do
+            render(Primer::Beta::Link.new(href: view_all_subitems_path)) { t(".view_all_subitems") }
+          end
+        end
+      else
+        render(Primer::Beta::Blankslate.new(test_selector: "subitems-widget-empty")) do |component|
+          component.with_visual_icon(icon: :workflow)
+          component.with_heading(tag: :h3).with_content(title)
+          component.with_description { t("grids.widgets.empty") }
+
+          if can_manage_subprojects?
+            component.with_primary_action(
+              href: new_project_path(parent_id: project.id),
+              test_selector: "subitems-widget-add-button",
+              scheme: :secondary
+            ) do |button|
+              button.with_leading_visual_icon(icon: :plus)
+              t(:label_subproject)
+            end
+          end
+        end
+      end
+    else
+      render(Primer::Beta::Blankslate.new(test_selector: "subitems-widget-no-permission")) do |component|
+        component.with_heading(tag: :h3).with_content(title)
+        component.with_description { t("grids.widgets.not_available") }
+      end
+    end
+  end
+%>

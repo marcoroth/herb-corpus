@@ -1,0 +1,170 @@
+<%= page_title "#{@feed.name}" %>
+
+<div id="<%= dom_id @feed %>">
+  <!-- Feed Header -->
+  <div class="card mb-6">
+    <div class="card-body">
+      <div class="border-b border-neutral-200 pb-4 mb-6">
+        <div class="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+          <div>
+            <h1 class="text-h2 text-neutral-900"><%= @feed.name %></h1>
+          </div>
+          <div class="flex gap-3">
+            <% if policy(@feed).edit? %>
+              <%= link_to "Edit Feed", edit_feed_path(@feed), class: "btn btn-primary" %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <dl class="space-y-6">
+        <!-- Description -->
+        <% if @feed.description.present? %>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <dt class="text-body font-medium text-neutral-700">Description</dt>
+            <dd class="text-body text-neutral-900 sm:col-span-2">
+              <%= @feed.description %>
+            </dd>
+          </div>
+        <% end %>
+
+        <!-- Managers -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <dt class="text-body font-medium text-neutral-700">Managers</dt>
+          <dd class="text-body text-neutral-900 sm:col-span-2">
+            <%= link_to @feed.group.name, @feed.group %>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Content Section -->
+  <div class="card mb-6">
+    <div class="card-body">
+      <div class="border-b border-neutral-200 pb-4 mb-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <h2 class="text-h3 text-neutral-900">Content</h2>
+
+          <% if policy(@feed).edit? %>
+            <!-- Moderation Status Toggle -->
+            <div class="flex space-x-1 bg-neutral-100 p-1 rounded-lg">
+              <%= link_to feed_path(@feed, status: "approved"),
+                  class: "px-3 py-2 text-sm font-medium rounded-md transition-colors #{@status == 'approved' ? 'bg-white text-brand-500 shadow-sm' : 'text-neutral-700 hover:text-neutral-900'}" do %>
+                Approved
+                <span class="ml-1.5 px-1.5 py-0.5 text-xs bg-success text-white rounded-full">
+                  <%= @feed.approved_submissions.count %>
+                </span>
+              <% end %>
+
+              <%= link_to feed_path(@feed, status: "pending"),
+                  class: "px-3 py-2 text-sm font-medium rounded-md transition-colors #{@status == 'pending' ? 'bg-white text-brand-500 shadow-sm' : 'text-neutral-700 hover:text-neutral-900'}" do %>
+                Pending
+                <span class="ml-1.5 px-1.5 py-0.5 text-xs bg-warning text-white rounded-full">
+                  <%= @feed.submissions.pending.count %>
+                </span>
+              <% end %>
+
+              <%= link_to feed_path(@feed, status: "rejected"),
+                  class: "px-3 py-2 text-sm font-medium rounded-md transition-colors #{@status == 'rejected' ? 'bg-white text-brand-500 shadow-sm' : 'text-neutral-700 hover:text-neutral-900'}" do %>
+                Rejected
+                <span class="ml-1.5 px-1.5 py-0.5 text-xs bg-error text-white rounded-full">
+                  <%= @feed.submissions.rejected.count %>
+                </span>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <% if @status == "approved" %>
+        <%# Scope toggle for approved content - visible to all users %>
+        <% approved_content = @feed.approved_content %>
+        <div class="flex items-center gap-4 mb-6 border-b border-neutral-200">
+          <%= link_to feed_path(@feed, status: @status, scope: "active"),
+              class: "pb-2 text-sm font-medium border-b-2 transition-colors #{@scope == 'active' ? 'border-brand-500 text-brand-500' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'}" do %>
+            Active
+            <span class="ml-1 text-xs text-neutral-400">(<%= approved_content.active.count %>)</span>
+          <% end %>
+
+          <%= link_to feed_path(@feed, status: @status, scope: "upcoming"),
+              class: "pb-2 text-sm font-medium border-b-2 transition-colors #{@scope == 'upcoming' ? 'border-brand-500 text-brand-500' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'}" do %>
+            Upcoming
+            <span class="ml-1 text-xs text-neutral-400">(<%= approved_content.upcoming.count %>)</span>
+          <% end %>
+
+          <%= link_to feed_path(@feed, status: @status, scope: "expired"),
+              class: "pb-2 text-sm font-medium border-b-2 transition-colors #{@scope == 'expired' ? 'border-brand-500 text-brand-500' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'}" do %>
+            Expired
+            <span class="ml-1 text-xs text-neutral-400">(<%= approved_content.expired.count %>)</span>
+          <% end %>
+        </div>
+
+        <% scoped_content = case @scope
+                            when "active" then approved_content.active
+                            when "upcoming" then approved_content.upcoming
+                            when "expired" then approved_content.expired
+                            else approved_content.active
+                            end %>
+        <% if scoped_content.empty? %>
+          <div class="text-center py-12">
+            <div class="text-neutral-500 mb-4">
+              <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-body font-medium text-neutral-900 mb-2">No <%= @scope %> content</h3>
+            <p class="text-body text-neutral-700 mb-6">This feed has no <%= @scope %> approved content.</p>
+            <% if policy(Content).create? %>
+              <%= link_to "Add Content", new_content_path, class: "btn btn-primary" %>
+            <% end %>
+          </div>
+        <% else %>
+          <%= render partial: "contents/grid", locals: {contents: scoped_content} %>
+        <% end %>
+      <% else %>
+        <% submissions = @feed.submissions.includes(content: :user).where(moderation_status: @status) %>
+        <% if submissions.any? %>
+          <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <% submissions.each do |submission| %>
+              <%= render partial: "submissions/card", locals: { submission: submission } %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-12">
+            <div class="text-neutral-500 mb-4">
+              <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-body font-medium text-neutral-900 mb-2">No <%= @status %> submissions</h3>
+            <p class="text-body text-neutral-700">There are no <%= @status %> submissions for this feed.</p>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="card">
+    <div class="card-body">
+      <div class="flex flex-col sm:flex-row gap-6 justify-between items-start sm:items-center">
+        <div class="flex flex-col sm:flex-row gap-4">
+          <%= link_to "Back to Feeds", feeds_path, class: "btn btn-secondary" %>
+        </div>
+        
+        <% if policy(@feed).destroy? %>
+          <div class="flex-shrink-0">
+            <%= button_to "Delete this Feed", feed_path(@feed),
+                method: :delete,
+                class: "btn btn-danger",
+                form_class: "inline-block",
+                form: { data: {
+                  turbo_confirm: "Are you sure you want to delete this feed? This action cannot be undone."
+                } } %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

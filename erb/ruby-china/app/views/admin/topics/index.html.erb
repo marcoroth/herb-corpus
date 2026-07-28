@@ -1,0 +1,64 @@
+<% content_for :sitemap do %>
+  <span class="current"><%= t("admin.menu.topics")%></span>
+<% end %>
+<div class="toolbar">
+  <form class="form-inline" action="<%= admin_topics_path %>">
+    <input type="text" name="q" class="form-control" value="<%= params[:q] %>" placeholder="Title">
+    <input type="text" name="login" class="form-control" value="<%= params[:login] %>" placeholder="Username">
+    <button class="btn btn-secondary">Search</button>
+  </form>
+</div>
+<table class="table table-bordered table-striped table-condensed">
+  <tr class="head">
+    <th class="first">#</th>
+    <th class="w-[300px]">Title</th>
+    <th>Node</td>
+    <th>Creator</td>
+    <td>Replies</td>
+    <td>Time</td>
+    <td></td>
+  </tr>
+  <% @topics.each do |topic| %>
+    <tr class="<%= 'deleted' if !topic.deleted_at.blank? %> <%= 'ban' if topic.ban? %>">
+      <td class="first"><%= topic.id %></td>
+      <td>
+        <%= link_to truncate(topic.title, length: 30), topic, target: "_blank" %>
+      </td>
+      <td><%= topic.node&.name %></td>
+      <td><%= user_name_tag(topic.user) %></td>
+      <td><%= topic.replies_count %></td>
+      <td>
+        <% if topic.deleted_at.blank? %>
+          <%= l topic.created_at, format: :short %>
+        <% else %>
+          <%= link_to topic.who_deleted, user_path(topic.who_deleted) if not topic.who_deleted.blank? %> Deleted at <br>
+          <%= l topic.deleted_at, format: :short %>
+        <% end %>
+      </td>
+      <td class="actions">
+        <div class="btn-group">
+        <% if !topic.suggested_at.blank? %>
+          <%= link_to unsuggest_admin_topic_path(topic), 'data-confirm' => 'Are you sure?', title: t("common.un_top"), method: :post, class: "btn btn-secondary btn-sm" do %>
+            <i class="fa fa-unpin"></i>
+          <% end %>
+        <% else %>
+          <%= link_to suggest_admin_topic_path(topic), title: t("common.place_top"), 'data-confirm' => 'Are you sure?', method: :post, class: "btn btn-secondary btn-sm" do %>
+            <i class="fa fa-pin"></i>
+          <% end %>
+        <% end %>
+        <%= link_to edit_admin_topic_path(topic), class: "btn btn-secondary btn-sm" do %>
+          <i class="fa fa-edit"></i>
+        <% end %>
+        <% if topic.deleted_at.blank? %>
+          <%= link_to admin_topic_path(topic), 'data-confirm' => 'Are you sure?', method: :delete, class: "btn btn-secondary btn-sm" do %>
+            <i class="fa fa-trash"></i>
+          <% end %>
+        <% else %>
+          <%= link_to "", revert_admin_topic_path(topic), title: t("common.revert"), 'data-confirm' => 'Are you sure?', method: :post, class: "btn btn-secondary btn-sm fa fa-undo" %>
+        <% end %>
+        </div>
+      </td>
+    </tr>
+  <% end %>
+</table>
+<%= paginate @topics %>

@@ -1,0 +1,89 @@
+<%#
+kind: PXEGrub2
+name: Kickstart default PXEGrub2
+model: ProvisioningTemplate
+oses:
+- AlmaLinux
+- CentOS
+- CentOS_Stream
+- Fedora
+- RedHat
+- Rocky
+description: |
+  The template to render Grub2 bootloader configuration for kickstart based distributions.
+  The output is deployed on the host's subnet TFTP proxy.
+test_on:
+- host4dhcp
+- host6dhcp
+- host4and6dhcp
+- host4static
+- host6static
+-%>
+# This file was deployed via '<%= template_name %>' template
+<%
+  rhel_compatible = @host.operatingsystem.family == 'Redhat' && @host.operatingsystem.name != 'Fedora'
+  os_major = @host.operatingsystem.major.to_i
+
+  if rhel_compatible && os_major == 7 && ['i386','x86_64'].include?(@host.architecture.to_s) && @host.pxe_loader_efi?
+    #
+    # The linuxefi and initrdefi commands, despite their names, are specific to
+    # x86 and its "EFI Handover Protocol." They do not exist in upstream Grub
+    # and have been added to Fedora's since Fedora 17.
+    #
+    # https://docs.kernel.org/arch/x86/boot.html#efi-handover-protocol-deprecated
+    # https://src.fedoraproject.org/rpms/grub2/blob/f39/f/0004-Add-support-for-Linux-EFI-stub-loading.patch
+    #
+    # EL6's kernel did not support EFI Handover ("kernel too old"). EL7's does,
+    # and its Grubby generates {linux,initrd}efi commands (excluding aarch64),
+    # but that ends in EL8's BLS support.
+    #
+    # https://projects.theforeman.org/issues/24026
+    # https://git.centos.org/rpms/grubby/blob/c7/f/SOURCES/0008-Use-the-correct-load-commands-for-aarch64-efi.patch
+    # https://git.centos.org/rpms/grub2/blob/c8s/f/SOURCES/0207-blscfg-Get-rid-of-the-linuxefi-linux16-linux-distinc.patch
+    #
+    linuxcmd = "linuxefi"
+    initrdcmd = "initrdefi"
+  else
+    linuxcmd = "linux"
+    initrdcmd = "initrd"
+  end
+-%>
+
+set default=<%= host_param('default_grub_install_entry') || 0 %>
+set timeout=<%= host_param('loader_timeout') || 10 %>
+
+menuentry '<%= template_name %>' {
+  <%= linuxcmd %> <%= @kernel %> <%= pxe_kernel_options %> <%= snippet("kickstart_kernel_options").strip %>
+  <%= initrdcmd %> <%= @initrd %>
+}
+
+<%
+# Workaround for https://bugzilla.redhat.com/show_bug.cgi?id=1811561 and https://bugzilla.redhat.com/show_bug.cgi?id=1842893
+subnet = @host.provision_interface.subnet || @host.provision_interface.subnet6
+if subnet && subnet.httpboot
+  proxy_http_port = subnet.httpboot.httpboot_http_port
+  proxy_https_port = subnet.httpboot.httpboot_https_port
+  # Workaround for "no DNS server configured" https://bugzilla.redhat.com/show_bug.cgi?id=1842509
+  proxy_host = dns_lookup(subnet.httpboot.hostname)
+-%>
+<% if proxy_http_port -%>
+menuentry '<%= template_name %> EFI HTTP' --id efi_http {
+  <%= linuxcmd %> (http,<%= proxy_host %>:<%= proxy_http_port %>)/httpboot/<%= @kernel %> <%= pxe_kernel_options %> <%= snippet("kickstart_kernel_options").strip %>
+  <%= initrdcmd %> (http,<%= proxy_host %>:<%= proxy_http_port %>)/httpboot/<%= @initrd %>
+}
+<% else -%>
+# Smart proxy does not have HTTPBoot feature with HTTP port enabled, skipping EFI HTTP boot menu entry
+<% end -%>
+
+<% if proxy_https_port -%>
+menuentry '<%= template_name %> EFI HTTPS' --id efi_https {
+  <%= linuxcmd %> (https,<%= proxy_host %>:<%= proxy_https_port %>)/httpboot/<%= @kernel %> <%= pxe_kernel_options %> <%= snippet("kickstart_kernel_options").strip %>
+  <%= initrdcmd %> (https,<%= proxy_host %>:<%= proxy_https_port %>)/httpboot/<%= @initrd %>
+}
+<% else -%>
+# Smart proxy does not have HTTPBoot feature with HTTPS port enabled, skipping EFI HTTPS boot menu entry
+<% end -%>
+
+<% end %>
+
+<%= snippet_if_exists(template_name + " custom menu") %>

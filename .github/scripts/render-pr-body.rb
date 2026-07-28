@@ -1,0 +1,83 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Renders the weekly drift PR body from the JSON that `bin/corpus drift` and
+# `bin/corpus update` emit. Kept out of the workflow YAML so it can be run and
+# eyeballed locally:
+#
+#   bin/corpus drift --json > /tmp/drift.json
+#   bin/corpus update --report /tmp/update.json
+#   .github/scripts/render-pr-body.rb /tmp/drift.json /tmp/update.json
+
+require "json"
+
+drift_path, update_path = ARGV
+
+abort "usage: render-pr-body.rb DRIFT_JSON UPDATE_JSON" unless drift_path && update_path
+
+drift = JSON.parse(File.read(drift_path))
+update = File.exist?(update_path) ? JSON.parse(File.read(update_path)) : { "moved" => [], "skipped" => [], "failed" => [] }
+
+moved = update["moved"] || []
+skipped = update["skipped"] || []
+failed = update["failed"] || []
+unreachable = drift["unreachable"] || []
+
+erb_delta = moved.sum { |entry| entry["erb_after"].to_i - entry["erb_before"].to_i }
+
+def sign(number) = number.positive? ? "+#{number}" : number.to_s
+
+out = []
+
+out << "Automated weekly pin update. Each app below moved to the tip of the branch"
+out << "recorded in `.gitmodules`; `erb/` has been regenerated for those apps only."
+out << ""
+out << "**#{moved.size} pin(s) moved** out of #{drift["total"]} tracked · **#{sign(erb_delta)} `.erb` files**"
+out << ""
+
+if moved.any?
+  out << "| App | From | To | Commits | ERB |"
+  out << "| --- | --- | --- | --- | --- |"
+
+  moved.sort_by { |entry| -(entry["erb_after"].to_i - entry["erb_before"].to_i).abs }.each do |entry|
+    delta = entry["erb_after"].to_i - entry["erb_before"].to_i
+    compare = "https://github.com/#{entry["repo"]}/compare/#{entry["from"][0, 12]}...#{entry["to"][0, 12]}"
+    erb_cell = delta.zero? ? entry["erb_after"].to_s : "#{entry["erb_after"]} (#{sign(delta)})"
+
+    out << "| `#{entry["name"]}` | `#{entry["from"][0, 8]}` | [`#{entry["to"][0, 8]}`](#{compare}) | #{entry["commits"]} | #{erb_cell} |"
+  end
+
+  out << ""
+end
+
+if unreachable.any?
+  out << "### Unreachable"
+  out << ""
+  out << "These remotes could not be queried. The pinned commits may no longer be"
+  out << "fetchable, which means a fresh clone cannot reproduce the corpus:"
+  out << ""
+  unreachable.each { |entry| out << "- `#{entry["name"]}` — `#{entry["repo"]}` branch `#{entry["branch"]}`" }
+  out << ""
+end
+
+if failed.any?
+  out << "### Failed to update"
+  out << ""
+  failed.each { |entry| out << "- `#{entry["name"]}` — #{entry["reason"]}" }
+  out << ""
+end
+
+if skipped.any?
+  out << "### Skipped"
+  out << ""
+  skipped.each { |entry| out << "- `#{entry["name"]}` — #{entry["reason"]}" }
+  out << ""
+end
+
+out << "---"
+out << ""
+out << "Merging changes the corpus, so Herb results measured before and after are"
+out << "not directly comparable. Re-run Herb's corpus check against the new pins"
+out << "and record the parse-error baseline in the merge commit."
+
+puts out.join("\n")

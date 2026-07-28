@@ -1,0 +1,68 @@
+// Copyright 2014 Square Inc.
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+
+$(document).ready(function() { new PageManager().setup(); });
+
+function PageManager() {
+  this.setup = function() {
+    this.resetClickBinds();
+    this.setupSendsEmailsCheckboxes();
+
+    new MemberPanel($('#members'),
+                    "<%= escape_javascript @project.name %>",
+                    "<%= @project.to_param %>",
+                    "<%= users_url %>",
+                    "<%= project_memberships_url(@project, format: 'json') %>",
+                    "<%= project_membership_url(@project, 'USERID', format: 'json') %>",
+                    "<%= project_url(@project, format: 'json') %>",
+                    "<%= current_user.role(@project).to_s %>",
+                    window.location.hash == '#change_owner');
+  };
+
+  this.setupSendsEmailsCheckboxes = function() {
+    $('.environment form').each(function(_, formElement) {
+      var form = new SmartForm($(formElement), function() {});
+      $(formElement).find('input[type=checkbox]').click(function() { form.submit(); });
+    });
+  };
+
+  this.resetClickBinds = function() {
+    var self = this;
+    $('a.make-default').click(function(e) {
+      $.ajax("<%= project_url @project, format: 'json' %>", {
+        type: 'PATCH',
+        data: $.param({
+                        'project[default_environment_id]': $(e.currentTarget).data('id'),
+                        '<%= request_forgery_protection_token %>': '<%= form_authenticity_token %>'
+                      }),
+        success: function() {
+          // change Default to Make Default
+          var parent = $('#default-indicator').parent();
+          var id = $('#default-indicator').data('id');
+          parent.empty();
+          $('<a/>').text('Make default').attr({href: '#', 'data-id': id}).addClass('make-default').appendTo(parent);
+
+          // change Make Default to Default
+          parent = $(e.currentTarget).parent();
+          id = $(e.currentTarget).data('id');
+          parent.empty();
+          $('<strong/>').text("Default").attr({'data-id': id, id: 'default-indicator'}).appendTo(parent);
+
+          self.resetClickBinds();
+        },
+        error: function() { new Flash('alert').text("An error occurred when setting the default environment."); }
+      });
+    });
+  };
+}

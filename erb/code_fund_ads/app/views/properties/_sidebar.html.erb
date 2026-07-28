@@ -1,0 +1,87 @@
+<%
+  paid_summary = subject.summary(@start_date, @end_date, paid: true)
+  unpaid_summary = subject.summary(@start_date, @end_date, paid: false)
+%>
+<div class="page-sidebar">
+  <header class="sidebar-header d-sm-none">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item active">
+          <a href="#" onclick="CodeFundTheme.toggleSidebar()"><i class="breadcrumb-icon fa fa-angle-left mr-2"></i>Back</a>
+        </li>
+      </ol>
+    </nav>
+  </header>
+
+  <div class="sidebar-section-fill">
+    <div class="card card-reflow">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mt-2">
+          <h4 class="card-title">Details</h4>
+          <%= link_to "Edit", edit_property_path(subject) %>
+        </div>
+        <div class="list-group list-group-bordered list-group-reflow">
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Name</span> <span><%= subject.name %></span>
+          </div>
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Website</span> <span><a href="<%= subject.url %>" target="_blank" rel="noopener"><%= pretty_url(subject.url) %></a></span>
+          </div>
+          <% if authorized_user.can_admin_system? %>
+            <div class="list-group-item justify-content-between align-items-center px-0">
+              <span class="text-muted">Owner</span> <span><%= link_to subject.user&.name, subject.user %></span>
+            </div>
+          <% end %>
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Audience</span> <span><%= subject.audience&.name %></span>
+          </div>
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Status</span> <span><%= subject.status.humanize %></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body border-top">
+        <div class="d-flex justify-content-between mt-2">
+          <h4 class="card-title">Summary</h4>
+        </div>
+        <div class="list-group list-group-bordered list-group-reflow">
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Earnings</span> <span><%= subject.earnings(@start_date, @end_date).format %></span>
+          </div>
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Average CTR</span> <span><%= number_to_percentage paid_summary&.click_rate, precision: 2 %></span>
+          </div>
+          <div class="list-group-item justify-content-between align-items-center px-0">
+            <span class="text-muted">Average RPM</span> <span><%= subject.average_rpm(@start_date, @end_date).format %></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body border-top">
+        <div class="d-flex justify-content-between mt-2">
+          <h4 class="card-title">Regions Countries</h4>
+        </div>
+        <div class="list-group list-group-bordered list-group-reflow">
+          <% subject.region_summaries(@start_date, @end_date).each do |region, summaries| %>
+            <div class="list-group-item justify-content-between align-items-center px-0">
+              <span class="text-muted"><%= truncate region&.name %></span>
+              <span><small class="text-muted">(<%= number_with_delimiter summaries.sum(&:impressions_count) %>)</small> <%= summaries.sum(&:property_revenue).format %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <% if authorized_user(true).can_admin_system? %>
+        <div class="card-body border-top">
+          <div class="d-flex justify-content-between mt-2">
+            <h4 class="card-title">Changelog</h4>
+          </div>
+          <ul class="timeline timeline-fluid">
+            <%= render "/versions/timeline", versionable: subject %>
+          </ul>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

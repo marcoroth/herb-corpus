@@ -1,0 +1,103 @@
+<% title "#{@project} #{@version} on #{@project.platform_name}" %>
+<% description project_description(@project, @version) %>
+<% content_for :atom, auto_discovery_link_tag(:atom, rss_url(@project)) %>
+<%= content_for :meta, render_meta(@project) %>
+<% if params[:number] %>
+<% content_for :canonical_url do %><%= url_for project_path(@project.to_param) %><% end %>
+<% end %>
+
+<%= render 'projects/alerts' %>
+
+<div class='row'>
+  <div class='col-md-8'>
+    <div class="row">
+      <div class='col-md-7'>
+        <h1>
+          <%= @project %>
+          <br>
+          <small class='hidden-xs'>
+            <%= @project.release_or_tag.singularize.titlecase %>
+            <% if @version %>
+              <%= @version %>
+            <% else %>
+              <%= @project.latest_release_number %>
+            <% end %>
+          </small>
+        </h1>
+      </div>
+      <div class='col-md-5 sidebar'>
+        <%= render 'projects/actions' %>
+      </div>
+    </div>
+
+    <% if @project.description.present? %>
+      <p>
+        <%= @project.description %>
+      </p>
+    <% end %>
+    <%= render 'projects/links' %>
+    <hr>
+    <%= render 'projects/details' %>
+
+    <% if @repository.present? && @repository.readme.present? %>
+      <hr>
+      <h3 data-ga-tracked-el='readme'>Documentation</h3>
+      <div class='well well-large' id='readme'>
+        <%== @repository.readme %>
+      </div>
+    <% end %>
+  </div>
+  <div class='col-md-4 sidebar'>
+    <% if @project.lifted? %>
+      <div class='row'>
+        <div class='col-xs-4'>
+          <%= image_tag("lifted-badge-small.png", width: 110) %>
+        </div>
+        <div class='col-xs-8'>
+          <p>
+            The maintainers of this project get paid by Tidelift to make sure it meets pre-defined standards around security, maintenance and licensing.
+          </p>
+          <p>
+            Want to learn more? <%= link_to "Chat with an expert", "https://www.tidelift.com/about/contact?utm_source=librariesio&utm_medium=referral&utm_campaign=lifterbadge", target: :blank %> at Tidelift.
+          </p>
+        </div>
+      </div>
+    <% end %>
+    <%= render 'projects/statistics' %>
+
+    <%= render 'projects/releases' %>
+
+    <%= render 'projects/owners' %>
+
+    <%= render 'projects/contributors' %>
+
+    <% if @version %>
+      <div id='version_dependencies' style='display:none;' data-url="<%= version_dependencies_path(@project.to_param.merge(number: @version.number)) %>"></div>
+    <% end %>
+
+    <% unless @project.recently_synced? %>
+      <% if logged_in? %>
+        <p>
+          <%= link_to sync_project_path(@project.to_param), class: 'btn btn-primary btn-xs', method: :post do %>
+            <%= fa_icon 'refresh' %>
+            Resync Project
+          <% end %>
+        </p>
+      <% else %>
+        <p>
+          <small class='text-muted'>
+            <%= link_to 'Login', login_path(return_to: request.original_url) %> to resync this project
+          </small>
+        </p>
+      <% end %>
+    <% end %>
+    <% if logged_in? && current_user.admin? && current_user.current_api_key.is_internal? %>
+      <p>
+        <%= link_to project_refresh_stats_path(@project.to_param), method: :post, class: 'btn btn-primary btn-xs' do %>
+          <%= fa_icon 'refresh' %>
+          Resync Stats
+        <% end %>
+      </p>
+    <% end %>
+  </div>
+</div>

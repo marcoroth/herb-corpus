@@ -1,0 +1,151 @@
+<%= form_with model: statistics_announcement, url: [:admin, statistics_announcement] do |form| %>
+  <%= form.hidden_field :publication_id %>
+  <%= render "govuk_publishing_components/components/radio", {
+    heading: "Statistics type (required)",
+    heading_size: "l",
+    name: "statistics_announcement[publication_type_id]",
+    id: "statistics_announcement_publication_type_id",
+    hint: statistics_announcement.new_record? ? nil : "Please note that changing the statistics type will also automatically update the type of the connected document.",
+    items: [
+      {
+        value: 5,
+        text: "Official Statistics",
+        name: "statistics_announcement[publication_type_id]",
+        id: "statistics_announcement_publication_type_id_5",
+        hint_text: "Statistics governed by the UK Statistics Authority.",
+        bold: true,
+        checked: statistics_announcement.publication_type_id == 5,
+      },
+      {
+        value: 15,
+        text: "Accredited Official Statistics",
+        name: "statistics_announcement[publication_type_id]",
+        id: "statistics_announcement_publication_type_id_15",
+        hint_text: "Official Statistics approved by the UK Statistics Authority. The Accredited Official Statistics logo will display on this announcement.",
+        bold: true,
+        checked: statistics_announcement.publication_type_id == 15,
+      },
+    ],
+    error_items: errors_for(statistics_announcement.errors, :publication_type_id),
+  } %>
+
+  <%= render "govuk_publishing_components/components/input", {
+    label: {
+      text: "Title (required)",
+      heading_size: "l",
+    },
+    value: statistics_announcement.title,
+    id: "statistics_announcement_title",
+    name: "statistics_announcement[title]",
+    error_message: errors_for_input(statistics_announcement.errors, :title),
+  } %>
+  <%= render "govuk_publishing_components/components/textarea", {
+    label: {
+      text: "Summary (required)",
+      heading_size: "l",
+    },
+    value: statistics_announcement.summary,
+    textarea_id: "statistics_announcement_summary",
+    name: "statistics_announcement[summary]",
+    rows: 5,
+    error_message: errors_for_input(statistics_announcement.errors, :summary),
+  } %>
+
+  <%= render "govuk_publishing_components/components/select_with_search", {
+    id: "statistics_announcement_organisations",
+    label: "Organisations (required)",
+    heading_size: "l",
+    name: "statistics_announcement[organisation_ids][]",
+    options: Organisation.with_translations.order("organisation_translations.name").map do |org|
+      {
+        text: org.select_name,
+        value: org.id,
+        selected: statistics_announcement.organisation_ids.include?(org.id),
+      }
+    end,
+    multiple: true,
+    error_items: errors_for(statistics_announcement.errors, :organisations),
+  } %>
+
+  <% if statistics_announcement.new_record? %>
+    <%= render "components/datetime_fields", {
+      id: "statistics_announcement_statistics_announcement_dates_release_date",
+      fieldset_legend: "Release date",
+      date_heading: "Date (required)",
+      field_name: "release_date",
+      prefix: "statistics_announcement[statistics_announcement_dates_attributes]",
+      error_items: errors_for(statistics_announcement.errors, :"statistics_announcement_dates.release_date"),
+      date_hint: "For example, 01 08 2022",
+      time_hint: "For example, 09:30 or 19:30",
+      year: {
+        id: "statistics_announcement_statistics_announcement_dates_attributes_release_date_1i",
+        value: params.dig("statistics_announcement", "statistics_announcement_dates_attributes", "release_date(1i)") || statistics_announcement.current_release_date&.release_date&.year,
+        name: "statistics_announcement[statistics_announcement_dates_attributes][release_date(1i)]",
+        label: "Year",
+        width: 4,
+      },
+      month: {
+        id: "statistics_announcement_statistics_announcement_dates_attributes_release_date_2i",
+        value: params.dig("statistics_announcement", "statistics_announcement_dates_attributes", "release_date(2i)") || statistics_announcement.current_release_date&.release_date&.month,
+        name: "statistics_announcement[statistics_announcement_dates_attributes][release_date(2i)]",
+        label: "Month",
+        width: 2,
+      },
+      day: {
+        id: "statistics_announcement_statistics_announcement_dates_attributes_release_date_3i",
+        value: params.dig("statistics_announcement", "statistics_announcement_dates_attributes", "release_date(3i)") || statistics_announcement.current_release_date&.release_date&.day,
+        name: "statistics_announcement[statistics_announcement_dates_attributes][release_date(3i)]",
+        label: "Day",
+        width: 2,
+      },
+      hour: {
+        id: "statistics_announcement_statistics_announcement_dates_attributes_release_date_4i",
+        value: params.dig("statistics_announcement", "statistics_announcement_dates_attributes", "release_date(4i)")&.to_i || statistics_announcement.current_release_date&.release_date&.hour || 9,
+      },
+      minute: {
+        id: "statistics_announcement_statistics_announcement_dates_attributes_release_date_5i",
+        value: params.dig("statistics_announcement", "statistics_announcement_dates_attributes", "release_date(5i)")&.to_i || statistics_announcement.current_release_date&.release_date&.min || 30,
+      },
+    } %>
+
+    <%= render "govuk_publishing_components/components/radio", {
+      heading: "Delivery date",
+      heading_size: "l",
+      name: "statistics_announcement[statistics_announcement_dates_attributes][precision]",
+      id: "statistics_announcement_statistics_announcement_dates_attributes_precision",
+      error_items: errors_for(statistics_announcement.errors, :"statistics_announcement_dates.precision"),
+      items: [
+        {
+          value: 0,
+          text: "Exact date (provisional)",
+          checked: statistics_announcement.current_release_date&.precision == 0 && !statistics_announcement.current_release_date&.confirmed,
+        },
+        {
+          value: 1,
+          text: "Within one month (provisional)",
+          checked: statistics_announcement.current_release_date&.precision == 1,
+        },
+        {
+          value: 2,
+          text: "Within two months (provisional)",
+          checked: statistics_announcement.current_release_date&.precision == 2,
+        },
+        :or,
+        {
+          value: "exact_confirmed",
+          hint_text: "Changes (including to the date or time) will require a public change note",
+          text: "Exact date (confirmed)",
+          checked: statistics_announcement.current_release_date&.precision == 0 && statistics_announcement.current_release_date&.confirmed,
+        },
+      ],
+    } %>
+  <% end %>
+
+  <div class="govuk-button-group govuk-!-margin-top-8">
+    <%= render "govuk_publishing_components/components/button", {
+      text: statistics_announcement.new_record? ? "Publish announcement" : "Save and publish changes",
+    } %>
+    <%= link_to("Cancel", [:admin, statistics_announcement], class: "govuk-link") %>
+  </div>
+
+<% end %>
