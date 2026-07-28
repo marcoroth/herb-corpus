@@ -1,0 +1,251 @@
+<% content_for :page_title do %>Request: <%= @patron_request.item_title %><% end %>
+
+<% unless current_user&.patron&.blank? %>
+  <%= render 'user_header' %>
+<% end %>
+
+<%= render 'messages', messages: @patron_request.active_messages %>
+
+<% if use_requests_redesign? %>
+  <div class="mt-3 col-lg-8">
+    <%= render RecordHeaderCardComponent.new(record: @patron_request.bib_record, title_tag: :h1) %>
+  </div>
+<% else %>
+  <h1 class="fw-semibold mt-4 fs-1"><%= @patron_request.item_title %></h1>
+<% end %>
+
+<% if @patron_request.selectable_items.one? %>
+  <% single_item = @patron_request.selectable_items.first %>
+  <% unless single_item.instance && single_item.instance&.hrid != @patron_request.instance_hrid %>
+    <div class="lead fw-normal mb-4">Call number: <%= callnumber_label(single_item) %></div>
+  <% end %>
+  <% if single_item.public_note %>
+    <span class="text-cardinal d-block ms-4">
+      <%= single_item.public_note %>
+    </span>
+  <% end %>
+
+  <% if single_item.bound_with_holdings_per_item.any? && (single_item.instance.nil? || single_item.instance&.hrid == @patron_request.instance_hrid) %>
+    <div class="card col-lg-8 shadow-sm">
+      <div class="card-header h4 bg-light">This item is bound with</div>
+      <ul class="list-group list-group-flush">
+        <% single_item.bound_with_holdings_per_item.each do |bound_with_child| %>
+          <li class="list-group-item d-flex bg-light">
+            <span class="me-auto"><%= bound_with_child.instance.title %></span>
+            <span class="text-nowrap"><%= bound_with_child.call_number %></span>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <% if single_item.instance && single_item.instance&.hrid != @patron_request.instance_hrid %>
+    <div class="lead fw-normal mb-4">Call number: <%= @patron_request.folio_instance.holdings_records.first.call_number %></div>
+
+    <div class="card col-lg-8 shadow-sm">
+      <div class="card-header h4 bg-light">This item is bound and shelved with</div>
+      <div class="card-body bg-light">
+        <div><%= single_item.instance.title %></div>
+        <div>Call number: <%= callnumber_label(single_item) %></div>
+      </div>
+    </div>
+  <% end %>
+<% end %>
+
+<%= form_for(@patron_request,
+             data: { controller: 'patron-request accordion-form item-selector', action: 'item-selector:changed->patron-request#showItemSelector item-selector:changed->accordion-form#typeValueChanged item-selector:changed->patron-request#showHideItemGroups item-selector:changed->accordion-form#reenableNextButtons' },
+             html: { class: 'col-lg-8 accordion' },
+             url: patron_requests_path,
+             method: 'POST') do |f| %>
+  <% step_enum = Enumerator.new { |y| n = 0; loop { y << (n += 1) } } %>
+  <% current_step = nil %>
+  <% scan_or_pickup_step = nil %>
+  <%= f.hidden_field :instance_hrid %>
+  <%= f.hidden_field :origin_location_code %>
+  <% f.object.requested_barcodes&.each do |barcode| %>
+    <%= f.hidden_field :requested_barcodes, multiple: true, value: barcode %>
+  <% end if f.object.selectable_items.any? %>
+  <% if f.object.selectable_items.one? %>
+    <% single_item = f.object.selectable_items.first %>
+    <%= f.hidden_field :item_ids, multiple: true, value: single_item&.id %>
+  <% end %>
+  <%# only allow submitting on enter if the final submit button is focused %>
+  <%# see: https://stackoverflow.com/a/51507806 %>
+  <button type="submit" disabled style="display: none" aria-hidden="true"></button>
+
+  <!-- proxy -->
+  <% if (f.object.patron.proxy? || f.object.patron.sponsor?) %>
+    <%= render AccordionStepComponent.new(id: 'proxy', step_index: step_enum.next, form_id: f.id) do |c| %>
+      <% c.with_title.with_content('Proxy/Sponsor') %>
+      <% c.with_body do %>
+          <%= render 'proxy', f: %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <!-- request type -->
+  <% scan_pickup = can?(:request_scan, f.object) && can?(:request_pickup, f.object) %>
+  <% if scan_pickup %>
+    <%= render AccordionStepComponent.new(id: 'request-type', step_index: step_enum.next, form_id: f.id) do |c| %>
+      <% c.with_title.with_content('Request type') %>
+      <% c.with_body do %>
+          <%= render 'scan_or_pickup', f: %>
+      <% end %>
+    <% end %>
+
+    <% if f.object.selectable_items.one? %>
+      <%= render AccordionStepComponent.new(id: 'scan-or-pickup-placeholder', form_id: f.id, step_index: (scan_or_pickup_step ||= step_enum.next), data: { 'patronrequest-forRequestType': 'none' }) do |c| %>
+        <% c.with_title.with_content('Scan or pickup request') %>
+      <% end %>
+    <% end %>
+  <% else %>
+    <%= f.hidden_field :request_type, value: can?(:request_scan, f.object) ? 'scan' : 'pickup' %>
+  <% end %>
+
+  <!-- item selector -->
+  <% if f.object.selectable_items.many? && (can?(:request_scan, f.object) || can?(:request_pickup, f.object)) %>
+    <%= render 'item_selector', f: f, step_enum: step_enum %>
+
+    <% if scan_pickup %>
+      <%= render AccordionStepComponent.new(id: 'scan-or-pickup-placeholder', form_id: f.id, step_index: (scan_or_pickup_step ||= step_enum.next), data: { 'patronrequest-forRequestType': 'none' }) do |c| %>
+        <% c.with_title.with_content(scan_pickup ? 'Scan or pickup request' : 'Pickup request') %>
+      <% end %>
+    <% end %>
+
+    <!-- pickup request (multiple items) -->
+    <% if can?(:request_pickup, f.object) %>
+      <%= render AccordionStepComponent.new(request: f.object, id: 'pickup', classes: [('d-none' if scan_pickup)], form_id: f.id, step_index: (scan_or_pickup_step ||= step_enum.next), data: { 'patronrequest-forRequestType': 'pickup', action: 'item-selector:changed@document->accordion-form#enableAnyNextButtons' }, submit: true) do |c| %>
+        <% c.with_title.with_content('Pickup request') %>
+        <% c.with_body do %>
+          <% if f.object.origin_location_code == 'SAL3-PAGE-SP' && Time.zone.now.before?(Time.zone.parse('2026-08-15')) %>
+              <%= render AlertComponent.new(type: :info) do %>
+                <span class="fw-semibold d-block">Special Collections Reading Room closed until August 14</span>
+                The Department of Special Collections Reading Room and Barchas Room will be closed to researchers, faculty, and staff from Monday, June 15th through Friday, August 14th to accommodate a major facilities project.
+              <% end %>
+           <% end %>
+
+          <%= render 'pickup_destination', f: %>
+          <%= render 'not_needed_after_date', f: f if f.object.mediateable? && f.object.requires_needed_date? %>
+
+          <div class="selected-items-group selected-items-container">
+            <div class="card">
+              <div class="card-body bg-light rounded">
+                <div class="d-flex flex-column flex-xl-row align-items-start justify-content-xl-between align-items-xl-center mb-3 gap-2 gap-xl-0">
+                    <div class="text-black fw-semibold">Available items</div>
+                    <div id="earliestAvailableContainer" aria-live="polite" class="text-cardinal">
+                      Pickup after:
+                      <span class="fw-bold">
+                        <% if f.object.pickup_destinations.one? && f.object.earliest_delivery_estimate %>
+                          <%= f.object.earliest_delivery_estimate['display_date'] %>
+                        <% else %>
+                          <%= turbo_frame_tag('earliestAvailable', src: paging_schedule_url(origin_library: f.object.origin_library_code, origin_location: f.object.origin_location_code, destination: f.object.service_point_code || f.object.default_service_point_code), data: { 'patron-request-target' => 'earliestAvailable'}) do %>
+                            Loading..
+                          <% end %>
+                        <% end %>
+                      </span>
+                      <span> at </span>
+                      <span data-patron-request-target="destination">
+                        <%= f.object.pickup_service_point&.name %>
+                      </span>
+                    </div>
+                </div>
+                <ul data-item-selector-target="selectedItems" data-template="#selectedItemsTemplate" data-status-filter="available" class="list-unstyled d-flex flex-wrap gap-2 bg-white p-3 m-0"></ul>
+              </div>
+            </div>
+          </div>
+          <div class="card selected-items-group my-3 selected-items-container">
+            <div class="card-body bg-light rounded">
+              <div class="d-flex flex-column flex-xl-row align-items-start justify-content-xl-between align-items-xl-center mb-3 gap-2 gap-xl-0">
+                <div class="text-black fw-semibold">Items currently checked out or otherwise unavailable</div>
+                <div class="text-cardinal">Pickup after: No date/time estimate</div>
+              </div>
+              <div class="bg-white">
+                <ul data-item-selector-target="selectedItems" data-template="#selectedItemsTemplate" data-status-filter="unavailable" class="list-unstyled d-flex flex-wrap gap-2 p-3 m-0"></ul>
+                <hr class="styled-hr">
+                <%= render 'request_preferences', f: %>
+                <% if f.object.holdable_recallable_items.any? && !f.object.mediateable? %>
+                  <%= render 'not_needed_after_date', f: %>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <template id="selectedItemsTemplate">
+            <li class="d-flex gap-2 w-100 align-items-baseline" data-content-id="__ID__">
+              <span class="item-selector-callnumber-pill bg-light rounded-pill border">
+                <span class="callnumber">
+                  __LABEL__
+                </span>
+                <button data-action="item-selector#remove" data-item-selector-id-param="__ID__" type="button" class="btn-close py-0 pill-close">
+                  <span class="visually-hidden">Remove __LABEL__</span>
+                </button>
+              </span>
+              <span class="text-cardinal d-block align-self-center flex-shrink-2">__DUEQUEUEINFO__</span>
+            </li>
+          </template>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-item-selector-target="toast">
+        <div class="d-flex">
+          <div class="toast-body">You successfully removed an item.</div>
+          <button type="button" class="btn btn-text text-uppercase" data-action="item-selector#undo analytics#send" data-analytics-category-param="Item Selector" data-analytics-action-param="Undo">Undo</button>
+          <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- scan request (single or multiitem) -->
+  <% if can? :request_scan, f.object %>
+    <%= render AccordionStepComponent.new(request: f.object, id: 'scan', classes: [('d-none' if scan_pickup)], step_index: (scan_or_pickup_step ||= step_enum.next), form_id: f.id, data: { 'patronrequest-forRequestType': 'scan' }, submit: true) do |c| %>
+      <% c.with_title.with_content('Scan request') %>
+      <% c.with_body do %>
+        <%= render 'scan_options', f: %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <!-- pickup request (single item )-->
+  <% if (f.object.selectable_items.one? || f.object.title_only?) && can?(:request_pickup, f.object) %>
+    <%= render AccordionStepComponent.new(request: f.object, id: 'pickup', classes: [('d-none' if scan_pickup)], step_index: (scan_or_pickup_step ||= step_enum.next), form_id: f.id, data: { 'patronrequest-forRequestType': 'pickup' }, submit: true) do |c| %>
+      <% c.with_title.with_content('Pickup request') %>
+      <% c.with_body do %>
+        <div id="earliestAvailableContainer" class="text-cardinal mb-3" aria-live="polite">
+          Earliest available:
+          <% if f.object.pickup_destinations.one? && f.object.earliest_delivery_estimate %>
+            <%= f.object.earliest_delivery_estimate['display_date'] %>
+          <% elsif f.object.any_items_available? %>
+            <%= turbo_frame_tag('earliestAvailable', src: paging_schedule_url(origin_library: f.object.origin_library_code, origin_location: f.object.origin_location_code, destination: f.object.service_point_code || f.object.default_service_point_code), data: { 'patron-request-target' => 'earliestAvailable'}) do %>
+              Loading..
+            <% end %>
+          <% else %>
+            No date/time estimate
+          <% end %>
+          <div>
+            <%= queue_length_display(f.object.selectable_items.first, prefix: 'Item status: ', title_only: f.object.title_only?) %>
+          </div>
+        </div>
+
+        <% if f.object.origin_location_code == 'SAL3-PAGE-SP' && Time.zone.now.before?(Time.zone.parse('2026-08-15')) %>
+            <%= render AlertComponent.new(type: :info) do %>
+              <span class="fw-semibold d-block">Special Collections Reading Room closed until August 14</span>
+              The Department of Special Collections Reading Room and Barchas Room will be closed to researchers, faculty, and staff from Monday, June 15th through Friday, August 14th to accommodate a major facilities project.
+            <% end %>
+        <% elsif f.object.mediateable? && f.object.requires_needed_date? %>
+            <%= render AlertComponent.new(type: :info) do %>
+              <span class="fw-semibold d-block">Restricted-use</span>
+              A librarian will review and approve your request, or contact you. Approvals typically happen 1-3 business days before your planned visit date.
+            <% end %>
+        <% end %>
+        <%= render 'pickup_destination', f: %>
+        <%= render 'request_preferences', f: %>
+        <% if f.object.holdable_or_recallable_items.any? || f.object.requires_needed_date? || f.object.title_only? %>
+          <%= render 'not_needed_after_date', f: %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

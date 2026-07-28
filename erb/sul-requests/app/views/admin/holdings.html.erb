@@ -1,0 +1,74 @@
+<turbo-frame id="req_<%= @request.id %>-holdings">
+  <div class="admin-comments">
+    <div class="d-flex gap-2">
+      <%= form_for(@request, url: mark_as_done_admin_path(@request), as: :request, html: { class: 'mark-as-complete-form', 'data-type': 'json' }) do |f| %>
+        <%= f.hidden_field :approval_status, value: 'marked_as_done' %>
+        <%= tag.button 'Mark as done', class: 'btn b tn-secondary btn-sm', data: { behavior: 'mark-as-complete' }, disabled: !@request.unapproved? %>
+      <% end %>
+
+      <button class="btn btn-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#req_<%= @request.id %>_collapseCommentForm" aria-expanded="false" aria-controls="req_<%= @request.id %>_collapseCommentForm">Comment</button>
+    </div>
+    <div id="req_<%= @request.id %>_collapseCommentForm" class="collapse">
+      <%= form_for([@request, AdminComment.new], url: comment_admin_path(@request), html: { data: { controller: 'form' }, class: 'my-3' }) do |f| %>
+        <%= f.label :comment, 'Comment' %>
+        <%= f.text_field :comment, class: 'admin-comment-input form-control d-inline w-auto' %>
+        <%= f.submit 'OK', class: 'btn btn-primary' %>
+        <button type="button" class="btn btn-link" data-action="form#clear" data-bs-toggle="collapse" data-bs-target="#req_<%= @request.id %>_collapseCommentForm" aria-expanded="true" aria-controls="req_<%= @request.id %>_collapseCommentForm">
+          Cancel
+        </button>
+      <% end %>
+    </div>
+    <%= render 'comments' %>
+  </div>
+
+  <% if @request.data['comments'].present? %>
+    <p><%= @request.data['comments'] %></p>
+  <% end %>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th class="col-1">Approve</th>
+        <th class="col-2">Location</th>
+        <th class="col-2">Current</th>
+        <th>Call number / Container</th>
+        <th>Status</th>
+        <th>Approved by</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @request.patron_request_items.each do |request_item| %>
+        <tr class="<%= cycle('odd', 'even') %> <%= 'approved' if request_item.approved? %> <%= 'errored' if request_item.error? %>">
+          <td>
+            <% if request_item.approved? %>
+              <span class="btn btn-sm approval-btn btn-success">Approved</span>
+            <% else %>
+              <a class="approval-btn btn btn-sm btn-success" data-behavior="item-approval" href="<%= approve_item_admin_path(@request, item: request_item.item_id) %>">
+                Approve
+              </a>
+            <% end %>
+          </td>
+          <% item = request_item.folio_item %>
+          <% if item %>
+            <td><%= item.permanent_location&.name || @request.library_location&.location_name || @request.origin_location_code %></td>
+            <td><%= current_location_for_mediated_item(item) %></td>
+            <td><%= item.callnumber %></td>
+            <td><%= i18n_status_text(item) if request_item.latest_api_response.present? %></td>
+          <% else %>
+            <td colspan="4">Item not found in FOLIO</td>
+          <% end %>
+          <td data-behavior="approver-information">
+            <% if request_item.approved? %>
+              <%= request_item.mediation_data&.dig('approver') %> -
+              <%= request_item.mediation_data&.dig('approved_at') %>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <turbo-stream action="update" target="req_<%= @request.id %>_note">
+    <template>
+      <%= render 'approved_note', request: @request %>
+    </template>
+  </turbo-stream>
+</turbo-frame>

@@ -1,0 +1,50 @@
+<div class="row p-3 pt-0 gap-4 flex-column flex-md-row selected-items-container">
+  <% appointments = current_user.aeon.appointments.for_site(f.object.aeon_site).select(&:editable?) %>
+  <div id="new-appt-alert">
+    <div class="alert alert-warning alert-dismissible shadow-sm d-flex align-items-center">
+      <div role="img" aria-label="Warning icon" class="text-warning bi bi-exclamation-triangle-fill fs-3 me-3"></div>
+      <ul class="text-body mb-0">
+        <% if appointments.blank? %>
+          <li>You don’t have any appointments yet. Create one to continue.</li>
+        <% elsif appointments.one? %>
+          <li>Select your eligible appointment - or - create a new one.</li>
+        <% else %>
+          <li>Select from your <%= appointments.count %> eligible appointments - or - create a new one.</li>
+        <% end %>
+
+        <% if (f.object.aeon_reading_room.appointment_min_lead_days || 0) > 0 %>
+        <li>Schedule an appointment at least <%= f.object.aeon_reading_room.appointment_min_lead_days %> business days in advance to use or view requested items.</li>
+        <% end %>
+
+        <% if f.object.aeon_reading_room.appointment_item_limit %>
+          <li>Up to <%= f.object.aeon_reading_room.appointment_item_limit %> items are allowed per appointment.</li>
+        <% end %>
+      </ul>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  </div>
+
+  <%= render Aeon::ReadingRoomBriefComponent.new(reading_room: f.object.aeon_reading_room, create_appointment: true) %>
+
+  <div>
+    <%= render 'save_for_later' %>
+    <ul class="appointments-container list-unstyled mb-0" data-item-selector-target="selectedItems" data-template="#appointmentTemplate">
+      <% if f.object.selectable_items.one? %>
+        <%= render Aeon::AppointmentFormItemComponent.new(title: f.object.selectable_items.first.callnumber, dom_id: f.object.selectable_items.first.id, base_name: "patron_request[aeon_item][#{f.object.selectable_items.first.id}]", reading_room_id: f.object.aeon_reading_room.id, appointments: appointments) %>
+      <% end %>
+    </ul>
+
+    <template id="appointmentTemplate">
+      <%= render Aeon::AppointmentFormItemComponent.new(title: '__TITLE__', dom_id: '__ID__', base_name: 'patron_request[aeon_item][__ID__]', reading_room_id: f.object.aeon_reading_room.id, appointments: appointments) %>
+    </template>
+  </div>
+
+  <div id="additional-information" class="mb-2" data-controller="char-counter" data-char-counter-default-class="text-body-tertiary" data-char-counter-warning-class="text-cardinal">
+    <%= f.label :aeon_reading_special, 'Additional information', :class => 'fw-bold py-2' %>
+    <%= f.text_area :aeon_reading_special, :class => 'form-control', rows: 3, maxlength: 255, data: { action: "input->char-counter#updateCharCounter"} %>
+    <p class="form-text text-secondary d-flex justify-content-between">
+      <span>Limit 255 characters.</span>
+      <span class="fs-14" data-char-counter-target="counter"></span>
+    </p>
+  </div>
+</div>

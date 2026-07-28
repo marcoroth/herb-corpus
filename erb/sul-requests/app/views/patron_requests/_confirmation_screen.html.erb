@@ -1,0 +1,161 @@
+<%# locals: (mailer: false) %>
+<h1 class="fw-semibold fs-1">We received your <%= @patron_request.request_type == 'scan' ? 'scan' : (@patron_request.mediateable? || @patron_request.aeon_page?) ? '' : 'pickup' %> request!</h1>
+
+<div class="row mt-4">
+    <div class="col-7">
+        <div class="lead">
+            <%= yield %>
+
+            <% if @patron_request.patron.present? %>
+                <% if @patron_request.mediateable? %>
+                    Once approved, you can view the status of your request in
+                <% else %>
+                    You can also check the status of your request any time at
+                <% end %><%= link_to ' My Account', use_requests_redesign? ? unified_requests_url : 'https://mylibrary.stanford.edu' %>.
+            <% end %>
+            <% if @patron_request.request_type == 'scan' %>
+                We'll notify you by email once your scan request is ready. Remember to download the PDF within 30 days of notification.
+            <% else %>
+                <% if @patron_request.mediateable? %>
+                    A librarian will review and approve your request for restricted-use materials, or contact you.
+                    Approvals typically happen 1-3 business days before your planned visit date.
+                <% end %>
+                You will receive an email when the <%= @patron_request.patron_request_items.one? ?  'item is' : 'items are' %> ready.
+            <% end %>
+        </div>
+
+        <hr>
+
+        <% @patron_request.patron_request_items.map(&:folio_item).select(&:bound_with_child_holdings_record).each do |item| %>
+            <div class="alert alert-warning d-flex align-items-center gap-3">
+                <i class="bi bi-exclamation-triangle-fill me-2 text-warning fs-1"></i>
+
+                <div>
+                    <div class="fw-bold mb-2">Important!</div>
+
+                    <p>
+                        <% if @patron_request.patron_request_items.one? %>
+                            This item
+                        <% else %>
+                            The item <i><%= @patron_request.item_title %></i> (<%= item.bound_with_child_holdings_record.call_number %>)
+                        <% end %> is bound with other items and is shelved under the title <i><%= item.instance.title %></i> (<%= item.callnumber %>).
+                    </p>
+
+                    <p class="mb-0 fw-bold">
+                        Be advised that all subsequent correspondence will reference this title. The item you requested will be included with it.
+                    </p>
+                </div>
+            </div>
+        <% end %>
+
+        <h2 class="my-4">Request confirmation</h2>
+        <dl class="dl-inline">
+            <div><dt>Title:</dt><dd><%= @patron_request.item_title %></dd></div>
+        <% if @patron_request.request_type == 'scan' %>
+            <div><dt>Pages:</dt><dd><%= @patron_request.scan_page_range %></dd></div>
+            <div><dt>Chapter/article:</dt><dd><%= @patron_request.scan_title %></dd></div>
+            <div><dt>Authors:</dt><dd><%= @patron_request.scan_authors %></dd></div>
+
+            <% if @patron_request.estimated_delivery %>
+                <div><dt>Earliest expected delivery:</dt><dd><%= @patron_request.estimated_delivery %></dd></div>
+            <% end %>
+        <% else %>
+            <% if @patron_request.pickup_service_point %>
+            <div><dt><%= @patron_request.location_label %>:</dt><dd><%= @patron_request.pickup_service_point.name %></dd></div>
+            <% end %>
+
+            <% if @patron_request.mediateable? || @patron_request.aeon_page? %>
+                <hr>
+                <div class="mb-2">
+                    <span class="fw-bold">Item(s) requested:</span>
+                </div>
+                <ul class="list-unstyled">
+                    <% @patron_request.patron_request_items.map(&:folio_item).each do |avail_item| %>
+                        <li><%= callnumber_label(avail_item) %></li>
+                    <% end %>
+                </ul>
+            <% else %>
+                <% available_items, unavailable_items = @patron_request.patron_request_items.map(&:folio_item).partition(&:available?) %>
+                <% if available_items.any? %>
+                    <hr>
+                    <div class="mb-2">
+                        <span class="fw-bold">Pickup after:</span> <%= @patron_request.estimated_delivery %>
+                    </div>
+                    <ul class="list-unstyled">
+                        <% available_items.each do |avail_item| %>
+                            <li><%= callnumber_label(avail_item) %></li>
+                        <% end %>
+                    </ul>
+                <% end %>
+                <% if unavailable_items.any? %>
+                    <hr>
+                    <div class="mb-2">
+                        <span class="fw-bold">Pickup after:</span> Notified by email
+                    </div>
+                    <ul class="list-unstyled">
+                        <% unavailable_items.each do |avail_item| %>
+                            <li><%= callnumber_label(avail_item) %></li>
+                        <% end %>
+                    </ul>
+                <% end %>
+            <% end %>
+            <% if @patron_request.needed_date %>
+                <div>
+                    <dt>
+                        <% if @patron_request.mediateable? %>
+                            I plan to visit on:
+                        <% else %>Not needed after:<% end %>
+                    </dt>
+                    <dd>
+                        <%= l @patron_request.needed_date, format: :short %>
+                    </dd>
+                </div>
+            <% end %>
+            <% if @patron_request.fulfillment_type %>
+                <div>
+                    <dt>Processing method:</dt>
+                    <dd>
+                        <%= @patron_request.fulfillment_type == 'hold' ? 'Wait for a Stanford copy to become available' : 'Expedite a copy from a partner library' %>
+                    </dd>
+                </div>
+            <% end %>
+        <% end %>
+        </dl>
+    </div>
+    <div class="offset-1 col-4">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="h3 fw-semibold">Library resources</h2>
+                <% if mailer || !use_requests_redesign? %>
+                    <div class="bg-light p-2">
+                        <h3 class="h4">
+                            <a href="https://mylibrary.stanford.edu"><i class="bi bi-box-arrow-up-right"></i> Log in to My Account</a>
+                        </h3>
+                        <p class="mb-0">
+                        Access information regarding items currently checked out, monitor requests,
+                        and/or outstanding fines.
+                        </p>
+                    </div>
+                <% end %>
+                <h3 class="h4 fw-semibold mt-3">Get help</h3>
+                    <ul class="list-unstyled">
+                        <li><i class="bi bi-envelope-fill"></i> <%= mail_to(@patron_request.contact_info[:email], @patron_request.contact_info[:email]) %></li>
+                        <li><i class="bi bi-telephone-fill"></i> Call <%= @patron_request.contact_info[:phone] %></li>
+                    </ul>
+                <h3 class="h4 fw-semibold mt-3">Library policies and information</h3>
+                <ul class="list-unstyled">
+                    <li>
+                        <a href="https://library.stanford.edu/services/borrow-and-request" target="_blank">
+                            <i class="bi bi-box-arrow-up-right"></i> Borrow and request
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://library.stanford.edu/borrowdirect" target="_blank">
+                            <i class="bi bi-box-arrow-up-right"></i> Borrow Direct
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

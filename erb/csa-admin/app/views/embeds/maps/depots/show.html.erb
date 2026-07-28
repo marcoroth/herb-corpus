@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+
+<html lang="<%= I18n.locale %>">
+  <head>
+    <title><%= t(".title", org: Current.org.name) %></title>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="<%= maplibre_stylesheet_url %>" rel="stylesheet">
+
+    <style nonce="<%= @csp_nonce %>">
+      html,
+      body,
+      #map {
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        color: #1f2937;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .depot-info-window {
+        max-width: 18rem;
+      }
+
+      .depot-info-window h2 {
+        font-size: 0.95rem;
+        margin: 0;
+      }
+
+      .depot-info-window h2 + h2 {
+        margin-top: 0.35rem;
+      }
+
+      .maplibregl-popup {
+        pointer-events: none;
+        z-index: 50;
+      }
+
+      .maplibregl-popup-content {
+        padding: 0.35rem 0.75rem !important;
+      }
+
+      .maplibregl-ctrl-attrib {
+        opacity: 0.5;
+        border-top-left-radius: 0.35rem;
+        font-size: 0.6rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="map"></div>
+
+    <script nonce="<%= @csp_nonce %>" src="<%= maplibre_script_url %>"></script>
+
+    <script nonce="<%= @csp_nonce %>">
+      const markerGroups = <%= raw json_escape(@marker_groups.to_json) %>
+      const markerColor = <%= raw json_escape(@marker_color.to_json) %>
+      const maplibreLocale = <%= raw json_escape(@maplibre_locale.to_json) %>
+      const mapControls = <%= raw json_escape(@map_controls.to_json) %>
+      const map = new maplibregl.Map({
+        container: "map",
+        style: <%= raw json_escape(@map_style_url.to_json) %>,
+        attributionControl: false,
+        cooperativeGestures: true,
+        locale: maplibreLocale
+      })
+      const bounds = new maplibregl.LngLatBounds()
+
+      markerGroups.forEach((group) => {
+        const position = [group.longitude, group.latitude]
+
+        buildMarker(group)
+          .setLngLat(position)
+          .addTo(map)
+
+        bounds.extend(position)
+      })
+
+      function buildMarker(group) {
+        const popup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          focusAfterOpen: false,
+          offset: markerPopupOffset(),
+          padding: 8
+        }).setHTML(group.html)
+        const marker = new maplibregl.Marker({ color: markerColor })
+        const element = marker.getElement()
+
+        element.setAttribute("aria-label", group.title)
+        element.addEventListener("mouseenter", () => popup.setLngLat(marker.getLngLat()).addTo(map))
+        element.addEventListener("mouseleave", () => popup.remove())
+        element.addEventListener("focus", () => popup.setLngLat(marker.getLngLat()).addTo(map))
+        element.addEventListener("blur", () => popup.remove())
+        element.addEventListener("click", () => popup.setLngLat(marker.getLngLat()).addTo(map))
+
+        return marker
+      }
+
+      function markerPopupOffset() {
+        const markerHeight = 42
+        const markerRadius = 14
+        const linearOffset = 20
+
+        return {
+          top: [0, 0],
+          "top-left": [0, 0],
+          "top-right": [0, 0],
+          bottom: [0, -markerHeight],
+          "bottom-left": [linearOffset, (markerHeight - markerRadius + linearOffset) * -1],
+          "bottom-right": [-linearOffset, (markerHeight - markerRadius + linearOffset) * -1],
+          left: [markerRadius, (markerHeight - markerRadius) * -1],
+          right: [-markerRadius, (markerHeight - markerRadius) * -1]
+        }
+      }
+
+      map.on("load", () => {
+        if (markerGroups.length === 0) return
+
+        if (markerGroups.length === 1) {
+          map.setCenter(bounds.getCenter())
+          map.setZoom(13)
+        } else {
+          map.fitBounds(bounds, { padding: 48, maxZoom: 13 })
+        }
+      })
+
+      if (mapControls.includes("geolocate") && "geolocation" in navigator) {
+        map.addControl(
+          new maplibregl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: false,
+            showUserHeading: true,
+            fitBoundsOptions: { maxZoom: 13 }
+          }),
+          "top-right"
+        )
+      }
+
+      if (mapControls.includes("zoom")) {
+        map.addControl(
+          new maplibregl.NavigationControl({ showCompass: false }),
+          "top-right"
+        )
+      }
+
+      map.addControl(new maplibregl.AttributionControl({ compact: false }), "bottom-right")
+      </script>
+  </body>
+</html>

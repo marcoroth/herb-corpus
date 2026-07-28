@@ -1,0 +1,54 @@
+<%# locals: (obj:) %>
+
+<% rows = customer_vm_dataset
+  .where(Sequel[:cvm][:vm_host_id] => obj.id)
+  .left_join(Sequel[:project].as(:proj), id: Sequel[:cvm][:project_id])
+  .left_join(customer_email_dataset.as(:ce), project_id: Sequel[:proj][:id])
+  .select(
+    Sequel[:cvm].*,
+    Sequel[:proj][:name].as(:project_name),
+    Sequel[:ce][:email].as(:email),
+  )
+  .order(Sequel.function(:lower, Sequel[:proj][:name]), Sequel[:proj][:id], Sequel[:cvm][:created_at])
+  .all
+
+summary = Hash.new { |h, k| h[k] = Hash.new(0) }
+resource_data = rows.map do |row|
+  type, resource = customer_resource_type(row)
+
+  # A VM's project_id is NOT NULL and references an existing project, so the
+  # customer is always resolvable.
+  customer_ubid = UBID.to_ubid(row[:project_id])
+  label = project_label(row[:project_name], row[:email])
+  summary[[customer_ubid, label]][type] += 1
+
+  {
+    "Customer" => table_link(label, "/model/Project/#{customer_ubid}"),
+    "Type" => type,
+    "Resource" => resource,
+    "VM" => table_link(row[:vm_name], "/model/Vm/#{UBID.to_ubid(row[:vm_id])}"),
+    "vCPUs" => row[:vcpus],
+    "Created At" => row[:created_at].strftime("%F %T"),
+  }
+end
+
+summary_data = summary
+  .map do |(ubid, name), counts|
+    {
+      "Customer" => table_link(name, "/model/Project/#{ubid}"),
+      "VMs" => counts["VM"],
+      "PostgreSQL" => counts["PostgreSQL"],
+      "Kubernetes" => counts["Kubernetes"],
+      "GitHub Runners" => counts["GitHub Runner"],
+      "Total" => counts.values.sum,
+    }
+  end
+  .sort_by { [it["Total"], it["Customer"].value] } %>
+
+<% if resource_data.empty? %>
+  <p>No customer resources are hosted on this host.</p>
+<% else %>
+  <%== part("components/collapsible_table", title: "Customers", table_class: "vm-host-customers-summary-table", data: summary_data, use_admin_label: false) %>
+
+  <%== part("components/collapsible_table", title: "Resources", table_class: "vm-host-resources-table", data: resource_data, use_admin_label: false) %>
+<% end %>

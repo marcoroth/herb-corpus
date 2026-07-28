@@ -1,0 +1,47 @@
+<%= turbo_frame_tag 'folio-dashboard' do %>
+  <%= turbo_stream.replace 'folio-borrowed-items' do %>
+    <%= render Home::SummaryCardComponent.new(
+          id: 'folio-borrowed-items',
+          title: 'Borrowed items',
+          icon_class: 'bi-book',
+          label: t('dashboard.borrowed_items.label_html', count: @dashboard.checkouts.count),
+          path: @dashboard.checkouts.count.positive? ? checkouts_path : nil ) do |c| %>
+              <% c.with_status_count(label: t('dashboard.borrowed_items_due_soon.label_html', count: @dashboard.actionable_borrowed_items.count)) %>
+          <% end %>
+  <% end %>
+
+  <%= turbo_stream.replace 'folio-fines-and-fees' do %>
+    <%= render Home::SummaryCardComponent.new(
+          id: 'folio-fines-and-fees',
+          title: 'Fees and fines',
+          icon_class: 'bi-cash-coin',
+          label: @dashboard.balance.positive? ? t('dashboard.fines_and_fees.label_html', balance: number_to_currency(@dashboard.balance)) : t('dashboard.fines_and_fees.no_fees'),
+          path: @dashboard.balance.positive? ? fines_path : fines_path(past: 1)
+          ) do |c| %>
+      <%= c.with_status_component(Home::PayNowFormComponent.new(fines: @dashboard.fines, balance: @dashboard.balance, patron_key: current_user.patron.key)) if @dashboard.balance.positive? %>
+    <% end %>
+  <% end %>
+
+  <%= turbo_stream.replace 'folio-pickup-requests' do %>
+    <%= render Home::SummaryCardComponent.new(
+          id: 'folio-pickup-requests',
+          title: 'Pickup requests',
+          icon_class: 'bi-bag',
+          label: t('dashboard.pickup_requests.label_html', count: @dashboard.pickup_requests.count),
+          path: @dashboard.pickup_requests.count.positive? ? unified_requests_path(filter: 'pickup') : nil) do |c| %>
+              <% c.with_status_count(label: t('dashboard.pickup_requests_ready.label_html', count: @dashboard.ready_for_pickup.count)) %>
+          <% end %>
+  <% end %>
+
+  <% if params[:include_illiad] %>
+    <%= turbo_stream.replace 'aeon-illiad-digitization-requests' do %>
+      <%= render Home::SummaryCardComponent.new(
+          id: 'aeon-illiad-digitization-requests',
+          title: 'Digitization requests',
+          icon_class: 'bi-printer',
+          label: t('dashboard.digitization_requests.label_html', count: @dashboard.digital_requests.count),
+          path: unified_requests_path(filter: 'digitization'),
+          link_label: nil) %>
+    <% end %>
+  <% end %>
+<% end if @dashboard.folio? %>

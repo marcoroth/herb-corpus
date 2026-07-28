@@ -61,10 +61,108 @@ This way, members see only one "Every other week" option at registration, but yo
 
 Each delivery cycle can have its own billing options:
 
-- **Price (per delivery)**: An additional fee for the management and/or delivery with this cycle.
+- **Price (per delivery, multiplied by quantity)**: An additional fee for the management and/or delivery with this cycle. The fee is multiplied by the number of <%= Basket.model_name.human(count: 2).downcase %>; for example, a quantity of 2 is charged twice.
 - **Name (invoice)**: A custom name displayed on invoices instead of the default delivery cycle name.
 - **Absences included annually**: Automatically exclude a certain number of deliveries, enabling members to plan a limited number of non-billed absences. See [Included Absences](/handbook/absence#absence-included) for more details.
+
+## Alternate depot {#alternate-depot}
+
+Some members need to pick up their <%= Basket.model_name.human(count: 2).downcase %> at different depots depending on the week — for example, because the CSA vehicle only serves a given depot every other week. CSA Admin supports this through an **alternate depot** configuration at the membership level.
+
+This configuration is only available to administrators (not to members) and can be found in the membership edit form, under the collapsible "Alternate depot" section within the delivery settings. Three fields must be set together:
+
+- **Alternate depot**: The second pickup location.
+- **Alternate depot price**: The depot price for deliveries at the alternate depot (defaults to the depot's price).
+- **Alternate delivery cycle**: Determines which deliveries go to the alternate depot. All other deliveries go to the main depot.
+
+> **Example**: A membership uses the "Every week" cycle. The CSA vehicle only passes by the bakery depot every other week (even weeks), so the member picks up at the farm on the other weeks. The main depot is set to "Bakery" with the alternate depot set to "Farm" and the alternate delivery cycle set to "Odd weeks". Result: even-week <%= Basket.model_name.human(count: 2).downcase %> go to the bakery, odd-week <%= Basket.model_name.human(count: 2).downcase %> go to the farm.
+
+A few important points:
+
+- The alternate delivery cycle **must differ from the main cycle** of the membership and share at least one delivery with it.
+- **Pricing** works automatically — each <%= Basket.model_name.human.downcase %> is billed at the price of its respective depot.
+- When a membership is **renewed**, the alternate depot configuration is automatically carried over.
+- If a member changes their **main depot** from the member area, the alternate depot configuration is preserved.
+
+## Individual <%= Basket.model_name.human.downcase %> modifications {#basket-overrides}
+
+Each <%= Basket.model_name.human.downcase %> of a membership can be edited individually to deviate from the membership configuration: a different depot, a different <%= BasketSize.model_name.human.downcase %>, an adjusted quantity, custom <%= BasketComplement.model_name.human(count: 2).downcase %>, or even a swap to another delivery date (in the context of another delivery cycle). These per-<%= Basket.model_name.human.downcase %> modifications are **preserved** when the membership configuration changes later (for example, when the <%= BasketSize.model_name.human.downcase %> or depot is updated from the given date).
+
+On the membership page, any <%= Basket.model_name.human.downcase %> that diverges from the membership configuration shows a small **history icon** next to its state. Hovering over the icon reveals who made the change (admin name, or "by the member") and when, along with the list of modified fields. From there, an **"Undo"** button restores the <%= Basket.model_name.human.downcase %> to the membership defaults.
+
+A few important points:
+
+- Modifications are captured automatically whenever an admin edits a <%= Basket.model_name.human.downcase %> or a member changes their depot or <%= BasketComplement.model_name.human(count: 2).downcase %> from the member area (if allowed in [the membership update settings](/settings#membership_updates); see [membership updates](/handbook/members#membership-updates)).
+- When the membership configuration changes, modifications are reapplied on the recreated <%= Basket.model_name.human(count: 2).downcase %>. Modifications that reference deliveries no longer covered by the membership (for example, after switching to a different delivery cycle) are cleaned up automatically.
+- If the membership configuration is changed to match a previously modified <%= Basket.model_name.human.downcase %>, the modification becomes a no-op and the history icon disappears.
 
 ## <%= BasketComplement.model_name.human(count: 2) %> {#basket-complements}
 
 [<%= BasketComplement.model_name.human(count: 2) %>](/basket_complements) often follow their own delivery cycle in a way that is difficult to program dynamically. It is therefore necessary, and this for each <%= BasketComplement.model_name.human.downcase %>, to define all the delivery dates where this complement is available or not. This operation must be carried out each year after the creation of new deliveries.
+
+## Delivery sheets (PDFs) {#delivery-sheets}
+
+For each delivery, CSA Admin generates PDF sheets that you can print and use at your depots. These sheets are available from each [delivery page](/deliveries) or from [the dashboard](/dashboard).
+
+### Sheet modes {#sheet-modes}
+
+Each depot can use one of two sheet modes (configurable in the depot settings):
+
+- **Signature sheet** (default): A checklist where members sign next to their name upon pickup. Members are listed alphabetically, with a "Signature" column on the right.
+- **Home delivery sheet**: Designed for delivery drivers. Includes each member's full address and their delivery note (if any) in the last column. Members can be manually reordered via drag & drop in the depot settings.
+
+### Member info on sheets {#member-info}
+
+A [setting](/settings#delivery_sheets) controls what additional information is displayed below each member's name on the sheets:
+
+- **None** (default): Only the member's name.
+- **Phone numbers**: The member's phone number(s) appear below their name.
+- **Food note**: The member's food note (allergies, preferences) appears below their name.
+
+This setting applies globally to all depots using the signature sheet mode. Home delivery sheets always show the address and delivery note regardless of this setting.
+
+### Member name abbreviation {#member-name-format}
+
+A [setting](/settings#delivery_sheets) controls how member names are displayed on delivery sheets, allowing you to protect member privacy when sheets are visible to other members:
+
+- **None, full name** (default): Full name is shown.
+- **First part only** (e.g. *D. John*): The first word of each name segment is reduced to an initial. Suited for organisations where names are stored as **Last name + First name**.
+- **Last part only** (e.g. *John D.*): The last word of each name segment is reduced to an initial. Suited for organisations where names are stored as **First name + Last name**.
+- **Initials only** (e.g. *J. D.*): Every word is reduced to its initial, for maximum privacy.
+
+When a name contains multiple people joined by a comma or a conjunction (*und*, *en*, *et*, *and*, *&*), each part is abbreviated independently. For example, "Jane Doe, John Doe" becomes "Jane D., John D." with the **Last part only** option.
+
+> This setting does not apply to home delivery depots, where the full name is always shown.
+
+### Footer {#delivery-pdf-footer}
+
+A custom footer text can be added to all delivery sheets via the [delivery PDF footer setting](/settings#delivery_sheets). This is useful for a reminder, a thank-you message, or practical information.
+
+### Announcements {#announcements}
+
+Short messages can be attached to specific depot/delivery combinations and will appear on the corresponding delivery sheets. See the dedicated [announcements handbook page](/handbook/announcements) for details.
+
+### <%= BasketContent.model_name.human %> on sheets {#basket-content-sheets}
+
+If the [<%= BasketContent.model_name.human.downcase %> feature](/handbook/basket_content) is enabled, you can optionally include the product list on your delivery sheets. Enable this from [the <%= BasketContent.model_name.human.downcase %> settings](/settings#basket_content).
+
+When enabled, two additional tables appear on the sheets:
+
+- **Summary page**: A table showing the total quantity of each product per depot (e.g. "4.5kg" of carrots going to the Farm depot).
+- **Per-depot pages**: A table listing each product with its quantity per <%= BasketSize.model_name.human.downcase %> (e.g. "250g" per small <%= Basket.model_name.human.downcase %>, "400g" per large).
+
+If the product table doesn't fit on the same page as the existing members table, it will automatically appear on a separate page.
+
+## Delivery notifications {#delivery-notifications}
+
+CSA Admin can automatically send email notifications related to deliveries:
+
+### Depot delivery list {#depot-delivery-list-notifications}
+
+Each depot can be configured with email addresses (in the depot's "Notifications" section). Before each delivery, these addresses receive an email containing the list of members and their <%= Basket.model_name.human(count: 2).downcase %>, along with PDF and XLSX attachments for the delivery sheets. By default, the email is sent the day before, but this can be adjusted per depot (0 for same day, 2 for two days before, etc.).
+
+### <%= BasketComplement.model_name.human %> delivery notifications {#complement-notifications}
+
+Each <%= BasketComplement.model_name.human.downcase %> can be configured with email addresses (in the <%= BasketComplement.model_name.human.downcase %>'s "Notifications" section). Before each delivery, these addresses receive one email with the delivery date and the count of that complement needed. By default, the email is sent the day before, but this can be adjusted per <%= BasketComplement.model_name.human.downcase %> (0 for the same day, 2 for two days before, etc.).
+
+> This is useful for external suppliers (e.g., a baker, a cheese maker) who need to know how much to prepare for each delivery.

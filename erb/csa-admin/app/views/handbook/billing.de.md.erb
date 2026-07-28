@@ -2,6 +2,30 @@
 
 CSA Admin zielt darauf ab, die meisten Aufgaben im Zusammenhang mit der Abrechnung ([Abonnements](#memberships), [Anteilskapital](#share-capital), [Zahlungsverarbeitung](#payments)) zu automatisieren, aber einige Aspekte wie die Abrechnung von [nicht durchgeführten <%= activities_human_name %>](#activity) müssen manuell durchgeführt werden.
 
+## Rechnungstypen {#invoice-types}
+
+CSA Admin verwaltet mehrere Rechnungstypen:
+
+| Typ | Beschreibung |
+|-----|-------------|
+| **Abonnement** | Hauptabrechnung des Abonnements (<%= BasketSize.model_name.human %>, <%= BasketComplement.model_name.human(count: 2) %>, Depot, Lieferzyklus). [Automatisch generiert](#memberships). |
+| **Jahresbeitrag** | In der ersten Abonnementsrechnung enthalten, oder [separat berechnet](#annual-fee) für [Fördermitglieder](/handbook/members#statuses). |
+| **Anteilskapital** | Für Organisationen, die [Anteilsbesitz](#share-capital) erfordern. Automatisch generiert bei fehlenden Anteilen. |
+| **<%= activities_human_name %>** | Abrechnung von [nicht durchgeführten Teilnahmen](#activity). Manuell oder in Gruppen ausgelöst. |
+| **Hofladenbestellung** | Rechnung für [Hofladen](/handbook/shop)-Bestellungen. Kann automatisch oder manuell erfolgen. |
+| **Neumitgliedsbeitrag** | Einmaliger Beitrag für neue Mitglieder, wenn die Funktion aktiviert ist. |
+| **Sonstiges** | [Freie Rechnungen](#manual-invoice) für verschiedene Artikel oder Dienstleistungen. |
+
+### Rechnungen stornieren {#canceling-invoices}
+
+Um eine Rechnung für ein Abonnement oder eine Teilnahme zu stornieren, musst Du zuerst alle neueren Rechnungen für dasselbe Abonnement oder dieselbe Teilnahme stornieren oder löschen. Bis dahin bleibt die Schaltfläche **Stornieren** bei älteren Rechnungen deaktiviert.
+
+## Rechnungseinstellungen {#invoice-settings}
+
+Die Rechnungseinstellungen definieren die Bank- und Organisationsangaben, die auf Rechnungs-PDFs angezeigt werden. Konfiguriere Dein Bankkonto, die Gläubigeradresse, optionale Rechnungslogos sowie die Informations- und Footertexte in [den Rechnungseinstellungen](/settings#invoice).
+
+In SEPA-Ländern kann auch der Dokumentname der Rechnung pro Sprache angepasst werden, wenn die SEPA-Funktion aktiviert ist.
+
 <!-- country:CH -->
 ## QR-Rechnungen {#qr-invoices}
 
@@ -11,28 +35,73 @@ CSA Admin generiert QR-Rechnungen mit Referenznummern (PDF) und sendet sie an al
 
 Um diese Rechnungen generieren zu können, benötigst Du eine **QR-IBAN** von Deiner Bank. Dies ist eine spezielle IBAN (beginnend mit CH und mit 30 oder 31 als Bank-Clearing-Nummer), die sich von der IBAN Deines regulären Bankkontos unterscheidet. Nur die QR-IBAN ermöglicht die Erstellung von Schweizer QR-Rechnungen mit Referenznummern — eine normale IBAN wird für diesen Zweck nicht unterstützt.
 
-Du kannst eine QR-IBAN bei Deiner Bank anfordern und diese dann in [Deinen Abrechnungseinstellungen](/settings#billing) eingeben.
+Du kannst eine QR-IBAN bei Deiner Bank anfordern und diese dann in [Deinen Rechnungseinstellungen](/settings#invoice) eingeben.
 
-> Wenn Du Dir nicht sicher bist, ob Du bereits eine QR-IBAN hast, versuche diese in [Deinen Abrechnungseinstellungen](/settings#billing) einzugeben — das System überprüft das Format und lehnt sie ab, wenn es sich nicht um eine gültige QR-IBAN handelt. Falls Du keine hast, fordere diese bei Deiner Bank an.
+> Wenn Du Dir nicht sicher bist, ob Du bereits eine QR-IBAN hast, versuche diese in [Deinen Rechnungseinstellungen](/settings#invoice) einzugeben — das System überprüft das Format und lehnt sie ab, wenn es sich nicht um eine gültige QR-IBAN handelt. Falls Du keine hast, fordere diese bei Deiner Bank an.
 <!-- /country:CH -->
 
 ## Abonnements {#memberships}
 
-Die Abrechnung der Abonnements wird vollständig vom System automatisiert. Du kannst in [den Einstellungen (Automatische Abrechnung)](/settings#billing) den Wochentag festlegen, an dem das System alle Abonnements überprüft und automatisch die erforderlichen Rechnungen erstellt und versendet. Wenn ein Mitglied beispielsweise vierteljährlich abgerechnet wird, wird am ersten konfigurierten Wochentag eines neuen Quartals automatisch eine neue Rechnung erstellt und versendet.
-
-Der Rechnungsbetrag wird wie folgt berechnet: Gesamtbetrag des Abonnements / Anzahl der Zahlungsintervalle. Bei einem Abonnement von 1000.-, das vierteljährlich bezahlt wird, beträgt jede Rechnung beispielsweise 250.-.
+Die Abrechnung der Abonnements wird vollständig vom System automatisiert. Du kannst in [den Einstellungen (Automatische Abrechnung)](/settings#billing) den Wochentag festlegen, an dem das System alle Abonnements überprüft und automatisch die erforderlichen Rechnungen erstellt und versendet.
 
 Es ist daher entscheidend, dass jede Abonnementskonfiguration aktuell ist, damit die Rechnungen korrekt sind.
 
-Standardmäßig wird die erste Rechnung am Abrechnungstag nach der ersten Lieferung einer <%= Basket.model_name.human %> versendet, aber es ist möglich, dies in [den Einstellungen](/settings#billing) zu ändern (Abonnements erst nach ihrer ersten Lieferung abrechnen), um das Abonnement ab seinem Beginn abzurechnen.
+### Automatische wiederkehrende Abrechnung {#recurring-billing}
 
-Standardmäßig erstreckt sich die Abrechnung bis zum Enddatum des Abonnements, aber es ist möglich, dies in [den Einstellungen](/settings#billing) zu ändern (Abonnements nur bis zu ihrer letzten Lieferung abrechnen), um den Abrechnungszeitraum nur bis zum Datum ihrer letzten Lieferung zu verlängern. Dies ist nützlich, wenn beispielsweise die letzten Monate des Geschäftsjahres keine Lieferungen haben.
+Die wiederkehrende Abrechnung ist der Mechanismus, der die Abonnements-Abrechnung steuert. Sie muss aktiviert sein, damit überhaupt Abonnement-Rechnungen erstellt werden können; ohne sie werden keine Abonnement-Rechnungen generiert oder versendet.
 
-> Von der Seite eines Mitglieds oder eines Abonnements aus kannst Du im Abschnitt "Abrechnung" (rechte Spalte) den Erstellungstag der nächsten Rechnung sehen.
+#### Aktivierung
 
-### Jetzt abrechnen
+In [den Einstellungen (Automatische Abrechnung)](/settings#billing) wählst Du den **Wochentag**, an dem das System laufen soll. Jede Woche an diesem Tag überprüft das System alle Mitglieder und erstellt Rechnungen, wenn sie fällig sind. So erstellte Rechnungen werden **automatisch per E-Mail versendet**.
 
-In einigen Fällen, beispielsweise nach einer Änderung der Abonnementskonfiguration, ist es möglich, die Erstellung einer neuen Rechnung zu erzwingen, anstatt das System dies automatisch am nächsten Abrechnungstag tun zu lassen. Klicke dazu auf die Schaltfläche "Jetzt abrechnen" im Abschnitt "Abrechnung" (rechte Spalte). Die Rechnung wird dann erstellt, aber <u>nicht gesendet</u>. Du kannst dann das PDF einsehen und es manuell mit der Schaltfläche "Senden" auf der Seite der Rechnung versenden. Dies ist nützlich, wenn Du in Kontakt mit einem Mitglied stehst und schnell eine Rechnung korrigieren möchtest.
+Standardmässig werden Rechnungen, die bei ihrer Erstellung bereits als bezahlt/geschlossen gelten, nicht automatisch versendet. Du kannst dies mit der Einstellung "Geschlossene Rechnungen senden" ändern.
+
+> Es ist ratsam, einen anderen Tag als den Lieferungstag zu wählen. So werden Änderungen am Abonnement oder an der Tasche, die am Lieferungstag vorgenommen werden, in der Rechnung der folgenden Tage berücksichtigt, anstatt voreilig am selben Tag abgerechnet zu werden oder eine volle Woche warten zu müssen.
+
+#### Zahlungsintervalle {#billing-year-divisions}
+
+Jedes Abonnement hat ein **Zahlungsintervall**, das bestimmt, wie viele Rechnungen über das Geschäftsjahr generiert werden. Die verfügbaren Intervalle werden in [den Einstellungen](/settings#billing) konfiguriert und den Mitgliedern bei der Anmeldung oder Erneuerung angeboten.
+
+Verfügbare Intervalle: Jährlich (1), Halbjährlich (2), Dritteljährlich (3), Quartalweise (4), Monatlich (12).
+
+Der Rechnungsbetrag wird berechnet als: **Gesamtbetrag des Abonnements ÷ Anzahl der verbleibenden Intervalle**. Bei einem Abonnement von 1000.- das vierteljährlich bezahlt wird, beträgt jede Rechnung 250.-.
+
+#### Wann wird die erste Rechnung versendet? {#first-invoice-timing}
+
+Standardmässig wird die erste Rechnung am Abrechnungstag nach der **ersten Lieferung einer <%= Basket.model_name.human %>** versendet. Das bedeutet, dass keine Rechnung erstellt wird, bevor das Mitglied seine erste Lieferung erhalten hat.
+
+Dieses Verhalten kann in [den Einstellungen](/settings#billing) geändert werden, indem "Abonnements erst nach ihrer ersten Lieferung abrechnen" deaktiviert wird. Dann beginnt die Abrechnung ab dem **Startdatum des Abonnements**, auch vor der ersten Lieferung.
+
+#### Wann endet die Abrechnung? {#billing-end}
+
+Standardmässig erstreckt sich die Abrechnung bis zum **Enddatum des Abonnements** und deckt das gesamte Geschäftsjahr ab, auch wenn in den letzten Monaten keine Lieferungen stattfinden.
+
+Dies kann in [den Einstellungen](/settings#billing) geändert werden, indem "Abonnements nur bis zu ihrer letzten Lieferung abrechnen" aktiviert wird. Dann deckt die Abrechnung nur bis zum Monat der letzten Lieferung ab. Dies ist nützlich, wenn die letzten Monate des Geschäftsjahres keine Lieferungen haben.
+
+#### Detaillierte Logik
+
+An jedem Abrechnungstag überprüft das System jedes Mitglied und bestimmt, ob eine Rechnung fällig ist:
+
+1. Das Geschäftsjahr wird in Perioden auf Basis des Zahlungsintervalls aufgeteilt (z.B. quartalweise = 4 Perioden à 3 Monate).
+2. Wenn die **aktuelle Periode bereits abgerechnet** wurde, wird die nächste Rechnung für den Beginn der nächsten Periode geplant.
+3. Wenn die **aktuelle Periode noch nicht abgerechnet** wurde, wird die Rechnung am nächsten Abrechnungstag erstellt, unter Berücksichtigung der oben beschriebenen Einstellung "erste Lieferung" oder "Abonnement-Beginn".
+4. Wenn das berechnete Datum **nach dem Ende des Geschäftsjahres** liegt, wird keine weitere Rechnung für dieses Jahr erstellt.
+
+Die Rechnung wird immer am konfigurierten Wochentag erstellt. Wenn eine Rechnung an einem anderen Tag fällig wird (z.B. eine neue Periode beginnt an einem Mittwoch, aber der Abrechnungstag ist Montag), wird sie am folgenden Montag erstellt.
+
+#### Datum der nächsten Rechnung
+
+Auf der Seite eines Mitglieds oder eines Abonnements zeigt der Abschnitt "Abrechnung" (rechte Spalte) das **Datum der nächsten Rechnung** an. Dieses zeigt, wann die nächste automatische Rechnung erstellt und versendet wird.
+
+Dieses Datum aktualisiert sich dynamisch: Sobald eine Rechnung versendet wurde, springt es zum nächsten geplanten Datum.
+
+### Jetzt abrechnen {#bill-now}
+
+In einigen Fällen, beispielsweise nach einer Änderung der Abonnementskonfiguration, möchtest Du möglicherweise sofort eine Rechnung erstellen, anstatt auf den nächsten Abrechnungstag zu warten. Klicke dazu auf die Schaltfläche "Jetzt abrechnen" im Abschnitt "Abrechnung" (rechte Spalte) der Mitglieds- oder Abonnementsseite.
+
+Die Rechnung wird dann erstellt, aber **nicht gesendet**. Du kannst das PDF einsehen und es manuell mit der Schaltfläche "Senden" auf der Seite der Rechnung versenden. Dies ist nützlich, wenn Du in Kontakt mit einem Mitglied stehst und schnell eine Rechnung korrigieren oder das Ergebnis einer Konfigurationsänderung überprüfen möchtest.
+
+> Die Schaltfläche "Jetzt abrechnen" erzeugt exakt die gleiche Rechnung wie das automatische System, der einzige Unterschied ist, dass sie nicht automatisch versendet wird, sodass Du sie vorher überprüfen kannst.
 
 ### Alle in Zukunft abrechnen {#future_billing}
 
@@ -51,25 +120,45 @@ Wenn eine Abonnementskonfiguration (Daten, <%= BasketSize.model_name.human %>, .
   - Die Preisänderung ist positiv, eine neue Rechnung (mit einem höheren Betrag) wird einfach am nächsten Abrechnungstag erstellt, um den fehlenden Betrag in Rechnung zu stellen.
   - Die Preisänderung ist negativ, die letzte(n) Rechnung(en) des Abonnements wird/werden dann automatisch storniert und eine neue Rechnung (mit einem niedrigeren Betrag) wird am nächsten Abrechnungstag neu erstellt. Wenn die alte stornierte Rechnung bereits bezahlt war, wird die neue Rechnung automatisch geschlossen und das Mitglied hat einen positiven Saldo. Bei Bedarf kannst Du eine Rückerstattung des Mitgliedersaldos durch [Erstellung einer negativen Zahlung](/payments/new) vornehmen.
 
-### Jahresbeitrag
+Das Verkürzen des Enddatums eines Abonnements, auch mit der Aktion **Stoppen**, folgt derselben Regel: Zukünftige Lieferungen werden entfernt, der Betrag des Abonnements wird neu berechnet und die Differenz wird am nächsten Abrechnungstag behandelt.
 
-Der Jahresbeitrag ist automatisch in der ersten Rechnung des Abonnements enthalten. Wenn das Mitglied kein Abonnement hat ([Förderung](/handbook/members#statuses)), wird zu Beginn des Geschäftsjahres automatisch eine spezielle Rechnung erstellt.
+### Jahresbeitrag {#annual-fee}
+
+Wenn die Jahresbeitragsfunktion aktiviert ist, ist der Standard-Jahresbeitrag der Organisation in [den Einstellungen zum Jahresbeitrag](/settings#annual_fee) definiert. Jedes Mitglied erbt diesen Standardwert bei der Erstellung, aber er kann individuell im Profil des Mitglieds (Bearbeitungsseite, Abschnitt "Abrechnung") überschrieben werden. Wenn die Einstellung "nur Fördermitglieder" aktiviert ist, erben aktive Mitglieder den Standard-Jahresbeitrag der Organisation nicht automatisch; er bleibt für Fördermitglieder gedacht, sofern er nicht manuell gesetzt wird.
+
+Wenn die Funktion aktiviert ist, ist der Jahresbeitrag automatisch in der **ersten Rechnung** des Abonnements enthalten. Wenn das Mitglied kein Abonnement hat ([Förderung](/handbook/members#statuses)), wird zu Beginn des Geschäftsjahres automatisch eine spezifische Jahresbeitragsrechnung erstellt.
+
+Wenn Du den Standard-Jahresbeitrag der Organisation änderst, werden alle Mitglieder, die noch den alten Wert haben, automatisch aktualisiert.
 
 ### <%= Basket.model_name.human(count: 2) %> zur Probe {#trial-baskets}
 
-Wenn in [den Abrechnungseinstellungen](/settings#billing) eine Anzahl von <%= Basket.model_name.human(count: 2) %> zur Probe definiert ist, wird das Abonnement erst abgerechnet, wenn alle <%= Basket.model_name.human(count: 2) %> zur Probe geliefert wurden, und zwar am nächsten Abrechnungstag nach der Lieferung der ersten <%= Basket.model_name.human %> ohne Probe.
+Wenn in [den Abrechnungseinstellungen](/settings#billing) eine Anzahl von <%= Basket.model_name.human(count: 2) %> zur Probe definiert ist, wird das Abonnement erst abgerechnet, wenn alle <%= Basket.model_name.human(count: 2) %> zur Probe geliefert wurden, und zwar am nächsten Abrechnungstag nach der Lieferung der ersten <%= Basket.model_name.human %> ohne Probe. Dadurch wird sichergestellt, dass die erste Rechnung nicht erstellt wird, solange das Mitglied die Probezeit noch selbst kündigen kann.
 
 Mitglieder können ihr Abonnement während der Probezeit selbst über ihr Mitgliederkonto kündigen. Das Abonnement endet dann am Lieferdatum der letzten <%= Basket.model_name.human %> zur Probe. Um ein Abonnement sofort zu kündigen, muss der Admin dies manuell tun.
 
 Wenn das Abonnement während der Probezeit gekündigt wird, werden nur die gelieferten <%= Basket.model_name.human(count: 2) %> am nächsten Abrechnungstag in Rechnung gestellt. In diesem Fall wird der Jahresbeitrag nicht berechnet (es sei denn, das Mitglied entscheidet sich, ihn zu zahlen).
 
+### <%= Member.human_attribute_name(:salary_basket) %>
+
+Als "[<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket)" markierte Mitglieder sind vollständig von der Abrechnung ausgeschlossen. Ihr Abonnement existiert weiterhin für die Lieferverfolgung, aber alle Preise sind auf Null gesetzt und es werden keine Abonnementsrechnungen generiert.
+
 ## Anteilskapital {#share-capital}
 
-An jedem Abrechnungstag erstellt das System automatisch Rechnungen für fehlendes Anteilskapital, beispielsweise für ein Mitglied, dessen Abonnement gerade begonnen hat.
+Wenn die Anteilskapitalfunktion aktiviert ist, sind der Preis pro Anteil und die standardmässig erforderliche Anzahl Anteile in [den Einstellungen zum Anteilskapital](/settings#shares) definiert. Die erforderliche Anzahl Anteile kann auch pro <%= BasketSize.model_name.human %> festgelegt werden (z.B. kann eine grössere Variante mehr Anteile erfordern).
+
+Wenn die Funktion aktiviert ist, erstellt CSA Admin an jedem Abrechnungstag automatisch Rechnungen für fehlendes Anteilskapital, beispielsweise für ein Mitglied, dessen Abonnement gerade begonnen hat.
+
+### Anteils-Felder des Mitglieds {#share-fields}
+
+Drei anteilsbezogene Felder sind im Profil eines Mitglieds verfügbar (Bearbeitungsseite, Abschnitt "Abrechnung"):
+
+- **Anzahl bestehender Anteile**: Bereits ausserhalb von CSA Admin gehaltene Anteile (z.B. aus einem früheren System). Diese werden nicht erneut in Rechnung gestellt.
+- **Gewünschte Anzahl an Anteilen**: Mitglieder können bei der [Anmeldung](/handbook/registration) oder [Erneuerung](/handbook/membership_renewal) zusätzliche Anteile über das Minimum hinaus anfordern. Das System berechnet den höheren Wert aus erforderlicher und gewünschter Anzahl.
+- **Erforderliche Anzahl an Anteilen**: Admin-Überschreibung der für dieses Mitglied benötigten Anteile. Standardmässig der für seine <%= BasketSize.model_name.human %> konfigurierte Wert.
+
+### Rückerstattung {#share-refund}
 
 Um bereits in Rechnung gestelltes Anteilskapital zurückzuerstatten, gehe zur Rechnungsseite und klicke oben rechts auf die Schaltfläche "Rückerstattung". Du kannst dann einfach eine negative Anteilskapitalrechnung erstellen. Stelle sicher, dass das Mitglied kein Anteilskapital mehr benötigt, andernfalls wird es am nächsten Abrechnungstag automatisch neu erstellt.
-
-Wenn Anteilskapital bereits außerhalb von CSA Admin in Rechnung gestellt wurde, kannst Du diese Information widerspiegeln, indem Du das Profil des Mitglieds bearbeitest, Abschnitt "Abrechnung" (Anzahl bestehender Anteile). Diese Anteile werden dann nicht in Rechnung gestellt.
 
 > Von der Seite eines Mitglieds aus kannst Du im Abschnitt "Abrechnung" (rechte Spalte) die Anzahl der Anteile sehen, die in Rechnung gestellt werden oder bereits in Rechnung gestellt wurden, mit einem Link zu den entsprechenden Rechnungen.
 
@@ -114,6 +203,14 @@ CSA Admin bietet die Möglichkeit, verschiedene Artikel oder Dienstleistungen ma
 
 > Achtung, Rechnungen vom Typ "Sonstiges" sollten nicht verwendet werden, um Abonnements, Anteilskapital oder <%= activities_human_name.downcase %> in Rechnung zu stellen, da das System diese nicht berücksichtigt.
 
+## MwSt. {#vat}
+
+Wenn Deine Organisation mehrwertsteuerpflichtig ist, aktiviere die MwSt.-Funktion und konfiguriere Deine MwSt.-Nummer sowie die Sätze in [den MwSt.-Einstellungen](/settings#vat). Separate Sätze können für Abonnementsrechnungen, <%= activities_human_name.downcase %>-Rechnungen und Hofladenbestellungsrechnungen definiert werden. Für Rechnungen vom Typ "Sonstiges" und "Neumitgliedsbeitrag" wird der MwSt.-Satz manuell auf jeder Rechnung festgelegt.
+
+Die MwSt. wird als inklusive Steuer berechnet (der Rechnungsbetrag enthält bereits die MwSt.). Der Nettobetrag und der MwSt.-Betrag werden auf der Rechnungs-PDF separat ausgewiesen.
+
+> MwSt. wird nur angewendet, wenn die MwSt.-Funktion aktiviert ist. In den MwSt.-Einstellungen sind eine MwSt.-Nummer und ein MwSt.-Satz für Abonnements erforderlich; MwSt.-Sätze für <%= activities_human_name.downcase %> und den Hofladen sind optional und werden nur verwendet, wenn diese Funktionen aktiviert sind.
+
 ## Zahlungen {#payments}
 
 Jedes Mal, wenn eine Zahlung erstellt wird (automatisch oder manuell) oder eine Rechnung erstellt oder storniert wird, verteilt das System den Betrag aller Zahlungen auf bestehende Rechnungen in der folgenden Prioritätsreihenfolge:
@@ -126,28 +223,44 @@ Dieser Umverteilungsmodus ist sehr praktisch und ermöglicht es so, Fälle zu ve
 
 ### Automatischer Import {#automatic_payments_processing}
 
-Die effizienteste Methode zur Verarbeitung Deiner Zahlungen besteht darin, Deine Bank zu bitten, [eine EBICS-Verbindung](https://www.six-group.com/de/products-services/banking-services/standardization.html#scrollTo=ebics) einzurichten. Dies ermöglicht es dem System, Zahlungen von Rechnungen mit Referenznummern Deiner Mitglieder automatisch (jede Nacht) über das ISO camt.054-Format zu importieren.
+Die effizienteste Methode zur Verarbeitung Deiner Zahlungen besteht darin, Deine Bank zu bitten, [eine EBICS-3.0-Verbindung](https://www.six-group.com/de/products-services/banking-services/standardization.html#scrollTo=ebics) einzurichten. CSA Admin unterstützt nur EBICS 3.0 (H005/BTF); ältere EBICS-2.x/H003/H004-Verbindungen mit Auftragsarten werden nicht mehr unterstützt. So kann das System die Zahlungen Deiner Mitglieder jede Nacht automatisch über ISO-camt.053/camt.054-Dateien importieren.
 
 <!-- country:CH -->
-CSA Admin verwaltet auch den automatischen Abruf von Zahlungen der [Alternativen Bank Schweiz](https://www.bas.ch/de), die das EBICS-System nicht unterstützt.
+CSA Admin verwaltet auch den automatischen Abruf von Zahlungen der [Alternativen Bank Schweiz (ABS)](https://www.abs.ch/de), die das EBICS-System nicht unterstützt.
 <!-- /country:CH -->
 
 > Wenn Du Fragen zur Förderung einer bestimmten Bank oder zur Einrichtung von EBICS hast, zögere nicht, [mich zu fragen](/support).
 
 ### Einrichtung von EBICS {#ebics-setup}
 
-Die Einrichtung einer EBICS-Verbindung mit Deiner Bank umfasst mehrere Schritte und dauert in der Regel einige Tage. Hier ist der Ablauf:
+Die Einrichtung einer EBICS-3.0-Verbindung (H005/BTF) mit Deiner Bank umfasst mehrere Schritte und dauert in der Regel einige Tage. Hier ist der Ablauf:
 
-1. **EBICS-Anmeldeformular bei Deiner Bank anfordern** — Kontaktiere Deine Bank, um sie zu bitten, eine EBICS-Verbindung für Dein Konto mit täglichem Abruf und Unterstützung des **camt.054**-Formats zu aktivieren.
-2. **Mir das Bankdokument senden** — Nach Deiner Anmeldung erhältst Du ein Dokument von Deiner Bank (mit der Teilnehmer-ID usw.), scanne es und [sende es mir](/support).
-3. **Unterzeichnung des INI-Briefs** — Ich werde die Verbindung initialisieren und Dir einen INI-Brief zurücksenden. Du musst ihn unterschreiben (**Seiten 1 und 3**) und an Deine Bank senden.
-4. **Finalisierung** — Sobald Deine Bank den unterschriebenen INI-Brief erhalten und validiert hat, kann ich die Verbindung finalisieren.
+1. **EBICS-Anmeldeformular bei Deiner Bank anfordern** — Kontaktiere Deine Bank und bitte sie, eine EBICS-3.0-Verbindung (H005/BTF) für Dein Konto mit täglichem Abruf von Zahlungsdateien (`BTD`) und Unterstützung von **camt.053/camt.054** zu aktivieren. Frage die Bank nach EBICS-URL, Host-ID, Kunden-/Vertrags-/Partner-ID und Teilnehmer-ID.
+2. **Einrichtung in CSA Admin starten** — Öffne die [Einstellungen der Bankverbindung](/settings#bank_connection), klicke auf **EBICS-Einrichtung starten** und gib die Kennungen aus dem Bankvertrag ein. CSA Admin prüft zuerst URL und Host-ID und übermittelt danach die EBICS-Initialisierungsaufträge.
+3. **Unterzeichnung des INI-Briefs** — Lade den Initialisierungsbrief herunter, unterschreibe **jede Seite** und sende ihn an Deine Bank.
+4. **Finalisierung** — Sobald Deine Bank den unterschriebenen INI-Brief erhalten und validiert hat, prüft CSA Admin einmal täglich und aktiviert die Verbindung automatisch.
 
-> In der Zwischenzeit kannst Du den [manuellen Import](#manual-import) verwenden, um Deine Zahlungen zu verarbeiten.
+> In der Zwischenzeit kannst Du den [manuellen Import](#manual-import) verwenden, um Deine Zahlungen zu verarbeiten. Wenn die Bank die Kennungen ablehnt oder die Einrichtung Support benötigt, [frag mich](/support).
+
+<!-- country:CH -->
+### Einrichtung Alternative Bank Schweiz (ABS) {#abs-setup}
+
+Die Verbindung mit der [Alternative Bank Schweiz (ABS)](https://www.abs.ch/de) verwendet ein Keyfile-(Schlüsseldatei-)System, da sie EBICS nicht unterstützt. Hier ist der Ablauf:
+
+1. **Kontaktiere die Bank** — Über Deinen sicheren E-Banking-Nachrichtenkanal, bitte um eine "Keyfile (Schlüsseldatei) Verbindung" für Deinen bestehenden E-Banking-Vertrag (IBXXXXXXX).
+2. **Keyfile erhalten** — Die Bank sendet Dir per E-Mail eine verschlüsselte Keyfile-Datei (Format `.p12`) und deren Passwort per separatem Postbrief.
+3. **Mir die Informationen senden** — Sobald Du alle Informationen hast, sende mir diese bitte über einen sicheren Ende-zu-Ende-verschlüsselten Kanal (Signal, Telegram, WhatsApp, iMessage, ...):
+   - Die verschlüsselte Keyfile-Datei (Format `.p12`) und ihr Passwort
+   - Deine IBXXXXXXX-Vertragsnummer
+   - Dein IBXXXXXXX-Vertragspasswort, identisch mit Deinem E-Banking-Passwort. Bitte beachte, dass ich keinen Zugriff auf Dein E-Banking habe — das System kann nur die camt.054-Dateien mit der Zahlungsliste abrufen.
+   - Deine Bankkontonummer (XXX.XXX.XXX-XX)
+
+> ⚠️ Falls Du Dein E-Banking-Passwort änderst oder Dein IB-Vertrag aufgelöst wird, informiere mich bitte umgehend — der Zahlungsabruf funktioniert nicht mehr, bis die Informationen aktualisiert sind. Bei einer Auflösung des IB-Vertrags muss die gesamte Einrichtung mit einem neuen Vertrag neu gestartet werden.
+<!-- /country:CH -->
 
 ### Manueller Import {#manual-import}
 
-Wenn der automatische Import über [EBICS](https://www.six-group.com/de/products-services/banking-services/standardization.html#scrollTo=ebics) noch nicht konfiguriert ist, kannst Du Zahlungen von Rechnungen mit Referenznummern Deiner Mitglieder einfach importieren, indem Du eine Datei im camt.053-, camt.054- oder mt940-Format von Deinem E-Banking herunterlädst und in CSA Admin von [der Zahlungsseite](/payments) aus hochlädst, Abschnitt "Import" in der rechten Spalte. Vergiss nicht, den Vorgang regelmäßig (jede Woche) zu wiederholen, bis der automatische Import eingerichtet ist.
+Wenn der automatische Import über [EBICS](https://www.six-group.com/de/products-services/banking-services/standardization.html#scrollTo=ebics) noch nicht konfiguriert ist, kannst Du Zahlungen von Rechnungen mit Referenznummern Deiner Mitglieder einfach importieren, indem Du eine Datei im camt.053-, camt.054- oder mt940-Format von Deinem E-Banking herunterlädst und in CSA Admin von [der Zahlungsseite](/payments) aus hochlädst, Abschnitt "Import" in der rechten Spalte. Vergiss nicht, den Vorgang regelmässig (jede Woche) zu wiederholen, bis der automatische Import eingerichtet ist.
 
 Für Zahlungen ohne Referenznummer (Bargeld oder direkte Einzahlung) musst Du einfach [eine neue Zahlung manuell erstellen](/payments/new). Der Betrag wird automatisch auf bestehende offene Rechnungen umverteilt.
 
@@ -160,36 +273,9 @@ Wenn Du ein Mitglied aus irgendeinem Grund zurückerstatten möchtest, erstelle 
 <!-- country:!CH -->
 ## SEPA-Lastschrift {#sepa}
 
-CSA Admin unterstützt das SEPA-Lastschriftverfahren zur Einziehung von Zahlungen Deiner Mitglieder. Standardmäßig enthalten Rechnungen einen [EPC-QR-Code](https://de.wikipedia.org/wiki/EPC-QR-Code), den Mitglieder zum Bezahlen scannen können. Wenn ein Mitglied SEPA-Informationen hinterlegt hat (IBAN, Mandatsreferenz und Unterschriftsdatum), werden seine Rechnungen stattdessen als SEPA-Rechnungen gekennzeichnet und die Zahlung wird per Lastschrift direkt von seinem Bankkonto eingezogen.
+CSA Admin unterstützt das SEPA-Lastschriftverfahren für die Zahlungseinziehung bei Deinen Mitgliedern, mit einer dedizierten Seite, auf der die Mitglieder ihr Mandat online unterzeichnen können.
 
-### Einrichtung {#sepa-setup}
-
-Um die SEPA-Lastschrift zu nutzen, musst Du folgendes in [Deinen Abrechnungseinstellungen](/settings#billing) konfigurieren:
-
-- **IBAN** — Die IBAN des Bankkontos Deiner Organisation.
-- **Gläubiger-Identifikationsnummer** — Deine SEPA-Gläubiger-ID (z.B. `DE98ZZZ09999999999`), die Du bei Deiner Bank oder der Deutschen Bundesbank erhalten kannst.
-
-Du kannst außerdem einen eigenen **Informationstext (SEPA)** in [den Abrechnungseinstellungen](/settings#billing) festlegen, der auf SEPA-Rechnungen anstelle des Standard-Informationstextes angezeigt wird (z.B. «Der Betrag wird per SEPA-Lastschrift eingezogen.»).
-
-### SEPA-Informationen der Mitglieder {#sepa-member}
-
-Für jedes Mitglied, das die SEPA-Lastschrift nutzt, musst Du folgende Felder im Profil des Mitglieds unter dem Abschnitt «Abrechnung (SEPA)» ausfüllen:
-
-- **IBAN** — Die IBAN des Bankkontos des Mitglieds.
-- **Mandatsreferenz** — Eine eindeutige Kennung für das SEPA-Mandat.
-- **Datum der Mandatsunterschrift** — Das Datum, an dem das Mandat unterschrieben wurde.
-
-Mitglieder können ihre SEPA-Informationen auf ihrer Abrechnungsseite einsehen. Wenn alle drei Felder vorhanden sind, werden Rechnungen für dieses Mitglied als SEPA-Rechnungen gekennzeichnet. Mitglieder ohne SEPA-Informationen erhalten weiterhin Rechnungen mit einem EPC-QR-Code.
-
-### Verarbeitung der SEPA-Aufträge {#sepa-processing}
-
-Sobald eine SEPA-Rechnung erstellt und versendet wurde, muss ein SEPA-Lastschriftauftrag (pain.008 XML) bei Deiner Bank eingereicht werden. Dafür gibt es zwei Möglichkeiten:
-
-**Mit einer EBICS-Verbindung** — Wenn Du [eine EBICS-Verbindung](#ebics-setup) konfiguriert hast, werden SEPA-Lastschriftaufträge **automatisch** 3 Tage nach dem Versand der Rechnung an Deine Bank übermittelt. Du kannst die Übermittlung auch manuell von der Rechnungsseite aus auslösen, indem Du auf die Schaltfläche «SEPA-Lastschriftauftrag an die Bank senden» klickst. Die Rechnungsseite zeigt die Auftrags-ID und das Upload-Datum an, sobald der Auftrag übermittelt wurde.
-
-**Ohne EBICS-Verbindung** — Wenn Du keine EBICS-Verbindung hast, kannst Du die **pain.xml-Datei manuell herunterladen** von der Rechnungsseite und sie selbst über das E-Banking-Portal Deiner Bank hochladen. Ein Sammel-Download ist auch über die Seitenleiste der [Rechnungsseite](/invoices) verfügbar, mit dem Du eine einzelne pain.xml-Datei für alle offenen SEPA-Rechnungen auf einmal herunterladen kannst.
-
-> SEPA-Rechnungen lösen keine Erinnerungen aus, da die Zahlungseinziehung von Dir (dem Gläubiger) und nicht vom Mitglied initiiert wird.
+Siehe die [dedizierte SEPA-Handbuchseite](/handbook/sepa) für die vollständige Einrichtung.
 <!-- /country:!CH -->
 
 ## Erinnerungen {#overdue_notice}
@@ -199,3 +285,11 @@ Wenn Zahlungen automatisch importiert werden, kümmert sich das System automatis
 Du kannst den Inhalt dieser Erinnerung konfigurieren, indem Du [die E-Mail-Vorlage "Rechnungserinnerung"](/mail_templates/invoice_overdue_notice) bearbeitest.
 
 > Du kannst per E-Mail benachrichtigt werden, wenn die 3. Erinnerung einer Rechnung gesendet wird. Verwalte Deine Benachrichtigungen über [Dein Administratorkonto](/admins/<%= current_admin.id %>/edit).
+
+## Admin-Benachrichtigungen {#notifications}
+
+Mehrere abrechnungsbezogene Ereignisse können E-Mail-Benachrichtigungen an Administratoren auslösen, die diese Option über [ihre Benachrichtigungseinstellungen](/admins/<%= current_admin.id %>/edit) aktiviert haben:
+
+- **Rechnung überbezahlt**: Wird gesendet, wenn eine Zahlung den bezahlten Betrag einer Rechnung über ihren Gesamtbetrag hinaus bringt, was darauf hinweist, dass das Mitglied ein positives Guthaben hat.
+- **3. Mahnung**: Wird gesendet, wenn die dritte Erinnerung für eine unbezahlte Rechnung versandt wird, was auf ein anhaltendes Zahlungsproblem hinweist.
+- **Zahlungsrückbuchung**: Wird gesendet, wenn eine negative Zahlung (Rückbuchung) importiert wird, was auf eine Lastschriftrückgabe oder eine Bankkorrektur hindeuten kann.

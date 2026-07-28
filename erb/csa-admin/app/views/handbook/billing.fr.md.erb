@@ -2,6 +2,30 @@
 
 CSA Admin vise à automatiser la plupart des tâches relative à la facturation ([abonnements](#memberships), [parts sociales](#share-capital), [traitements des paiements](#payments)), mais certains aspects comme la facturation des [<%= activities_human_name %> non effectuées](#activity) doivent être effectués manuellement.
 
+## Types de factures {#invoice-types}
+
+CSA Admin gère plusieurs types de factures:
+
+| Type | Description |
+|------|-------------|
+| **Abonnement** | Facturation de l'abonnement principal (<%= BasketSize.model_name.human.downcase %>, <%= BasketComplement.model_name.human(count: 2).downcase %>, dépôt, cycle de livraisons). [Générée automatiquement](#memberships). |
+| **Cotisation annuelle** | Incluse dans la première facture de l'abonnement, ou [facturée séparément](#annual-fee) pour les [membres de soutien](/handbook/members#statuses). |
+| **Parts sociales** | Pour les organisations nécessitant la [détention de parts sociales](#share-capital). Générée automatiquement lorsqu'il manque des parts. |
+| **<%= activities_human_name %>** | Facturation des [participations non effectuées](#activity). Déclenchée manuellement ou de manière groupée. |
+| **Commande boutique** | Facture pour les commandes de la [boutique](/handbook/shop). Peut être automatique ou manuelle. |
+| **Cotisation nouveau membre** | Cotisation unique facturée aux nouveaux membres, si la fonctionnalité est activée. |
+| **Autre** | [Factures libres](#manual-invoice) pour des articles ou services divers. |
+
+### Annulation des factures {#canceling-invoices}
+
+Pour annuler une facture liée à un abonnement ou à une participation, annulez ou supprimez d'abord toute facture plus récente liée au même abonnement ou à la même participation. Le bouton **Annuler** des factures précédentes reste désactivé jusque-là.
+
+## Paramètres de facture {#invoice-settings}
+
+Les paramètres de facture définissent les informations bancaires et celles de l'organisation affichées sur les PDF de facture. Configurez votre compte bancaire, l'adresse du créancier, d'éventuels logos de facture, ainsi que les textes d'information et de pied de page depuis [les paramètres de facture](/settings#invoice).
+
+Dans les pays SEPA, le nom du document de facture peut également être personnalisé par langue lorsque la fonctionnalité SEPA est activée.
+
 <!-- country:CH -->
 ## Factures-QR {#qr-invoices}
 
@@ -11,34 +35,79 @@ CSA Admin génère des factures-QR avec numéro de référence (PDF) et les envo
 
 Afin de pouvoir générer ces factures, il vous faut un **QR-IBAN** de votre banque. Il s'agit d'un IBAN spécial (commençant par CH et contenant 30 ou 31 comme numéro de clearing bancaire) qui est différent de l'IBAN de votre compte bancaire habituel. Seul le QR-IBAN permet de générer des factures-QR suisses avec numéro de référence — un IBAN normal n'est pas supporté à cet effet.
 
-Vous pouvez demander un QR-IBAN à votre banque puis l'entrer dans [vos paramètres de facturation](/settings#billing).
+Vous pouvez demander un QR-IBAN à votre banque puis l'entrer dans [vos paramètres de facturation](/settings#invoice).
 
-> Si vous n'êtes pas sûr de déjà disposer d'un QR-IBAN, essayez de l'entrer dans [vos paramètres de facturation](/settings#billing) — le système validera son format et le rejettera s'il ne s'agit pas d'un QR-IBAN valide. Si vous n'en avez pas, demandez-le à votre banque.
+> Si vous n'êtes pas sûr de déjà disposer d'un QR-IBAN, essayez de l'entrer dans [vos paramètres de facturation](/settings#invoice) — le système validera son format et le rejettera s'il ne s'agit pas d'un QR-IBAN valide. Si vous n'en avez pas, demandez-le à votre banque.
 <!-- /country:CH -->
 
 ## Abonnements {#memberships}
 
-La facturation des abonnements est complètement automatisée par le système. Vous pouvez définir dans [les paramètres (Facturation automatique)](/settings#billing) le jour de la semaine où le système va passer en revue tous les abonnements et créer et envoyer automatiquement les factures nécessaires. Par exemple, si un membre est facturé tous les trimestres, alors une nouvelle facture sera automatiquement créée et envoyée le premier jour de la semaine configuré d'un nouveau trimestre.
-
-Le montant de la facture est calculé ainsi: montant total de l'abonnement / nombre d'intervalles de paiements. Par exemple, pour un abonnement à 1000.- payé tous les trimestres, chaque facture sera de 250.-.
+La facturation des abonnements est complètement automatisée par le système. Vous pouvez définir dans [les paramètres (Facturation automatique)](/settings#billing) le jour de la semaine où le système va passer en revue tous les abonnements et créer et envoyer automatiquement les factures nécessaires.
 
 Il est donc primordial que chaque configuration d'abonnement soit bien à jour afin que les factures soient correctes.
 
-Par défaut, la première facture est envoyée le jour de facturation suivant la première livraison de <%= Basket.model_name.human.downcase %>, mais il est possible de modifier cela dans [les paramètres](/settings#billing) (Facturer les abonnements seulement après leur première livraison) pour facturer l'abonnement dès le début de celui-ci.
+### Facturation automatique récurrente {#recurring-billing}
 
-Par défaut, la facturation s'étend jusqu'à la date de fin de l'abonnement, mais il est possible de modifier cela dans [les paramètres](/settings#billing) (Facturer les abonnements jusqu'à leur dernière livraison uniquement) pour étendre la période de facturation uniquement jusqu'à la date de leur dernière livraison. Ceci est utile lorsque, par exemple, les derniers mois de l'année fiscale n'ont aucune livraison.
+La facturation récurrente est le mécanisme qui gère la facturation des abonnements. Elle doit être activée pour que toute facture d'abonnement puisse être créée; sans elle, aucune facture d'abonnement n'est générée ni envoyée.
 
-> Depuis la page d'un membre ou d'un abonnement, vous pouvez voir dans la section "Facturation" (colonne de droite) le jour de création de la prochaine facture.
+#### Comment l'activer
 
-### Facturer maintenant
+Dans [les paramètres (Facturation automatique)](/settings#billing), choisissez le **jour de la semaine** où le système doit s'exécuter. Chaque semaine à ce jour-là, le système passe en revue tous les membres et crée les factures lorsqu'elles sont dues. Les factures ainsi créées sont **automatiquement envoyées** par email.
 
-Dans certain cas, par exemple après un changement de configuration de l'abonnement, il est possible de forcer la création d'une nouvelle facture plutôt que de laisser le système le faire automatiquement le prochain jour de facturation. Pour cela, cliquez sur le bouton "Facturer maintenant" dans la section "Facturation" (colonne de droite). La facture sera alors créée, mais <u>non envoyée</u>, vous pouvez alors la consulter le PDF et l'envoyer manuellement à l'aide du bouton "Envoyer" sur la page de celle-ci. Cela s'avère utile si vous êtes en contact avec un membre et voulez rectifier rapidement une facture.
+Par défaut, les factures déjà considérées comme payées/fermées au moment de leur création ne sont pas envoyées automatiquement. Vous pouvez modifier ce comportement avec le paramètre " Envoyer les factures fermées ".
+
+> Il est préférable de choisir un jour différent de celui de la livraison. Ainsi, les modifications d'abonnement ou de panier effectuées le jour de la livraison seront prises en compte dans la facture générée les jours suivants, plutôt que d'être facturées prématurément le même jour ou de devoir attendre une semaine supplémentaire.
+
+#### Intervalles de paiement {#billing-year-divisions}
+
+Chaque abonnement possède un **intervalle de paiement** qui détermine combien de factures sont générées sur l'année fiscale. Les intervalles disponibles sont configurés dans [les paramètres](/settings#billing) et proposés aux membres lors de l'inscription ou du renouvellement.
+
+Intervalles disponibles: Annuel (1), Semestriel (2), Quadrimestriel (3), Trimestriel (4), Mensuel (12).
+
+Le montant de la facture est calculé ainsi: **montant total de l'abonnement ÷ nombre d'intervalles restants**. Par exemple, pour un abonnement à 1000.- payé tous les trimestres, chaque facture sera de 250.-.
+
+#### Quand la première facture est-elle envoyée? {#first-invoice-timing}
+
+Par défaut, la première facture est envoyée le jour de facturation suivant la **première livraison de <%= Basket.model_name.human.downcase %>**. Cela signifie qu'aucune facture n'est générée avant que le membre ait reçu sa première livraison.
+
+Ce comportement peut être modifié dans [les paramètres](/settings#billing) en désactivant " Facturer les abonnements seulement après leur première livraison ". Lorsque désactivé, la facturation commence dès la **date de début de l'abonnement**, même avant toute livraison.
+
+#### Quand la facturation se termine-t-elle? {#billing-end}
+
+Par défaut, la facturation s'étend jusqu'à la **date de fin de l'abonnement**, couvrant l'année fiscale complète même s'il n'y a pas de livraisons les derniers mois.
+
+Cela peut être modifié dans [les paramètres](/settings#billing) en activant " Facturer les abonnements jusqu'à leur dernière livraison uniquement ". Lorsqu'activé, la facturation ne couvre que jusqu'au mois de la dernière livraison. Ceci est utile lorsque les derniers mois de l'année fiscale n'ont aucune livraison.
+
+#### Logique détaillée
+
+Chaque jour de facturation, le système vérifie chaque membre et détermine si une facture est due:
+
+1. L'année fiscale est découpée en périodes selon l'intervalle de paiement (par ex. trimestriel = 4 périodes de 3 mois).
+2. Si la **période en cours a déjà été facturée**, la prochaine facture est planifiée pour le début de la période suivante.
+3. Si la **période en cours n'a pas encore été facturée**, la facture est créée au prochain jour de facturation, en respectant le paramètre " première livraison " ou " début de l'abonnement " décrit ci-dessus.
+4. Si la date calculée tombe **après la fin de l'année fiscale**, aucune facture supplémentaire n'est générée pour cette année.
+
+La facture est toujours créée le jour de la semaine configuré. Si une facture devient due un autre jour (par ex. une nouvelle période commence un mercredi mais le jour de facturation est le lundi), elle sera créée le lundi suivant.
+
+#### Date de la prochaine facture
+
+Depuis la page d'un membre ou d'un abonnement, la section " Facturation " (colonne de droite) affiche la **date de la prochaine facture**. Celle-ci indique quand la prochaine facture automatique sera créée et envoyée.
+
+Cette date se met à jour dynamiquement: une fois une facture envoyée, elle passe à la prochaine date planifiée.
+
+### Facturer maintenant {#bill-now}
+
+Dans certains cas, par exemple après un changement de configuration de l'abonnement, vous pouvez vouloir créer une facture immédiatement plutôt que d'attendre le prochain jour de facturation. Pour cela, cliquez sur le bouton " Facturer maintenant " dans la section " Facturation " (colonne de droite) de la page du membre ou de l'abonnement.
+
+La facture sera alors créée, mais **non envoyée**. Vous pouvez consulter le PDF et l'envoyer manuellement à l'aide du bouton " Envoyer " sur la page de celle-ci. Cela s'avère utile si vous êtes en contact avec un membre et voulez rectifier rapidement une facture ou vérifier le résultat d'un changement de configuration.
+
+> Le bouton " Facturer maintenant " produit exactement la même facture que le système automatique, la seule différence est qu'elle n'est pas envoyée automatiquement, ce qui vous laisse le temps de la vérifier.
 
 ### Tout facturer à l'avance {#future_billing}
 
 Il est possible de facturer à l'avance un abonnement qui n'a pas encore commencé, avec une date de début dans le futur, que ce soit dans l'année fiscale en cours ou dans l'année fiscale suivante. Les abonnements facturés ainsi sont intégralement facturés en une seule fois, quel que soit l'intervalle de paiement configuré pour l'abonnement.
 
-La facturation à l'avance peut être effectuée depuis la page d'un abonnement futur, en cliquant sur le bouton "Tout facturer à l'avance" dans la section "Facturation" (colonne de droite). Il est également possible de facturer plusieurs abonnements futurs en une seule fois depuis [la page des abonnements](/memberships?scope=future&q[during_year]=<%= Current.fy_year + 1 %>), en utilisant le champ "Futurs" et en filtrant par année fiscale. Vous pouvez alors cliquer sur le bouton "Tout facturer à l'avance" dans la section "Facturation" (colonne de droite), en dessous des filtres. N'hésitez pas à filtrer les futurs abonnements par intervalle de paiement (par exemple "Annuel" uniquement) pour affiner votre sélection.
+Vous pouvez facturer à l'avance un abonnement futur depuis sa page en cliquant sur "Tout facturer à l'avance" dans la section "Facturation" (colonne de droite). Vous pouvez également facturer plusieurs abonnements futurs à la fois depuis [la page des abonnements](/memberships?scope=future&q[during_year]=<%= Current.fy_year + 1 %>): utilisez le champ "Futurs", filtrez par année fiscale, puis cliquez sur "Tout facturer à l'avance" dans la section "Facturation" sous les filtres. Vous pouvez aussi filtrer les abonnements futurs par intervalle de paiement, par exemple "Annuel", pour affiner votre sélection.
 
 > La cotisation annuelle correspondant à l'année fiscale de l'abonnement est automatiquement incluse dans la facture.
 
@@ -51,27 +120,47 @@ Si la configuration d'un abonnement (dates, <%= BasketSize.model_name.human.down
   - Le changement de prix est positif, une nouvelle facture (avec un montant plus élevé) sera simplement créée le prochain jour de facturation afin de facturer le montant manquant.
   - Le changement de prix est négatif, la/les dernière(s) facture(s) de l'abonnement sera/seront alors automatiquement annulée(s) et une nouvelle facture (avec un montant moins élevé) sera recréée le prochain jour de facturation. Si l'ancienne facture annulée était déjà payée, alors la nouvelle facture sera automatiquement fermée et le membre se retrouvera avec une balance positive. Au besoin, vous pouvez refléter un remboursement du solde du membre en lui [créant un paiement négatif](/payments/new).
 
-### Cotisation annuelle
+Raccourcir la date de fin d'un abonnement, y compris avec l'action **Arrêter**, suit la même règle: les livraisons futures sont supprimées, le montant de l'abonnement est recalculé et la différence est traitée le prochain jour de facturation.
 
-La cotisation annuelle est automatiquement incluse dans la première facture de l'abonnement. Si le membre n'a pas d'abonnement ([soutien](/handbook/members#statuses)) alors une facture spécifique est créée automatiquement au début de l'année fiscale.
+### Cotisation annuelle {#annual-fee}
+
+Lorsque la fonctionnalité de cotisation annuelle est activée, la cotisation annuelle par défaut de l'organisation est définie dans [les paramètres de cotisation annuelle](/settings#annual_fee). Chaque membre hérite de cette valeur par défaut à sa création, mais elle peut être modifiée individuellement depuis son profil (page d'édition, section " Facturation "). Si le paramètre " membres de soutien uniquement " est activé, les membres actifs n'héritent pas automatiquement de la cotisation annuelle par défaut de l'organisation; celle-ci reste destinée aux membres de soutien, sauf si elle est définie manuellement.
+
+Lorsque la fonctionnalité est activée, la cotisation annuelle est automatiquement incluse dans la **première facture** de l'abonnement. Si le membre n'a pas d'abonnement ([soutien](/handbook/members#statuses)), une facture spécifique de cotisation annuelle est créée automatiquement au début de l'année fiscale.
+
+Si vous modifiez la cotisation annuelle par défaut de l'organisation, tous les membres encore à l'ancienne valeur sont automatiquement mis à jour.
 
 ### <%= Basket.model_name.human(count: 2) %> à l'essai {#trial-baskets}
 
-Si un nombre de <%= Basket.model_name.human(count: 2).downcase %> à l'essai est défini dans [les paramètres de facturation](/settings#billing), alors l'abonnement sera uniquement facturé une fois que tous les <%= Basket.model_name.human(count: 2).downcase %> à l'essai seront livrés, le prochain jour de facturation suivant la livraison du premier <%= Basket.model_name.human.downcase %> non à l'essai.
+Si un nombre de <%= Basket.model_name.human(count: 2).downcase %> à l'essai est défini dans [les paramètres de facturation](/settings#billing), alors l'abonnement sera uniquement facturé une fois que tous les <%= Basket.model_name.human(count: 2).downcase %> à l'essai seront livrés, le prochain jour de facturation suivant la livraison du premier <%= Basket.model_name.human.downcase %> non à l'essai. Cela garantit que la première facture n'est pas générée tant que le membre peut encore annuler son essai lui-même.
 
 Les membres peuvent annuler leur abonnement eux-mêmes durant la période d'essai depuis leur compte membre. L'abonnement se terminera alors à la date de livraison du dernier <%= Basket.model_name.human.downcase %> à l'essai. Pour annuler un abonnement immédiatement, l'admin doit le faire manuellement.
 
 Si l'abonnement est annulé durant la période d'essai, alors seulement les <%= Basket.model_name.human(count: 2).downcase %> livrés seront facturés, le prochain jour de facturation. Dans ce cas, la cotisation annuelle n'est pas facturée (sauf si le membre choisit de la payer).
 
+### <%= Member.human_attribute_name(:salary_basket) %>
+
+Les membres marqués comme "[<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket)" sont complètement exclus de la facturation. Leur abonnement existe toujours pour le suivi des livraisons, mais tous les prix sont mis à zéro et aucune facture d'abonnement n'est générée.
+
 ## Parts sociales {#share-capital}
 
-Chaque jour de facturation, le système crée automatiquement les factures pour les parts sociales manquantes, par exemple pour un membre dont l'abonnement vient de commencer.
+Lorsque la fonctionnalité des parts sociales est activée, le prix par part sociale et le nombre de parts requises par défaut sont définis dans [les paramètres des parts sociales](/settings#shares). Le nombre de parts requises peut également être défini par <%= BasketSize.model_name.human.downcase %> (par exemple, une taille plus grande peut nécessiter davantage de parts).
 
-Pour rembourser une part sociale déjà facturée, rendez vous sur la page de la facture et cliquez sur le bouton "Remboursement" en haut à droite, vous pouvez alors facilement créer une facture de part sociale négative. Assurez-vous bien que le membre n'ai plus besoin de parts sociales, sinon elles seront à nouveau automatiquement créées le prochain jour de facturation.
+Lorsque la fonctionnalité est activée, CSA Admin crée automatiquement des factures pour les parts sociales manquantes chaque jour de facturation, par exemple pour un membre dont l'abonnement vient de commencer.
 
-Si des parts sociales ont déjà été facturées en dehors d'CSA Admin, vous pouvez refléter cette information en modifiant le profile du membre, section "Facturation" (Nombre de parts sociales existantes). Ces parts ne seront alors pas facturées.
+### Champs des parts sociales du membre {#share-fields}
 
-> Depuis la page d'un membre, vous pouvez voir dans la section "Facturation" (colonne de droite) le nombre de parts sociales qui seront ou sont déjà facturées avec un lien sur les factures correspondantes.
+Trois champs liés aux parts sociales sont disponibles sur le profil d'un membre (page d'édition, section "Facturation"):
+
+- **Nombre de parts sociales existantes**: Parts déjà détenues en dehors de CSA Admin (par exemple, provenant d'un ancien système). Ces parts ne seront pas facturées.
+- **Nombre de parts sociales désiré**: Les membres peuvent demander des parts supplémentaires au-delà du minimum lors de [l'inscription](/handbook/registration) ou du [renouvellement](/handbook/membership_renewal). Le système facture le maximum entre le nombre requis et le nombre désiré.
+- **Nombre de parts sociales requises**: Modification manuelle par l'admin du nombre de parts nécessaires pour ce membre. Par défaut, la valeur configurée pour sa <%= BasketSize.model_name.human.downcase %>.
+
+### Remboursement {#share-refund}
+
+Pour rembourser une part sociale déjà facturée, ouvrez la facture et cliquez sur "Remboursement" en haut à droite. Vous pouvez alors créer une facture de part sociale négative. Assurez-vous que le membre n'a plus besoin de parts sociales; sinon, elles seront à nouveau créées automatiquement le prochain jour de facturation.
+
+> Depuis la page d'un membre, la section "Facturation" (colonne de droite) indique le nombre de parts sociales déjà facturées ou à facturer, avec un lien vers les factures correspondantes.
 
 ## <%= activities_human_name %> non effectuées {#activity}
 
@@ -80,24 +169,23 @@ CSA Admin vous permet de facturer individuellement ou de manière groupée les <
 
 ### Définir les membres à facturer
 
-Le total des <%= activities_human_name.downcase %> non effectuées est affiché sur [le tableau de bord](/dashboard). Pour plus de détails, vous pouvez exporter le CSV [des abonnements](/memberships) de l'année fiscale concernée. La colonne "<%= activities_human_name %> manquantes" est disponible spécifiquement pour cela.
-En ouvrant le CSV avec Excel, il est facile de déterminer les membres à facturer en les triant à l'aide de cette colonne. Si nécessaire, vous pouvez ensuite ajuster le nombre de <%= activities_human_name.downcase %> demandées pour chaque membre en modifiant leur abonnement directement (champ: "<%= activities_human_name %> (année complète)").
+Le total des <%= activities_human_name.downcase %> non effectuées est affiché sur [le tableau de bord](/dashboard). Pour plus de détails, exportez le CSV [des abonnements](/memberships) de l'année fiscale concernée. La colonne "<%= activities_human_name %> manquantes" permet d'identifier les membres à facturer. Ajustez ensuite, si nécessaire, le nombre de <%= activities_human_name.downcase %> demandées dans leur abonnement (champ: "<%= activities_human_name %> (année complète)").
 
 ### Facturation individuelle
 
-Soit en utilisant le bouton "Facturer" depuis la page d'une participation refusée ou depuis [la page de création d'une nouvelle facture](/invoices/new). Il suffit ensuite de rentrer le nombre de <%= activities_human_name.downcase %> à facturer et de cliquer sur le bouton "Créer Facture".
+Utilisez le bouton "Facturer" depuis la page d'une participation refusée ou [créez une nouvelle facture](/invoices/new). Saisissez ensuite le nombre de <%= activities_human_name.downcase %> à facturer et cliquez sur "Créer Facture".
 
 N'oubliez pas d'envoyer la facture, elle n'est pas envoyée automatiquement afin que vous puissiez la vérifier.
 
 ### Facturation groupée
 
-Depuis [la page des participations](/activity_participations), en dessous des filtres, une section "Facturation" vous permet de facturer toutes les participations manquantes d'une année spécifique en un clic. ✨
+Depuis [la page des participations](/activity_participations), la section "Facturation" sous les filtres vous permet de facturer en un clic toutes les participations manquantes d'une année donnée. ✨
 
 Les factures sont ici automatiquement envoyées.
 
-### Contenu de [l'email "Nouvelle facture"](/mail_templates/invoice_created) {#activity-email}
+### Contenu de [l'e-mail "Nouvelle facture"](/mail_templates/invoice_created) {#activity-email}
 
-Il est possible d'ajouter un texte spécifique dans le [template email "Nouvelle facture"](/mail_templates/invoice_created) pour les factures des <%= activities_human_name.downcase %> à l'aide de [la syntaxe Liquid](https://shopify.github.io/liquid) suivante:
+Vous pouvez ajouter un texte spécifique dans le [modèle d'e-mail "Nouvelle facture"](/mail_templates/invoice_created) pour les factures des <%= activities_human_name.downcase %> à l'aide de la [syntaxe Liquid](https://shopify.github.io/liquid) suivante:
 
 ~~~ liquid
 {% case invoice.entity_type %}
@@ -109,9 +197,17 @@ Il est possible d'ajouter un texte spécifique dans le [template email "Nouvelle
 ~~~
 ## Facture manuelle (Autre) {#manual-invoice}
 
-CSA Admin offre la possibilité de facturer manuellement des articles ou des services divers (par exemple, achat de sac en tissus pour les nouveaux abonnés). Pour cela, il suffit de [créer une nouvelle facture](/invoices/new) et de rentrer les articles sous l'onglet "Autre". Après vérification du PDF, vous pouvez envoyer manuellement la facture à l'aide du bouton "Envoyer" sur la page de celle-ci.
+Vous pouvez facturer manuellement des articles ou des services divers, par exemple des sacs en tissu pour les nouveaux abonnés. [Créez une nouvelle facture](/invoices/new), puis saisissez les articles sous l'onglet "Autre". Après vérification du PDF, envoyez la facture à l'aide du bouton "Envoyer" sur sa page.
 
-> Attention, les factures de type "Autre" ne doivent pas être utilisées pour facturer les abonnements, parts sociales ou <%= activities_human_name.downcase %>, car le système ne les prendra pas en compte.
+> Remarque: n'utilisez pas les factures de type "Autre" pour facturer les abonnements, les parts sociales ou les <%= activities_human_name.downcase %>; le système ne les prend pas en compte.
+
+## TVA {#vat}
+
+Si votre organisation est assujettie à la TVA, activez la fonctionnalité TVA et configurez votre numéro de TVA ainsi que vos taux dans [les paramètres de TVA](/settings#vat). Des taux distincts peuvent être définis pour les factures d'abonnement, les factures de <%= activities_human_name.downcase %> et les factures de commandes boutique. Pour les factures "Autre" et "Cotisation nouveau membre", le taux de TVA est défini manuellement sur chaque facture.
+
+La TVA est calculée comme une taxe incluse (le montant total de la facture inclut déjà la TVA). Le montant net et le montant de la TVA sont affichés séparément sur le PDF de la facture.
+
+> La TVA n'est appliquée que lorsque la fonctionnalité TVA est activée. Les paramètres de TVA exigent un numéro de TVA et un taux de TVA pour les abonnements; les taux de TVA pour les <%= activities_human_name.downcase %> et la boutique sont optionnels et ne sont utilisés que lorsque ces fonctionnalités sont activées.
 
 ## Paiements {#payments}
 
@@ -121,32 +217,48 @@ CSA Admin offre la possibilité de facturer manuellement des articles ou des ser
 2. Redistribution des paiements sans numéro de référence et des montants excédants sur les factures qui étaient précédemment déjà marquées comme fermées dans l'ordre chronologique.
 3. Redistribution des paiements sans numéro de référence et des montants excédants sur les factures encore ouvertes dans l'ordre chronologique, les factures les plus anciennes sont fermées en premier.
 
-Ce mode de redistribution est très commode et permet de gérer ainsi les cas ou un membre réutiliserait un ancien numéro de référence pour payer une nouvelle facture.
+Ce mode de redistribution facilite la gestion des cas où un membre réutilise un ancien numéro de référence pour payer une nouvelle facture.
 
 ### Importation automatique {#automatic_payments_processing}
 
-La manière la plus efficace de traiter vos paiements est de demander à votre banque de mettre en place [une connexion EBICS](https://www.six-group.com/fr/products-services/banking-services/standardization.html#scrollTo=ebics). Cela permet au système d'importer automatiquement (chaque nuit) les paiements des factures avec numéro de référence de vos membres via le format ISO camt.054.
+La manière la plus efficace de traiter vos paiements est de demander à votre banque de mettre en place [une connexion EBICS 3.0](https://www.six-group.com/fr/products-services/banking-services/standardization.html#scrollTo=ebics). CSA Admin prend uniquement en charge EBICS 3.0 (H005/BTF); les anciennes connexions EBICS 2.x/H003/H004 avec types d'ordre ne sont plus prises en charge. Le système peut ainsi importer automatiquement chaque nuit les paiements de vos membres via des fichiers ISO camt.053/camt.054.
 
 <!-- country:CH -->
-CSA Admin gère également la récupération automatique des paiements de la [Banque Alternative Suisse](https://www.bas.ch/fr) qui ne supporte pas le système EBICS.
+CSA Admin gère également la récupération automatique des paiements de la [Banque Alternative Suisse (BAS)](https://www.bas.ch/fr) qui ne supporte pas le système EBICS.
 <!-- /country:CH -->
 
 > Si vous avez des questions concernant le support d'une banque en particulier ou la mise en place d'EBICS, n'hésitez pas à [me demander](/support).
 
 ### Mise en place d'EBICS {#ebics-setup}
 
-La mise en place d'une connexion EBICS avec votre banque implique plusieurs étapes et prend généralement quelques jours. Voici le processus:
+La mise en place d'une connexion EBICS 3.0 (H005/BTF) avec votre banque implique plusieurs étapes et prend généralement quelques jours. Voici le processus:
 
-1. **Demander le formulaire d'inscription à EBICS à votre banque** — Contacter votre banque afin de leur demander d'activer une connexion EBICS pour votre compte avec une récupération journalière et le support du format **camt.054**.
-2. **M'envoyer le document de la banque** — Suite à votre demande d'inscription, vous recevrez un document de votre banque (contenant l'identifiant participant, etc.), scannez-le et [envoyez-le moi](/support).
-3. **Signature de la lettre INI** — J'initialiserai la connexion et vous renverrai une lettre INI. Vous devrez la signer (**pages 1 et 3**) et l'envoyer à votre banque.
-4. **Finalisation** — Une fois que votre banque a reçu et validé la lettre INI signée, je pourrai finaliser la connexion.
+1. **Demander le formulaire d'inscription à EBICS à votre banque** — Contactez votre banque afin de lui demander d'activer une connexion EBICS 3.0 (H005/BTF) pour votre compte avec récupération journalière des fichiers de paiement (`BTD`) et support des formats **camt.053/camt.054**. Demandez à la banque l'URL EBICS, l'ID hôte, l'ID client/contrat/partenaire et l'ID participant/utilisateur.
+2. **Démarrer la mise en place dans CSA Admin** — Dans les [paramètres de la connexion bancaire](/settings#bank_connection), cliquez sur **Démarrer la mise en place EBICS** et saisissez les identifiants du contrat bancaire. CSA Admin vérifie d'abord l'URL et l'ID hôte, puis soumet les ordres d'initialisation EBICS.
+3. **Signature de la lettre INI** — Téléchargez la lettre d'initialisation, signez **chaque page** et envoyez-la à votre banque.
+4. **Finalisation** — Une fois que votre banque a reçu et validé la lettre INI signée, CSA Admin vérifie une fois par jour et active automatiquement la connexion.
 
-> En attendant, vous pouvez utiliser [l'importation manuelle](#manual-import) pour traiter vos paiements.
+> En attendant, vous pouvez utiliser [l'importation manuelle](#manual-import) pour traiter vos paiements. Si la banque refuse les identifiants ou que la mise en place nécessite du support, [contactez-moi](/support).
+
+<!-- country:CH -->
+### Mise en place Banque Alternative Suisse (BAS) {#abs-setup}
+
+La mise en place d'une connexion avec [la BAS](https://www.bas.ch/fr) se fait via un système de fichier keyfile (fichier de clé) comme elle ne supporte pas EBICS. Voici le processus:
+
+1. **Contacter la banque** — Via votre canal de messagerie sécurisé e-banking, demandez une connexion par fichier de clés ("keyfile") pour votre contrat e-banking existant (IBXXXXXXX).
+2. **Recevoir le fichier keyfile** — La banque vous enverra par email un fichier keyfile chiffré (format `.p12`) ainsi que son mot de passe par courrier postal séparé.
+3. **M'envoyer les informations** — Une fois en possession de ces éléments, transmettez-les moi de préférence via un canal sécurisé avec chiffrement de bout en bout (Signal, Telegram, WhatsApp, iMessage, ...):
+   - Le fichier keyfile chiffré (format `.p12`) et son mot de passe
+   - Votre numéro de contrat IBXXXXXXX
+   - Votre mot de passe de contrat IBXXXXXXX, identique à celui de votre e-banking. Notez que je n'ai pas accès à votre e-banking: le système peut uniquement récupérer les fichiers camt.054 contenant la liste des paiements.
+   - Votre numéro de compte bancaire (XXX.XXX.XXX-XX)
+
+> ⚠️ Si vous modifiez votre mot de passe e-banking ou si votre contrat IB est supprimé, pensez à me le communiquer sans tarder, la récupération des paiements ne fonctionnera plus jusqu'à ce que les nouvelles informations soient mises à jour. En cas de suppression du contrat IB, toute la mise en place devra être recommencée avec un nouveau contrat.
+<!-- /country:CH -->
 
 ### Importation manuelle {#manual-import}
 
-Lorsque l'importation automatique via [EBICS](https://www.six-group.com/fr/products-services/banking-services/standardization.html#scrollTo=ebics) n'est pas encore configurée, vous pouvez facilement importer les paiements des factures avec numéro de référence de vos membres en téléchargeant un fichier au format camt.053, camt.054, ou mt940 depuis votre e-banking et en l'uploadant dans CSA Admin depuis [la page des paiements](/payments), section "Importation" dans la colonne de droite. N'oubliez pas de répéter l'opération régulièrement (chaque semaine) jusqu'à ce que l'importation automatique soit en place.
+Lorsque l'importation automatique via [EBICS](https://www.six-group.com/fr/products-services/banking-services/standardization.html#scrollTo=ebics) n'est pas encore configurée, vous pouvez importer les paiements des factures avec numéro de référence de vos membres. Téléchargez un fichier au format camt.053, camt.054 ou mt940 depuis votre e-banking, puis importez-le dans CSA Admin depuis la section "Importation" de [la page des paiements](/payments). Répétez l'opération régulièrement, par exemple chaque semaine, jusqu'à ce que l'importation automatique soit en place.
 
 Pour les paiements sans numéro de référence (liquide ou versement direct), il vous suffit de [créer un nouveau paiement manuellement](/payments/new). Le montant de celui-ci sera automatiquement redistribué aux factures ouvertes existantes.
 
@@ -159,42 +271,23 @@ Si vous souhaitez rembourser un membre pour une raison quelconque, il suffit de 
 <!-- country:!CH -->
 ## Prélèvement SEPA {#sepa}
 
-CSA Admin prend en charge le prélèvement SEPA pour collecter les paiements de vos membres. Par défaut, les factures incluent un [QR code EPC](https://fr.wikipedia.org/wiki/EPC_QR_code) que les membres peuvent scanner pour payer. Lorsqu'un membre dispose d'informations SEPA (IBAN, identifiant de mandat et date de signature), ses factures sont marquées comme factures SEPA et le paiement est prélevé directement depuis son compte bancaire par prélèvement.
+CSA Admin prend en charge le prélèvement SEPA pour collecter les paiements de vos membres, avec une page dédiée où les membres peuvent signer leur mandat en ligne.
 
-### Configuration {#sepa-setup}
-
-Pour utiliser le prélèvement SEPA, vous devez configurer les éléments suivants dans [vos paramètres de facturation](/settings#billing):
-
-- **IBAN** — L'IBAN du compte bancaire de votre organisation.
-- **Identifiant créancier** — Votre identifiant créancier SEPA (par ex. `DE98ZZZ09999999999`), que vous pouvez obtenir auprès de votre banque ou de l'autorité nationale compétente.
-
-Vous pouvez également définir un **Texte d'information (SEPA)** dédié dans [les paramètres de facturation](/settings#billing) qui sera affiché sur les factures SEPA à la place du texte d'information standard (par ex. «Le montant sera prélevé par prélèvement SEPA.»).
-
-### Informations SEPA des membres {#sepa-member}
-
-Pour chaque membre utilisant le prélèvement SEPA, vous devez remplir les champs suivants dans le profil du membre, section «Facturation (SEPA)»:
-
-- **IBAN** — L'IBAN du compte bancaire du membre.
-- **Identifiant de mandat** — Un identifiant unique pour le mandat SEPA.
-- **Date de signature du mandat** — La date à laquelle le mandat a été signé.
-
-Les membres peuvent consulter leurs informations SEPA depuis leur page de facturation. Lorsque les trois champs sont renseignés, les factures créées pour ce membre seront marquées comme factures SEPA. Les membres sans informations SEPA continueront de recevoir des factures avec un QR code EPC.
-
-### Traitement des ordres SEPA {#sepa-processing}
-
-Une fois qu'une facture SEPA est créée et envoyée, un ordre de prélèvement SEPA (XML pain.008) doit être soumis à votre banque. Il existe deux manières de procéder:
-
-**Avec une connexion EBICS** — Si vous avez [une connexion EBICS](#ebics-setup) configurée, les ordres de prélèvement SEPA sont **automatiquement envoyés** à votre banque 3 jours après l'envoi de la facture. Vous pouvez également déclencher manuellement l'envoi depuis la page d'une facture en cliquant sur le bouton «Envoyer l'ordre de prélèvement SEPA à la banque». La page de la facture affiche l'identifiant de l'ordre et la date d'envoi une fois l'ordre soumis.
-
-**Sans connexion EBICS** — Si vous n'avez pas de connexion EBICS, vous pouvez **télécharger le fichier pain.xml** manuellement depuis la page d'une facture et le transmettre vous-même via le portail e-banking de votre banque. Un téléchargement groupé est également disponible depuis la barre latérale de [la page des factures](/invoices), permettant de télécharger un seul fichier pain.xml couvrant toutes les factures SEPA ouvertes en une fois.
-
-> Les factures SEPA ne déclenchent pas de rappels, car la collecte du paiement est initiée par vous (le créancier) et non par le membre.
+Voir la [page dédiée SEPA](/handbook/sepa) du manuel pour la configuration complète.
 <!-- /country:!CH -->
 
 ## Rappels {#overdue_notice}
 
 Quand les paiements sont importés automatiquement, le système s'occupe automatiquement d'envoyer un rappel par email à tous les membres qui ont une facture non payée tous les 35 jours, jusqu'à ce que la facture soit payée (1er rappel après 35 jours, 2ᵉ rappel après 70 jours, etc.).
 
-Vous pouvez configurer le contenu de ce rappel en modifiant [le template email "Rappel facture"](/mail_templates/invoice_overdue_notice).
+Vous pouvez configurer le contenu de ce rappel en modifiant [le modèle d'e-mail "Rappel facture"](/mail_templates/invoice_overdue_notice).
 
 > Vous pouvez être notifié par email lorsque le 3ᵉ rappel d'une facture est envoyé. Gérer vos notifications depuis [votre compte admin](/admins/<%= current_admin.id %>/edit).
+
+## Notifications administrateurs {#notifications}
+
+Plusieurs événements liés à la facturation peuvent déclencher des notifications par email aux administrateurs qui ont activé l'option via [leurs préférences de notifications](/admins/<%= current_admin.id %>/edit):
+
+- **Facture surpayée**: Envoyée lorsqu'un paiement fait dépasser le montant payé d'une facture par rapport à son total, indiquant que le membre a une balance positive.
+- **3ᵉ rappel**: Envoyée lorsque le troisième rappel est envoyé pour une facture impayée, signalant un problème de paiement persistant.
+- **Remboursement d'un paiement**: Envoyée lorsqu'un paiement négatif (remboursement) est importé, pouvant indiquer un rejet ou une correction bancaire.

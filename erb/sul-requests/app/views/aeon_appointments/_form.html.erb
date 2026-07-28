@@ -1,0 +1,75 @@
+<%= form_with(model: @appointment, class: "appointment-form", data: { controller: 'appointment', 'appointment-availability-route-value': available_aeon_reading_room_url(id: @appointment.reading_room_id, appointment_id: @appointment.id) }) do |f| %>
+  <%= render Aeon::AppointmentSelectionComponent.new(appointment: @appointment) %>
+  <div class="modal-body">
+    <div>
+      <%= f.hidden_field :reading_room_id %>
+      <%= hidden_field_tag :modal, params[:modal] %>
+    </div>
+
+    <%= render AlertComponent.new(type: :info) do %>
+      <ul class="mb-0 ps-4">
+        <li>An appointment must be scheduled at least <%= @appointment.reading_room.appointment_min_lead_days %> business days in advance to access items.</li>
+        <li><%= @appointment.reading_room.name %> is open <%= @appointment.reading_room.human_readable_hours %>.</li>
+      </ul>
+    <% end %>
+
+    <% if @appointment.errors[:base].any? %>
+      <p class="error-message text-danger">
+        <%= @appointment.errors.full_messages_for(:base).join(", ") %>
+      </p>
+    <% end %>
+
+    <div class="mb-3">
+      <%= f.label :date, class: "form-label fw-semibold redesign-required-label" %>
+      <% existing_appointments = @appointments.for_reading_room(@appointment.reading_room).map(&:date).map(&:iso8601) %>
+      <div class="d-flex align-items-center gap-3">
+        <%= render DatePickerComponent.new(:date, form: f,
+              schedule: Aeon::AppointmentSchedule.new(reading_room: @appointment.reading_room, appointment_id: @appointment.id, existing_appointments: existing_appointments),
+              data: { action: 'change->appointment#refreshAvailability', 'date-picker-marked-value': existing_appointments }) %>
+        <%= turbo_frame_tag 'earliest_appointment', src: available_aeon_reading_room_url(@appointment.reading_room_id, date: Date.today) %>
+      </div>
+      <% if f.object.errors[:date].any? %>
+        <p class="error-message text-cardinal mt-1">
+          <%= f.object.errors.full_messages_for(:date).join(", ") %>
+        </p>
+      <% end %>
+    </div>
+
+    <% unless @appointment&.reading_room&.day_only_appointments? %>
+      <% if @appointment.start_time && @appointment.stop_time && (!@appointment.start_time.min.in?([0,15,30,45]) || !(@appointment.stop_time - @appointment.start_time).in?([30.minutes, 1.hour, 1.5.hours, 2.hours, 3.hours, 4.hours])) %>
+        <div class="mb-3">
+          <%= f.label :start_time, class: 'd-block fw-semibold' %>
+          <%= f.time_field :start_time, required: true %>
+        </div>
+        <div class="mb-3">
+          <%= f.label :stop_time, class: 'd-block fw-semibold' %>
+          <%= f.time_field :stop_time, required: true %>
+        </div>
+      <% else %>
+        <%= render Aeon::AppointmentDurationSelectorComponent.new(form: f, reading_room: @appointment.reading_room, selected: @appointment.duration) %>
+
+        <% if f.object.errors[:start_time].any? %>
+          <p class="error-message text-danger">
+            <%= f.object.errors.full_messages_for(:start_time).join(", ") %>
+          </p>
+        <% end %>
+        <turbo-frame id="available_appointments" <% unless @appointment.id %>class="form-incomplete"<% end %> data-action="turbo:frame-load->appointment#applyDurationFilter turbo:frame-load->appointment#filterDurationFields" data-appointment-target="availability" src="<%= available_aeon_reading_room_url(@appointment.reading_room_id, date: (@appointment.date unless @appointment.persisted?), duration: @appointment.duration, appointment_id: @appointment.id, selected: (l(@appointment.start_time, format: :time_only) if @appointment.start_time)) if @appointment.reading_room_id %>">
+          <%= render 'availability_loading', f: f %>
+        </turbo-frame>
+        <template data-appointment-target="placeholder">
+          <%= render 'availability_loading', f: f %>
+        </template>
+      <% end %>
+    <% end %>
+    <% if @appointment.requests.any? %>
+      <%= render AlertComponent.new(type: :info, classes: ['border-0', 'shadow-none', 'w-fit'], with_icon: false) do %>
+        <span class="fw-semibold"><%= pluralize(@appointment.requests.length, 'item') %></span> will move to the new appointment.
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="modal-footer">
+    <%= link_to 'Cancel', aeon_appointments_path, class: 'btn btn-outline-primary', data: { 'bs-dismiss': 'modal' } %>
+    <%= f.submit 'Save', class: 'ms-2 btn btn-primary' %>
+  </div>
+<% end %>

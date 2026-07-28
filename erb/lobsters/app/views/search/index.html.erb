@@ -59,7 +59,14 @@
           <dd>Tag: <%= link_to value, tag_path(value) %></dd>
         <% when :title %>
           <dt><span class="searchq">title:<%= @search.flatten_title(value) %></span></dt>
-          <dd>Title: <%= @search.flatten_title(value) %></dd>
+          <% if @search.title_shortword?(value) %>
+            <dd>
+              Title shortword: <span class="searchq"><%= @search.flatten_title(value) %></span>
+              <br>Title terms must be at least 3 characters long.
+            </dd>
+          <% else %>
+            <dd>Title: <%= @search.flatten_title(value) %></dd>
+          <% end %>
         <% when :url %>
           <dt><span class="searchq">url:<%= value %></span></dt>
           <dd>URL: <%= value %></dd>
@@ -87,17 +94,6 @@
             <% end %>
             <% if value.to_s != @search.strip_short_terms(value) %>
               <br>Terms must be at least 4 characters long.
-              <% if value.to_s.downcase =~ /\b(d\b|go\b|ml\b|c([+][+]|\b)?)/ %>
-                <% lang = $& %>
-                <br>For the
-                <% if value.to_s.downcase =~ /\bgo\b/ %>
-                  terribly-named
-                <% end %>
-                language, use <span class="searchq">tag:<%= lang %></span>
-              <% end %>
-              <% if value.to_s.downcase =~ /\b(ai|ml)\b/ %>
-                <br>Use <span class="searchq">tag:ai</span> for artificial intelligence/machine learning
-              <% end %>
             <% end %>
           </dd>
         <% when :shortword %>
@@ -106,6 +102,20 @@
             Shortword: <span class="searchq"><%= value %></span>
               <br>Terms must be at least 3 characters long.
               If you're searching for a phrase, use quotes, like <span class="searchq">"Files are hard"</span>.
+            <% if value.to_s != @search.strip_short_terms(value) %>
+              <% if value.to_s.downcase =~ /\b(d\b|go\b|ml\b|c([+][+]|\b)?)/ %>
+                <% lang = $& %>
+                <br>For the
+                <% if value.to_s.downcase =~ /\bgo\b/ %>
+                  terribly-named
+                <% end %>
+                language, use <span class="searchq">tag:<%= lang %></span>
+                <% if value.to_s.downcase == 'c' %> or <span class="searchq">tag:c++</span> <%end%>
+              <% end %>
+              <% if value.to_s.downcase =~ /\b(ai|ml)\b/ %>
+                <br>Use <span class="searchq">tag:ai</span> for artificial intelligence/machine learning
+              <% end %>
+            <% end %>
           </dd>
         <% when :stopword %>
           <dt><span class="searchq"><%= value %></span></dt>
@@ -180,11 +190,11 @@ class="story <%= story.current_upvoted? ? "upvoted" : "" %>
         href="<%= Routes.title_path story %>">&#x2636;</a>
     <% end %>
     <% if story.can_be_seen_by_user?(@user) %>
-      <span class="tags">
+      <ul class="tags" aria-label="Tags">
         <% story.tags.each do |tag| %>
-          <%= tag_link(tag) %>
+          <li><%= tag_link tag %></li>
         <% end %>
-      </span>
+      </ul>
       <% if story.origin.present? %>
         <%= link_to story.origin.identifier, origin_path(story.origin), class: 'domain' %>
       <% elsif story.domain.present? %>
@@ -209,7 +219,7 @@ class="story <%= story.current_upvoted? ? "upvoted" : "" %>
           <span> via </span>
         <% end %>
 
-        <%= styled_user_link story.user, story, class: ['u-author', 'h-card'] %>
+        <%= styled_user_link story.user, story, class: ['u-author', 'h-card'] %> <%= you_invited you: @user, user: story.user %>
         <span> just now </span>
       <% else %>
         <% if story.user_is_author? %>
@@ -217,7 +227,7 @@ class="story <%= story.current_upvoted? ? "upvoted" : "" %>
         <% else %>
           <span> via </span>
         <% end %>
-        <%= styled_user_link story.user, story, class: ['u-author', 'h-card'] %>
+        <%= styled_user_link story.user, story, class: ['u-author', 'h-card'] %> <%= you_invited you: @user, user: story.user %>
 
         <%= how_long_ago_label(story.created_at) %>
 
@@ -255,7 +265,13 @@ class="story <%= story.current_upvoted? ? "upvoted" : "" %>
         <% end %>
         <% if story.url.present? && (!story.is_gone? || @user.try(:is_moderator?))  %>
           <%= divider_tag %>
-          <label for="caches_<%= story.short_id %>" class="caches" tabindex="0">caches</label>
+          <details class="caches" name="caches">
+            <summary>caches</summary>
+            <ul>
+              <li><a href="<%= story.archiveorg_url %>">Archive.org</a></li>
+              <li><a href="<%= story.ghost_url %>">Ghostarchive</a></li>
+            </ul>
+          </details>
         <% end %>
         <% if !story.is_gone? || @user.try(:is_moderator?) %>
           <span class="comments_label">
@@ -271,14 +287,6 @@ class="story <%= story.current_upvoted? ? "upvoted" : "" %>
         <% end %>
       <% end %>
     </div>
-    <% if story.url.present? && (!story.is_gone? || @user.try(:is_moderator?)) %>
-      <input id="caches_<%= story.short_id %>" class="caches_button" type="checkbox">
-      <div class="caches-dropdown">
-        <a href="<%= story.archiveorg_url %>">Archive.org</a>
-        <%= divider_tag %>
-        <a href="<%= story.ghost_url %>">Ghostarchive</a>
-      </div>
-    <% end %>
   </div>
 </div>
 <a href="<%= Routes.title_path story %>" class="mobile_comments <%= story.comments_count == 0 ? "zero" : "" %>" style="display: none;">
@@ -292,23 +300,26 @@ class="story <%= story.current_upvoted? ? "upvoted" : "" %>
   <% elsif @search.what == :comments %>
     <ol class="comments comments1">
       <% @results.each do |res| %>
-        <li><%= render "comments/comment", :comment => res, :show_story => true %></li>
-      <% end %>
+        <li><%= render "comments/comment", :comment => res, :show_story => true %>
+          <ol class="comments"></ol>
+        </li>
+    <% end %>
     </ol>
   <% end %>
 
   <% if @search.results_count > @search.per_page %>
-    <div class="page_link_buttons">
-      Page:
-
+    <nav aria-label="Pagination" id="page-link-buttons">
+      <ul>
+        <li aria-hidden="true">Page:</li>
       <% page_numbers_for_pagination(@search.page_count, @search.page).each do |p| %>
         <% if p.is_a?(Integer) %>
-          <%= link_to p, search_path(@search.to_param.merge(page: p)), class: (@search.page == p ? 'cur' : '') %>
+          <li><%= link_to p, search_path(@search.to_param.merge(page: p)), aria: {current: (@search.page == p ? 'page' : '')} %></li>
         <% else %>
-          <span>...</span>
+          <li aria-hidden="true">...</li>
         <% end %>
       <% end %>
-    </div>
+      </ul>
+    </nav>
   <% elsif @search.results_count == 1 %>
     <div class="page_link_buttons">
       <p>Hapax legomenon</p>

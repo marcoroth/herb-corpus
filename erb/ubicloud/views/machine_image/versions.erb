@@ -1,0 +1,50 @@
+<% @versions = @machine_image.versions_dataset.eager(metal: :semaphores).reverse(:created_at).all
+  can_edit = has_permission?("MachineImage:edit", @machine_image)
+  latest_version_id = @machine_image.latest_version_id
+  version_headers = ["Version", "State", "Size", "Archive Size", "Created"]
+  version_headers << "" if can_edit
+  in_flight_states = %w[creating destroying].freeze %>
+
+<% if @versions.any? { |v| in_flight_states.include?(v.metal&.display_state) } %>
+  <div class="auto-refresh hidden" data-interval="60"></div>
+<% end %>
+
+<div class="p-6">
+  <%== part(
+  "components/table_card",
+  headers: version_headers,
+  right_items: can_edit ?
+    [part("components/button", text: "Create Version", link: "#{path(@machine_image)}/create-version")] : [],
+  rows: @versions.map do |v|
+    metal = v.metal
+    state_cell = if metal
+      [part("components/machine_image_version_state_label", state: metal.display_state), {escape: false}]
+    else
+      "-"
+    end
+    cells = [
+      (v.id == latest_version_id) ? "#{v.version} (latest)" : v.version,
+      state_cell,
+      v.actual_size_mib ? "#{v.actual_size_mib} MiB" : "-",
+      metal&.archive_size_mib ? "#{metal.archive_size_mib} MiB" : "-",
+      v.created_at.utc.strftime("%b %d, %Y %H:%M UTC")
+    ]
+    if can_edit
+      cells << if metal && metal.display_state != "destroying"
+        [
+          "delete_button",
+          {component: {text: "", url: "#{path(@machine_image)}/version/#{v.version}", confirmation: v.version}, extra_class: "flex justify-end"}
+        ]
+      else
+        ""
+      end
+    end
+    [cells, {id: "miv-#{v.ubid}"}]
+  end,
+  empty_state: {
+    icon: "hero-document-duplicate",
+    title: "No versions",
+    description: "Create a version by capturing a stopped VM."
+  }
+) %>
+</div>

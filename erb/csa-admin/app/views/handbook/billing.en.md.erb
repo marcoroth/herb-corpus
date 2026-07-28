@@ -2,6 +2,30 @@
 
 CSA Admin aims to automate most tasks related to billing ([memberships](#memberships), [share capital](#share-capital), [payment processing](#payments)), but some aspects such as billing for [uncompleted <%= activities_human_name %>](#activity) must be done manually.
 
+## Invoice types {#invoice-types}
+
+CSA Admin handles several types of invoices:
+
+| Type | Description |
+|------|-------------|
+| **Membership** | Main subscription billing (<%= BasketSize.model_name.human.downcase %>, <%= BasketComplement.model_name.human(count: 2).downcase %>, depot, delivery cycle). [Automatically generated](#memberships). |
+| **Annual fee** | Included in the first membership invoice, or [billed separately](#annual-fee) for [support members](/handbook/members#statuses). |
+| **Share capital** | For organizations requiring [share ownership](#share-capital). Automatically generated when shares are missing. |
+| **<%= activities_human_name %>** | Billing for [uncompleted participations](#activity). Triggered manually or in group. |
+| **Shop order** | Invoice for [shop](/handbook/shop) orders. Can be automatic or manual. |
+| **New member fee** | One-time fee charged to new members, if the feature is enabled. |
+| **Other** | [Free-form invoices](#manual-invoice) for miscellaneous items or services. |
+
+### Canceling invoices {#canceling-invoices}
+
+To cancel an invoice for a membership or participation, first cancel or delete any more recent invoices for the same membership or participation. The **Cancel** button on earlier invoices remains disabled until then.
+
+## Invoice settings {#invoice-settings}
+
+Invoice settings define the bank and organization details displayed on invoice PDFs. Configure your bank account, the creditor address, optional invoice logos, and the information/footer text shown on invoices from [the invoice settings](/settings#invoice).
+
+In SEPA countries, the invoice document name can also be customized per language when the SEPA feature is enabled.
+
 <!-- country:CH -->
 ## QR-Invoices {#qr-invoices}
 
@@ -11,28 +35,73 @@ CSA Admin generates QR-invoices with reference numbers (PDF) and sends them to a
 
 To generate these invoices, you need a **QR-IBAN** from your bank. This is a special IBAN (starting with CH and containing 30 or 31 as the bank clearing number) that is different from your regular bank account IBAN. Only the QR-IBAN allows generating Swiss QR-invoices with reference numbers — a normal IBAN is not supported for this purpose.
 
-You can request a QR-IBAN from your bank and then enter it in [your billing settings](/settings#billing).
+You can request a QR-IBAN from your bank and then enter it in [your invoice settings](/settings#invoice).
 
-> If you're unsure whether you already have a QR-IBAN, try entering it in [your billing settings](/settings#billing) — the system will validate its format and reject it if it's not a valid QR-IBAN. If you don't have one, request it from your bank.
+> If you're unsure whether you already have a QR-IBAN, try entering it in [your invoice settings](/settings#invoice) — the system will validate its format and reject it if it's not a valid QR-IBAN. If you don't have one, request it from your bank.
 <!-- /country:CH -->
 
 ## Memberships {#memberships}
 
-Membership billing is completely automated by the system. You can define in [the settings (Automatic billing)](/settings#billing) the day of the week when the system will review all memberships and automatically create and send necessary invoices. For example, if a member is billed every quarter, then a new invoice will be automatically created and sent on the first configured day of the week of a new quarter.
-
-The invoice amount is calculated as follows: total membership amount / number of payment intervals. For example, for a 1000.- membership paid quarterly, each invoice will be 250.-.
+Membership billing is completely automated by the system. You can define in [the settings (Automatic billing)](/settings#billing) the day of the week when the system will review all memberships and automatically create and send necessary invoices.
 
 It is therefore crucial that each membership configuration is up to date so that invoices are correct.
 
-By default, the first invoice is sent on the billing day following the first <%= Basket.model_name.human.downcase %> delivery, but it's possible to modify this in [the settings](/settings#billing) (Bill memberships only after their first delivery) to bill the membership from its start.
+### Recurring automatic billing {#recurring-billing}
 
-By default, billing extends until the membership end date, but it's possible to modify this in [the settings](/settings#billing) (Bill memberships until their last delivery only) to extend the billing period only until the date of their last delivery. This is useful when, for example, the last months of the fiscal year have no deliveries.
+Recurring billing is the mechanism that handles membership invoicing. It must be enabled for any membership invoice to be created; without it, no membership invoices are generated or sent at all.
 
-> From a member's or membership's page, you can see in the "Billing" section (right column) the creation day of the next invoice.
+#### How to enable it
 
-### Bill now
+In [the settings (Automatic billing)](/settings#billing), choose the **day of the week** on which the system should run. Every week on that day, the system reviews all members and creates invoices when due. Invoices created this way are **automatically sent** by email.
 
-In some cases, for example after a change in membership configuration, it's possible to force the creation of a new invoice rather than letting the system do it automatically on the next billing day. To do this, click on the "Bill now" button in the "Billing" section (right column). The invoice will then be created, but <u>not sent</u>, you can then consult the PDF and send it manually using the "Send" button on its page. This is useful if you're in contact with a member and want to quickly rectify an invoice.
+By default, invoices that are already considered paid/closed when created are not sent automatically. You can change this with the "Send closed invoices" setting.
+
+> It is advisable to choose a day other than the delivery day. This way, any membership or basket changes made on the delivery day are reflected in the invoice generated in the following days, rather than being invoiced prematurely the same day or waiting a full week.
+
+#### Payment intervals {#billing-year-divisions}
+
+Each membership has a **payment interval** (also called billing year division) that determines how many invoices are generated over the fiscal year. The available intervals are configured in [the settings](/settings#billing) and offered to members during registration or renewal.
+
+Available intervals: Annual (1), Semi-annual (2), Four-monthly (3), Quarterly (4), Monthly (12).
+
+The invoice amount is calculated as: **total membership amount ÷ number of remaining intervals**. For example, for a 1000.- membership paid quarterly, each invoice will be 250.-.
+
+#### When is the first invoice sent? {#first-invoice-timing}
+
+By default, the first invoice is sent on the billing day following the **first <%= Basket.model_name.human.downcase %> delivery**. This means no invoice is generated before the member has received their first delivery.
+
+This behavior can be changed in [the settings](/settings#billing) by disabling "Bill memberships only after their first delivery". When disabled, billing starts from the **membership start date**, even before any delivery.
+
+#### When does billing end? {#billing-end}
+
+By default, billing extends until the **membership end date**, covering the full fiscal year even if there are no deliveries in the last months.
+
+This can be changed in [the settings](/settings#billing) by enabling "Bill memberships until their last delivery only". When enabled, billing only covers up to the month of the last delivery. This is useful when the last months of the fiscal year have no deliveries.
+
+#### Detailed logic
+
+Each billing day, the system checks every member and determines whether an invoice is due:
+
+1. The fiscal year is divided into periods based on the payment interval (e.g. quarterly = 4 periods of 3 months).
+2. If the **current period has already been billed**, the next invoice is scheduled for the beginning of the next period.
+3. If the **current period has not been billed yet**, the invoice is created on the next billing day, respecting the "first delivery" or "membership start" setting described above.
+4. If the calculated next invoice date falls **after the fiscal year end**, no further invoice is generated for this year.
+
+The invoice is always created on the configured day of the week. If an invoice becomes due on a different day (e.g. a new period starts on a Wednesday but billing day is Monday), it will be created the following Monday.
+
+#### Next invoice date
+
+From a member's or membership's page, the "Billing" section (right column) displays the **next invoice date**. This shows when the next automatic invoice will be created and sent.
+
+This date updates dynamically: once an invoice is sent, it moves to the next scheduled date.
+
+### Bill now {#bill-now}
+
+In some cases, for example after a change in membership configuration, you may want to create an invoice immediately rather than waiting for the next billing day. To do this, click on the "Bill now" button in the "Billing" section (right column) of the member's or membership's page.
+
+The invoice will be created but **not sent**. You can consult the PDF and send it manually using the "Send" button on its page. This is useful if you're in contact with a member and want to quickly rectify an invoice or verify the result of a configuration change.
+
+> The "Bill now" button produces the exact same invoice as the automatic system would, the only difference is that it's not sent automatically, giving you a chance to review it first.
 
 ### Invoice all in advance {#future_billing}
 
@@ -49,27 +118,47 @@ If a membership configuration (dates, <%= BasketSize.model_name.human.downcase %
 - A future invoice still needs to be sent (it's the middle of the year and the member is billed each quarter); in this case, the price change (positive or negative) will simply be applied to the next invoice.
 - The last invoice has already been sent (it's the end of the year or the member is billed once), there are then 2 possibilities:
   - The price change is positive, a new invoice (with a higher amount) will simply be created on the next billing day to bill the missing amount.
-  - The price change is negative, the last invoice(s) of the membership will then be automatically cancelled and a new invoice (with a lower amount) will be recreated on the next billing day. If the old cancelled invoice was already paid, then the new invoice will be automatically closed and the member will end up with a positive balance. If needed, you can reflect a refund of the member's balance by [creating a negative payment](/payments/new) for them.
+  - If the price change is negative, the membership's most recent invoice or invoices are automatically canceled. A new invoice with the lower amount is created on the next billing day. If a canceled invoice was already paid, the new invoice is automatically closed and the member has a positive balance. To record a refund, [create a negative payment](/payments/new).
 
-### Annual fee
+Shortening a membership end date, including with the **Stop** action, follows the same rule: future deliveries are removed, the membership amount is recalculated, and the difference is handled on the next billing day.
 
-The annual fee is automatically included in the first invoice of the membership. If the member doesn't have a membership ([support](/handbook/members#statuses)) then a specific invoice is automatically created at the beginning of the fiscal year.
+### Annual fee {#annual-fee}
+
+When the annual fee feature is enabled, the organization's default annual fee is defined in [the annual fee settings](/settings#annual_fee). Each member inherits this default when created, but it can be overridden individually from their profile (edit page, "Billing" section). If the "support members only" setting is enabled, active members do not automatically inherit the organization default annual fee; the default remains intended for support members unless set manually.
+
+When enabled, the annual fee is automatically included in the **first invoice** of the membership. If the member doesn't have a membership ([support](/handbook/members#statuses)), a specific annual fee invoice is automatically created at the beginning of the fiscal year.
+
+If you change the organization's default annual fee, all members still set to the previous value are automatically updated to the new one.
 
 ### Trial <%= Basket.model_name.human(count: 2).downcase %> {#trial-baskets}
 
-If a number of trial <%= Basket.model_name.human(count: 2).downcase %> is defined in [the billing settings](/settings#billing), then the membership will only be billed once all trial <%= Basket.model_name.human(count: 2).downcase %> are delivered, on the next billing day following the delivery of the first non-trial <%= Basket.model_name.human.downcase %>.
+If a number of trial <%= Basket.model_name.human(count: 2).downcase %> is defined in [the billing settings](/settings#billing), then the membership will only be billed once all trial <%= Basket.model_name.human(count: 2).downcase %> are delivered, on the next billing day following the delivery of the first non-trial <%= Basket.model_name.human.downcase %>. This ensures the first invoice is not generated while the member can still cancel their trial membership themselves.
 
 Members can cancel their membership themselves during the trial period from their member account. The membership will then end on the last trial <%= Basket.model_name.human.downcase %> delivery date. To cancel a membership immediately, the admin must do so manually.
 
 If the membership is canceled during the trial period, only the delivered <%= Basket.model_name.human(count: 2).downcase %> will be billed, on the next billing day. In this case, the annual fee is not billed (unless the member chooses to pay it).
 
+### <%= Member.human_attribute_name(:salary_basket) %>
+
+Members flagged as "[<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket)" are completely excluded from billing. Their membership still exists for delivery tracking, but all prices are zeroed out and no membership invoices are generated.
+
 ## Share capital {#share-capital}
 
-Each billing day, the system automatically creates invoices for missing share capital, for example for a member whose membership has just started.
+When the cooperative shares feature is enabled, the price per share and the default number of required shares are defined in [the cooperative shares settings](/settings#shares). The required number of shares can also be set per <%= BasketSize.model_name.human.downcase %> (e.g., a larger size may require more shares).
 
-To refund already billed share capital, go to the invoice page and click on the "Refund" button at the top right, you can then easily create a negative share capital invoice. Make sure that the member no longer needs share capital, otherwise they will be automatically created again on the next billing day.
+When the feature is enabled, each billing day the system automatically creates invoices for missing share capital, for example for a member whose membership has just started.
 
-If share capital has already been billed outside of CSA Admin, you can reflect this information by modifying the member's profile, "Billing" section (Number of existing share capital). These shares will then not be billed.
+### Member share fields {#share-fields}
+
+Three share-related fields are available on a member's profile (edit page, "Billing" section):
+
+- **Number of existing share capital**: Shares already owned outside of CSA Admin (e.g., from a previous system). These are not billed again.
+- **Desired number of share capital**: Members can request additional shares beyond the minimum during [registration](/handbook/registration) or [renewal](/handbook/membership_renewal). The system invoices the higher of the required and desired amounts.
+- **Number of required share capital**: Admin override for the number of shares this member needs. Defaults to the value configured for their <%= BasketSize.model_name.human.downcase %>.
+
+### Refund {#share-refund}
+
+To refund billed share capital, open the invoice and click "Refund" in the top-right corner. Then create a negative share-capital invoice. Make sure the member no longer needs those shares; otherwise, they will be invoiced again on the next billing day.
 
 > From a member's page, you can see in the "Billing" section (right column) the number of share capital that will be or are already billed with a link to the corresponding invoices.
 
@@ -80,8 +169,7 @@ CSA Admin allows you to bill uncompleted <%= activities_human_name.downcase %> i
 
 ### Defining members to bill
 
-The total of uncompleted <%= activities_human_name.downcase %> is displayed on [the dashboard](/dashboard). For more details, you can export the CSV [of memberships](/memberships) for the concerned fiscal year. The "<%= activities_human_name %> missing" column is available specifically for this.
-By opening the CSV with Excel, it's easy to determine the members to bill by sorting them using this column. If necessary, you can then adjust the number of <%= activities_human_name.downcase %> requested for each member by directly modifying their membership (field: "<%= activities_human_name %> (full year)").
+The dashboard displays the total number of uncompleted <%= activities_human_name.downcase %>. For more detail, export the membership CSV for the relevant fiscal year from [the memberships page](/memberships). Use the "<%= activities_human_name %> missing" column to identify members to bill, then adjust the number requested for each member in their membership if necessary (field: "<%= activities_human_name %> (full year)").
 
 ### Individual billing
 
@@ -110,13 +198,21 @@ It's possible to add specific text in the ["New invoice" email template](/mail_t
 
 ## Manual invoice (Other) {#manual-invoice}
 
-CSA Admin offers the possibility to manually bill various items or services (for example, purchase of fabric bags for new subscribers). To do this, simply [create a new invoice](/invoices/new) and enter the items under the "Other" tab. After checking the PDF, you can manually send the invoice using the "Send" button on its page.
+Use a manual invoice to bill miscellaneous items or services, such as fabric bags for new members. [Create a new invoice](/invoices/new), then add the items under the "Other" tab. After reviewing the PDF, send the invoice from its page.
 
-> Attention, "Other" type invoices should not be used to bill memberships, share capital or <%= activities_human_name.downcase %>, as the system will not take them into account.
+> Note: Do not use "Other" invoices for memberships, share capital, or <%= activities_human_name.downcase %>; the system does not include them in those calculations.
+
+## VAT {#vat}
+
+If your organization is subject to VAT, enable the VAT feature and configure your VAT number and rates in [the VAT settings](/settings#vat). Separate rates can be defined for membership invoices, <%= activities_human_name.downcase %> invoices, and shop order invoices. For "Other" and "New member fee" invoices, the VAT rate is set manually on each invoice.
+
+VAT is calculated as an inclusive tax (the invoice total already includes VAT). The net amount and VAT amount are displayed separately on the invoice PDF.
+
+> VAT is only applied when the VAT feature is enabled. The VAT settings require a VAT number and a membership VAT rate; <%= activities_human_name.downcase %> and shop VAT rates are optional and only used when those features are enabled.
 
 ## Payments {#payments}
 
-Each time a payment is created (automatically or manually) or an invoice is created or cancelled, the system will distribute the amount of all payments to existing invoices in the following priority order:
+Whenever a payment or invoice is created, or an invoice is canceled, the system distributes payments to existing invoices in this priority order:
 
 1. Payment with reference number, redistribution until the referenced invoice is closed.
 2. Redistribution of payments without reference number and excess amounts to invoices that were previously already marked as closed in chronological order.
@@ -126,30 +222,46 @@ This redistribution mode is very convenient and thus allows managing cases where
 
 ### Automatic import {#automatic_payments_processing}
 
-The most efficient way to process your payments is to ask your bank to set up [an EBICS connection](https://www.six-group.com/en/products-services/banking-services/standardization.html#scrollTo=ebics). This allows the system to automatically import (each night) payments of invoices with reference numbers from your members via the ISO camt.054 format.
+The most efficient way to process your payments is to ask your bank to set up [an EBICS 3.0 connection](https://www.six-group.com/en/products-services/banking-services/standardization.html#scrollTo=ebics). CSA Admin supports EBICS 3.0 (H005/BTF) only; older EBICS 2.x/H003/H004 order-type connections are no longer supported. This allows the system to automatically import payments from your members each night via ISO camt.053/camt.054 files.
 
 <!-- country:CH -->
-CSA Admin also manages automatic retrieval of payments from the [Alternative Bank Switzerland](https://www.bas.ch/en) which doesn't support the EBICS system.
+CSA Admin also manages automatic retrieval of payments from the [Alternative Bank Switzerland (ABS)](https://www.abs.ch/en) which doesn't support the EBICS system.
 <!-- /country:CH -->
 
 > If you have questions about support for a particular bank or setting up EBICS, don't hesitate to [ask me](/support).
 
 ### Setting up EBICS {#ebics-setup}
 
-Setting up an EBICS connection with your bank involves several steps and typically takes a few days. Here is the process:
+Setting up an EBICS 3.0 (H005/BTF) connection with your bank involves several steps and typically takes a few days. Here is the process:
 
-1. **Request the EBICS registration form from your bank** — Contact your bank to ask them to activate an EBICS connection for your account with daily fetch and **camt.054** file support.
-2. **Send me the bank document** — Following your registration request, you will receive a document from your bank (containing the Participant ID, etc.), scan it and [send it to me](/support).
-3. **INI letter signing** — I will initialize the connection and send you back an INI letter. You must sign **pages 1 and 3** and send it to your bank.
-4. **Finalization** — Once your bank has received and validated the signed INI letter, I can finalize the connection.
+1. **Request the EBICS registration form from your bank** — Contact your bank to ask them to activate an EBICS 3.0 (H005/BTF) connection for your account with daily payment-file downloads (`BTD`) and **camt.053/camt.054** support. Ask the bank for the EBICS URL, Host ID, Client/Contract/Partner ID, and Participant/User ID.
+2. **Start setup in CSA Admin** — In the [Bank connection settings](/settings#bank_connection), click **Start EBICS setup** and enter the identifiers from the bank contract. CSA Admin first checks the URL and Host ID, then submits the EBICS initialization orders.
+3. **INI letter signing** — Download the initialization letter, sign **each page**, and send it to your bank.
+4. **Finalization** — Once your bank has received and validated the signed INI letter, CSA Admin checks once per day and activates the connection automatically.
 
-> In the meantime, you can use [manual import](#manual-import) to process your payments.
+> In the meantime, you can use [manual import](#manual-import) to process your payments. If the bank rejects the identifiers or the setup needs support, [contact me](/support).
+
+<!-- country:CH -->
+### Setting up Alternative Bank Switzerland (ABS) {#abs-setup}
+
+The connection with [Alternative Bank Switzerland (ABS)](https://www.abs.ch/en) uses a keyfile (key file) system, as it doesn't support EBICS. Here is the process:
+
+1. **Contact the bank** — Via your secure e-banking messaging channel, request a "keyfile (key file) connection" for your existing e-banking contract (IBXXXXXXX).
+2. **Receive the keyfile** — The bank will send you an encrypted keyfile (`.p12` format) by email and its password by separate post mail.
+3. **Send me the information** — Once you have received all the details, please send them to me, ideally via a secure end-to-end encrypted channel (Signal, Telegram, WhatsApp, iMessage, ...):
+   - The encrypted keyfile (`.p12` format) and its password
+   - Your IBXXXXXXX contract number
+   - Your IBXXXXXXX contract password, same as your e-banking password. Note that I cannot access your e-banking — the system can only fetch the camt.054 files containing the list of payments.
+   - Your bank account number (XXX.XXX.XXX-XX)
+
+> ⚠️ If you change your e-banking password or if your IB contract is removed, please let me know promptly — payment retrieval will stop working until the information is updated. If the IB contract is removed, the full setup will need to be restarted with a new contract.
+<!-- /country:CH -->
 
 ### Manual import {#manual-import}
 
 When automatic import via [EBICS](https://www.six-group.com/en/products-services/banking-services/standardization.html#scrollTo=ebics) is not yet configured, you can easily import payments of invoices with reference numbers from your members by downloading a file in camt.053, camt.054, or mt940 format from your e-banking and uploading it to CSA Admin from [the payments page](/payments), "Import" section in the right column. Don't forget to repeat the operation regularly (every week) until the automatic import is in place.
 
-For payments without a reference number (cash or direct deposit), you simply need to [create a new payment manually](/payments/new). Its amount will be automatically redistributed to existing open invoices.
+For payments without a reference number, such as cash or direct deposits, [create a payment manually](/payments/new). Its amount is automatically redistributed to open invoices.
 
 > Please try to only stick to a single format when importing payments, doing otherwise may lead to double payments creation.
 
@@ -160,36 +272,9 @@ If you wish to refund a member for any reason, simply create a new payment with 
 <!-- country:!CH -->
 ## SEPA Direct Debit {#sepa}
 
-CSA Admin supports SEPA direct debit for collecting payments from your members. By default, invoices include an [EPC QR code](https://en.wikipedia.org/wiki/EPC_QR_code) that members can scan to pay. When a member has SEPA information on file (IBAN, mandate ID, and signature date), their invoices are instead flagged as SEPA invoices and the payment is collected directly from their bank account via direct debit.
+CSA Admin supports SEPA direct debit for collecting payments from your members, with a dedicated page where members can sign their mandate online.
 
-### Setup {#sepa-setup}
-
-To use SEPA direct debit, you need to configure the following in [your billing settings](/settings#billing):
-
-- **IBAN** — Your organization's bank account IBAN.
-- **Creditor Identifier** — Your SEPA creditor identifier (e.g. `DE98ZZZ09999999999`), which you can obtain from your bank or national authority.
-
-You can also set a dedicated **Information text (SEPA)** in [the billing settings](/settings#billing) that will be displayed on SEPA invoices instead of the standard information text (e.g. "The amount will be collected via SEPA direct debit.").
-
-### Member SEPA information {#sepa-member}
-
-For each member using SEPA direct debit, you need to fill in the following fields in the member's profile under the "Billing (SEPA)" section:
-
-- **IBAN** — The member's bank account IBAN.
-- **Mandate ID** — A unique identifier for the SEPA mandate.
-- **Mandate signature date** — The date the mandate was signed.
-
-Members can view their SEPA information from their billing page. When all three fields are present, invoices created for that member will be flagged as SEPA invoices. Members without SEPA information will continue to receive invoices with an EPC QR code.
-
-### Processing SEPA orders {#sepa-processing}
-
-Once a SEPA invoice is created and sent, a SEPA direct debit order (pain.008 XML) needs to be submitted to your bank. There are two ways to do this:
-
-**With an EBICS connection** — If you have [an EBICS connection](#ebics-setup) configured, SEPA direct debit orders are **automatically uploaded** to your bank 3 days after the invoice is sent. You can also manually trigger the upload from an invoice's page by clicking the "Send SEPA direct debit order to the bank" button. The invoice page shows the order ID and upload date once the order has been submitted.
-
-**Without an EBICS connection** — If you don't have an EBICS connection, you can **download the pain.xml file** manually from an invoice's page and upload it yourself to your bank's e-banking portal. A bulk download is also available from [the invoices page](/invoices) sidebar, allowing you to download a single pain.xml file covering all open SEPA invoices at once.
-
-> SEPA invoices do not trigger overdue notices, since payment collection is initiated by you (the creditor) rather than the member.
+See the dedicated [SEPA handbook page](/handbook/sepa) for the full setup.
 <!-- /country:!CH -->
 
 ## Overdue notice {#overdue_notice}
@@ -199,3 +284,11 @@ When payments are imported automatically, the system automatically takes care of
 You can configure the content of this reminder by modifying [the "Invoice reminder" email template](/mail_templates/invoice_overdue_notice).
 
 > You can be notified by email when the 3rd reminder of an invoice is sent. Manage your notifications from [your admin account](/admins/<%= current_admin.id %>/edit).
+
+## Admin notifications {#notifications}
+
+Several billing-related events can trigger email notifications to administrators who have opted in via [their notification preferences](/admins/<%= current_admin.id %>/edit):
+
+- **Invoice overpaid**: Sent when a payment causes an invoice's paid amount to exceed its total, indicating the member has a positive balance.
+- **3rd overdue notice**: Sent when the third reminder is sent for an unpaid invoice, signaling a persistent payment issue.
+- **Payment reversal**: Sent when a negative payment (reversal) is imported, which may indicate a chargeback or bank correction.
