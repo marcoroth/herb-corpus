@@ -1,0 +1,69 @@
+<fieldset class="unfoldable">
+  <%= form.input :name, required: true %>
+  <%= form.input :permalink, required: true if form.object.persisted? %>
+  <%= form.input :notify_email_address,
+        label: "Notify after deploy",
+        help: "Email addresses to notify of finished deploys, separated by <code>;</code>".html_safe
+  %>
+  <%= form.input :default_reference, help: "Default reference to deploy e.g. 'master'" %>
+
+  <% if DeployGroup.enabled? %>
+    <%= render 'deploy_groups/deploy_group_select', form: form %>
+  <% else %>
+    <%= form.input :production, as: :check_box,
+          label: 'Impacts production',
+          help: "Deploys to production need to pass a buddy check when Samson::BuddyCheck is enabled."
+    %>
+  <% end %>
+
+  <%
+    confirm_label = "Confirm before deployment"
+    no_code_label = "Does not deploy code"
+    no_ref_label = "Deploys with either the 'Default Reference' value or 'master'." \
+      " When selected with '#{no_code_label}' and '#{confirm_label}' is disabled the stage can be directly executed."
+  %>
+
+  <% help = "Bypass " + [("buddy check" if Samson::BuddyCheck.enabled?), "release tracking"].compact.to_sentence \
+      + ". Must be a global admin to change."
+  %>
+  <%= form.input :no_code_deployed, as: :check_box, label: no_code_label, help: help, input_html: {disabled: !can_change_no_code_deployed?} %>
+
+  <%= form.input :run_in_parallel, as: :check_box, label: "Can run in parallel", help: "Deploys are not queued. Executed immediately." %>
+
+  <%= form.input :cancel_queued_deploys, as: :check_box, label: "Max 1 queued deploy per user", help: "When a new deploy is created for a user. Any queued deploys for that user are cancelled. This most useful when trying to not deploy every push for frequently updated projects." %>
+
+  <%= form.input :confirm, as: :check_box, label: confirm_label, help: "Show a review page before starting a deploy." %>
+
+  <%= form.input :no_reference_selection, as: :check_box, label: "Disable reference selection", help: no_ref_label %>
+
+  <%= form.input :full_checkout, as: :check_box, label: "Use a full checkout", help: "Samson usually uses a worktree which is a lot faster, pick this option if you want to switch branches during deploy." %>
+
+  <% if interval = Samson::Periodical.interval(:periodical_deploy) %>
+    <% next_execution_in = Samson::Periodical.next_execution_in(:periodical_deploy) %>
+    <%= form.input :periodical_deploy, as: :check_box,
+          help: "Deploy every #{distance_of_time_in_words(interval)} if last deploy succeeded.<br/>Next execution in #{distance_of_time_in_words(next_execution_in)}.<br/>Enable automated deploy failure email to be alerted.".html_safe %>
+  <% end %>
+
+  <% if @project.release_branch? %>
+    <%= form.input :deploy_on_release, as: :check_box, label: "Automatically deploy new releases" %>
+  <% end %>
+
+  <% if DeployGroup.enabled? %>
+    <%= form.input :is_template, as: :check_box,
+          label: "Template Stage",
+          help: "This stage can serve as a template to create new stages for its environment (only changing the deploy group)."
+    %>
+  <% end %>
+
+  <%= form.input :builds_in_environment, as: :check_box, label: "Builds available in environment", help: "Useful for manual docker deploys or artifact extraction, format is BUILD_FROM_Dockerfile=" %>
+
+  <%= form.input :allow_redeploy_previous_when_failed, as: :check_box, help: 'Enables a new checkbox on the deploy view, that allows marking the deploy to redeploy previous when failed.' %>
+
+  <%= Samson::Hooks.render_views(:stage_form_checkbox, self, form: form) %>
+</fieldset>
+
+<%= render 'commands', form: form %>
+<%= render 'shared/dashboard_field', form: form %>
+<%= render 'deploy_failure_emails', form: form %>
+<%= Samson::Hooks.render_views(:stage_form, self, form: form) %>
+

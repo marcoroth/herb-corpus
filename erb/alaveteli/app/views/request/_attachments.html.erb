@@ -1,0 +1,80 @@
+<% attachments = incoming_message.get_attachments_for_display %>
+<% if not attachments.nil? and attachments.size > 0 %>
+  <div class="attachments">
+    <div class="attachments__header">
+      <h3>
+        <%= n_('{{count}} Attachment',
+               '{{count}} Attachments',
+               attachments.size,
+               :count => attachments.size) %>
+      </h3>
+    </div>
+
+    <ul class="list-of-attachments">
+      <% attachments.each do |a| %>
+        <%= tag.li class: 'attachment', id: dom_id(a) do %>
+          <% if cannot?(:read, a) %>
+            <%= image_tag('content_type/icon_unknown.png', class: 'attachment__image') %>
+          <% end %>
+          <% if concealed_prominence?(a) %>
+            <span class="hidden_attachment"><%= render_prominence(a) %></span>
+          <% end %>
+          <% if can?(:read, a) %>
+            <%= attachment_link(incoming_message, a) %>
+
+            <p class="attachment__name">
+              <%= h a.display_filename %>
+            </p>
+
+            <p class="attachment__meta">
+              <%= a.display_size %>
+              <% if a.html_viewer? && incoming_message.info_request.prominence(:decorate => true).is_public? %>
+                <%= link_to _('View'), attachment_path(a, :html => true) %>
+              <% end %>
+              <%= link_to _('Download'), attachment_path(a) %>
+
+              <%= explore_in_datasette(a) %>
+
+              <% if note = a.extra_note %>
+                <em><%= note %></em>
+              <% end %>
+
+              <% if @user.present? && @user.admin_page_links? %>
+                <%= link_to _('Admin'), edit_admin_foi_attachment_path(a) %>
+              <% end %>
+            </p>
+
+          <% elsif a.erased? %>
+            <p class="attachment__name">
+              <%= h a.display_filename %>
+            </p>
+
+            <p class="attachment__meta">
+              <em><%= _('This file has been erased.') %></em>
+
+              <% if @user.present? && @user.admin_page_links? %>
+                <%= link_to _('Admin'), edit_admin_foi_attachment_path(a) %>
+              <% end %>
+            </p>
+
+          <% end %>
+        <% end %>
+      <% end %>
+    </ul>
+
+    <a href="#" class="attachments__show-more" style="display: none;" data-show-all="<%= _('Show all attachments') %>" data-show-fewer="<%= _('Show fewer attachments') %>"></a>
+  </div>
+<% end %>
+
+<%= tag.div id: incoming_message_dom_id(incoming_message) do %>
+  <% if concealed_prominence?(incoming_message.get_main_body_text_part) %>
+    <p class="hidden_attachment">
+      <%= render_prominence(incoming_message.get_main_body_text_part) %>
+    </p>
+  <% end %>
+  <% if can?(:read, incoming_message.get_main_body_text_part) %>
+    <%= incoming_message.get_body_for_html_display(@collapse_quotes) %>
+  <% elsif incoming_message.get_main_body_text_part&.erased? %>
+    <%= _('This message has been erased.') %>
+  <% end %>
+<% end %>

@@ -1,0 +1,63 @@
+<%= page do %>
+  <%= page_header do %>
+    <%= page_header_back(solidus_admin.users_path) %>
+    <%= page_header_title(t(".title", email: @user.email)) %>
+
+    <%= page_header_actions do %>
+      <%= render component("ui/button").new(
+        tag: :a,
+        href: new_store_credit_path,
+        data: {
+          turbo_frame: :resource_form
+        },
+        text: t(".add_store_credit"),
+        icon: "add-line"
+      )%>
+    <% end %>
+  <% end %>
+
+  <%= page_header do %>
+    <%= render component("users/edit/tabs").new(user: @user, current: :store_credits) %>
+  <% end %>
+
+  <%= page_with_sidebar do %>
+    <%= page_with_sidebar_main do %>
+
+      <% if @store_credits.present? %>
+        <% @store_credits.group_by(&:currency).each do |currency, credits| %>
+          <% title = [t('spree.admin.store_credits.current_balance'), Spree::Money.new(credits.sum(&:amount_remaining), currency: currency)].join(" ") %>
+
+          <%= render component('ui/panel').new(title: title) do %>
+            <%= render component('ui/table').new(
+              id: stimulus_id,
+              data: {
+                class: model_class,
+                rows: credits,
+                fade: -> (_order) { false },
+                columns: columns
+              }
+            ) %>
+          <% end %>
+        <% end %>
+      <% else %>
+        <%= render component('ui/panel').new(title: t(".store_credit")) do %>
+          <%= t(".no_credits_found") %>
+          <%= render component("ui/button").new(
+            tag: :a,
+            data: {
+              turbo_frame: :resource_form
+            },
+            href: new_store_credit_path,
+            text: t(".create_one"),
+          )%>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%= page_with_sidebar_aside do %>
+      <%= render component("users/stats").new(user: @user) %>
+    <% end %>
+  <% end %>
+
+  <%= turbo_frame_tag :resource_form, target: "_top" %>
+<% end %>

@@ -1,0 +1,53 @@
+<%# OVERRIDE Hyku 7.0.0 to create a two-column layout for the show page metadata %>
+
+<%
+  all_fields = view_options_for(presenter)
+
+  # Convert to array for splitting
+  fields_array = all_fields.to_a
+
+  # Card compounds (view: { display: card }) render as their own cards via
+  # render_compound_cards on the show page, so skip them here or they render
+  # twice. Matches Hyrax's base/_attribute_rows.
+  fields_array.reject! { |field, _options| compound_card_field?(presenter, field) }
+
+  # Filter out admin-only and editor-only fields per Hyrax's view-visibility rules
+  fields_array.select! do |field, options|
+    field_visible?(conform_options(field, options), presenter)
+  end
+
+  # Only keep fields that actually have a value to render, so the two columns
+  # split by visible rows. Empty fields (including unfilled compounds) would
+  # otherwise pad the count and skew everything into one column.
+  fields_array.select! do |field, options|
+    render_field = conform_field(field, options)
+    presenter.respond_to?(render_field) && presenter.public_send(render_field).present?
+  end
+
+  half = (fields_array.count / 2.0).ceil
+  left_fields = fields_array[0...half]
+  right_fields = fields_array[half..-1] || []
+%>
+
+<div class="row" <%= presenter.microdata_type_to_html %>>
+  <div class="col-md-6">
+    <dl class="work-show pt-3 <%= dom_class(presenter) %>" style="column-count: unset !important; columns: unset !important;">
+      <% left_fields.each do |field, options| %>
+        <% view_options = conform_options(field, options) %>
+        <%= presenter.attribute_to_html(conform_field(field, options), view_options) %>
+      <% end %>
+    </dl>
+  </div>
+  <div class="col-md-6">
+    <dl class="work-show pt-3 <%= dom_class(presenter) %>" style="column-count: unset !important; columns: unset !important;">
+      <% right_fields.each do |field, options| %>
+        <% view_options = conform_options(field, options) %>
+        <%= presenter.attribute_to_html(conform_field(field, options), view_options) %>
+      <% end %>
+
+      <%# Render embargo/lease dates in the right column if they exist %>
+      <%= presenter.attribute_to_html(:embargo_release_date, render_as: :date, html_dl: true) %>
+      <%= presenter.attribute_to_html(:lease_expiration_date, render_as: :date, html_dl: true) %>
+    </dl>
+  </div>
+</div>

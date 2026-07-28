@@ -1,0 +1,37 @@
+<% @kubernetes_role.resource_name ||= @project.permalink.tr('_', '-') + '-' %>
+<%= form_for [@project, @kubernetes_role], html: { class: "form-horizontal" } do |form| %>
+  <%= render 'shared/errors', object: @kubernetes_role %>
+
+  <fieldset>
+    <%= form.input :name %>
+    <%= form.input :config_file, help: "Can use <code>$deploy_group</code> and <code>$environment</code> substitutions to have a dynamic file path." %>
+    <% if @project.override_resource_names? %>
+      <%= form.input :service_name, help: "Override service name with this name. Uses name from yml file if it starts with this name." %>
+      <%= form.input :resource_name,
+          pattern: Kubernetes::RoleValidator::VALID_CONTAINER_NAME,
+          help: "Name for the resource this role will create (service/job), a-Z 0-9 and -"
+      %>
+    <% end %>
+    <% if @kubernetes_role.manual_deletion_required? %>
+      <div class="alert-danger">
+        <%= form.input :manual_deletion_acknowledged, as: :check_box, label: "I will manually delete the changed resource/service from all deploy groups before deploying (this will cause a short outage, deleting after deploying will result in undefined behavior with 2 copies running)" %>
+      </div>
+    <% end %>
+
+    <%= form.input :autoscaled, label: "Replicas managed externally", as: :check_box,
+          help: "<ul><li>Deploying will not change replica counts</li><li>Replica counts are used as the minimum number of replicas that need to be live</li><li>Use when autoscaling Deployments</li></ul>".html_safe %>
+    <%= form.input :blue_green, as: :check_box, label: "Blue/Green Deployment",
+          help: "Starts a new isolated deployment shifting between blue and green suffixes, switching service selectors if successfully deployed and deleting previous resources, all active resources must be deleted manually when switching this" %>
+
+    <div class="form-group">
+      <div class="col-lg-offset-2 col-lg-10">
+        <% if current_user.admin_for?(@project) %>
+          <%= form.submit @kubernetes_role.persisted? ? 'Save' : 'Create', class: "btn btn-primary" %>
+          <%= link_to_delete [@project, @kubernetes_role], class: 'btn btn-default' if @kubernetes_role.persisted? %>
+        <% end %>
+        <%= link_to "Cancel", :back, class: 'btn btn-default' %>
+        <%= link_to_history @kubernetes_role %>
+      </div>
+    </div>
+  </fieldset>
+<% end %>

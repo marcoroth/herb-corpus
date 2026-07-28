@@ -1,0 +1,165 @@
+<%= page do %>
+  <%= page_header do %>
+    <%= page_header_back(solidus_admin.products_path) %>
+    <%= page_header_title(@product.name) do %>
+      <%= render component("products/status").from_product(@product) %>
+    <% end %>
+    <%= page_header_actions do %>
+      <%= render component("ui/button").new(
+        tag: :a,
+        text: t(".duplicate"),
+        href: spree.clone_admin_product_path(@product),
+        scheme: :ghost
+      ) %>
+
+      <%= render component("ui/button").new(
+        tag: :a,
+        text: t(".view"),
+        href: SolidusAdmin::Config.storefront_product_path(@product),
+        target: :_blank,
+        scheme: :ghost
+      ) %>
+      <%= render component("ui/button").save(form: form_id) %>
+    <% end %>
+  <% end %>
+
+  <%= solidus_form_for @product, url: solidus_admin.product_path(@product), html: { id: form_id } do |f| %>
+    <%= page_with_sidebar do %>
+      <%= page_with_sidebar_main do %>
+        <%= render component("ui/panel").new do %>
+          <%= f.text_field(:name) %>
+          <%= f.text_field(:slug) %>
+          <%= f.text_area(:description) %>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".seo")) do %>
+          <%= f.text_field(:meta_title) %>
+          <%= f.text_field(:meta_description) %>
+          <%= f.text_area(:meta_keywords) %>
+          <%= f.text_field(:gtin) %>
+          <%= f.select(:condition, condition_options, include_blank: t("spree.unset")) %>
+        <% end %>
+        <%= render component("ui/panel").new(title: t(".media")) do |panel| %>
+          <% panel.with_action(
+            name: t(".manage_images"),
+            href: spree.admin_product_images_path(@product)
+          ) %>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".pricing")) do %>
+          <%= f.text_field(:price) %>
+          <div class="flex gap-4 justify-items-stretch">
+            <%= f.text_field(:cost_price) %>
+            <%= f.text_field(:cost_currency) %>
+          </div>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".stock")) do |panel| %>
+          <%= f.text_field(:sku) %>
+
+          <% panel.with_action(
+            name: t(".manage_stock"),
+            href: spree.admin_product_stock_path(@product)
+          ) %>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".shipping")) do %>
+          <%= f.select(
+            :shipping_category_id,
+            [[t(".none"), nil]] + Spree::ShippingCategory.order(:name).pluck(:name, :id),
+            tip: t(".hints.shipping_category_html")
+          ) %>
+          <%= f.select(
+            :tax_category_id,
+            [[t(".none"), nil]] + Spree::TaxCategory.order(:name).pluck(:name, :id),
+            tip: t(".hints.tax_category_html")
+          ) %>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".options")) do |panel| %>
+          <% if @product.product_option_types.present? %>
+            <% panel.with_section do %>
+              <div class="flex flex-col gap-4" data-controller="sortable" data-sortable-handle-value=".handle">
+                <% @product.product_option_types.includes(option_type: :option_values).order(:position).each do |product_option| %>
+                  <div class="flex gap-2 justify-between" data-sortable-url=<%= solidus_admin.move_product_option_type_path(product_option) %>>
+                    <div class="flex gap-2">
+                      <div class="flex items-center">
+                        <%= render component("ui/icon").new(name: "draggable", class: "w-6 h-6 cursor-grab handle fill-gray-500") %>
+                      </div>
+                      <div class="flex flex-col gap-2">
+                        <span class="font-semibold text-sm"><%= product_option.option_type.name %>:<%= product_option.option_type.presentation %></span>
+                        <div class="flex gap-2 flex-wrap">
+                          <% product_option.option_type.option_values.each do |value| %>
+                            <%= render component("ui/badge").new(name: "#{value.name}:#{value.presentation}") %>
+                          <% end %>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center">
+                      <%= render component("ui/button").new(tag: :a, href: spree.edit_admin_option_type_path(product_option.option_type), scheme: :secondary, text: t(".edit")) %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          <% end %>
+
+          <div class="flex gap-4 justify-between items-end">
+            <%= hidden_field_tag "#{f.object_name}[option_type_ids][]", nil %>
+            <%= f.select(:option_type_ids, option_type_options, multiple: true) %>
+            <%= render component("ui/button").new(type: :submit, text: t(".save")) %>
+          </div>
+
+          <% panel.with_action(
+            name: t(".manage_options"),
+            href: solidus_admin.option_types_path
+          ) %>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".specifications")) do |panel| %>
+          <% panel.with_action(
+            name: t(".manage_properties"),
+            href: spree.admin_product_product_properties_path(@product)
+          ) %>
+        <% end %>
+      <% end %>
+
+      <%= page_with_sidebar_aside do %>
+        <%= render component("ui/panel").new(title: t(".publishing")) do %>
+          <%= f.text_field(
+            :available_on,
+            hint: t(".hints.available_on_html"),
+            type: :date,
+            value: f.object.available_on&.to_date
+          ) %>
+          <%= f.text_field(
+            :discontinue_on,
+            hint: t(".hints.discontinue_on_html"),
+            type: :date,
+            value: f.object.discontinue_on&.to_date
+          ) %>
+          <%= f.checkbox(:promotionable, hint: t(".hints.promotionable_html")) %>
+        <% end %>
+
+        <%= render component("ui/panel").new(title: t(".product_organization")) do %>
+          <%= f.select(:taxon_ids, taxon_options, multiple: true) %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= page_footer do %>
+    <%= page_footer_actions do %>
+      <%= form_for @product, url: solidus_admin.product_path(@product), method: :delete do %>
+        <%= render component("ui/button").new(
+          tag: :button,
+          text: t(".delete"),
+          scheme: :danger,
+          "data-action": "click->#{stimulus_id}#confirmDelete",
+          "data-#{stimulus_id}-message-param": t(".delete_confirmation"),
+        ) %>
+      <% end %>
+    <% end %>
+    <%= render component("ui/button").new(tag: :button, text: t(".save"), form: form_id) %>
+  <% end %>
+<% end %>

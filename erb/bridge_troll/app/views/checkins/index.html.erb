@@ -1,0 +1,81 @@
+<%= content_for(:header_text, @event.title) %>
+<% if @event.organizer?(current_user) %>
+  <%= content_for(:header_link, event_organizer_tools_path(@event)) %>
+  <%= render partial: 'shared/organizer_breadcrumb', locals: {current_page_title: 'Check-in'} %>
+<% elsif @event.checkiner?(current_user) %>
+  <%= content_for(:header_link, event_path(@event)) %>
+<% end %>
+
+<h2 style='margin-bottom: 10px;'>Check-ins for <%= @session.name %></h2>
+<div class="checkin-counts">
+  <% [Role::VOLUNTEER, Role::STUDENT].each do |role| %>
+    <div>
+      <% checked_in = @checkin_counts[role.id][:checkin][@session.id] %>
+      <% total = @checkin_counts[role.id][:rsvp][@session.id] %>
+      <%= role.title.pluralize %>:
+      <strong>
+        <span id='checked_in_count_<%= role.id %>'><%= checked_in %></span>
+        /
+        <span id='rsvp_count_<%= role.id %>'><%= total %></span>
+      </strong>
+    </div>
+  <% end %>
+</div>
+<div class='checkins-table-container'>
+  <table class="datatable-checkins table table-striped table-bordered table-condensed checkins">
+    <thead>
+      <tr>
+        <th class='checkins-name'>Name</th>
+        <th class='checkins-role'>Role</th>
+        <th class='checkins-action'>Checked In?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @rsvp_sessions.each do |rsvp_session| %>
+        <% rsvp = rsvp_session.rsvp %>
+        <tr>
+          <td>
+            <%= user_gravatar(rsvp.user) %>
+            <%= link_to rsvp_session.user_full_name, user_profile_path(rsvp_session.rsvp.user), class: 'user-name' %>
+          </td>
+          <td><%= rsvp.role.title %>
+            <% if rsvp.role_student? %>
+              <%= link_to levels_event_path(@event) do %>
+                <div class='bridgetroll-badge level<%= rsvp.class_level %>'>
+                  <%= rsvp.class_level %>
+                </div>
+              <% end %>
+              <% if rsvp.waitlist_position %>
+                <div style="font-size: 12px;">
+                  (#<%= rsvp.waitlist_position %> on waitlist)
+                </div>
+              <% end %>
+            <% end %>
+          </td>
+          <td class="checkins-action <% if rsvp_session.checked_in? %>checked-in<% end %>"
+              id="rsvp_session_<%= rsvp_session.id %>"
+              data-rsvp-session-id="<%= rsvp_session.id %>"
+              data-user-name="<%= rsvp_session.user_full_name %>">
+            <div class="toggle_rsvp_session destroy">
+              <i class='fa fa-check-square-o'></i>Checked In! <%= button_tag "Un-Check In", class: 'btn' %>
+            </div>
+            <div class="toggle_rsvp_session create">
+              <%= button_tag "Check In", class: 'btn' %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  window.whenReady(function(){
+    window.setupCheckinsPage({
+      event_id: <%= @event.id %>,
+      session_id: <%= @session.id %>,
+      poll: <%= !Rails.env.test? %>,
+      popoverData: <%= @event.course ? @event.course.levels.to_json.html_safe : [] %>
+    });
+  });
+</script>

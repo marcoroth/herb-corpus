@@ -10,9 +10,9 @@ Every application is pinned to an exact commit, so results are reproducible acro
 | | |
 | --- | --- |
 | Applications and engines | **254** |
-| `.erb` files in `erb/` | **27,981** from 197 apps |
-| Size of `erb/` | ~42 MB |
-| Excluded pending license review | 57 apps |
+| `.erb` files in `erb/` | **32,092** from 226 apps |
+| Size of `erb/` | ~48 MB |
+| Excluded pending license review | 28 apps |
 
 <!-- corpus:stats:end -->
 
@@ -118,6 +118,10 @@ apps:
     redistributable: true
 ```
 
+Optional fields: `upstream` and `fork` when tracking a fork, `note` for anything that needs
+explaining, and `exclude_paths` (comma-separated) for apps that license some directories
+differently and whose ERB in those directories must not be extracted.
+
 Formatting is maintained by [Yerba](https://github.com/marcoroth/yerba), configured in the
 `Yerbafile`: entries stay alphabetical by `name`, fields stay in a fixed order, and one blank line
 separates entries. `bin/corpus add` shovels new entries into the parsed document and saves with
@@ -189,11 +193,15 @@ libraries are included for the same reason, their templates live in `app/compone
 honours that flag, copies each app's license text into `erb/<app>/` alongside its ERB, and records
 the source repo, commit, and license in `erb/MANIFEST.json`.
 
-The apps counted as **excluded** in the table above are marked `redistributable: false` because
-their license could not be verified automatically: GitHub reported no license, or reported one it
-could not match to an SPDX identifier. Those apps stay in `apps/` and remain fully usable for
-local testing, but are excluded from `erb/`. Confirming a license and flipping the flag is a
-welcome contribution.
+The apps counted as **excluded** in the table above are marked `redistributable: false`: either they
+carry no license at all, or their license grants no general redistribution right. They stay in
+`apps/` and remain fully usable for local testing, but are kept out of `erb/`.
+
+GitHub's reported license is a starting point, not the answer. Many of these entries were initially
+flagged `unknown` only because a copyright header preceded otherwise-verbatim license text, so each
+one is confirmed by reading the file in the tree. Where an app splits licensing across directories,
+`exclude_paths` holds back the parts that are not granted — Chatwoot's `enterprise/` directory, for
+instance — so the rest can still be extracted.
 
 All application source belongs to its respective authors under its own license. This repository
 claims no ownership over it.

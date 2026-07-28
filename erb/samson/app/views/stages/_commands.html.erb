@@ -1,0 +1,114 @@
+<fieldset class="unfoldable">
+  <legend>Script</legend>
+  <p>Select the commands you want to run when executing. Double click to edit commands.</p>
+
+  <div id="commands">
+    <% usage_ids = Command.usage_ids %>
+    <% administrated = current_user.administrated_projects.pluck(:id) %>
+    <% editing = form.object.persisted? %>
+    <%= form.collection_check_boxes(:command_ids, Command.for_stage(form.object), :id, :command) do |b| %>
+      <% command = b.object %>
+      <% check_box = b.check_box %>
+      <% checked = check_box.include?('"checked"') %>
+      <% others = usage_ids.count(command.id) - (checked && editing ? 1 : 0) %>
+      <% others_warning = "#{others} others" if others > 0 %>
+
+      <% if command.persisted? %>
+        <div class="row stage-bar bar" <%= 'style="display: none"'.html_safe if editing && !checked %>>
+          <div data-id="<%= b.value %>" class="col-lg-offset-2 col-lg-2 command-checkbox">
+            <%= check_box %>
+          </div>
+          <div class="col-lg-8">
+            <% klass = "pre-command pre-inline #{command.global? ? 'global' : 'local'} #{'others' if others_warning} #{'no_access' unless administrated.include?(command.project_id)}" %>
+            <pre data-type="textarea" data-others-warning="<%= others_warning %>" data-url="<%= command_path(b.value, stage_id: @stage.id, format: :json) %>" class="<%= klass %>"><%= b.text %></pre>
+          </div>
+          <%= edit_command_link command %>
+          <%= content_tag :span, others, title: others_warning + " use this. Click edit for details.", class: 'glyphicon glyphicon-lock' if others_warning %>
+        </div>
+      <% else %>
+        <%= render partial: 'new_command', locals: { command: b.text } %>
+      <% end %>
+    <% end %>
+    <%= render 'new_command' %>
+  </div>
+
+  <%= button_tag 'Add Stage Command', class: 'btn btn-primary stage-command-button', type: 'button' %>
+  <%= button_tag 'Show Unselected Commands', class: 'btn btn-default show-command-button', type: 'button' if editing %>
+</fieldset>
+
+<script>
+  $(function() {
+    var $commandsContainer = $('#commands');
+    var $localCommands = $('#commands pre.local:not(.no_access)');
+    var newCommandHTML = <%= render('new_command').inspect.html_safe %>;
+
+    function notify_warning(target, message){
+      var $warning = $('<div class="cannot-edit">' + message + '</div>');
+      $(target).after($warning);
+      $warning.fadeOut(3000);
+      return false;
+    }
+
+    $commandsContainer.sortable();
+    $.fn.editableform.buttons = <%= render('commands/buttons').inspect.html_safe %>;
+
+    $localCommands.editable({
+      mode: 'inline',
+      send: 'always',
+      toggle: 'dblclick',
+      highlight: false,
+      params: function(params) {
+        return { command: { command: params.value } };
+      },
+      ajaxOptions: {
+        type: 'PATCH',
+        dataType: 'json'
+      }
+    });
+
+    $localCommands.filter(".others").dblclick(function(){
+      alert("Editing for " + $(this).data('others-warning') + ". If you do not want this, make a copy.");
+      $($($(this).get(0)).siblings().get(0)).find('.editable-destroy').hide();
+    });
+
+    $('#commands pre').dblclick(function(){
+      var $textarea = $($($(this).get(0)).siblings().get(0)).find('textarea');
+      $textarea.attr('rows', ($(this).text().match(/\n/g) || []).length + 1);
+    });
+
+    $('#commands pre.global').dblclick(function(){
+      notify_warning(this, 'Global commands cannot be edited inline, use the Admin UI.');
+    });
+
+    $('#commands pre.no_access:not(.global)').dblclick(function(){
+      notify_warning(this, 'Need admin access for the project, that owns this command.');
+    });
+
+    $commandsContainer.on('click', '.editable-destroy', function(event) {
+      var editable = $(this).closest('div.col-lg-8').children('.pre-command');
+
+      if(confirm('Are you sure you would like to remove this command?')) {
+        $.ajax({
+          method: 'DELETE',
+          dataType: 'json',
+          url: editable.data('url'),
+          success: function() {
+            editable.closest('.row').fadeOut();
+          }
+        });
+      }
+
+      event.preventDefault();
+    });
+
+    $('.stage-command-button').click(function() {
+      $commandsContainer.append(newCommandHTML);
+    });
+
+    // hide unused commands until user wants to see them, so default stage view does not have giant scroll area
+    $('.show-command-button').click(function() {
+      $commandsContainer.find(".row").show();
+      $(this).hide();
+    });
+  });
+</script>

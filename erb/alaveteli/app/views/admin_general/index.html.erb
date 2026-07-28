@@ -1,0 +1,223 @@
+<%= render partial: 'announcement', collection: @announcements %>
+
+<div class="row">
+  <div class="span12">
+    <h1>Things to do</h1>
+  </div>
+</div>
+
+<% if @public_request_tasks %>
+  <div class="row">
+    <div class="span12">
+      <h2>Public requests</h2>
+    </div>
+  </div>
+
+  <div class="accordion" id="public-request-things-to-do">
+    <%= render partial: 'to_do_list',
+               locals: { id: 'holding-pen',
+                         parent: 'public-request-things-to-do',
+                         items: @holding_pen_messages,
+                         label: 'Put misdelivered responses with the right
+                                 request' } %>
+
+    <%= render partial: 'to_do_list',
+               locals: { id: 'error-messages',
+                         parent: 'public-request-things-to-do',
+                         items: @error_message_requests,
+                         label: 'Fix these delivery and other errors' } %>
+
+    <%= render partial: 'to_do_list',
+               locals: { id: 'attention-messages',
+                         parent: 'public-request-things-to-do',
+                         items: @attention_requests,
+                         label: 'Review requests reported by users as
+                                 requiring administrator attention' } %>
+
+    <%= render partial: 'to_do_list',
+               locals: { id: 'requires-admin',
+                         parent: 'public-request-things-to-do',
+                         items: @requires_admin_requests,
+                         label: 'Review requests marked by the requester
+                                 as requiring administrator attention' } %>
+
+    <%
+      to_do_list_time =
+        AlaveteliLocalization.with_locale(:en) do
+          distance_of_time_in_words(InfoRequest::OLD_AGE_IN_DAYS)
+        end
+
+      to_do_list_label = "Classify responses that are still unclassified " \
+                         "#{ to_do_list_time } after response"
+    %>
+
+    <%= render partial: 'to_do_list',
+               locals: {
+                 id: 'unclassified',
+                 parent: 'public-request-things-to-do',
+                 count: @old_unclassified_count,
+                 items: @old_unclassified,
+                 label: to_do_list_label
+               } %>
+  </div>
+<% end %>
+
+<% if @authority_tasks %>
+  <div class="row">
+    <div class="span12">
+      <h2>Authorities</h2>
+    </div>
+  </div>
+
+  <div class="accordion" id="authority-things-to-do">
+    <%= render partial: 'to_do_list',
+               locals: { id: 'blank-contacts',
+                         parent: 'authority-things-to-do',
+                         items: @blank_contacts,
+                         count: @blank_contact_count,
+                         label: 'Find missing FOI email for these public
+                                 authorities' } %>
+
+    <% if @new_body_requests.size > 0 %>
+      <div class="accordion-group">
+        <div class="accordion-heading">
+          <a class="accordion-toggle" href="#new-authorities" data-toggle="collapse" data-parent="authority-things-to-do">
+            <span class="label <%= todo_list_label_style('new-authorities') %>">
+              <%= @new_body_requests.size %>
+            </span>
+            <%= chevron_right %> Add new authorities
+          </a>
+        </div>
+
+        <div id="new-authorities" class="accordion-body collapse">
+          <% for @change_request in @new_body_requests %>
+            <%= render :partial => 'change_request_summary'%>
+
+            <%= form_tag admin_change_request_path(@change_request),
+              :method => 'put',
+              :class => "form form-horizontal" do %>
+
+              <%= submit_tag 'Close', class: 'btn' %>
+
+              <%= link_to 'Close and respond',
+                          edit_admin_change_request_path(@change_request),
+                          class: 'btn btn-primary' %>
+
+              <%= link_to 'Add authority',
+                new_admin_body_path(change_request_id: @change_request.id),
+                class: 'btn btn-success' %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @body_update_requests.size > 0 %>
+      <div class="accordion-group">
+        <div class="accordion-heading">
+          <a class="accordion-toggle" href="#update-authorities" data-toggle="collapse" data-parent="authority-things-to-do">
+            <span class="label <%= todo_list_label_style('update-authorities') %>">
+              <%= @body_update_requests.size %>
+            </span>
+            <%= chevron_right %> Update authorities
+          </a>
+        </div>
+
+        <div id="update-authorities" class="accordion-body collapse">
+          <% for @change_request in @body_update_requests %>
+            <%= render :partial => 'change_request_summary' %>
+
+            <%= form_tag admin_change_request_path(@change_request),
+              :class => "form form-horizontal",
+              :method => 'put' do %>
+
+              <%= submit_tag 'Close', class: 'btn' %>
+
+              <%= link_to 'Close and respond',
+                          edit_admin_change_request_path(@change_request),
+                          class: 'btn btn-primary' %>
+
+              <%= link_to 'Make update',
+                edit_admin_body_path(@change_request.public_body,
+                                     change_request_id: @change_request.id),
+                                     class: 'btn btn-success' %>
+             <% end %>
+           <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<% if @comment_tasks %>
+  <div class="row">
+    <div class="span12">
+      <h2>Comments</h2>
+    </div>
+  </div>
+  <div class="accordion" id="comments-things-to-do">
+    <%= render partial: 'to_do_list',
+               locals: { id: 'attention-comments',
+                         parent: 'comments-things-to-do',
+                         items: @attention_comments,
+                         label: 'Review comments reported by users
+                                 as requiring administrator attention' } %>
+  </div>
+<% end %>
+
+<% if can?(:admin, AlaveteliPro::Embargo) && @embargoed_request_tasks %>
+  <div class="row">
+    <div class="span12">
+      <h2>Embargoed requests</h2>
+    </div>
+  </div>
+  <div class="accordion" id="embargoed-request-things-to-do">
+
+    <%= render partial: 'to_do_list',
+               locals: { id: 'embargoed-error-messages',
+                         parent: 'embargoed-request-things-to-do',
+                         items: @embargoed_error_message_requests,
+                         label: 'Fix these delivery and other errors' } %>
+
+    <%= render partial: 'to_do_list',
+               locals: { id: 'embargoed-attention-messages',
+                         parent: 'embargoed-request-things-to-do',
+                         items: @embargoed_attention_requests,
+                         label: 'Review requests reported by users as
+                                 requiring administrator attention' } %>
+
+
+    <%= render partial: 'to_do_list',
+               locals: { id: 'embargoed-requires-admin',
+                         parent: 'embargoed-request-things-to-do',
+                         items: @embargoed_requires_admin_requests,
+                         label: 'Review requests marked by the requester
+                                 as requiring administrator attention' } %>
+
+  </div>
+<% end %>
+
+<% if can?(:admin, AlaveteliPro::Embargo) && @embargoed_comment_tasks %>
+  <div class="row">
+    <div class="span12">
+      <h2>Embargoed comments</h2>
+    </div>
+  </div>
+  <div class="accordion" id="embargoed-comment-things-to-do">
+    <%= render partial: 'to_do_list',
+               locals: { id: 'embargoed-attention-comments',
+                         parent: 'embargoed-comment-things-to-do',
+                         items: @embargoed_attention_comments,
+                         label: 'Review comments reported by users
+                                 as requiring administrator attention' } %>
+
+  </div>
+<% end %>
+
+<% if @nothing_to_do %>
+  <div class="row">
+    <div class="span12 alert alert-success">
+      No pending administration required.
+    </div>
+  </div>
+<% end %>

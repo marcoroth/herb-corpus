@@ -1,0 +1,53 @@
+<% content_for :javascript do %>
+  <%= javascript_tag nonce: true do %>
+  $(document).ready(function() {
+    // Avoid triggering too often (on each keystroke) by using the debounce
+    // jQuery plugin:
+    // http://benalman.com/projects/jquery-throttle-debounce-plugin/
+    $("#query").keypress($.debounce( 300, function() {
+      // Do a type ahead search and display results
+      $("#typeahead_response").load("<%= search_ahead_bodies_url %>?query="+encodeURI(this.value));
+    }));
+
+    if (!!navigator.userAgent.match(/Version\/[\d\.]+.*Safari/)) {
+      $('#query').removeAttr('required');
+    }
+  });
+  <% end %>
+<% end %>
+
+<% @title = _("Find an authority")  %>
+
+<h1><%= _('Find an authority') %></h1>
+
+<div id="authority_selection" class="authority_selection">
+  <%# This view is rendered from multiple urls, hence why the form action is blank %>
+  <%= form_tag "", { :id => 'search_form', :method => 'get' } do %>
+    <div>
+      <p>
+        <%= _("First, type in the <strong>name of the public authority" \
+              "</strong> you'd like information from.") %>
+        <% if AlaveteliConfiguration.authority_must_respond %>
+          <%= _('<strong>By law, they have to respond</strong> ' \
+                  '(<a href="{{url}}">why?</a>).',
+                :url => (help_about_path(:anchor => 'whybother_them')).html_safe) %>
+        <% end %>
+      </p>
+      <label for="query" class="visually-hidden"><%=_('Authority name')%></label>
+      <%= text_field_tag :query, params[:query], { :size => 30,
+                                                   :title => _('type your search term here'),
+                                                   :required => true,
+                                                   :placeholder => _('e.g. Ministry of Defence') } %>
+      <%= hidden_field_tag :bodies, 1 %>
+      <%= submit_tag _('Search') %>
+    </div>
+  <% end %>
+
+  <div id="typeahead_response" class="typeahead_response">
+    <%= render :partial => 'public_body/search_ahead' %>
+  </div>
+</div>
+
+<div id="select_authority_help" class="select_authority_help">
+  <%= render :partial => 'request/select_authority_help' %>
+</div>

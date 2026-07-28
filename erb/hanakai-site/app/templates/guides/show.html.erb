@@ -1,0 +1,81 @@
+<%= content_for :title, "#{guide.title} / #{page.title} &middot; #{org_name(org)} #{version}" %>
+
+<% if canonical_url %>
+  <%= content_for :meta do %>
+    <link rel="canonical" href="<%= canonical_url %>">
+  <% end %>
+<% end %>
+
+<%= render_with_slots "doc_pages/main" do |main| %>
+  <%# Navigation %>
+  <%= main.slot :navigation do %>
+    <%= render_with_slots "doc_pages/pages_nav_desktop", org: do |pages_nav_desktop| %>
+      <%= pages_nav_desktop.slot :nav do %>
+        <%= render "guides/nav_guides", guides: org_guides, current_page_url: page.url_path, testid: "guides-list" %>
+      <% end %>
+    <% end %>
+
+    <%= render_with_slots "doc_pages/pages_nav_mobile", org: do |pages_nav_mobile| %>
+      <%= pages_nav_mobile.slot :nav do %>
+        <%= render "guides/nav_guides", guides: org_guides, current_page_url: page.url_path, testid: nil %>
+      <% end %>
+
+      <% if page.nested_headings.length > 0 %>
+        <%= pages_nav_mobile.slot :toc do %>
+          <nav
+            data-defo-target-current="<%= { activeClassNames: ["font-bold", "b-primary"] }.to_json %>"
+          >
+            <%= render "doc_pages/toc_headings", headings: page.nested_headings, testid: nil, depth: 0 %>
+          </nav>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%# Table of contents %>
+  <%= main.slot :toc do %>
+    <%= render "doc_pages/toc_desktop", org: org, headings: page.nested_headings %>
+  <% end %>
+
+  <%# Content %>
+  <%= main.slot :content do %>
+    <div class="flex flex-col">
+      <% if version != latest_listed_version %>
+        <%= render "doc_pages/version_warning", version:, version_links:, latest_listed_version: %>
+      <% end %>
+
+      <%= render "doc_pages/breadcrumbs", breadcrumbs:, org:, version:, version_links: %>
+    </div>
+
+    <% if guide.banner %>
+      <div class="content">
+        <div class="markdown-alert markdown-alert-<%= guide.banner_type %>">
+          <%= guide.banner_content %>
+        </div>
+      </div>
+    <% end %>
+
+    <header
+      data-pagefind-filter="project[data-project]"
+      data-pagefind-meta="project[data-project]"
+      data-project="<%= org_name(org) %>"
+    >
+      <h1 class="text-4xl font-extrabold mb-4 tracking-tighter">
+        <%= page.title %>
+      </h1>
+    </header>
+
+    <div
+      class="content"
+      <% if version == latest_listed_version %>
+        data-pagefind-body
+      <% end %>
+    >
+      <%= page.content_html %>
+    </div>
+
+    <%= render "doc_pages/next_prev_links",
+        prev_item: prev_nav_item ? prev_nav_item : nil,
+        next_item: next_nav_item ? next_nav_item : nil %>
+  <% end %>
+<% end %>

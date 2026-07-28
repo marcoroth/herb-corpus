@@ -1,0 +1,100 @@
+<% content_for :page_header do %>
+  <h1><span class="fa fa-gears"></span> <%= t(".header") %></h1>
+<% end %>
+
+<div class="row">
+  <div class="col-md-12">
+    <div class="card account-form">
+      <%= simple_form_for @account, url: [:proprietor, @account], html: { class: 'form' } do |f| %>
+        <div class="card-body">
+          <% if @account.errors.any? %>
+            <div id="error_explanation" class="alert alert-danger alert-dismissible fade show" role="alert">
+              <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+              <h4 class="alert-heading">
+                <i class="fa fa-exclamation-triangle mr-2"></i>
+                <%= pluralize(@account.errors.count, "error") %> prohibited this account from being saved:
+              </h4>
+              <ul class="mb-0">
+                <% @account.errors.messages.each do |key, messages| %>
+                  <%= render 'shared/error_message', key: key, messages: messages %>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+
+          <%= f.input :is_public %>
+
+          <%= f.input :public_demo_tenant, disabled: true, hint: "This field cannot be changed after account creation" %>
+
+          <%= f.input :tenant, readonly: @account.persisted? %>
+
+          <%= f.input :cname, readonly: true %>
+          <div id='domain_names'>
+            <h3>Domain Names</h3>
+            <%= f.simple_fields_for :domain_names do |domain_name| %>
+              <%= render 'domain_name_fields', f: domain_name %>
+            <% end %>
+            <div class='links'>
+              <%= link_to_add_association 'add domain name', f, :domain_names %>
+            </div>
+          </div>
+
+          <h3><%= t(".account_settings") %></h3>
+          
+          <!-- Google Analytics Settings Section -->
+          <% if @account.live_settings.key?(:analytics) || @account.live_settings.key?(:google_analytics_id) || @account.live_settings.key?(:google_analytics_property_id) %>
+            <%= render 'shared/google_analytics_settings', f: f, settings: @account.live_settings %>
+          <% end %>
+
+          <!-- Other Settings -->
+          <% @account.live_settings.except(:analytics, :google_analytics_id, :google_analytics_property_id).each do |key, value| %>
+            <%= render 'shared/settings', f: f, key: key, value: value %>
+          <% end %>
+
+          <% if @account.search_only? %>
+            <h3><%= t('.accounts_to_search') %></h3>
+            <p class="text-muted">Select which repositories this search-only account will search across. At least one full account is required.</p>
+            <div id='full_acount_cross_searches'>
+              <%= f.simple_fields_for :full_account_cross_searches do |full_account_cross_search| %>
+                <%= render 'full_account_cross_search_fields', f: full_account_cross_search %>
+              <% end %>
+              <div class='links'>
+                <%= link_to_add_association 'Add account to search', f, :full_account_cross_searches, class: 'btn btn-sm btn-secondary' %>
+              </div>
+            </div>
+          <% end %>
+
+          <% unless @account.search_only? %>
+            <h3><%= t(".data_cite_endpoint") %></h3>
+            <%= f.simple_fields_for :data_cite_endpoint do |s| %>
+              <%= s.input :mode, collection: ['test', 'production'], required: false  %>
+              <%= s.input :prefix, required: false  %>
+              <%= s.input :username, required: false  %>
+              <%= s.input :password, input_html: { value: @account.data_cite_endpoint.password }, required: false  %>
+            <% end %>
+          <% end %>
+
+          <h3><%= t(".solr_endpoint") %></h3>
+          <%= f.simple_fields_for :solr_endpoint do |s| %>
+            <%= s.input :url, required: false %>
+          <% end %>
+
+          <% if !Hyrax.config.disable_wings && !@account.search_only? %>
+            <h3><%= t(".fcrepo_endpoint") %></h3>
+            <%= f.fields_for :fcrepo_endpoint do |s| %>
+              <%= s.input :url %>
+              <%= s.input :base_path %>
+            <% end %>
+          <% end %>
+
+        </div>
+        <div class="card-footer">
+          <%= f.submit class: 'btn btn-primary' %>
+          <%= link_to t('simple_form.cancel'), proprietor_accounts_path, class: 'btn btn-link action-cancel' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

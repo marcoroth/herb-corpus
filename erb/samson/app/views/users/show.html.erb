@@ -1,0 +1,80 @@
+<%= page_title @user.name %>
+
+<section id="user-description" class="clearfix">
+  <div class="pull-right">
+    <%= link_to "Merge", new_user_user_merges_path(@user) %>
+  </div>
+
+  <dl class="dl-horizontal">
+    <dt>Name:</dt>
+    <dd><%= @user.name %></dd>
+    <dt>System Role:</dt>
+    <dd><%= @user.role.display_name %></dd>
+    <% if @user.integration %>
+      <dt>Created by:</dt>
+      <dd>
+        <% if audit = @user.audits.where(action: "create").first %>
+          <%= audit_author audit %>
+        <% else %>
+          Unknown
+        <% end %>
+      </dd>
+    <% end %>
+  </dl>
+
+  <%= link_to_history @user %>
+</section>
+
+<section id="user-project-roles" class="clearfix">
+  <h2 class="section-subtitle">Project Level Roles</h2>
+
+  <%= render "user_project_roles/search_bar", system_level: false %>
+
+  <div class="users-csv">
+    <%= link_to "Download as CSV", new_csv_export_path(format: :csv, type: :users, user_id: @user.id) %>
+  </div>
+
+  <table id="users" class="table table-hover table-condensed">
+    <thead>
+    <tr>
+      <th><%= sortable "id" %></th>
+      <th><%= sortable "name" %></th>
+      <th>Role</th>
+    </tr>
+    </thead>
+    <tbody>
+    <% if @projects.empty? %>
+      <tr>
+        <td>No project roles exist.</td>
+      </tr>
+    <% else %>
+      <%= render partial: 'project', collection: @projects, as: :project, locals: {user: @user} %>
+    <% end %>
+    </tbody>
+  </table>
+  <%= paginate @pagy %>
+
+  <h3>Create new project role</h3>
+  <%= form_tag user_project_roles_path(user_id: @user.id), class: 'form-horizontal' do %>
+    <div class="col-md-2">
+      <%= live_select_tag :project_id, options_from_collection_for_select(@projects_without_role, :id, :name), required: true, class: 'form-control col-md-2 form-control selectpicker' %>
+    </div>
+    &nbsp;
+    <% UserProjectRole::ROLES.each do |role| %>
+      <%= label_tag do %>
+        <%= radio_button_tag :role_id, role.id %>
+        <%= role.name %>
+      <% end %>
+    <% end %>
+    <%= submit_tag "Create", class: 'btn btn-default' %>
+  <% end %>
+</section>
+
+<section id="access-tokens" class="clearfix">
+  <h2 class="section-subtitle">Access Tokens</h2>
+
+  <%= render 'shared/access_token_table', access_tokens: @user.access_tokens %>
+  <% if can? :write, :access_tokens %>
+    <%= link_to "New", new_access_token_path(doorkeeper_access_token: {resource_owner_id: @user.id}), class: "btn btn-default" %>
+  <% end %>
+</section>

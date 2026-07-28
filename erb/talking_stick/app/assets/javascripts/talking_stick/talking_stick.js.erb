@@ -1,0 +1,282 @@
+var TalkingStick = (function(self) {
+  self.guid         = undefined;
+  self.myStream     = undefined;
+  self.joinedAt     = undefined;
+  self.audioMuted   = false;
+  self.videoMuted   = false;
+  self.partners     = {};
+  self._options = {
+    media: { audio: true, video: true },
+    localVideo: '#talking-stick-localvideo',
+    partnerVideos: '#talking-stick-partnervideos',
+    connectionTimeout: 60000,
+    logLevel: 'error',
+    iceServers: [],
+  };
+
+  self.logLevels = [
+    'trace',
+    'debug',
+    'notice',
+    'warning',
+    'error',
+  ];
+
+  self.init = function(options) {
+    $.extend(self._options, options);
+
+    self.logLevelIdx = self.logLevels.indexOf(self._options.logLevel);
+    self.guid = self._options.guid || self.generateGUID();
+    self.localVideo = $(self._options.localVideo);
+    self.partnerVideos = $(self._options.partnerVideos);
+    self.signalingEngine = self._options.signalingEngine;
+    self.detectDevices();
+    self.setupLocalVideo();
+    self.log('notice', 'TalkingStick initialized.');
+  };
+
+  self.log = function() {
+    var level = arguments[0];
+    var levelIdx = self.logLevels.indexOf(level);
+    if (levelIdx >= self.logLevelIdx) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      args.unshift('[' + level + ']');
+      switch(levelIdx) {
+      case 4:
+        console.error.apply(console, args);
+        break;
+      case 3:
+        console.warn.apply(console, args);
+        break;
+      default:
+        console.log.apply(console, args);
+        break;
+      }
+    }
+  };
+
+  self.trigger = function(name) {
+    name = 'talking_stick.' + name;
+    args = Array.prototype.slice.call(arguments, 1);
+    // Syntactic sugar: make it easy to pass a list of args as the only argument
+    // This is the "right way" per
+    // http://stackoverflow.com/questions/4775722/check-if-object-is-array
+    if (args.length == 1 && Object.prototype.toString.call(args[0]) === '[object Array]') {
+      args = args[0];
+    }
+    self.localVideo.trigger(name, args);
+  };
+
+  self.detectDevices = function() {
+    if (typeof navigator.mediaDevices === 'undefined' || typeof navigator.mediaDevices.enumerateDevices === 'undefined') {
+      self.log('warning', 'MediaStreamTrack is not defined.  We will not be able to offer device selection.');
+    } else {
+      navigator.mediaDevices.enumerateDevices().then(self.handleDevices);
+    }
+  };
+
+  self.handleDevices = function(devices) {
+    var microphones = 1;
+    var cameras = 1;
+    devices = devices.map(function(device) {
+      // Devices (SourceInfo) objects are read-only
+      // Make a copy of the data here so we can apply default labels
+      var tsDevice = {
+        id: "" + device.deviceId,
+        label: "" + (device.label || device.kind),
+        facing: "" + device.facing,
+        kind: "" + device.kind,
+      }
+      if (tsDevice.kind === 'audio' && tsDevice.label == '') {
+        tsDevice.label = "<%= I18n.t('microphone') %> " + microphones++;
+      } else if (tsDevice.kind === 'video' && tsDevice.label == '') {
+        tsDevice.label = "<%= I18n.t('camera') %> " + cameras++;
+      }
+      return tsDevice;
+    });
+    self.log('trace', 'Device enumeration complete', devices);
+    self.devices = devices;
+    self.trigger('devices_ready', devices);
+  };
+
+  self.applyDeviceSelections = function(sourceIds) {
+    self.log('info', "Changing devices at user's request.", sourceIds)
+    if (!!self.myStream) {
+      self.localVideo.src = null;
+      self.myStream.stop();
+    }
+
+    var newConstraints = {}
+    if (sourceIds.audio) {
+      newConstraints.audio = {
+        optional: [{
+          sourceId: sourceIds.audio
+        }]
+      }
+    }
+
+    if (sourceIds.video) {
+      newConstraints.video = {
+        optional: [{
+          sourceId: sourceIds.video
+        }]
+      }
+    }
+
+    $.extend(self._options.media, newConstraints);
+    self.setupLocalVideo();
+  }
+
+  self.setupLocalVideo = function() {
+    self.prepareVideoElement(self.localVideo);
+
+    // Prevent local audio feedback
+    // Chrome allows setting the attribute via jQuery; Firefox does not.
+    self.localVideo[0].muted = true;
+
+    self.log('debug', 'Requesting user consent to access to input devices');
+    navigator.getUserMedia(self._options.media, self._handleUserMedia, self._handleUserMediaFailure);
+  };
+
+  self.muteAudio = function() {
+    self.log('debug', 'User has requested audio be muted');
+    self.myStream.getAudioTracks()[0].enabled = false;
+  }
+
+  self.muteVideo = function() {
+    self.log('debug', 'User has requested video be muted');
+    self.myStream.getVideoTracks()[0].enabled = false;
+  }
+
+  self.unmuteAudio = function() {
+    self.log('debug', 'User has requested audio be unmuted');
+    self.myStream.getAudioTracks()[0].enabled = true;
+  }
+
+  self.unmuteVideo = function() {
+    self.log('debug', 'User has requested video be unmuted');
+    self.myStream.getVideoTracks()[0].enabled = true;
+  }
+
+  self.audioMuted = function() {
+    return !self.myStream.getAudioTracks()[0].enabled;
+  }
+
+  self.videoMuted = function() {
+    return !self.myStream.getVideoTracks()[0].enabled;
+  }
+
+  self.toggleAudio = function () {
+    self.audioMuted() ? self.unmuteAudio() : self.muteAudio();
+    return self.audioMuted();
+  }
+
+  self.toggleVideo = function () {
+    self.videoMuted() ? self.unmuteVideo() : self.muteVideo();
+    return self.videoMuted();
+  }
+
+  self._handleUserMedia = function(stream) {
+    self.log('debug', 'User has granted access to input devices');
+    self.myStream = stream;
+
+    // The JS API requires the raw DOM element, not a jQuery wrapper
+    self.localVideo[0].srcObject = stream;
+
+    self.trigger('local_media_setup');
+  };
+
+  self._handleUserMediaFailure = function(error) {
+    switch(error.name) {
+    case 'PermissionDeniedError':
+      self.log('error', 'User declined access to camera & microphone');
+      break;
+    default:
+      self.log('error', error);
+    }
+  };
+
+  self.connect = function(name) {
+    // Tell the server we're ready to start contacting the other participants
+    var data = {
+      talking_stick_participant: {
+        guid: self.guid,
+        name: name
+      }
+    }
+    $.post(self._options.roomUrl + '/participants.json', data)
+    .success(function(data) {
+      self.log('notice', 'TalkingStick connected to the room.');
+      self.joinedAt = new Date(data.joined_at);
+      self.trigger('connected');
+    })
+    .fail(function() { self.ajaxErrorLog('Error joining the room', arguments) });
+  };
+
+  self.disconnect = function() {
+    $.each(self.partners, function(i, partner) {
+      partner.cleanup();
+    });
+    self.trigger('disconnected');
+  };
+
+  self.errorCallback = function(error) {
+    self.log('error', error);
+  };
+
+  /*
+   * participant.guid
+   * participant.joined_at
+   */
+  self.addPartner = function(participant) {
+    self.log('debug', 'Adding new partner to this conversation', participant);
+    var partnerVideo = $(document.createElement('video')); // <video>
+    partnerVideo.attr('data-partner-guid', participant.guid); // <video data-partner-guid="abcd1234">
+    partnerVideo.attr('poster', "<%= image_path 'talking_stick/line-spinner.svg' %>"); // <video poster="talking_stick/line-spinner.svg"
+    self.prepareVideoElement(partnerVideo);
+    var options = {
+      videoElement: partnerVideo,
+      signalingEngine: self.signalingEngine,
+      iceServers: self._options.iceServers,
+    }
+
+    partner = new TalkingStick.Partner(participant, options);
+    self.partners[participant.guid] = partner;
+
+    partner.connect(self.myStream);
+
+    if (partner.joinedAt < TalkingStick.joinedAt) {
+      self.log('trace', 'Sending Offer to', partner.guid);
+      // Send Offers to partners who joined before us.
+      // Expect partners who join after us to send us Offers.
+      partner.sendOffer({connectionTimeout: self.connectionTimeout});
+    }
+
+    self.trigger('new_partner', partner);
+    return partner;
+  };
+
+  self.prepareVideoElement = function(el) {
+    el = $(el);
+
+    // Ensure video streams play as soon as they are attached
+    el.attr('autoplay', true);
+  };
+
+  self.generateGUID = function () {
+    function s4() {
+      return Math.floor((1 + Math.random()) * 0x10000)
+        .toString(16)
+        .substring(1);
+    }
+    return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+      s4() + '-' + s4() + s4() + s4();
+  };
+
+  self.ajaxErrorLog = function(message, ajaxFailArgs) {
+    // ajaxFailArgs: 0: jqXHR; 1: textStatus; 2: errorThrown
+    self.log('error', message + ':', ajaxFailArgs[2]);
+  }
+
+  return self;
+}(TalkingStick || {}));

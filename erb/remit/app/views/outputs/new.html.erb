@@ -1,0 +1,244 @@
+<% content_for :page_title, "Add dissemination or impact" %>
+<% content_for :page_title, truncate(@study.title, length: 50) %>
+
+<% @publication ||= Publication.new %>
+<% @dissemination ||= Dissemination.new %>
+<% @study_impacts = {} if @study_impacts.nil? %>
+
+<div class="site-main site-main--impacts">
+    <div class="container">
+
+        <h4 class="add-outputs__title">Add dissemination or impact for:</h4>
+        <div class="add-outputs__study">
+            <div class="study-header">
+                <%= render partial: "studies/header_primary", :locals => {:study => @study} %>
+            </div>
+        </div>
+
+        <% unless @users_outputs.blank? %>
+          <div class="add-outputs__existing-outputs">
+              <h4 class="add-outputs__title">Outputs you’ve added to this study:</h4>
+              <% unless @users_publications.blank? %>
+                <h5>Publications</h5>
+                <ul class="existing-outputs__list">
+                <% @users_publications.each do |publication| %>
+                  <li><%= truncate publication.article_title, length: 140 %></li>
+                <% end %>
+                </ul>
+              <% end %>
+              <% unless @users_disseminations.blank? %>
+                <h5>Disseminations</h5>
+                <ul class="existing-outputs__list">
+                <% @users_disseminations.each do |dissemination| %>
+                  <li>
+                    <%= dissemination.dissemination_category.name %> Dissemination:
+                    <%= truncate dissemination.details, length: 100 %>
+                  </li>
+                <% end %>
+                </ul>
+              <% end %>
+              <% unless @users_impacts.blank? %>
+                <h5>Impact</h5>
+                <ul class="existing-outputs__list">
+                <% @users_impacts.each do |impact| %>
+                  <li>
+                    <%= impact.impact_type.name %> Impact:
+                    <%= truncate impact.description, length: 120 %>
+                  </li>
+                <% end %>
+                </ul>
+              <% end %>
+          </div>
+        <% end %>
+
+      <%= form_tag study_outputs_create_path(@study),
+               class: "add-outputs__form action-sheet" do %>
+        <div class="action-sheet__section action-sheet__section--first">
+          <h4 class="action-sheet__title">Add <strong>one</strong> output at a time:</h4>
+        </div>
+        <% if @invite_token.present? %>
+          <input type="hidden" name="token" value="<%= @invite_token %>">
+        <% end %>
+        <div class="output-type-accordion">
+
+          <input type="radio"
+                 name="output_type"
+                 id="output-type-publication"
+                 class="output-type-input houdini-input houdini-input--visible"
+                 value="publication"
+                 <%= "checked" if @publication.errors.any?%>>
+          <label for="output-type-publication" class="output-type-label houdini-label">
+              <span class="output-type-label__title">Publication</span>
+              <span class="output-type-label__description">
+                Please add any peer-reviewed publications
+              </span>
+          </label>
+
+          <div class="action-sheet__section action-sheet__section--child houdini-target">
+              <%= render partial: "shared/form_errors", locals: { resource: @publication } %>
+              <div class="row">
+                  <div class="col-sm-6">
+                      <%= label :publication, :doi_number, "DOI" %>
+                      <%= text_field :publication,
+                                     :doi_number,
+                                     {
+                                       class: "form-control",
+                                       placeholder: "e.g doi:10.1038/171737a0"
+                                     } %>
+                      <%= label :publication,
+                                :details,
+                                raw("Or enter details manually&hellip;"),
+                                { class: "houdini-label manual-publication-details-link" } %>
+                  </div>
+              </div>
+
+              <input type="checkbox"
+                     class="houdini-input"
+                     id="publication_details"
+                     <%= "checked" if @publication.errors.any?%>>
+              <div class="houdini-target">
+                  <div class="row">
+                      <div class="col-sm-6">
+                          <%= label :publication, :article_title %>
+                          <%= text_field :publication,
+                                         :article_title,
+                                         { class: "form-control" } %>
+                      </div>
+                      <div class="col-sm-6">
+                          <%= label :publication, :lead_author %>
+                          <%= text_field :publication,
+                                         :lead_author,
+                                         { class: "form-control" } %>
+                      </div>
+                  </div>
+                  <div class="row">
+                      <div class="col-sm-6">
+                          <%= label :publication, :book_or_journal_title, "Publication title" %>
+                          <%= text_field :publication,
+                                         :book_or_journal_title,
+                                         { class: "form-control" } %>
+                      </div>
+                      <div class="col-sm-6">
+                          <%= label :publication, :publication_year %>
+                          <%= text_field :publication,
+                                         :publication_year,
+                                         { class: "form-control" } %>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          <input type="radio"
+                 name="output_type"
+                 id="output-type-dissemination"
+                 class="output-type-input houdini-input houdini-input--visible"
+                 value="dissemination"
+                 <%= "checked" if @dissemination.errors.any? %>>
+          <label for="output-type-dissemination" class="output-type-label houdini-label">
+              <span class="output-type-label__title">Other dissemination</span>
+              <span class="output-type-label__description">
+                Please document any other disseminations of study outcomes
+                that are not peer reviewed publications. Please give full
+                details of the fora where the dissemination occurred e.g. the
+                name of meeting/working group. The categories are split into
+                internal and external disseminations and if you have
+                disseminated to multiple outlets please add each of them.
+                Internal dissemination includes feeding back to the mission
+                where the study was conducted.
+              </span>
+          </label>
+
+          <div class="action-sheet__section action-sheet__section--child houdini-target">
+              <%= render partial: "shared/form_errors", locals: { resource: @dissemination } %>
+              <p class="field-wrapper">
+                  <%= label :dissemination, :dissemination_category_id %>
+                  <%= select :dissemination, :dissemination_category_id,
+                      {},
+                      { class: "form-control" } do %>
+                          <% DisseminationCategory.grouped_options_for_select.each do |group_label, options| %>
+                              <optgroup label="<%= group_label %>">
+                              <% options.each do |name, id, description, is_other_category| %>
+                                  <option
+                                      value="<%= id %>"
+                                      data-subtext="<%= description %>"
+                                      <%= "data-other-category" if is_other_category %>
+                                      <%= "selected" if @dissemination.dissemination_category_id == id %>
+                                  >
+                                      <%= name %>
+                                  </option>
+                              <% end %>
+                          </optgroup>
+                          <% end %>
+                  <% end %>
+              </p>
+              <div class="field-wrapper dissemination_other_category">
+                  <%= label :dissemination, :other_dissemination_category, "If 'Other', describe the category in a couple of words" %>
+                  <%= text_field :dissemination, :other_dissemination_category, { class: "form-control" } %>
+              </div>
+              <div class="field-wrapper">
+                  <%= label :dissemination, :details, "Describe the dissemination" %>
+                  <%= text_area :dissemination, :details, { class: "form-control" } %>
+              </div>
+          </div>
+
+          <input type="radio"
+                 name="output_type"
+                 id="output-type-other"
+                 class="output-type-input houdini-input houdini-input--visible"
+                 value="study_impact"
+                 <%= "checked" if @study_impacts_errors %>>
+          <label for="output-type-other" class="output-type-label houdini-label">
+              <span class="output-type-label__title">Impact</span>
+              <span class="output-type-label__description">
+                Please provide evidence of an influence on MSF or external
+                programmes, patient outcomes or MSF or external policies.
+                Give as much detail as possible e.g. name of policy, and
+                describe how your study results contributed to it. Remember
+                to include &lsquo;negative&rsquo; outcomes e.g. decisions not
+                to take action, as these are also important.
+              </span>
+          </label>
+
+          <div class="action-sheet__section action-sheet__section--child houdini-target">
+            <% ImpactType.order(:name).each do |impact_type| %>
+              <%= render partial: "shared/form_errors",
+                         locals: { resource: @study_impacts[impact_type.id] } %>
+              <div class="field-wrapper other-impact-type">
+                  <input type="checkbox"
+                         class="houdini-input houdini-input--visible <% if impact_type.description %>checkbox--with-description<% end %>"
+                         id="impact_type_<%= impact_type.name.parameterize %>"
+                         name="study_impact[impact_type_ids][<%= impact_type.id %>]"
+                         value="<%= impact_type.id %>"
+                         <%= "checked" if @study_impacts[impact_type.id].present? %>>
+                  <label class="houdini-label"
+                         for="impact_type_<%= impact_type.name.parameterize %>">
+                         <%= impact_type.name %>
+                         <% if impact_type.description %>
+                           <br><span class="impact-type--description"><%= impact_type.description %></span>
+                         <% end %>
+                  </label>
+                  <textarea class="form-control houdini-target"
+                            placeholder="Description&hellip;"
+                            name="study_impact[descriptions][<%= impact_type.id %>]"><%=
+                            @study_impacts[impact_type.id].description if @study_impacts[impact_type.id].present?
+                  %></textarea>
+              </div>
+            <% end %>
+          </div>
+
+        </div>
+
+        <div class="action-sheet__section action-sheet__section--last">
+          <div class="row">
+              <p class="col-sm-7 action-sheet__warning">
+                  <strong>Remember:</strong><br>
+                  This output will be publicly accessible
+              </p>
+              <p class="col-sm-5 action-sheet__submit">
+                  <button class="btn btn-success">Add output</button>
+              </p>
+          </div>
+        </div>
+      <% end %>
+    </div>
+</div>

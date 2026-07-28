@@ -1,0 +1,34 @@
+<%= form_for @project, html: { class: "form-horizontal collapse_fieldsets" } do |form| %>
+  <div class="pull-right">
+    <%= link_to_history @project %>
+  </div>
+
+  <%= render 'shared/errors', object: @project %>
+
+  <fieldset <%= can?(:write, :projects, @project) ? '' : 'disabled' %>>
+    <%= form.input :name, required: true %>
+    <%= form.input :description, as: :text_area, help: 'How would you explain the project to someone new?' %>
+    <%= form.input :owner, help: 'An email or group to contact with questions.' %>
+    <%= form.input :repository_url, required: true %>
+    <%= form.input :permalink, required: true if @project.persisted? %>
+    <%= form.input :release_branch, help: 'New commits on this branch will cause a release when a webhook arrives.' %>
+    <%= form.input :release_source, help: 'Selects which type of webhook will create a release' do %>
+      <%= form.collection_select :release_source, webhook_sources_for_select(Samson::Integration::SOURCES, none: true), :second, :first, {}, class: "form-control" %>
+    <% end %>
+    <%= form.input :ignore_pending_checks, help: 'Github checks to ignore if they are pending, comma separated, "Codecov,Travis CI" etc' %>
+    <% if DeployGroup.enabled? %>
+      <%= form.input :include_new_deploy_groups, as: :check_box, label: 'Include in New Deploy Groups', help: 'The "Create all stages" button for a deploy group will create a stage for this project.' %>
+    <% end %>
+    <%= Samson::Hooks.render_views(:project_form_checkbox, self, form: form) %>
+
+    <% if ENV['DOCKER_FEATURE'] %>
+      <%= render 'docker_fields', form: form %>
+    <% end %>
+
+    <%= render 'shared/dashboard_field', form: form %>
+
+    <%= Samson::Hooks.render_views(:project_form, self, form: form) %>
+
+    <%= form.actions delete: (:type if can?(:write, :projects, @project)) %>
+  </fieldset>
+<% end %>

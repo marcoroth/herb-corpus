@@ -1,0 +1,62 @@
+<% page_title "Builds" %>
+
+<%= render 'projects/header', project: @project, tab: "builds" if @project %>
+
+<section class="tabs">
+  <div class="row">
+    <%= search_form do %>
+      <%= search_select :status, Job::VALID_STATUSES, size: 2 %>
+      <% unless @project %>
+        <% projects = Project.order(:name).pluck(:name, :id) %>
+        <%= search_select :project_id, projects, live: true, label: "Project" %>
+      <% end %>
+      <div class="col-sm-2">
+        <%= label_tag :git_sha, "Git Commit" %>
+        <%= additional_info "Full SHA or exact reference, does not resolve" %>
+        <br/>
+        <%= text_field_tag 'search[git_commit]', params.dig(:search, :git_sha), class: "form-control" %>
+      </div>
+      <div class="col-sm-2">
+        <%= label_tag :docker_repo_digest, "Docker Digest" %><br/>
+        <%= text_field_tag 'search[docker_repo_digest]', params.dig(:search, :docker_repo_digest), class: "form-control" %>
+      </div>
+    <% end %>
+  </div>
+
+  <p class="pull-right">
+    <% if @project && !@project.docker_image_building_disabled? %>
+      <%= link_to "Edit Pre Build Command", project_build_command_path(@project), class: "btn btn-default"  %>
+      <%= link_to "New", new_project_build_path(@project), class: "btn btn-default" %>
+    <% end %>
+  </p>
+
+  <table class="table">
+    <thead>
+    <tr>
+      <th>Name</th>
+      <% if @project %>
+        <th>Deployed to</th>
+      <% else %>
+        <th>Project</th>
+      <% end %>
+      <th>Created</th>
+      <th>
+        <% if @project %>
+          <%= link_to_chart "Duration", @builds.map(&:duration).compact, title: "Build duration" %>
+        <% else %>
+          Duration
+        <% end %>
+      </th>
+      <th>Git Ref</th>
+      <th></th>
+      <th>Status</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    <%= render partial: "builds/build", collection: @builds, as: :build %>
+    </tbody>
+  </table>
+
+  <%= paginate @pagy %>
+</section>

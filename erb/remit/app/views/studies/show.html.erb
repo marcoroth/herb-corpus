@@ -1,0 +1,122 @@
+<% content_for :page_title, truncate(@study.title, length: 50) %>
+<% @study_invite ||= StudyInvite.new %>
+<header class="site-header">
+    <div class="container">
+        <%= render partial: 'studies/header' %>
+    </div>
+</header>
+<div class="site-subnav study-subnav study-subnav--<%= @study.study_stage %>">
+    <div class="container">
+        <%= render partial: 'studies/stage_progress_bar',
+                   locals: { timeline: study_timeline(@study) } %>
+    </div>
+</div>
+<div class="site-main">
+    <div class="container">
+        <div class="study-main">
+            <div class="study-main__primary">
+                <div class="study-main__actions">
+                  <% if @study.user_can_manage?(current_user) %>
+                    <%= render partial: "studies/study_actions" %>
+                  <% end %>
+                </div>
+                <div class="study-main__timeline timeline">
+                    <ol reversed>
+                        <%= render_activities @study.activities.order(created_at: :desc),
+                                              layout: :timeline %>
+                    </ol>
+                </div>
+            </div>
+            <div class="study-main__secondary">
+              <% if @study.user_can_manage?(current_user) %>
+                <div class="study-main__secondary__section study-main__secondary__section--admin">
+                    <h3>Manage this study:</h3>
+                    <label class="action action--invite houdini-label" for="show-invitation-form">
+                        Invite someone else <br class="visible-lg-block">to record an impact
+                    </label>
+                    <input class="houdini-input"
+                           type="checkbox"
+                           id="show-invitation-form"
+                           <%= "checked" if @study_invite.errors.any? %>>
+                    <%= form_tag study_study_invites_path(@study),
+                                 class: "impact-invitation-form houdini-target" do %>
+                        <label for="invitation-email">Email address:</label>
+                        <div class="input-group">
+                            <input type="email"
+                                   id="invitation-email"
+                                   class="form-control"
+                                   placeholder="person@example.com"
+                                   name="study_invite[invited_email]"
+                                   required>
+                            <span class="input-group-btn">
+                                <button class="btn btn-primary" type="submit">Send</button>
+                            </span>
+                        </div>
+                    <% end %>
+                    <%= link_to study_outputs_new_path(@study),
+                                class: "action action--impacts" do %>
+                        Record a dissemination or <br class="visible-lg-block">other impact for this&nbsp;study
+                    <% end %>
+                  <% if @study.study_stage == 'protocol_erb' %>
+                    <%= link_to study_progress_to_delivery_path(@study),
+                                class: "action action--next",
+                                method: :put do %>
+                        This study is in <br>delivery
+                    <% end %>
+                  <% elsif @study.study_stage == 'delivery' %>
+                    <%= link_to study_progress_to_completion_path(@study),
+                                class: "action action--next",
+                                method: :put do %>
+                        This study has <br>completed
+                    <% end %>
+                  <% end %>
+                  <% if current_user.is_admin %>
+                    <a class="action action--admin"
+                       href="<%= edit_admin_study_path @study %>">
+                       Edit study details<br>(Admins only)
+                    </a>
+                  <% end  %>
+                  <% if @study.outstanding_delivery_update_invites_for_user(current_user).any? %>
+                    <a class="action action--status"
+                       href="<%= new_study_delivery_update_path(@study) %>">
+                       Add delivery update <br>for this study</a>
+                  <% end %>
+                </div>
+              <% end %>
+                <div class="study-main__secondary__section">
+                    <h3>Documents:</h3>
+                  <% if @study.documents.each do |document| %>
+                    <a href="<%= document_path(document) %>" class="file file--<%= document.nice_content_type[:generic_type].parameterize %>">
+                        <span class="file__name">
+                            <%= document.document_file_name %>
+                        </span>
+                        <span class="file__details">
+                            <%= number_to_human_size(document.document_file_size) %>
+                        </span>
+                    </a>
+                  <% end.empty? %>
+                    <p class="study-main__secondary__section__blank">No documents uploaded.</p>
+                  <% end %>
+                </div>
+
+                <div class="study-main__secondary__section">
+                    <h3>Publications:</h3>
+                  <% if @study.publications.each do |publication| %>
+                    <p class="file file--publication">
+                        <span class="file__name">
+                            <%= publication.article_title %>
+                        </span>
+                        <span class="file__details">
+                            <%= publication.lead_author %> –
+                            <%= publication.book_or_journal_title %>
+                            (<%= publication.publication_year %>)
+                        </span>
+                    </p>
+                  <% end.empty? %>
+                    <p class="study-main__secondary__section__blank">No publications recorded.</p>
+                  <% end %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

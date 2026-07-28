@@ -1,0 +1,95 @@
+<%= page_title @deploy_group.name %>
+
+<%= render_locks @deploy_group %>
+
+<section class="form-horizontal">
+  <div class="form-group">
+    <label class="col-lg-2 control-label">$DEPLOY_GROUPS value</label>
+    <div class="col-lg-4">
+      <p class="form-control-static"><%= @deploy_group.env_value %></p>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="col-lg-2 control-label">Environment</label>
+    <div class="col-lg-4">
+      <p class="form-control-static"><%= link_to @deploy_group.environment.name, @deploy_group.environment %></p>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-lg-2 control-label">Deployed</label>
+    <div class="col-lg-10">
+      <table class="table-condensed">
+        <tr>
+          <th>Project</th>
+          <th>Version</th>
+          <th></th>
+        </tr>
+        <% @deployed.each do |deploy| %>
+          <tr>
+            <td><%= link_to deploy.project.name, deploy.project %></td>
+            <td><%= link_to deploy.short_reference, [deploy.project, deploy] %></td>
+            <td><%= render_time(deploy.start_time) %></td>
+          </tr>
+        <% end %>
+      </table>
+    </div>
+  </div>
+
+  <div class="form-group row">
+    <label class="col-lg-2 control-label">Used by</label>
+    <div class="col-lg-10">
+      <table class="table-condensed">
+        <tr>
+          <th>Project</th>
+          <th>Stage</th>
+        </tr>
+        <% @deploy_group.deploy_groups_stages.group_by { |dgs| dgs.stage.project }.each do |project, dgs_group| %>
+          <% dgs_group.each do |dgs| %>
+            <tr>
+              <td><%= link_to project.name, project %></td>
+              <td><%= link_to dgs.stage.name, [dgs.stage.project, dgs.stage] %></td>
+            </tr>
+          <% end %>
+        <% end %>
+      </table>
+    </div>
+  </div>
+
+  <% if Samson::Secrets::Manager.backend == Samson::Secrets::HashicorpVaultBackend %>
+    <div class="form-group">
+      <label class="col-lg-2 control-label">Vault Server</label>
+      <div class="col-lg-4">
+        <p class="form-control-static">
+          <% if vault_server = @deploy_group.vault_server %>
+            <%= link_to vault_server.name, vault_server %>
+          <% end %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+
+  <%= Samson::Hooks.render_views(:deploy_group_show, self) %>
+
+  <% if DeployGroup.enabled? %>
+    <div class="form-group" id="mass_stage_creation" style="display: none">
+      <%= render 'mass_stage_creation_form' %>
+    </div>
+    <div class="form-group" id="mass_rollout" style="display: none">
+      <%= render 'mass_rollout_form' %>
+    </div>
+  <% end %>
+
+  <div class="form-group">
+    <div class="col-lg-offset-2 col-lg-10" style="margin-top: 10px;">
+      <%= link_to "Edit", edit_deploy_group_path(@deploy_group), class: "btn btn-primary" %>
+      <%= render "locks/button", resource: @deploy_group %>
+      | <%= link_to_history @deploy_group %>
+      | <%= link_to "Deploys", deploys_path(search: {group: "DeployGroup-#{@deploy_group.id}"}) %>
+      | <%= link_to "Mass stage creation", "#", data: {target: "#mass_stage_creation"}, class: 'toggle' if DeployGroup.enabled? %>
+      | <%= link_to "Mass rollout", "#", data: {target: "#mass_rollout"}, class: 'toggle' if DeployGroup.enabled? %>
+      | <%= link_to "Missing config", missing_config_deploy_group_path(@deploy_group) %>
+    </div>
+  </div>
+</section>

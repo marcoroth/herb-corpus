@@ -1,0 +1,124 @@
+<%= simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: {method: is_registered ? 'put' : 'post'}) do |f| %>
+  <%= render "shared/devise_error_messages" if resource.errors.any? %>
+
+  <% if params[:return_to] %>
+    <%= hidden_field_tag :return_to, params[:return_to] %>
+  <% end %>
+
+  <div class="row">
+    <div class="col-md-6">
+      <% if !resource.persisted? && !resource.password_required? %>
+        <% auth = OmniauthProviders.provider_data_for(resource.authentications.first.provider) %>
+        <div class='field'>
+          Primary authentication method: <i style="margin-right: 5px; font-size: 20px;" class='fa <%= auth[:icon] %>'></i><strong><%= auth[:name] %></strong>
+        </div>
+      <% end %>
+
+      <%= f.input :first_name, label: "First/Given Name" %>
+
+      <%= f.input :last_name, label: "Last/Family Name" %>
+
+      <%= f.input :email %>
+
+      <%= f.input :gender %>
+
+      <div class='form-group'>
+        <%= f.label :region_ids, 'Regions' %>
+        <div class='checkbox-columns'>
+          <%= f.collection_check_boxes(:region_ids, Region.order(:name), :id, :name, item_wrapper_class: 'checkbox_row', item_wrapper_tag: 'div') %>
+        </div>
+      </div>
+
+      <div class='form-group'>
+        <%= f.label :allow_event_email do %>
+          <%= f.check_box :allow_event_email %> Allow Bridge Troll to send you an email when a new event is posted in one of those regions
+        <% end %>
+      </div>
+
+      <div class='form-group'>
+        <%= f.label :subscribed_organization_ids, 'Allow these Bridge organizations to (potentially) send you email newsletters:' %>
+        <div class='checkbox-columns'>
+          <%= f.collection_check_boxes(:subscribed_organization_ids, Organization.order(:name), :id, :name, item_wrapper_class: 'checkbox_row', item_wrapper_tag: 'div') %>
+        </div>
+      </div>
+
+      <div class='form-group'>
+        <%= f.label :time_zone %>
+        <%= f.time_zone_select :time_zone, ActiveSupport::TimeZone.us_zones, {include_blank: 'Select Time Zone  '}, {class: 'form-control'} %>
+      </div>
+
+      <% if resource.persisted? %>
+        <%= f.fields_for :profile do |ff| %>
+          <h3>Skills</h3>
+
+          <div class='checkbox-columns checkbox-columns-small'>
+            <% skills.each do |skill| %>
+              <div class="checkbox-row">
+                <%= ff.label skill_symbol(skill) do %>
+                  <%= ff.check_box skill_symbol(skill) %> <%= "#{skill_title(skill)}" %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+
+          <%= ff.input :other, label: "Other Skills", input_html: {rows: 3} %>
+
+          <%= ff.input :bio, input_html: {rows: 3} %>
+
+          <%= ff.input :github_username, label: "GitHub username" %>
+
+          <%= ff.input :twitter_username, label: "Twitter username" %>
+        <% end %>
+      <% end %>
+
+      <% if is_registered && f.object.encrypted_password.blank? %>
+        <span class="help-block">You don't currently have a Bridge Troll password set up, because you use <%= f.object.authentications.map(&:provider).join('/') %> to log in. That's fine with us, but if you want to set up a password as well, you can do it here:</span>
+      <% end %>
+
+      <%= f.input :password %>
+      <% if is_registered && f.object.encrypted_password? %>
+        <span class="help-block">(leave blank if you don't want to change it)</span>
+      <% end %>
+
+      <%= f.input :password_confirmation %>
+
+      <% if is_registered && f.object.encrypted_password? %>
+        <div class='field'>
+          <%= f.input :current_password %>
+          <span class="help-block">(we need your current password to confirm your changes if you are updating your password or your email address)</span>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div><%= f.submit button_text, class: 'btn btn-submit', data: {disable_with: 'Please wait...'} %></div>
+
+  <% if is_registered %>
+    <hr>
+    <div>
+      <h2>Authentication methods</h2>
+      <ul class='external-auth external-auth-existing'>
+        <% OmniauthProviders.provider_data.each do |provider| %>
+          <li>
+            <% existing_authentication = f.object.authentications.find { |a| a.provider.to_sym == provider[:key] } %>
+            <% if existing_authentication %>
+              <i class='fa <%= provider[:icon] %>'></i>
+              <%= provider[:name] %> (UID <%= existing_authentication.uid %>)
+            <% else %>
+              <%= link_to omniauth_authorize_path(:user, provider[:key]), method: :post do %>
+                <i class='fa <%= provider[:icon] %>'></i>
+                Associate with <%= provider[:name] %>
+              <% end %>
+            <% end %>
+          </li>
+        <% end %>
+        <% if f.object.authentications.length == OmniauthProviders.provider_count %>
+          <li>
+            <i class='fa fa-trophy' style="color: rgb(231, 180, 53); text-shadow: 3px 3px 2px rgba(150, 150, 150, 0.5);"></i>
+            That's all the providers. Woo!
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+<% end %>

@@ -1,0 +1,49 @@
+<% if @project %>
+  <%= render 'projects/header', project: @project, tab: 'kubernetes' %>
+<% else %>
+  <%= page_title "Kubernetes Limits" %>
+
+  <%= search_form do %>
+    <% projects = Project.order(:name).pluck(:name, :id) %>
+    <%= search_select :project_id, [['All', Kubernetes::UsageLimitsController::ALL]] + projects, live: true, size: 3 %>
+
+    <% scopes = Environment.env_deploy_group_array(include_all: false) %>
+    <%= search_select :scope_type_and_id, [['All', Kubernetes::UsageLimitsController::ALL]] + scopes, live: true, size: 3, label: "Scope" %>
+  <% end %>
+
+  <br/>
+<% end %>
+
+<section class="tabs kubernetes-section clearfix">
+  <%= render 'samson_kubernetes/role_navigation' if @project %>
+
+  <div class="table table-hover table-condensed">
+    <table class="table">
+      <tr>
+        <% unless @project %>
+          <th>Project</th>
+        <% end %>
+        <th>Scope</th>
+        <th>CPU</th>
+        <th>Memory</th>
+        <th><%= link_to "New", new_kubernetes_usage_limit_path(kubernetes_usage_limit: {project_id: @project&.id}), class: "btn btn-default" %></th>
+      </tr>
+
+      <% @kubernetes_usage_limits.each do |usage_limit| %>
+        <tr>
+          <% unless @project %>
+            <td><%= usage_limit.project ? link_to(usage_limit.project.name, usage_limit.project) : 'All' %></td>
+          <% end %>
+          <td><%= usage_limit.scope ? usage_limit.scope.name : 'All' %></td>
+          <td><%= usage_limit.cpu.to_f %></td>
+          <td><%= usage_limit.memory %> Mi</td>
+          <td><%= link_to "Edit", usage_limit %></td>
+        </tr>
+      <% end %>
+    </table>
+  </div>
+
+  <div class="admin-actions">
+    <%= paginate @pagy %>
+  </div>
+</section>

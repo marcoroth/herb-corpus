@@ -1,0 +1,124 @@
+<% if can? :create, User %>
+  <% provide :page_header do %>
+    <h1><span class="fa fa-user" aria-hidden="true"></span> <%= t('hyrax.admin.users.index.title') %></h1>
+  <% end %>
+<% else %>
+  <% provide :page_header do %>
+    <h1><span class="fa fa-user"></span> <%= t('hyrax.admin.users.index.reader_title') %></h1>
+  <% end %>
+<% end %>
+
+<% if can? :create, User %>
+  <div class="card users-invite">
+    <div class="card-header">
+        <%= t('.invite_users') %>
+    </div>
+
+    <div class="card-body">
+      <%# user_invitation_path is provided by devise_invitable %>
+      <%= simple_form_for :user,  url: main_app.user_invitation_path, html: { class: 'form-inline d-inline-flex' } do |f| %>
+        <%= f.hint :email %>
+        <div class="form-group">
+          <%= f.label :email, class: "control-label", required: false %>
+          <%= f.input_field :email, class: "form-control", value: "" %>
+          <%= f.select :role,
+                      @invite_roles_options.map { |r| [r.titleize, r ]},
+                      { prompt: 'Select a role...' },
+                      required: false,
+                      class: 'form-control' %>
+          <%= f.submit t('.add'), class: 'btn btn-primary' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<div class="card users-listing">
+  <div class="card-header">
+      <%= t('hyrax.admin.users.index.describe_users_html', count: @presenter.user_count) %>
+  </div>
+
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-striped datatable">
+        <thead>
+          <tr>
+            <th></th>
+            <th><%= t('.id_label') %></th>
+            <th><%= t('.group_label') %></th>
+            <th><%= t('.group_role_label') %></th>
+            <th><%= t('.site_role_label') %></th>
+            <th><%= t('.access_label') %></th>
+            <th><%= t('.status_label') %></th>
+            <% if can? :destroy, User %>
+            <th><%= t('.action_label') %></th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody id="manage-users-table">
+          <% @presenter.users.each do |user| %>
+            <tr id="<%= user.email.parameterize %>">
+              <td><%= link_to hyrax.user_path(user) do %>
+                    <%= image_tag(user.avatar.url(:thumb), width: 30, alt: user.name) if user.avatar.file %>
+                  <% end %>
+              </td>
+              <td><%= link_to user.email, hyrax.user_path(user) %></td>
+
+              <td class="groups">
+                <% groups = @presenter.user_groups(user) %>
+                  <ul><% groups.each do |group| %>
+                    <li><%= group.humanized_name %></li>
+                    <% end %>
+                  </ul>
+              </td>
+
+              <td class="group-roles"><% roles = @presenter.user_group_roles(user) %>
+                  <ul><% roles.each do |role| %>
+                    <li><%= role.name.titleize %></li>
+                    <% end %>
+                  </ul>
+              </td>
+
+              <td class="site-roles"><% roles = @presenter.user_site_roles(user) %>
+                <ul>
+                  <% roles.each do |role| %>
+                    <li>
+                      <%= role.name.titleize %>
+                      <%= link_to main_app.remove_role_admin_user_path(id: user.id, role_id: role.id), method: :delete, data: { confirm: t('hyrax.admin.users.roles.remove.confirmation', user: user.email, role: role.name.titleize) } do %>
+                      <%# super admin roles are managed in the proprietor pages %>
+                        <% if role.name != 'superadmin' %>
+                          <% if current_ability.admin? || (can?(:edit, User) && role.name != 'admin') %>
+                            <span class="fa fa-remove"></span>
+                          <% end %>
+                        <% end%>
+                      <% end %>
+                    </li>
+                  <% end %>
+                </ul>
+              </td>
+
+              <td>
+                <%# in the case that a user is created who never signs in, this is necessary %>
+                <relative-time datetime="<%= @presenter.last_accessed(user).getutc.iso8601 %>" title="<%= @presenter.last_accessed(user).to_formatted_s(:standard) %>">
+                  <%= @presenter.last_accessed(user).to_formatted_s(:long_ordinal) %>
+                </relative-time>
+              </td>
+              <%# If user accepted invite or was a self-signup, they are active. Otherwise pending %>
+              <td><%= user.accepted_or_not_invited? ? t('.status.active') : t('.status.pending') %></td>
+              <% if can? :destroy, User %>
+                <td>
+                  <% if can? :manage, :tenant_controls %>
+                    <%= link_to t('.delete'), main_app.admin_user_path(user), class: 'btn btn-danger btn-sm action-delete', method: :delete, data: { confirm: t('hyrax.admin.users.destroy.confirmation', user: user.email) } %>
+                  <% end %>
+                  <% if user.invited_to_sign_up? && can?(:manage, :tenant_controls) %>
+                    <%= link_to t('.activate'), main_app.activate_admin_user_path(user.id), class: 'btn btn-primary btn-sm', method: :post, data: { confirm: t('hyrax.admin.users.activate.confirmation', user: user.email) } %>
+                  <% end %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

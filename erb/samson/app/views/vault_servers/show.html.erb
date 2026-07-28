@@ -1,0 +1,57 @@
+<%= page_title @vault_server.new_record? ? "New Server" : "Edit Sever #{@vault_server.name}" %>
+<% sync_targets = (@vault_server.persisted? && (Samson::Secrets::VaultServer.all - [@vault_server]).presence) %>
+<% sync_targets.sort_by! { |vs| Samson::NaturalOrder.convert(vs.name) } if sync_targets %>
+<%
+  # do not show the token and do not accidentally override it
+  @vault_server.token = nil
+  token_options = if @vault_server.new_record?
+    {}
+  else
+    {placeholder: "-- hidden, click to edit --", disabled: true}
+  end
+%>
+
+<section>
+  <%= form_for @vault_server, html: { class: "form-horizontal" } do |form| %>
+    <fieldset>
+      <%= render 'shared/errors', object: @vault_server %>
+
+      <%= form.input :name, required: true %>
+      <%= form.input :address, as: :url_field, required: true %>
+      <%= form.input :token, required: true, input_html: token_options %>
+      <%= form.input :versioned_kv, as: :check_box, label: "Using versioned key/value secret engine" %>
+      <%= form.input :preferred_reader, as: :check_box, help: "Read from this server when picking from multiple servers" %>
+      <%= form.input :tls_verify, as: :check_box %>
+      <%= form.input :ca_cert, as: :text_area, input_html: {size: '80x5', style: 'width: auto'} %>
+
+      <%= form.actions delete: true, history: true do %>
+        <% if sync_targets %>
+          | <%= link_to "Sync", "#", data: {target: "#sync_dialog"}, class: 'toggle' %>
+        <% end %>
+      <% end %>
+    </fieldset>
+  <% end %>
+
+  <% if sync_targets %>
+    <div style="display: none" id="sync_dialog">
+      <%= form_tag sync_vault_server_path(@vault_server) do %>
+        <fieldset>
+          Copy eligible secrets from
+          <%= select_tag :other_id, options_from_collection_for_select(sync_targets, :id, :name), class: 'form-control', style: 'width: auto; display: inline-block' %>
+          into this server.
+          <%= submit_tag 'Sync!', class: 'btn btn-primary', data: {confirm: "This will override all eligible secrets in this server!"} %>
+        </fieldset>
+      <% end %>
+    </div>
+  <% end %>
+</section>
+
+<script>
+  // when a user decides to edit enable input
+  // DOM events on disabled elements do not work, so attaching to parents
+  var disabled = $('#vault_server_token');
+  disabled.parent().one('click', function(){
+    disabled.attr('disabled', false);
+    disabled.attr('placeholder', '');
+  });
+</script>

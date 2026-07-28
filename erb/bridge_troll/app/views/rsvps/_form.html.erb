@@ -1,0 +1,183 @@
+<div class="rsvp-form">
+  <%= simple_form_for([@event, @rsvp], html: {class: 'form-vertical'},
+                      wrapper_mappings: {
+                        boolean: :vertical_boolean,
+                        radio_buttons: :vertical_radio_and_checkboxes
+                      }) do |f| %>
+    <%= render 'shared/model_error_messages', model: @rsvp %>
+
+    <% if @rsvp.persisted? && @rsvp.rsvp_sessions.length == 0 %>
+      <div class='alert-action'>
+        <strong>It looks like you tried to de-select all the sessions!</strong> If you really want to cancel your RSVP, click this button:
+        <%= link_to 'Cancel RSVP', event_rsvp_path(@rsvp.event, @rsvp), data: {confirm: 'Are you sure you want to cancel your RSVP?'}, method: :delete, class: 'btn' %>
+      </div>
+    <% end %>
+
+    <% if @rsvp.role_student? %>
+      <div class="field">
+        <h2>Operating System</h2>
+        <% if @event.allowed_operating_systems.map(&:type).include?(:osx) %>
+          <a href="http://docs.railsbridge.org/installfest/macintosh">(Not sure what OSX version you have?)</a>
+        <% end %>
+        <%= f.association :operating_system, collection: @event.allowed_operating_systems, label: false, label_method: :title, as: :radio_buttons %>
+      </div>
+
+      <div class="field">
+        <h2>Class Level</h2>
+        <p>You can change class level any time during the workshop if it's not a perfect fit.
+          Our experience is that people tend to underestimate their skills, so don't be
+          shy about picking a higher class level if the description fits!
+        </p>
+        <%= render partial: 'rsvps/class_levels', locals: {
+          f: f,
+          levels: (@rsvp.event.course || Course.find_by_name("RAILS")).levels,
+          show_no_preference: false
+        } %>
+      </div>
+
+      <% if @event.plus_one_host_toggle %>
+        <div class="field">
+          <h2>Are you someone's plus-one?</h2>
+          <%= render partial: "shared/plus_one_disclaimer" %>
+          <div class="field">
+            <%= f.input :plus_one_host %>
+          </div>
+          <% if user_signed_in? && @event.public_email.present? %>
+            <p>Questions or not sure if you should RSVP? You can email your organizer at <%= mail_to @event.public_email %>.</p>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+
+    <% if @rsvp.role_volunteer? %>
+      <%= f.input :subject_experience, as: :text, label: "What's your experience with this workshop's subject matter?", class: "question", input_html: {
+        maxlength: Rsvp::MAX_EXPERIENCE_LENGTH,
+        rows: 3,
+      } %>
+
+      <% unless @rsvp.event.course.blank? %>
+        <h2>Volunteer Preferences</h2>
+        <p class="question">Would you prefer to teach or TA? (Checking neither means you'd prefer to do something else entirely)</p>
+        <div class="checkbox">
+          <%= f.label :teaching, class: 'checkbox' do %>
+            <%= f.check_box :teaching, class: 'volunteer_preference' %> Teaching
+          <% end %>
+        </div>
+        <div class="checkbox">
+          <%= f.label :taing, class: 'checkbox' do %>
+            <%= f.check_box :taing, class: 'volunteer_preference' %> TAing
+          <% end %>
+        </div>
+        <div class="volunteer_preference_panel">
+          <p class="details">If you checked "Teaching" or "TAing" tell us a bit about any teaching or mentoring experience you have had, even one-on-one or non-programming subject. (No experience is ok!)</p>
+          <% unless @rsvp.event.course.blank? %>
+            <%= f.input :teaching_experience, as: :text, label: "What's your experience with teaching?", class: "question", input_html: {
+              maxlength: Rsvp::MAX_EXPERIENCE_LENGTH,
+              rows: 3,
+            } %>
+          <% end %>
+
+          <p class="question">Do you have a class level preference?</p>
+          <p class="details">(We'll try to get you into that class level, but no promises.)</p>
+          <div class="field">
+            <%= render partial: 'rsvps/class_levels', locals: {
+              f: f,
+              levels: (@rsvp.event.course || Course.find_by_name("RAILS")).levels,
+              show_no_preference: true
+            } %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+
+    <% if @rsvp.event.event_sessions.length > 1 %>
+      <h2>Sessions you're attending</h2>
+      <%= f.collection_check_boxes(:event_session_ids,
+                                   @rsvp.selectable_sessions,
+                                   :id,
+                                   -> (session) { "#{session.name}: #{formatted_date(session)} #{formatted_session_timerange(session)}" },
+                                   {
+                                     item_wrapper_class: 'checkbox_row',
+                                     item_wrapper_tag: 'div',
+                                     disabled: @rsvp.role_student? ? @event.event_sessions.where({required_for_students: true}).pluck(:id) : []
+                                   }) %>
+    <% end %>
+
+    <h2>About You</h2>
+    <div class="field question">
+      <%= f.input :job_details, as: :text, label: "What's your job? (i.e. Accountant, Full-Time Parent, Student, Job-Hunter, Horse Whisperer)", input_html: {
+        rows: 1,
+        maxlength: Rsvp::MAX_EXPERIENCE_LENGTH
+      } %>
+    </div>
+
+    <div class="field question">
+      <%= simple_fields_for current_user do |ff| %>
+        <%= ff.input :gender, label: 'Gender (This will update your account, too.)' %>
+      <% end %>
+    </div>
+
+    <% if @event.asks_custom_question? %>
+      <div class="field question">
+        <%= f.input :custom_question_answer, label: @event.custom_question, input_html: {rows: 3} %>
+      </div>
+    <% end %>
+
+    <% if @event.food_provided? %>
+      <div class="field">
+        <p class="question">The food's on us. Let us know if you have any dietary restrictions.</p>
+        <%= render partial: 'rsvps/dietary_restrictions', locals: {f: f} %>
+      </div>
+    <% end %>
+
+    <% if @event.has_childcare? %>
+      <div class="field question">
+        <%= f.input :needs_childcare,
+                    as: :boolean,
+                    label: 'Do you need childcare?',
+                    input_html: {
+                      'data-toggle-target' => '.childcare-info-wrapper',
+                      'data-toggle-show-when' => '1'
+                    } %>
+      </div>
+
+      <div class="field childcare-info-wrapper">
+        <%= f.input :childcare_info, label: "Please list your childrens' names and ages.", input_html: {rows: 3} %>
+      </div>
+    <% end %>
+
+    <% if @event.location %>
+      <div class="field question">
+        <div class="form-group boolean optional affiliate_with_region">
+          <div class="checkbox">
+            <%= label_tag :affiliate_with_region do %>
+              <%= check_box_tag :affiliate_with_region, 1, current_user.regions.include?(@event.region) %> I want to be notified of future events in the "<%= @event.region.name %>" region.
+            <% end %>
+            <div>
+              <small>(Full email preferences are available <%= link_to 'on your User Account', edit_user_registration_path %>)</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+   <% if @rsvp.new_record? %>
+      <div class="checkbox">
+        <%= label_tag :coc, class: 'question' do %>
+          <%= check_box_tag :coc, '1', params[:coc], data: {
+            'toggle-target' => '.coc-required',
+            'toggle-enable-when-checked' => true
+          } %> I accept the <%= link_to 'Code of Conduct', @event.code_of_conduct_url, target: :blank %>
+        <% end %>
+      </div>
+    <%end%>
+
+    <div class="actions">
+      <%= f.hidden_field :event_id %>
+      <%= f.hidden_field :role_id %>
+      <% unless @rsvp_preview_mode %>
+        <%= f.submit "Submit", class: 'btn btn-submit coc-required', data: {disable_with: 'Please wait...'} %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

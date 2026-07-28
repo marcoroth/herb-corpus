@@ -1,0 +1,88 @@
+<% presenter = ::Layouts::TailwindPresenter.new(self) %>
+<!DOCTYPE html>
+<html
+  dir="<%= current_user&.locale == 'ar' ? 'rtl' : 'ltr' %>"
+  lang="<%= I18n.locale %>"
+  data-user-id="<%= current_user&.id %>"
+  data-flash="<%= presenter.flash_messages %>"
+  data-env="<%= Rails.env %>"
+  data-vapid-public-key="<%= presenter.vapid_public_key_bytes %>"
+  data-subscription-endpoint="<%= presenter.webpush_subscription_endpoint %>"
+>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <%= ::NewRelic::Agent.browser_timing_header(content_security_policy_nonce) if Rails.env.production? && Settings.new_relic_license_key.present? %>
+    <link rel="manifest" href="/manifest.json" />
+    <% if content_for?(:viewport) %>
+      <%= yield :viewport %>
+    <% else %>
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <% end %>
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags. -->
+    <meta name="theme-color" content="#4D1E9A" />
+    <%= tag :meta, name: :psj, action: action_name, controller: controller_path %>
+    <!-- Load styles -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css" integrity="sha256-gMRN4/6qeELzO1wbFa8qQLU8kfuF2dnAPiUoI0ATjx8=" crossorigin="anonymous">
+    <!-- Prep for JS -->
+    <%= javascript_tag(nonce: true) do %>
+      window.pupilfirst = {
+      environment: "<%= Rails.env %>",
+      locale: "<%= I18n.locale %>",
+      maxUploadFileSize: <%= Settings.max_upload_file_size %>,
+      rollbar: {
+      accessToken: "<%= ENV['ROLLBAR_CLIENT_TOKEN'] %>",
+      captureUncaught: "<%= ENV['ROLLBAR_CAPTURE_UNCAUGHT'] %>",
+      captureUnhandledRejections: "<%= ENV['ROLLBAR_CAPTURE_UNHANDLED_REJECTIONS'] %>",
+      }
+      }
+      // Prevent Prism from automatically highlighting all code elements on the page.
+      window.Prism = window.Prism || {};
+      Prism.manual = true;
+    <% end %>
+    <!-- Rails specific scripts. -->
+    <%= vite_javascript_tag 'application', nonce: true %>
+    <%= yield :head %>
+    <% if Rails.env.test? %>
+      <style>
+        * {
+          animation-duration: 0s !important;
+          transition-duration: 0s !important;
+        }
+      </style>
+    <% end %>
+    <%= csrf_meta_tags %>
+    <% if presenter.meta_description.present? %>
+      <meta name="description" content="<%= presenter.meta_description %>" />
+      <meta
+        property="og:description"
+        content="<%= presenter.meta_description %>"
+      />
+    <% end %>
+
+    <link rel="icon" href="/favicon.ico" />
+  </head>
+
+  <body data-host="<%= current_host %>">
+        <% if content_for?(:container) %>
+          <%= yield :container %>
+        <% else %>
+          <section class="flex flex-col justify-between h-full">
+            <%= yield :nav %>
+            <div class="flex flex-col flex-1">
+              <main class="flex-1 bg-white">
+                <% if content_for?(:wrapper) %>
+                  <%= yield :wrapper %>
+                <% else %>
+                  <%= yield %>
+                <% end %>
+              </main>
+              <%= yield :tail %>
+              <%= yield :footer %>
+            </div>
+          </section>
+        <% end %>
+        <!-- Initialize Rollbar only at the very end. -->
+        <%= vite_javascript_tag 'rollbar', nonce: true %>
+      </body>
+    </html>

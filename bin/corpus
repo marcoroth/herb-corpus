@@ -114,10 +114,16 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
     cloned? && !git("status", "--porcelain", chdir: dir).empty?
   end
 
+  def excluded_paths = meta["exclude_paths"].to_s.split(",").map(&:strip).reject(&:empty?)
+
   def erb_files
     return [] unless cloned?
 
-    Dir.glob("**/*.erb", base: dir, flags: File::FNM_DOTMATCH).reject { |file| file.start_with?(".git/") }
+    files = Dir.glob("**/*.erb", base: dir, flags: File::FNM_DOTMATCH).reject { |file| file.start_with?(".git/") }
+
+    return files if excluded_paths.empty?
+
+    files.reject { |file| excluded_paths.any? { |prefix| file == prefix || file.start_with?("#{prefix.chomp("/")}/") } }
   end
 end
 

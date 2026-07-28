@@ -1,0 +1,115 @@
+<% content_for(:title) { "#{@room.name} Group Conversation" } %>
+<div class="container-fluid" role="main" id="talking-stick-room" data-room-name="<%= @room.name %>">
+  <div class="row">
+    <div class="col-xs-3">
+      <div class="row">
+        <div class="col-xs-12">
+          <div id="talking-stick-localvideo-container"></div>
+        </div>
+        <div class="col-xs-12">
+          <span class="navbar-brand"><%= @room.name %></span>
+        </div>
+      </div>
+    </div>
+    <div class="col-xs-9">
+      <div id="talking-stick-partnervideos"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" role="dialog" id="talking-stick-video-preview">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h3 class="modal-title"><%= t(:joining_room) %> "<%= @room.name %>"</h3>
+      </div>
+      <div class="modal-body">
+        <video id="talking-stick-localvideo" poster="<%= image_path 'talking_stick/line-spinner.svg' %>" autoplay=true></video>
+        <p id="talking-stick-preview-instructions"><%= t(:video_grant_access) %></p>
+      </div>
+      <div class="modal-footer">
+        <button id="talking-stick-connect" type="button" class="btn btn-default btn-primary" data-dismiss="modal" disabled>Join</button>
+        <%= link_to "Exit", "history.back()", class: 'btn btn-default' %>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+
+<script type="text/javascript">
+$(document).ready(function() {
+  // Attempt to keep the modal from scrolling vertically
+  // 300px is the approximate height of the modal, minus the video
+  $('#talking-stick-video-preview').find('video').height($(window).height() - 300);
+  $('#talking-stick-video-preview').modal({backdrop: 'static', keyboard: false, show: true});
+  var myGuid = TalkingStick.generateGUID();
+  // Use the least-common-denominator, Rails API, for WebRTC setup
+  var options = {
+    url: '<%= talking_stick.room_path %>',
+    myGuid: myGuid,
+  };
+  var signalingEngine = new TalkingStick.RailsSignaling(options);
+
+  var options = {
+    guid: myGuid,
+    roomUrl: '<%= talking_stick.room_path %>',
+    signalingEngine: signalingEngine,
+    logLevel: 'trace',
+  };
+  TalkingStick.init(options);
+
+  $('#talking-stick-connect').click(startSession);
+  $(window).on('talking_stick.local_media_setup', function() {
+    $('#talking-stick-preview-instructions').html('<%= t(:video_intro) %>');
+    $('#talking-stick-connect').attr('disabled', false);
+  });
+});
+
+function startSession() {
+  $('#talking-stick-localvideo').detach().appendTo('#talking-stick-localvideo-container');
+  $('#talking-stick-localvideo').height('auto');
+  // Gotta restart and re-mute the video after moving it
+  $('#talking-stick-localvideo')[0].play();
+  TalkingStick.connect();
+};
+
+function resizeVideos() {
+  var videoCollection = $('#talking-stick-partnervideos video');
+  var numVideos = videoCollection.length;
+  var square = Math.sqrt(numVideos);
+  if (!isInt(square)) {
+    // Round up to the next square
+    square = parseInt(square) + 1;
+  }
+  console.log(square);
+  videoCollection.css('width', (100/square) + "%");
+};
+
+function cleanupPartner() {
+  resizeVideos();
+}
+
+function sim() {
+  var el = $(document.createElement('video'));
+  el.attr('poster', "<%= image_path 'talking_stick/line-spinner.svg' %>");
+  $('#talking-stick-partnervideos').append(el);
+  TalkingStick.localVideo = $('#talking-stick-localvideo');
+  TalkingStick.trigger('partner.media', el);
+}
+
+function isInt(value){
+  if((parseFloat(value) == parseInt(value)) && !isNaN(value)){
+    return true;
+  } else {
+    return false;
+  }
+}
+
+$(window).on('talking_stick.new_partner', function(ev, partner) {
+  $('#talking-stick-partnervideos').append(partner.videoElement);
+});
+$(window).on('talking_stick.partner.media', resizeVideos);
+$(window).on('talking_stick.partner.cleanup', cleanupPartner);
+$(window).resize(resizeVideos);
+
+</script>

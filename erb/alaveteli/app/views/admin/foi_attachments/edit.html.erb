@@ -1,0 +1,98 @@
+<%= render partial: 'admin/foi_attachments/intro', locals: {
+  info_request: @info_request,
+  incoming_message: @incoming_message,
+  foi_attachment: @foi_attachment
+} %>
+
+
+<% if @foi_attachment.erased? %>
+  <p>
+    <%= button_to 'Download', '', class: 'btn', disabled: true %>
+    <span class="muted">Erased attachments cannot be downloaded.</span>
+  </p>
+<% else %>
+  <p>
+    <%= link_to 'Download', attachment_path(@foi_attachment), class: 'btn' %>
+    <span class="muted">Downloads the public version.</span>
+  </p>
+<% end %>
+
+<table class="table table-striped table-condensed">
+  <tbody>
+    <% @foi_attachment.for_admin_column do |name, value| %>
+      <tr>
+        <td>
+          <b><%= name.humanize %></b>
+        </td>
+        <td>
+          <%= admin_value(value) %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<%= form_for @foi_attachment, url: admin_foi_attachment_prominence_path(@foi_attachment), class: 'form form-inline' do |f| %>
+  <fieldset class="form-horizontal">
+    <legend>Prominence</legend>
+
+    <div class="control-group">
+      <%= f.label :prominence, class: 'control-label' %>
+
+      <div class="controls">
+        <%= f.select :prominence, FoiAttachment.prominence_states %>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <%= f.label :prominence_reason, 'Reason for prominence', class: 'control-label' %>
+
+      <div class="controls">
+        <%= f.text_area :prominence_reason, rows: 5, class: 'span6' %>
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <%= f.submit 'Update Prominence', class: 'btn btn-success' %>
+  </div>
+<% end %>
+
+<% if @foi_attachment.erased? %>
+  <div class="row">
+    <div class="span12">
+      <div class="alert alert-warning">
+        <p>Cannot show the mask, lock or replacement options as this attachment has been erased.</p>
+      </div>
+    </div>
+  </div>
+<% else %>
+  <%= render partial: 'mask' %>
+  <%= render partial: 'lock' %>
+  <%= render partial: 'replace' %>
+  <%= render partial: 'erase' if feature_enabled?(:foi_attachment_erase) %>
+<% end %>
+
+<% if @foi_attachment.main_body_part? %>
+  <hr />
+  <h2>Unmasked message body (quotes unfolded):</h2>
+
+  <% if @foi_attachment.raw_email_erased? %>
+    <div class="row">
+      <div class="span12">
+        <div class="alert alert-warning">
+          <p>
+            Cannot show the unmasked data as the underlying data for this
+            message has been erased.
+          </p>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <blockquote>
+      <div class="well well-small">
+        <%= simple_format(@foi_attachment.unmasked_body) %>
+      </div>
+    </blockquote>
+  <% end %>
+<% end %>

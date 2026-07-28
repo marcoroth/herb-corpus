@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+
+<html
+  lang="en"
+  class="lg:scroll-pt-[calc(var(--hk-nav-height)+var(--spacing)*7)] scroll-pt-[calc(var(--hk-nav-height)+var(--hk-mobile-page-nav-height)+var(--spacing)*4)] theme-<%= theme %>"
+>
+  <head>
+    <meta charset="UTF-8">
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    >
+
+    <title>
+      <% if content_for(:title) %>
+        <%= raw content_for(:title) %>
+        &middot; Hanakai
+      <% else %>
+        Hanakai
+      <% end %>
+    </title>
+
+    <link
+      href="<%= asset_url("favicon.svg") %>"
+      rel="shortcut icon"
+      type="image/svg+xml"
+    >
+
+    <link
+      rel="alternate"
+      type="application/atom+xml"
+      title="Hanakai blog"
+      href="<%= site_url %>/feed.xml"
+    >
+
+    <meta name="fediverse:creator" content="@hanakai@ruby.social">
+
+    <%= render "shared/og_meta", title: content_for(:title), url: canonical_page_url, image: og_image_url, description: og_description, type: og_type %>
+
+    <%= stylesheet_tag "app" %>
+
+    <script>
+      (function () {
+        var stored = localStorage.getItem("hk-color-scheme");
+        var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var isDark = stored === "dark" || (!stored && prefersDark);
+        // Always set a class to resolve dark mode
+        document.documentElement.classList.toggle("dark", isDark);
+        // Position the theme switcher indicator before first paint to avoid flicker.
+        document.documentElement.dataset.themePref = stored === "light" || stored === "dark" ? stored : "system";
+        // Apply .mac class to appropriate browsers
+        document.documentElement.classList.toggle("mac", /\bmac/i.test(navigator.userAgent));
+      })();
+    </script>
+
+    <%= raw content_for(:meta) %> <%# herb:disable erb-no-unsafe-raw %>
+    <%= javascript_tag "app", async: true, type: "module" %>
+  </head>
+
+  <body
+    class="font-sans text-neutral bg-neutral flex flex-col min-h-dvh"
+    data-defo-foresight="<%= { elementSelector: "a[href^='/']" }.to_json %>"
+  >
+    <%= render "header/base" %>
+
+    <% if content_for(:pre_main) %>
+      <%= raw content_for(:pre_main) %> <%# herb:disable erb-no-unsafe-raw %>
+    <% end %>
+
+    <div
+      class="
+        mx-auto flex w-full max-w-[1600px] flex-col mb-6 lg:mb-8 flex-1
+        pl-[calc(env(safe-area-inset-left)-var(--spacing)*4)] pr-[calc(env(safe-area-inset-right)-var(--spacing)*4)]
+      "
+    >
+      <main class="px-4 lg:px-6 flex flex-col flex-1"><%= yield %></main>
+    </div>
+
+    <% if content_for(:post_main) %>
+      <%= raw content_for(:post_main) %> <%# herb:disable erb-no-unsafe-raw %>
+    <% end %>
+
+    <%= render "footer/base" %>
+    <%= render "search/search_modal" %>
+
+    <%#
+      Run replaceWithTemplate synchronously before first paint to avoid a FOUC.
+      The body of the function below is a literal copy of replaceWithTemplateViewFn
+      in app/assets/js/views/replace-with-template.ts, which is loaded async and
+      would otherwise run after the page has painted. Keep the two in sync.
+    %>
+
+    <script>
+      document.querySelectorAll("[data-defo-replace-with-template]").forEach((node) => {
+        const template = Array.from(node.children).find((c) => c instanceof HTMLTemplateElement);
+        if (!(template instanceof HTMLTemplateElement)) return;
+        const replacement = template.content.firstElementChild;
+        if (!replacement) return;
+        node.replaceChildren(replacement.cloneNode(true));
+      });
+    </script>
+
+    <% if tinylytics_site_id %>
+      <script
+        defer
+        src="https://tinylytics.app/embed/<%= tinylytics_site_id %>.js"
+      ></script>
+    <% end %>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+<%= breadcrumb @project, link_to("Releases", project_releases_path(@project)), "Release #{@release.version}" %>
+
+<%= page_title do %>
+  Release <%= @release.version %>: <code><%= @release.commit %></code>
+<% end %>
+
+<section class="clearfix tabs release">
+  <div class="pull-right">
+    <%= render 'deploy_to_button', release: @release, stages: @project.stages %>
+  </div>
+
+  <% if list = deployed_or_running_list(@project.stages, @release.version).presence %>
+    <p>Deployed to: <%= list %></p>
+  <% end %>
+
+  <label>Created</label>
+  <%= relative_time(@release.created_at) %>
+
+  <legend>Commit Status</legend>
+  <p>
+    <% CommitStatus.new(@release.project, @release.commit).statuses.each do |status| %>
+      <%= commit_status_icon(status.fetch(:state)) %>
+      <b><%= status[:context] %>:</b> <%= link_to_if status[:target_url], status[:description], status[:target_url] %><br/>
+    <% end %>
+  </p>
+
+  <% if @changeset.empty? %>
+    <p>This release contains no changes.</p>
+  <% else %>
+    <% if @changeset.pull_requests.any? %>
+      <legend>Pull requests</legend>
+      <%= render 'changeset/pull_requests', changeset: @changeset %>
+    <% end %>
+
+    <legend>Commits</legend>
+    <%= render 'changeset/commits', changeset: @changeset %>
+
+    <legend>Files</legend>
+    <%= render 'changeset/files', changeset: @changeset %>
+
+    <% if @changeset.risks? %>
+      <legend>Risks</legend>
+      <%= render 'changeset/risks', changeset: @changeset, type: "release" %>
+    <% end %>
+
+    <% if @changeset.jira_issues.any? %>
+      <legend>Jira issues</legend>
+      <%= render 'changeset/jira_issues', changeset: @changeset, type: "release" %>
+    <% end %>
+  <% end %>
+</section>

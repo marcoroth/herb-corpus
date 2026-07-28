@@ -1,0 +1,116 @@
+<% content_for :page_title,
+               "Add delivery update #{truncate(@study.title, length: 50)}" %>
+
+<% @invites ||= [] %>
+<% @delivery_update ||= DeliveryUpdate.new %>
+
+<div class="site-main site-main--impacts">
+    <div class="container">
+
+      <% if @delivery_update.new_record? %>
+
+          <h4 class="add-outputs__title">Add delivery update for:</h4>
+          <div class="add-outputs__study">
+              <div class="study-header">
+                  <%= render partial: "studies/header_primary", :locals => {:study => @study} %>
+              </div>
+          </div>
+
+        <%= form_for @delivery_update,
+                    url: study_delivery_updates_path(@study),
+                    html: { class: "add-outputs__form action-sheet" } do |f| %>
+          <% if @invite_token.present? %>
+            <input type="hidden" name="token" value="<%= @invite_token %>">
+          <% end %>
+
+          <div class="action-sheet__section action-sheet__section--last">
+            <div class="row">
+              <p class="col-sm-12">
+                Please provide an update on how your study is progressing in
+                each of the delivery areas, detailing any delays with a brief
+                comment.
+              </p>
+            </div>
+            <div class="row">
+              <div class="col-sm-4">
+                <%= f.label :data_collection_status_id, "Data collection" %>
+                <%= f.collection_select :data_collection_status_id,
+                                        DeliveryUpdateStatus.all, :id, :name,
+                                        { selected: @selected_data_analysis_status } %>
+              </div>
+              <div class="col-sm-4">
+                <%= f.label :data_analysis_status_id, "Data analysis" %>
+                <%= f.collection_select :data_analysis_status_id,
+                                        DeliveryUpdateStatus.all, :id, :name,
+                                        { selected: @selected_data_collection_status } %>
+              </div>
+              <div class="col-sm-4">
+                <%= f.label :interpretation_and_write_up_status_id, "Interpretation and write up" %>
+                <%= f.collection_select :interpretation_and_write_up_status_id,
+                                        DeliveryUpdateStatus.all, :id, :name,
+                                        { selected: @selected_write_up_status } %>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-sm-12">
+                <%= f.label :comments %>
+                <%= f.text_area :comments, class: "form-control" %>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-sheet__section action-sheet__section--last">
+            <div class="row">
+                <p class="col-xs-12">
+                    If your study has been postponed or withdrawn, please
+                    <a href="mailto:<%= Rails.application.config.x.contact_email %>">contact the ReMIT team</a>
+                    so that we can update it.
+                </p>
+            </div>
+          </div>
+
+          <div class="action-sheet__section action-sheet__section--last">
+            <div class="row">
+                <p class="col-xs-12">
+                    <button class="btn btn-success">Add delivery update</button>
+                </p>
+            </div>
+          </div>
+        <% end %>
+
+      <% else %>
+
+        <h3 class="add-outputs__thanks">Thank you for your delivery update!</h3>
+
+        <% if @pending_invites.any? %>
+          <% if @pending_invites.size == 1 %>
+            <h4 class="add-outputs__title">There is one more study you need to update:</h4>
+          <% else %>
+            <h4 class="add-outputs__title">There are <%= @pending_invites.size %> more studies you need to update:</h4>
+          <% end %>
+
+          <% @pending_invites.each do |invite| %>
+            <% if @invite_token %>
+              <% invite_link = "#{new_study_delivery_update_path(invite.study)}?token=#{@invite_token}" %>
+            <% else %>
+              <% invite_link = new_study_delivery_update_path(invite.study) %>
+            <% end %>
+            <a class="add-outputs__study" href="<%= invite_link %>">
+              <div class="study-header">
+                <%= render partial: "studies/header_primary", :locals => {:study => invite.study, :no_links => true} %>
+              </div>
+            </a>
+          <% end %>
+        <% else %>
+          <p>You don't have more updates to complete.</p>
+          <% if current_user.present? %>
+            <p>
+              <%= link_to "Back to your studies",
+                           user_studies_path(user_id: current_user.id),
+                           class: "btn btn-primary" %>
+            </p>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+</div>

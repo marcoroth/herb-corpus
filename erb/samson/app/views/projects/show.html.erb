@@ -1,0 +1,52 @@
+<% page_title @project.name %>
+
+<%= render 'projects/header', project: @project, tab: "stages" %>
+
+<section class="clearfix tabs">
+  <%= render 'shared/dashboard', resource: @project %>
+
+  <%= Samson::Hooks.render_views(:project_dashboard, self) %>
+
+  <%= render "stage_name_filter" %>
+
+  <table class="project-stages table table-condensed">
+    <thead>
+      <tr>
+        <th>Stage Name</th>
+        <th>Last Deploy</th>
+        <th class="pull-right">
+          <% if can? :write, :stages, @project %>
+            <%= link_to 'Manage', project_stages_path(@project) %>
+          <% end %>
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @pagy.count != 0 %>
+        <%
+          # expire the cache when the project or any of the stages (and their deploy-groups/envs) gets locked or unlocked
+          # a little expensive, but better than expiring when anything gets locked (confirmed that it's not doing N+1s)
+          project_locks = Lock.for_resource(@project)
+          static_cache_key = [@project.permalink, deployer_for_project?]
+
+          cache_key = ->(stage) do
+            lock_changed = (project_locks + Lock.for_resource(stage)).sum(&:updated_at)
+            [stage, lock_changed, *static_cache_key]
+          end
+        %>
+
+          <%= render partial: "stage", collection: @stages, cached: cache_key %>
+      <% else %>
+        <tr>
+          <td colspan="3">
+            No stages found, use the <b>Manage</b> link up top to add the first stage!
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <div class="admin-actions">
+    <%= paginate @pagy %>
+  </div>
+</section>

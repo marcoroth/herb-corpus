@@ -1,0 +1,89 @@
+<%= breadcrumb @project, ['Builds', project_builds_path(@project)], @build.nice_name %>
+
+<%= page_title @build.nice_name %>
+
+<div id="header" class="stream-header">
+  <!-- will be filled when running build -->
+</div>
+
+<section class="clearfix tabs">
+
+  <div class="admin-actions">
+    <div class="pull-right">
+      <% if git_sha = @build.git_sha.presence %>
+        <%= link_to "Deploys", project_deploys_path(search: {git_sha: git_sha}), class: "btn btn-default" %>
+      <% end %>
+      <%= Samson::Hooks.render_views(:build_button, self) %>
+      <% if can?(:write, :builds) %>
+        <%= link_to "Edit", edit_project_build_path, class: "btn btn-default" %>
+      <% end %>
+    </div>
+  </div>
+
+  <dl class="dl-horizontal">
+    <dt>Id</dt>
+    <dd><%= @build.id  %></dd>
+
+    <dt>Created</dt>
+    <dd><%= @build.created_at %></dd>
+
+    <% if finished_at = @build.finished_at %>
+      <dt>Duration</dt>
+      <dd><%= duration_text finished_at - @build.started_at %></dd>
+    <% end %>
+
+    <dt>Created By</dt>
+    <dd><%= @build.creator&.name_and_email || "Trigger" %></dd>
+
+    <% if url = @build.external_url %>
+      <dt>Created Via</dt>
+      <dd><%= link_to_url url %></dd>
+    <% end %>
+
+    <% if status = @build.external_status.presence %>
+      <dt>External status</dt>
+      <dd><%= status %></dd>
+    <% end %>
+
+    <dt>Name</dt>
+    <dd><%= @build.name %></dd>
+
+    <dt>Description</dt>
+    <dd><%= @build.description  %></dd>
+
+    <dt>Git Ref</dt>
+    <dd><%= git_ref_and_sha_for(@build, make_link: true) %></dd>
+
+    <dt>Image Name</dt>
+    <dd><%= @build.image_name %></dd>
+
+    <dt>Dockerfile</dt>
+    <dd><%= @build.dockerfile %></dd>
+
+    <dt>Job Status</dt>
+    <dd><%= build_status_badge @build %></dd>
+
+    <dt>Docker Digest</dt>
+    <dd><%= @build.docker_repo_digest %></dd>
+
+    <%= Samson::Hooks.render_views(:build_show, self) %>
+  </dl>
+
+  <hr/>
+
+  <% if job = @build.docker_build_job %>
+    <h2>Docker Build Output</h2>
+
+    <div id="output" data-desktop-notify="<%= current_user.desktop_notify? %>">
+      <%= render partial: 'shared/output', locals: { job: job, deployable: job, hide: false } %>
+      <%= render 'shared/output_stream', job: job %>
+    </div>
+
+    <% if !job.active? && !@project.docker_image_building_disabled? %>
+      <%= form_for :build, url: build_docker_image_project_build_path(@build.project, @build), html: { class: "form-inline" } do |form| %>
+        <%= form.submit (job ? 'Rebuild Docker Image' : 'Build Docker Image'), class: "btn btn-primary" %>
+      <% end %>
+    <% end %>
+
+  <% end %>
+</section>
