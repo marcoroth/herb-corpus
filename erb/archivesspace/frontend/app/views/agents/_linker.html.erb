@@ -1,0 +1,109 @@
+<%
+  # Allow multiple subjects to be linked if it's an empty linker
+  multiplicity = "many" if multiplicity.blank?
+
+  if form.obj['ref'].blank?
+    selected_json = (multiplicity === "many") ? "[]" : "{}"
+  else
+    multiplicity = "one"
+    selected_json = form.obj['_resolved'].to_json
+  end
+
+  exclude_ids = [] if exclude_ids.blank?
+
+  required = (defined? optional) ? !optional : true
+
+  linkable_types = defined?(allowed_types) ? allowed_types : ["agent"]
+  creatable_types = defined?(allowed_types) ? allowed_types : ["agent_person", "agent_family", "agent_corporate_entity", "agent_software"]
+  hide_create = false if hide_create.blank?
+  layout ||= 'horizontal'
+
+  if !defined?(linker_label)
+    linker_label = (multiplicity === "many") ? t("agent._plural") : t("agent._singular")
+  end
+%>
+<div class="form-group row<% if required %> required<% end %>">
+  <label class="control-label text-right <%= layout != 'stacked' ? 'col-sm-2' : '' %>"
+         id="<%= form.id_for("ref") %>_label"
+         for="<%= form.id_for("ref") %>">
+    <%= wrap_with_tooltip(linker_label, "related_agent.related_agent_tooltip", "control-label initialised") %>
+  </label>
+  <div class="controls <%= layout != 'stacked' ? 'col-sm-9' : 'w-100'%>">
+    <div class="input-group linker-wrapper"
+         role="combobox"
+         aria-expanded="false"
+         aria-controls="<%= form.id_for("ref") %>_listbox"
+         id="<%= form.id_for("ref") %>_combobox">
+      <input type="text" 
+             class="linker"
+             id="<%= form.id_for("ref") %>"
+             aria-autocomplete="both"
+             aria-controls="<%= form.id_for("ref") %>_listbox"
+             aria-labelledby="<%= form.id_for("ref") %>_label"
+             data-label_create="<%= t("agent.linker.create") %>"
+             data-label_browse="<%= t("agent.linker.browse") %>"
+             data-label_link="<%= t("linker.link") %>"
+             data-label_create_and_link="<%= t("linker.create_and_link") %>"
+             data-name="ref"
+             data-path="<%= form.path %>"
+             data-url="<%= url_for :controller => :search, :action => :do_search, :format => :json, :linker => true %>"
+             data-browse-url="<%= url_for :controller => :search, :action => :do_search, :format => :js, :facets => SearchResultData.AGENT_FACETS, :sort => "title_sort asc" %>"
+             data-selected="<%= selected_json %>"
+             data-multiplicity="<%= multiplicity %>"
+             <% if multiplicity === "many" %>data-sortable="true"<% end %>
+             data-types='<%= linkable_types.to_json %>'
+             data-exclude='<%= exclude_ids.to_json %>'
+             aria-label="<%= t('agent.linker.link_title') %>"
+      />
+
+
+      <% if form.obj.has_key?('_resolved') %>
+
+        <input type="text"
+          class='prelinker'
+          name="<%= form.path %>[_resolved]"
+          value="<%= selected_json %>" />
+
+        <input type="text"
+          class='prelinker'
+          name="<%= form.path %>[ref]"
+          value="<%= form.obj["ref"] %>" />
+
+      <% end %>
+
+      <div class="input-group-append">
+        <button
+          type="button"
+          class="btn btn-default dropdown-toggle"
+          id="<%= form.id_for("ref") %>_agents_dropdown_toggle"
+          data-toggle="dropdown"
+          aria-expanded="false"
+          aria-label="<%= t('actions.toggle_dropdown_menu') %>"
+        ></button>
+        <ul class="dropdown-menu dropdown-menu-right" id="dropdownMenuAgents" aria-labelledby="<%= form.id_for("ref") %>_agents_dropdown_toggle">
+          <li>
+            <button type="button" class="btn btn-sm rounded-0 dropdown-item linker-browse-btn">
+              <%= t("actions.browse") %>
+            </button>
+          </li>
+          <% if user_can?('update_agent_record') && !hide_create && user_can?('update_agent_record') %>
+            <li class="dropdown-submenu dropdown-item p-0">
+              <div class="btn btn-sm rounded-0 dropdown-item linker-create-btn"><%= t("actions.create") %></div>
+              <ul class="dropdown-menu">
+                <% creatable_types.each do |agent_type| %>
+                  <li>
+                    <button
+                      type="button"
+                      data-target="<%= url_for :controller => :agents, :action => :new, :agent_type => agent_type.intern, :inline => true %>"
+                      class="btn btn-sm rounded-0 dropdown-item linker-create-btn"
+                    ><%= t("#{agent_type}._singular") %></button>
+                  </li>
+                <% end %>
+              </ul>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>

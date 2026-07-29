@@ -1,0 +1,82 @@
+<%
+   if form.obj.has_key?('_resolved')
+     selected_json =  form.obj['_resolved'].to_json
+   else
+     selected_json = "{}"
+   end
+
+   exclude_ids = [] if exclude_ids.blank?
+   layout ||= "horizontal"
+%>
+<div class="form-group row required">
+  <label class="control-label text-right <%= layout != 'stacked' ? 'col-sm-2' : '' %>"
+         id="<%= form.id_for("ref") %>_label"
+         for="<%= form.id_for("ref") %>">
+    <%= t("digital_object._singular") %>
+  </label>
+  <div class="controls <%= layout != 'stacked' ? 'col-sm-9' : 'w-100'%>">
+    <div class="input-group linker-wrapper"
+         role="combobox"
+         aria-expanded="false"
+         aria-controls="<%= form.id_for("ref") %>_listbox"
+         id="<%= form.id_for("ref") %>_combobox">
+      <input type="text" class="linker"
+             id="<%= form.id_for("ref") %>"
+             aria-autocomplete="both"
+             aria-controls="<%= form.id_for("ref") %>_listbox"
+             aria-labelledby="<%= form.id_for("ref") %>_label"
+             data-label_create="<%= t("digital_object.linker.create") %>"
+             data-label_browse="<%= t("digital_object.linker.browse") %>"
+             data-label_link="<%= t("linker.link") %>"
+             data-label_create_and_link="<%= t("linker.create_and_link") %>"
+             data-path="<%= form.path %>"
+             data-name="ref"
+             data-url="<%= url_for :controller => :search, :action => :do_search, :format => :json %>"
+             data-browse-url="<%= url_for :controller => :search, :action => :do_search, :format => :js, :facets => SearchResultData.DIGITAL_OBJECT_FACETS %>"
+             data-selected="<%= selected_json %>"
+             data-format_property="title"
+             data-multiplicity="one"
+             data-types='["digital_object"]'
+             data-exclude='<%= exclude_ids.to_json %>'
+      />
+      
+      <% if form.obj.has_key?('_resolved') %>
+          
+            <input type="text" 
+              class='prelinker' 
+              name="<%= form.path %>[_resolved]"
+              value="<%= selected_json %>" />
+              
+            <input type="text" 
+              class='prelinker' 
+              name="<%= form.path %>[ref]"
+              value="<%= form.obj["ref"] %>" />
+
+      <% end %>
+      
+      <div class="input-group-append">
+        <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" title="<%= t("digital_object.linker.link_title") %>" aria-label="<%= t("digital_object.linker.link_title") %>"></button>
+        <ul class="dropdown-menu dropdown-menu-right">
+          <li>
+            <button type="button" class="btn btn-sm rounded-0 dropdown-item linker-browse-btn"><%= t("actions.browse") %></button>
+          </li>
+          <% if user_can?('update_digital_object_record') %>
+            <li>
+            <% if (user_prefs['digital_object_spawn'] && @accession) %>
+              <%# accessions can spawn DOs directly via backend %>
+              <button type="button" class="btn btn-sm rounded-0 dropdown-item linker-create-btn" data-target="<%= url_for :controller => :digital_objects, :action => :new, :inline => true, :spawn_from_accession_id => @accession.id %>"><%= t("actions.create") %></button>
+            <% else %>
+              <button type="button" class="btn btn-sm rounded-0 dropdown-item linker-create-btn" data-target="<%= url_for :controller => :digital_objects, :action => :new, :inline => true %>"><%= t("actions.create") %></button>
+            <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# spawning DOs from resources and AOs need some extra frontend help because LargeTree %>
+<% if user_prefs['digital_object_spawn'] && (@resource || @archival_object) %>
+  <%= javascript_include_tag("digital_object_spawning") %>
+<% end %>

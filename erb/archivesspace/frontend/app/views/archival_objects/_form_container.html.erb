@@ -1,0 +1,90 @@
+<%= link_to_help :topic => "archival_object" %>
+
+<h2>
+  <% if @archival_object.display_string.blank? %>
+    <%= t("archival_object._singular") %>
+  <% else %>
+    <%= clean_mixed_content(@archival_object.display_string) %>
+  <% end %>
+  <span class="label label-info badge"><%= t("archival_object._singular") %></span>
+</h2>
+
+<%= render_aspace_partial :partial => "shared/form_messages", :locals => {:form => form} %>
+
+  <%= form.hidden_input "parent", nil, {"data-base-name" => "archival_object[parent]", "class" => "hidden-parent-uri", "data-browse-url-html" => url_for(:controller => :search, :action => :do_search, :format => :js, :facets => SearchResultData.ARCHIVAL_OBJECT_FACETS), "data-browse-url-json" => url_for(:controller => :search, :action => :do_search, :format => :json, :facets => SearchResultData.ARCHIVAL_OBJECT_FACETS), "data-modal-title" => t('archival_object._frontend.action.select_parent_and_position'), "data-leave-empty" => t('archival_object._frontend.action.leave_parent_empty')} %>
+  <%= form.hidden_input "resource", nil, {"data-browse-url-html" => url_for(:controller => :search, :action => :do_search, :format => :js, :facets => SearchResultData.RESOURCE_FACETS), "data-browse-url-json" => url_for(:controller => :search, :action => :do_search, :format => :json, :facets => SearchResultData.RESOURCE_FACETS), "data-modal-title" => t('archival_object._frontend.action.select_resource')} %>
+
+  <%= form.hidden_input "position" %>
+
+  <%= hidden_field_tag "id", @archival_object.id %>
+  <%= hidden_field_tag "uri", @archival_object.uri %>
+
+  <% define_template("archival_object", jsonmodel_definition(:archival_object)) do |form| %>
+    <section id="basic_information">
+      <header class="d-flex align-items-center border-bottom bg-asFormHeadingBg">
+        <h3 class="flex-grow-1 mb-0 border-0">
+          <%= t("archival_object._frontend.section.basic_information") %>
+        </h3>
+        <%= link_to_help :topic => "archival_object_basic_information" %>
+      </header>
+
+      <fieldset>
+        <%= render_plugin_partials("top_of_basic_information_archival_object",
+                                   :form => form,
+                                   :record => @archival_object) %>
+
+        <%= form.label_and_textarea("title", :required => :conditionally, :field_opts => {
+          :class => "form-control#{AppConfig[:allow_mixed_content_title_fields] ? ' mixed-content' : ''}"
+        })%>
+
+        <% if form.obj["ref_id"].blank? %>
+          <%= form.label_and_readonly "ref_id", "<em>#{t("archival_object.ref_id_auto_generation_message")}</em>" %>
+        <% else %>
+          <%= form.label_with_field "ref_id", form.hidden_input("ref_id") + "<span class='identifier-display'><span class='identifier-display-part'>#{form.obj["ref_id"]}</span></span>".html_safe %>
+        <% end %>
+
+        <%= render_aspace_partial :partial => "shared/slug", :locals => {:form => form, :record_type => @archival_object} if AppConfig[:use_human_readable_urls] %>
+
+        <%= form.hidden_input "ref_id" %>
+        <%= form.label_and_textfield("component_id")%>
+        <%= form.label_and_textfield "external_ark_url" if AppConfig[:arks_enabled] && AppConfig[:arks_allow_external_arks] %>
+        <%= form.label_and_select "level", form.possible_options_for("level", true) %>
+        <%= form.label_and_textfield "other_level", :required => true %>
+        <div class="form-group w-100 row">
+          <%= form.label "publish", :class => 'control-label col-sm-2 text-right' %>
+          <div class="col-sm-1 checkbox">
+            <%= form.checkbox "publish", {}, user_prefs["publish"] %>
+            <% if form.obj["has_unpublished_ancestor"] %>
+              <span class="help-inline"><span class="text-info"><%= t("archival_object._frontend.messages.has_unpublished_ancestor") %></span></span>
+            <% end %>
+          </div>
+        </div>
+        <%= form.label_and_boolean "restrictions_apply", {}, form.default_for("restrictions_apply") %>
+        <%= form.label_and_textarea "repository_processing_note" %>
+
+        <%= render_plugin_partials("basic_information_archival_object",
+                                   :form => form,
+                                   :record => @archival_object) %>
+      </fieldset>
+    </section>
+  <% end %>
+
+  <% form.emit_template("archival_object") %>
+
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "lang_materials", :custom_action_template => "lang_materials/subrecord_form_action"} %>
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "dates", :required => :conditionally, :template => "archival_record_date"} %>
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "extents"} %>
+
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "linked_agents", :template => "archival_object_linked_agent"} %>
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "accession_links", :template => "component_accession_links"} %>
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "subjects", :template => "subrecord_subject"} %>
+
+  <%= render_aspace_partial :partial => "notes/form", :locals => {:form => form, :all_note_types => note_types_for(form['jsonmodel_type'])} %>
+
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "external_documents"} %>
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "rights_statements"} %>
+  <%= render_aspace_partial :partial => "shared/subrecord_form", :locals => {:form => form, :name => "instances", :custom_action_template => "instances/subrecord_form_action"} %>
+
+  <%= render_aspace_partial :partial => "external_ids/edit", :locals => {:form => form, :section_id => "external_ids"} %>
+
+  <%= form_plugins_for("archival_object", form) %>

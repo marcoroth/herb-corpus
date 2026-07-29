@@ -1,0 +1,103 @@
+<%= setup_context :title => @manage_access ? t("user._frontend.section.manage_access") : t("user._plural") %>
+
+<div class="d-flex">
+   <div class="col-md-12">
+     <div class="record-toolbar d-flex align-items-center">
+       <div class="btn-group ml-auto">
+         <% unless @manage_access %>
+           <%= link_to I18n.t("user._frontend.action.create"), {:controller => :users, :action => :new}, :class => "btn btn-sm btn-default" %>
+         <% end %>
+       </div>
+     </div>
+
+
+    <div class="record-pane">
+      <% if @manage_access %>
+        <%= link_to_help :topic => "repository_users" %>
+        <h2><%= t("user._frontend.section.manage_access") %></h2>
+      <% else %>
+        <%= link_to_help :topic => "user" %>
+        <h2><%= t("user._plural") %></h2>
+      <% end %>
+
+      <%= render_aspace_partial :partial => "shared/flash_messages" %>
+
+     <% if @search_data['results'].length %>
+      <div class="table-responsive">
+       <table class="table table-striped table-bordered table-condensed">
+         <thead>
+           <tr>
+             <th class="username">
+              <%= link_to t("user.username"), sort: :username, direction: sort_direction(:username, params, 'asc') %>
+              <%= sort_pointer(:username, params, '&#x25B2;').html_safe %>
+             </th>
+             <th class="name"><%= t("user.name") %></th>
+             <% unless @manage_access %>
+               <th class="create_time">
+                <%= link_to t("user.create_time"), sort: :create_time, direction: sort_direction(:create_time, params, 'asc') %>
+                <%= sort_pointer(:create_time, params, '').html_safe %>
+               </th>
+               <th class="user_mtime">
+                <%= link_to t("user.user_mtime"), sort: :user_mtime, direction: sort_direction(:user_mtime, params, 'desc') %>
+                <%= sort_pointer(:user_mtime, params, '').html_safe %>
+               </th>
+               <th class="admin"><%= t("user.admin") %></th>
+               <th class="is_active_user"><%= t("user.is_active_user") %></th>
+               <th class="source"><%= t("user.source") %></th>
+             <% end %>
+             <th class="actions" width="70px"><span class="sr-only"><%= t('search_results.actions') %></span></th>
+           </tr>
+         </thead>
+         <tbody>
+           <% @search_data['results'].each do |user| %>
+             <% if user.is_active_user %>
+               <% active = t("user.active") %>
+               <% display_class = '' %>
+             <% else %>
+               <% active = t("user.inactive") %>
+               <% display_class = 'inactive' %>
+             <% end %>
+             <tr class='<%= display_class %>'>
+
+               <td class="username"><%= user.username %></td>
+               <td class="name"><%= user.name %></td>
+               <% unless @manage_access %>
+                 <td class="create_time"><%= Time.parse(user.create_time).getlocal %></td>
+                 <td class="user_mtime"><%= Time.parse(user.user_mtime).getlocal %></td>
+                 <td class="admin"><%= user.is_admin %></td>
+                 <td class="is_active_user"><%= active %></td>
+                 <td class="source"><%= user.source %></td>
+               <% end %>
+               <td class="actions">
+                 <div class="btn-group" style="float: right">
+                <div class="btn-group" style="float: right">
+                   <% disabled = (user.is_admin || user.is_system_user) ? " disabled" : "" %>
+
+                   <% if @manage_access %>
+                     <%= link_to t("actions.edit_groups"), {:controller => :users, :action => :edit_groups, :id => user.id}, :class => "btn btn-sm btn-default".concat(disabled) %>
+
+                   <% else %>
+                     <%= link_to t("actions.edit"), {:controller => :users, :action => :edit, :id => user.id}, :class => "btn btn-sm btn-primary", :id => "edit_#{user.username}" %>
+
+                     <% if !user.is_active_user %>
+                       <%= link_to t("user._frontend.action.activate_user"), user_activate_path(user.id), data: { confirm: t("user._frontend.action.activate_user_confirm") }, :class => "btn btn-sm btn-success", :id => "activate_#{user.username}" %>
+                     <% else %>
+                       <%= link_to t("user._frontend.action.deactivate_user"), user_deactivate_path(user.id), data: { confirm: t("user._frontend.action.deactivate_user_confirm") }, :class => "btn btn-sm btn-danger".concat(disabled), :id => "deactivate_#{user.username}" %>
+                     <% end %>
+                   <% end %>
+                 </div>
+               </td>
+             </tr>
+           <% end %>
+         </tbody>
+       </table>
+      </div>
+       <%= render_aspace_partial :partial => "shared/pagination" %>
+     <% else %>
+       <p class="alert alert-info">
+         No Users.
+       </p>
+     <% end %>
+     </div>
+   </div>
+</div>

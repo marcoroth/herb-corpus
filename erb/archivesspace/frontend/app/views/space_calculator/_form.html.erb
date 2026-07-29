@@ -1,0 +1,129 @@
+<% if @container_profile.blank? %>
+  <div class="alert alert-danger">
+    <%= t("space_calculator.message_container_profile_required") %>
+  </div>
+<% else %>
+  <header class="modal-header flex-column">
+    <div class="w-100 d-flex justify-content-between">
+      <h3 id="spaceCalculatorModalTitle"><%= t("space_calculator.modal_title") %></h3>
+      <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <dl class="mb-0 py-1 d-flex gap-x-3">
+      <dt class="font-weight-normal"><%= t("container_profile._singular") %></dt>
+      <dd class="mb-0 font-weight-bold"><%= @container_profile.display_string %></dd>
+    </dl>
+  </header>
+  <div class="modal-body">
+    <%= form_tag({:controller => :space_calculator, :action => :calculate}, {:class => "form-horizontal", :id => "space_calculator" }) do |f| %>
+      <%= hidden_field_tag 'container_profile[ref]', @container_profile_ref %>
+      <%= hidden_field_tag 'selectable', @selectable %>
+      <div class="accordion" id="spaceCalculatorAccordion">
+        <% unless @buildings.blank? %>
+          <section class="card">
+            <script>
+              AS.building_data = <%= raw(@buildings.to_json) %>;
+            </script>
+            <header class="card-header" id="byBuildingHeader">
+              <h4 class="mb-0">
+                <button type="button" class="btn btn-link btn-block text-left" data-toggle="collapse" data-target="#byBuilding" aria-expanded="true" aria-controls="byBuilding">
+                  <%= t("space_calculator.by_building") %>
+                </button>
+              </h4>
+            </header>
+            <div id="byBuilding" class="collapse show" data-parent="#spaceCalculatorAccordion" aria-labelledby="byBuildingHeader">
+              <div class="card-body">
+                <div class="form-group w-100 row required">
+                  <label class="col-sm-2 control-label text-md-right" for="building"><%= t("location.building") %></label>
+                  <div class="col-sm-4">
+                    <%= select_tag "building", options_for_select([""].concat(@buildings.keys)), :class => "form-control" %>
+                  </div>
+                </div>
+                <div class="form-group w-100 row by-building-floor">
+                  <label class="col-sm-2 control-label text-md-right" for="floor"><%= t("location.floor") %></label>
+                  <div class="col-sm-4">
+                    <%= select_tag "floor", '', :class => "form-control", :disabled => true %>
+                  </div>
+                </div>
+                <div class="form-group w-100 row by-building-room">
+                  <label class="col-sm-2 control-label text-md-right" for="room"><%= t("location.room") %></label>
+                  <div class="col-sm-4">
+                    <%= select_tag "room", '', :class => "form-control", :disabled => true %>
+                  </div>
+                </div>
+                <div class="form-group w-100 row by-building-area">
+                  <label class="col-sm-2 control-label text-md-right" for="area"><%= t("location.area") %></label>
+                  <div class="col-sm-4">
+                    <%= select_tag "area", '', :class => "form-control", :disabled => true %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        <% end %>
+        <section class="card">
+          <header class="card-header" id="byLocationHeader">
+            <h4 class="mb-0">
+              <button type="button" class="btn btn-link btn-block text-left" data-toggle="collapse" data-target="#byLocation" aria-expanded="true" aria-controls="byLocation">
+                <%= t("space_calculator.by_locations") %>
+              </button>
+            </h4>
+          </header>
+          <div id="byLocation" class="collapse <% if @buildings.blank? %>show<% end %>" data-parent="#spaceCalculatorAccordion" aria-labelledby="byLocationHeader">
+            <div class="card-body mb-5">
+              <%# ANW-1821 Margin-bottom added above because the dropdown menu visually stops at
+              the card body border, so manually give space for it to show until that bug is fixed. %>
+              <p><%= t("space_calculator.message_select_locations") %></p>
+              <label class="sr-only"
+                     id="location_label"
+                     for="location">
+                <%= t("location._plural") %>
+              </label>
+              <div class="input-group linker-wrapper">
+                <input type="text" class="linker"
+                        id="location"
+                        data-label_create="<%= t("location.linker.create") %>"
+                        data-label_browse="<%= t("location.linker.browse") %>"
+                        data-label_link="<%= t("linker.link") %>"
+                        data-label_create_and_link="<%= t("linker.create_and_link") %>"
+                        data-name="ref"
+                        data-path="location[]"
+                        data-url="<%= url_for  :controller => :search, :action => :do_search, :format => :json %>"
+                        data-browse-url="<%= url_for :controller => :search, :action => :do_search, :format => :js, :facets => [], :sort => "title_sort asc" %>"
+                        data-selected="[]"
+                        data-multiplicity="many"
+                        data-types='["location"]'
+                />
+                <div class="input-group-append">
+                  <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-label="<%= t("location.linker.link_title") %>"><span class="caret"></span></button>
+                  <ul class="dropdown-menu dropdown-menu-right">
+                    <li><button type="button" class="btn btn-sm rounded-0 dropdown-item linker-browse-btn"><%= t("actions.browse") %></button></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <button class="mt-3 btn btn-primary"><%= t("space_calculator.calculate_space") %></button>
+      <hr>
+    <% end %>
+
+    <div id="spaceCalculatorResults"></div>
+
+    <div id="spaceCalculatorLoadingTemplate"><!--
+      <div class="alert alert-info">
+        <%= t("space_calculator.message_loading") %>
+      </div>
+    --></div>
+  </div>
+  <div class="modal-footer">
+    <% if @selectable %>
+      <button id="addSelectedButton" class="btn btn-primary"><%= t "linker.link_to_prefix" %> <%= t("location._singular") %></button>
+      <button class="btn btn-cancel btn-default" data-dismiss="modal"><%= t "actions.cancel" %></button>
+    <% else %>
+      <button class="ml-auto btn btn-default" data-dismiss="modal"><%= t "actions.close" %></button>
+    <% end %>
+  </div>
+<% end %>

@@ -1,0 +1,66 @@
+<div class="search-listing-filter">
+<% if @search_data.filtered_terms? or @search_data.query? %>
+  <div class="well">
+    <h3 class="d-flex">
+      <%= I18n.t "search_results.filtered_by" %>
+      <%= link_to I18n.t("search_results.clear_all"), build_search_params({"q" => "", "filter_term" => []}), :class => "btn btn-sm btn-default ml-auto" %>
+    </h3>
+    <ul>
+      <% if @search_data.query? %>
+        <% query_array = @search_data[:criteria]["q"].split(" AND ") %>
+        <% query_array.each do | query | %>
+          <li class="facet-selected">
+            <%= link_to "#{h(@search_data.facet_label_for_query(query))} <span class='glyphicon glyphicon-remove'></span>".html_safe, build_search_params({"q" => query_array.reject{ |k| k==query}.join(' AND ')}) %>
+          </li>
+        <% end %>
+      <% end %>
+      <% if @search_data.filtered_terms? %>
+        <% @search_data.user_filter_terms.each do | filter_term | %>
+          <li class="facet-selected">
+            <%= link_to "#{clean_mixed_content(@search_data.facet_label_for_filter(filter_term))} <span class='glyphicon glyphicon-remove'></span>".html_safe, build_search_params({"remove_filter_term" => filter_term}) %>
+          </li>
+        <% end %>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<% if params["advanced"] != "true" %>
+  <%= form_tag({}, {:method => :get, :class => 'my-3'}) do %>
+    <% query_array = @search_data.query? ? @search_data[:criteria]["q"] : ''%>
+    <% build_search_params({"q" => query_array}).each do |k, v| %>
+      <% if v.kind_of? Array %>
+        <% v.each do |val| %>
+          <%= hidden_field_tag "#{k}[]", val %>
+        <% end %>
+      <% else %>
+        <%= hidden_field_tag k, v %>
+      <% end %>
+    <% end %>
+    <div class="input-group search-filter w-100">
+      <label for="filter-text" class="sr-only">Filter by text</label>
+      <input class="text-filter-field form-control rounded-left" type="text" placeholder="<%= t("search_results.text_placeholder") %>" name="q" value="<%= params[:q] %>" id="filter-text"/>
+      <div class="input-group-append">
+        <button class="btn btn-default" title="<%= t("search_results.text_placeholder") %>" aria-label="<%= t("search_results.text_placeholder") %>"><span class="glyphicon glyphicon-search"></span></button>
+      </div>
+    </div>
+  <% end %>
+<% end %>
+
+<% @search_data.facets_for_filter.each do |facet_group, facets| %>
+  <h3><%= t("search.#{@search_data.get_type}.#{facet_group}", :default => t("search.multi.#{facet_group}", :default => facet_group)) %></h3>
+  <ul>
+    <% facets.each do |facet, facet_map| %>
+      <li class="facet">
+      	<% if facet_map.has_key?(:q) %>
+        	<% opts = {"q" => facet_map[:q]} %>
+      	<% else %>
+			<% opts = {"add_filter_term" => facet_map[:filter_term]} %>
+      	<% end %>
+        <% opts['facets'] = SearchResultData.facets_for(facet) if facet_group == 'primary_type' %>
+        <%= link_to build_search_params(opts) do %><%= clean_mixed_content(facet_map[:label]) %> <span class="badge record-count"><%= facet_map[:count] %></span><% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>
+</div>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="<%= session[:preferences]&.[]('locale') ? session[:preferences]['locale'] : AppConfig[:locale] %>">
+<head>
+  <title><%= t("navbar.brand") %> | <% if @title %><%= @title %><% else %><%= controller.class.name %> >> <%= controller.action_name %><% end %></title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <% if AppConfig[:frontend_show_favicon] %><%= render "site/favicon" %><% end %>
+  <%# TODO broken? = include_theme_css %>
+  <%= csrf_meta_tags %>
+
+  <% if ENV["TEST_MODE"] %>
+    <script>
+      TEST_MODE = true;
+      TEST_ERRORS = [];
+      TEST_MESSAGES = document.createElement("div");
+      TEST_MESSAGES.append("START JS LOG\n");
+      TEST_MESSAGES.append("-----------\n");
+      window.onerror = function(errorMsg, url, lineNo) {
+        TEST_ERRORS.push({
+          message: errorMsg,
+          url: url,
+          line: lineNo
+        })
+      }
+    </script>
+  <% end %>
+
+  <script>
+    APP_PATH = "<%= j(AppConfig[:frontend_proxy_prefix]) %>";
+    COOKIE_PREFIX = "<%= j(AppConfig[:cookie_prefix]) %>";
+    FRONTEND_URL = "<%= j(AppConfig[:frontend_proxy_url]) %>";
+    SHOW_IDENTIFIERS_IN_TREE = <%= AppConfig[:display_identifiers_in_largetree_container] %>;
+  </script>
+
+  <%= stylesheet_link_tag    'application', media: 'all' %>
+  <%= javascript_include_tag "application" %>
+  <%= include_controller_js %>
+
+  <% ASUtils.order_plugins(ASUtils.find_local_directories('frontend/views/layout_head.html.erb')).each do |layout| %>
+    <% if File.exist?(layout) %>
+      <!-- Begin plugin layout -->
+      <%= render :template => PluginHelper.relative_plugin_view_path(layout) %>
+      <!-- End plugin layout -->
+    <% end %>
+  <% end %>
+</head>
+<body data-spy="scroll" data-target="#archivesSpaceSidebar" class="action-<%= controller.action_name %>">
+  <%= render "shared/skipnav" %>
+
+  <div class="min-vh-100 d-flex flex-column container-fluid center-block"><!-- this could be deleted -->
+    <header>
+      <%= render "shared/header_global" %>
+    </header>
+
+   <div class="content-pane">
+     <% if current_repo %>
+         <%= render "shared/header_repository" %>
+     <% end %>
+     <a id="maincontent" tabindex="-1"></a>
+     <%= yield %>
+   </div>
+
+   <%= render "site/footer", layout_class: "mt-auto" %>
+
+   <%= render "shared/templates" %>
+   
+    <% ASUtils.order_plugins(ASUtils.find_local_directories('frontend/views/_shared_templates.html.erb')).each do |layout| %>
+      <% if File.exist?(layout) %>
+        <!-- Begin plugin layout -->
+        <%= render :template => PluginHelper.relative_plugin_view_path(layout) %>
+        <!-- End plugin layout -->
+      <% end %>
+    <% end %>
+
+  </div>
+</body>
+</html>

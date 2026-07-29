@@ -1,0 +1,98 @@
+<a name="main" title="<%= t('internal_links.main') %>"></a>
+
+<div id="main-content" class="row">
+  <div class="information col-12 col-lg-6">
+    <%= render partial: 'shared/idbadge', locals: {:result => @result, :props => { :full => true} } %>
+  </div>
+
+  <div class="page_actions col-12 col-lg-6">
+    <%= render partial: 'shared/page_actions', locals: {:record => @result, :title =>  @result.display_string, :url => request.fullpath, :cite => @result.cite } %>
+  </div>
+</div>
+
+<div class="row">
+  <%= render partial: 'shared/breadcrumbs' %>
+</div>
+
+<%= render partial: 'resources/resource_alltabs' %>
+
+<%
+  sidebar_position = AppConfig[:pui_collection_org_sidebar_position]
+  tree_waypoint_size = Rails.configuration.infinite_tree_batch_size
+  records_waypoint_size = Rails.configuration.infinite_records_waypoint_size
+  num_records = @ordered_records.count
+%>
+
+<div class="row">
+  <div
+    id="sidebar"
+    class="sidebar sidebar-container col-12 col-lg-3 resizable-sidebar <%= sidebar_position == 'left' ? 'resizable-sidebar-left' : 'order-1' %> infinite-tree-sidebar"
+    data-sidebar-position="<%= sidebar_position %>"
+  >
+    <% if AppConfig[:pui_search_collection_from_collection_organization] %>
+      <%= render partial: 'shared/search_collection_form', :locals => {:resource_uri => @result['uri'], :action_text => t('actions.search_in', :type => t('resource._singular'))} %>
+    <% end %>
+
+    <%= render partial: 'shared/infinite_tree' %>
+  </div>
+  <%= render partial: 'resources/infinite_records', locals: {
+    num_records: num_records,
+    records_waypoint_size: records_waypoint_size
+  } %>
+</div>
+
+<%= render partial: 'resources/infinite_load_all', locals: {num_records: num_records} %>
+
+<script>
+const uriFragment = window.location.hash;
+const resourceUri = '<%= @result["uri"] %>';
+const treeWaypointSize = '<%= tree_waypoint_size %>';
+const identifier_separator = '<%= I18n.t("resource.identifier_separator") %>';
+const date_type_bulk = '<%= I18n.t("date_type_bulk.bulk") %>';
+const appUrlPrefix = '<%= AppConfig[:public_proxy_url] %>';
+const workerPath = '<%= asset_path('infiniteRecordsWorker.js') %>';
+const mainMaxFetches = <%= Rails.configuration.infinite_records_main_max_concurrent_waypoint_fetches %>;
+const workerMaxFetches = <%= Rails.configuration.infinite_records_worker_max_concurrent_waypoint_fetches %>;
+
+const coordinator = new InfiniteCoordinator();
+
+const infiniteRecords = new InfiniteRecords(
+  resourceUri,
+  appUrlPrefix,
+  workerPath,
+  mainMaxFetches,
+  workerMaxFetches,
+  uriFragment,
+  coordinator
+);
+const infiniteTree = new InfiniteTree(
+  treeWaypointSize,
+  appUrlPrefix,
+  resourceUri,
+  identifier_separator,
+  date_type_bulk,
+  uriFragment,
+  coordinator
+);
+
+infiniteTree.container.addEventListener('click', (e) => {
+  treeClickDelegator(e, infiniteTree, infiniteRecords);
+});
+
+/**
+ * treeClickDelegator
+ * @description - Delegate click events on the InfiniteTree container
+ * @param {Event} event - Click event
+ * @param {InfiniteTree} tree - InfiniteTree instance
+ * @param {InfiniteRecords} records - InfiniteRecords instance
+ */
+function treeClickDelegator(event, tree, records) {
+  if (event.target.closest('.node-expand')) {
+    tree.expandHandler(event);
+  } else if (event.target.closest('.node-title')) {
+    records.treeLinkHandler(event);
+  }
+}
+</script>
+
+<%= render partial: 'shared/modal_actions' %>
