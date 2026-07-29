@@ -9,6 +9,10 @@ require "json"
 require "optparse"
 require "set"
 
+require_relative "../lib/pluralize"
+
+include Pluralize
+
 fail_on_regression = false
 markdown_path = nil
 
@@ -125,18 +129,18 @@ table(
 )
 
 sections = [
-  [parse["gained"], "PARSE REGRESSED (parsed before, fails now)", :red],
-  [compile["gained"], "COMPILE REGRESSED (compiled before, fails now)", :red],
-  [crashes["gained"], "NEWLY CRASHING", :red],
-  [parse["lost"], "PARSE FIXED", :green],
-  [compile["lost"], "COMPILE FIXED", :green],
-  [crashes["lost"], "NO LONGER CRASHING", :green]
+  [parse["gained"], ->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "parses", "parse")}" }, :red],
+  [compile["gained"], ->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "compiles", "compile")}" }, :red],
+  [crashes["gained"], ->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "crashes", "crash")} the parser" }, :red],
+  [parse["lost"], ->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "parses", "parse")} again" }, :green],
+  [compile["lost"], ->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "compiles", "compile")} again" }, :green],
+  [crashes["lost"], ->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "crashes", "crash")}" }, :green]
 ]
 
 sections.each do |entries, title, color|
   next if entries.empty?
 
-  puts "\n#{Color.send(color, "#{title}: #{entries.size}")}"
+  puts "\n#{Color.send(color, title.call(entries.size))}"
   entries.first(20).each { |file| puts "  #{file}" }
   puts Color.dim("  ... and #{entries.size - 20} more") if entries.size > 20
 end
@@ -166,7 +170,7 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
   end
 
   out << ""
-  out << "Measured over #{after["files"]} templates from [herb-corpus](https://github.com/marcoroth/herb-corpus)."
+  out << "Measured over #{pluralize(after["files"], "template")} from [`herb-corpus`](https://github.com/marcoroth/herb-corpus)."
 
   if regressions.empty?
     out << ""
@@ -177,7 +181,7 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
     next if files.empty?
 
     out << ""
-    out << "<details open><summary><b>#{title}: #{files.size}</b></summary>"
+    out << "<details open><summary><b>#{title.call(files.size)}</b></summary>"
     out << ""
     out << "| File | Error |"
     out << "| --- | --- |"
@@ -200,15 +204,18 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
     out << "</details>"
   end
 
-  render.call("Parse regressions", parse["gained"], after, "parse_failing", 40)
-  render.call("Compile regressions", compile["gained"], after, "compile_failing", 40)
-  render.call("New crashes", crashes["gained"], after, "parse_crashed", 40)
+  render.call(->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "parses", "parse")}" },
+              parse["gained"], after, "parse_failing", 40)
+  render.call(->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "compiles", "compile")}" },
+              compile["gained"], after, "compile_failing", 40)
+  render.call(->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "crashes", "crash")} the parser" },
+              crashes["gained"], after, "parse_crashed", 40)
 
   fixed = parse["lost"] + compile["lost"]
 
   unless fixed.empty?
     out << ""
-    out << "<details><summary>Fixed: #{fixed.size}</summary>"
+    out << "<details><summary>#{pluralize(fixed.size, "file")} fixed</summary>"
     out << ""
 
     parse["lost"].first(20).each { |f| out << "- `#{f}` now parses" }

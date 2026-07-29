@@ -11,6 +11,10 @@
 
 require "json"
 
+require_relative "../lib/pluralize"
+
+include Pluralize
+
 drift_path, update_path = ARGV
 
 abort "usage: render-pr-body.rb DRIFT_JSON UPDATE_JSON" unless drift_path && update_path
@@ -28,10 +32,9 @@ def sign(number) = number.positive? ? "+#{number}" : number.to_s
 
 out = []
 
-out << "Automated weekly pin update. Each app below moved to the tip of the branch"
-out << "recorded in `.gitmodules`; `erb/` has been regenerated for those apps only."
+out << "Automated weekly pin update. Each app below moved to the tip of the branch recorded in `.gitmodules`; `erb/` has been regenerated for those apps only."
 out << ""
-out << "**#{moved.size} pin(s) moved** out of #{drift["total"]} tracked · **#{sign(erb_delta)} `.erb` files**"
+out << "**#{pluralize(moved.size, "pin")} moved** out of #{drift["total"]} tracked · **#{sign(erb_delta)} `.erb` files**"
 out << ""
 
 if moved.any?
@@ -52,8 +55,7 @@ end
 if unreachable.any?
   out << "### Unreachable"
   out << ""
-  out << "These remotes could not be queried. The pinned commits may no longer be"
-  out << "fetchable, which means a fresh clone cannot reproduce the corpus:"
+  out << "These remotes could not be queried. The pinned commits may no longer be fetchable, which means a fresh clone cannot reproduce the corpus:"
   out << ""
 
   unreachable.each { |entry| out << "- `#{entry["name"]}` — `#{entry["repo"]}` branch `#{entry["branch"]}`" }
@@ -81,8 +83,6 @@ end
 
 out << "---"
 out << ""
-out << "Merging changes the corpus, so Herb results measured before and after are"
-out << "not directly comparable. Re-run Herb's corpus check against the new pins"
-out << "and record the parse-error baseline in the merge commit."
+out << "Merging changes the corpus, so Herb results measured before and after are not directly comparable. Re-run Herb's corpus check against the new pins and record the parse-error baseline in the merge commit."
 
 puts out.join("\n")

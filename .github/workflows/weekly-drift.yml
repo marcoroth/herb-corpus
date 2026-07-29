@@ -81,15 +81,15 @@ jobs:
             exit 0
           fi
 
-          git commit -q -m "Update corpus pins (${{ steps.drift.outputs.count }} app(s))" -m "Automated weekly drift update. See the pull request for the per-app diff."
+          git commit -q -m "Update corpus pins (${{ steps.drift.outputs.apps_phrase }})" -m "Automated weekly drift update. See the pull request for the per-app diff."
 
-          if git fetch --quiet origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" 2>/dev/null; then
+          if git fetch --quiet origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" 2>/dev/null; then
             git push --force-with-lease origin "$BRANCH"
           else
             git push origin "$BRANCH"
           fi
 
-          TITLE="Update corpus pins (${{ steps.drift.outputs.count }} app(s))"
+          TITLE="Update corpus pins (${{ steps.drift.outputs.apps_phrase }})"
 
           if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' || true)" ]; then
             gh pr edit "$BRANCH" --title "$TITLE" --body-file pr-body.md
@@ -119,12 +119,12 @@ jobs:
           if [ "${{ steps.drift.outputs.count }}" = "0" ]; then
             echo "All pins are current." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "### ${{ steps.drift.outputs.count }} pin(s) behind" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ${{ steps.drift.outputs.pins_phrase }} behind" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo '${{ steps.drift.outputs.apps }}' | tr ' ' '\n' | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
           fi
 
           if [ "${{ steps.drift.outputs.unreachable }}" != "0" ]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**${{ steps.drift.outputs.unreachable }} remote(s) unreachable** — see warnings above." >> "$GITHUB_STEP_SUMMARY"
+            echo "**${{ steps.drift.outputs.unreachable_phrase }} unreachable** — see warnings above." >> "$GITHUB_STEP_SUMMARY"
           fi

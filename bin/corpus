@@ -15,6 +15,10 @@ require "fileutils"
 require "set"
 require "yerba"
 
+require_relative "../lib/pluralize"
+
+include Pluralize
+
 ROOT = File.expand_path("..", __dir__)
 APPS_DIR = File.join(ROOT, "apps")
 MANIFEST = File.join(ROOT, "corpus.yml")
@@ -176,7 +180,7 @@ def load_apps(filter = [])
 
   selected = apps.select { |app| filter.include?(app.name) }
   missing = filter - selected.map(&:name)
-  raise CommandError, "unknown app(s): #{missing.join(", ")}" if missing.any?
+  raise CommandError, "unknown #{noun_for(missing.size, "app")}: #{missing.join(", ")}" if missing.any?
 
   selected
 end
@@ -214,11 +218,11 @@ def command_clone(argv)
   pending = apps.reject(&:cloned?)
 
   if pending.empty?
-    puts "All #{apps.size} app(s) already cloned. Use `corpus update` to move pins forward."
+    puts "All #{pluralize(apps.size, "app")} already cloned. Use `corpus update` to move pins forward."
     return 0
   end
 
-  puts "Cloning #{pending.size} app(s)#{full ? "" : " (ERB-only sparse checkout)"}..."
+  puts "Cloning #{pluralize(pending.size, "app")}#{full ? "" : " (ERB-only sparse checkout)"}..."
 
   git?("submodule", "init", "--", *pending.map(&:path))
 
@@ -231,8 +235,8 @@ def command_clone(argv)
     FileUtils.rm_rf(app.dir)
   end
 
-  puts Color.green("Cloned #{cloned.size} app(s).")
-  puts Color.yellow("#{failed.size} failed.") if failed.any?
+  puts Color.green("Cloned #{pluralize(cloned.size, "app")}.")
+  puts Color.yellow("#{pluralize(failed.size, "app")} failed.") if failed.any?
 
   failed.empty? ? 0 : 1
 end
@@ -319,7 +323,7 @@ def command_drift(argv)
     )
   end
 
-  puts "\n#{drifted.size} of #{apps.size} pin(s) behind their tracked branch."
+  puts "\n#{drifted.size} of #{pluralize(apps.size, "pin")} behind their tracked branch."
   puts Color.yellow("#{unreachable.size} unreachable: #{unreachable.map { |e| e["name"] }.join(", ")}") if unreachable.any?
 
   0
@@ -393,7 +397,7 @@ def command_update(argv)
     return 0
   end
 
-  puts "\n#{moved.size} pin(s) moved: #{moved.map(&:name).join(", ")}"
+  puts "\n#{pluralize(moved.size, "pin")} moved: #{moved.map(&:name).join(", ")}"
 
   if commit
     git!("add", "--", *moved.map(&:path))
@@ -499,7 +503,7 @@ def command_list(argv)
   table(rows, ["APP", "REPO", "BRANCH", "ERB", "LICENSE"])
 
   total = apps.select(&:cloned?).sum { |app| app.erb_files.size }
-  puts "\n#{Color.bold(apps.size.to_s)} app(s), #{Color.bold(total.to_s)} .erb file(s)."
+  puts "\n#{Color.bold(apps.size.to_s)} #{noun_for(apps.size, "app")}, #{Color.bold(total.to_s)} .erb #{noun_for(total, "file")}."
 
   excluded = apps.reject(&:redistributable?)
   if excluded.any?
@@ -576,7 +580,7 @@ def command_add(argv)
 
   raise CommandError, "nothing to add" if candidates.empty?
 
-  puts "Cloning #{candidates.size} app(s)#{full ? "" : " (ERB-only sparse checkout)"}..."
+  puts "Cloning #{pluralize(candidates.size, "app")}#{full ? "" : " (ERB-only sparse checkout)"}..."
 
   cloned = in_parallel(candidates, jobs) do |candidate|
     candidate.branch ||= detect_default_branch(candidate.url)
@@ -617,7 +621,7 @@ def command_add(argv)
 
   append_manifest_entries(added)
 
-  puts "\n#{Color.bold(added.size.to_s)} app(s) added."
+  puts "\n#{Color.bold(added.size.to_s)} #{noun_for(added.size, "app")} added."
   puts Color.yellow("#{failed.size} failed to clone.") if failed.any?
 
   unknown = added.select { |candidate| candidate.license == "unknown" }
@@ -677,7 +681,7 @@ def remove_manifest_entries(names)
     puts Color.dim("Removed #{removed.join(", ")} from corpus.yml.")
   end
 
-  puts Color.yellow("Run `bin/corpus extract` to drop the removed app(s) from erb/.")
+  puts Color.yellow("Run `bin/corpus extract` to drop the removed #{noun_for(names.size, "app")} from erb/.")
 end
 
 def command_remove(argv)
@@ -783,7 +787,7 @@ def command_extract(argv)
     }
 
     total += files.size
-    puts "#{Color.green("extract")} #{app.name} #{Color.dim("#{files.size} file(s)")}"
+    puts "#{Color.green("extract")} #{app.name} #{Color.dim(pluralize(files.size, "file"))}"
   end
 
   exclusions = prior_excluded.reject { |entry| apps.any? { |app| app.name == entry["name"] } }
@@ -806,9 +810,9 @@ def command_extract(argv)
   bytes = Dir.glob("#{out}/**/*").select { |path| File.file?(path) }.sum { |path| File.size(path) }
 
   if incremental
-    puts "\n#{Color.bold(total.to_s)} file(s) re-extracted from #{apps.size} app(s); corpus now #{Color.bold(corpus_total.to_s)} .erb file(s) across #{entries.size} app(s) (#{(bytes / 1024.0 / 1024).round(1)} MB)"
+    puts "\n#{Color.bold(total.to_s)} #{noun_for(total, "file")} re-extracted from #{pluralize(apps.size, "app")}; corpus now #{Color.bold(corpus_total.to_s)} .erb #{noun_for(corpus_total, "file")} across #{pluralize(entries.size, "app")} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
   else
-    puts "\n#{Color.bold(corpus_total.to_s)} .erb file(s) from #{Color.bold(entries.size.to_s)} app(s) -> #{out} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
+    puts "\n#{Color.bold(corpus_total.to_s)} .erb #{noun_for(corpus_total, "file")} from #{Color.bold(entries.size.to_s)} #{noun_for(entries.size, "app")} -> #{out} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
   end
 
   puts Color.yellow("Excluded (not redistributable): #{excluded.map(&:name).join(", ")}") if excluded.any?
@@ -916,7 +920,7 @@ def command_measure(argv)
     run = JSON.parse(File.read(runs.first))
 
     puts "\n#{run["label"]}: #{run["files_failing_parse"]} parse, #{run["files_failing_compile"]} compile " \
-         "failure(s) of #{run["files"]} files"
+         "#{noun_for(run["files_failing_compile"], "failure")} of #{run["files"]} files"
     puts Color.dim("Pass a second --herb (or --gem-path) to compare.")
 
     return 0
