@@ -10,8 +10,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 | | |
 | --- | --- |
 | Applications and engines | **255** |
-| `.erb` files in `erb/` | **32,886** from 227 apps |
-| Size of `erb/` | ~49 MB |
+| `.erb` files in `erb/` | **32,906** from 227 apps |
+| Size of `erb/` | ~50 MB |
 | Excluded pending license review | 28 apps |
 
 <!-- corpus:stats:end -->
