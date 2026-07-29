@@ -62,13 +62,20 @@ def delta(before, after)
   change.positive? ? Color.red("+#{change}") : Color.green(change.to_s)
 end
 
+def describe(run)
+  run["label"] || run["herb_ref"] || "herb #{run["herb_version"]}"
+end
+
 before = load_run(before_path)
 after = load_run(after_path)
 
 # Two runs are only comparable if they counted the same thing over the same
 # input. Otherwise a moved number says nothing about Herb.
-if before["metric"] != after["metric"]
-  abort "runs measure different things (#{before["metric"]} vs #{after["metric"]}); they are not comparable"
+%w[parse_metric compile_metric].each do |key|
+  next unless before[key] && after[key]
+  next if before[key] == after[key]
+
+  abort "runs measure different things (#{key}: #{before[key]} vs #{after[key]}); they are not comparable"
 end
 
 if before["corpus_commit"] && after["corpus_commit"] && before["corpus_commit"] != after["corpus_commit"]
@@ -80,33 +87,50 @@ if before["files"] != after["files"]
   puts Color.yellow("Warning: runs cover different file counts (#{before["files"]} vs #{after["files"]}); the corpus moved between them.")
 end
 
-diff = {
-  "regressed" => (Set.new(after["failing"].keys) - Set.new(before["failing"].keys)).sort,
-  "fixed" => (Set.new(before["failing"].keys) - Set.new(after["failing"].keys)).sort,
-  "newly_crashing" => (Set.new(after["crashed"].keys) - Set.new(before["crashed"].keys)).sort,
-  "no_longer_crashing" => (Set.new(before["crashed"].keys) - Set.new(after["crashed"].keys)).sort
-}
+def changes(before, after, key)
+  {
+    "gained" => (Set.new(after[key].keys) - Set.new(before[key].keys)).sort,
+    "lost" => (Set.new(before[key].keys) - Set.new(after[key].keys)).sort
+  }
+end
 
-puts "#{Color.bold("herb #{before["herb_version"]}")} -> #{Color.bold("herb #{after["herb_version"]}")}   (#{before["metric"]})"
+parse = changes(before, after, "parse_failing")
+compile = changes(before, after, "compile_failing")
+crashes = changes(before, after, "parse_crashed")
+
+left = describe(before)
+right = describe(after)
+
+puts "#{Color.bold(left)}  ->  #{Color.bold(right)}"
+puts Color.dim("herb #{before["herb_version"]} vs #{after["herb_version"]}, #{before["files"]} files")
 puts
 
 table(
   [
-    ["files measured", before["files"].to_s, after["files"].to_s, ""],
-    ["files failing", before["files_failing"].to_s, after["files_failing"].to_s, delta(before["files_failing"], after["files_failing"])],
-    ["files crashed", before["files_crashed"].to_s, after["files_crashed"].to_s, delta(before["files_crashed"], after["files_crashed"])],
-    ["total errors", before["total_errors"].to_s, after["total_errors"].to_s, delta(before["total_errors"], after["total_errors"])]
+    ["parse failures", before["files_failing_parse"].to_s, after["files_failing_parse"].to_s,
+     delta(before["files_failing_parse"], after["files_failing_parse"])],
+    ["compile failures", before["files_failing_compile"].to_s, after["files_failing_compile"].to_s,
+     delta(before["files_failing_compile"], after["files_failing_compile"])],
+    ["crashes", before["files_crashed"].to_s, after["files_crashed"].to_s,
+     delta(before["files_crashed"], after["files_crashed"])],
+    ["total parse errors", before["total_errors"].to_s, after["total_errors"].to_s,
+     delta(before["total_errors"], after["total_errors"])],
+    ["files fully clean", before["files_clean"].to_s, after["files_clean"].to_s,
+     delta(before["files_clean"], after["files_clean"])]
   ],
-  ["", before["herb_version"], after["herb_version"], "DELTA"]
+  ["", left, right, "DELTA"]
 )
 
-{
-  "regressed" => ["REGRESSED (parsed before, fails now)", :red],
-  "newly_crashing" => ["NEWLY CRASHING", :red],
-  "fixed" => ["FIXED (failed before, parses now)", :green],
-  "no_longer_crashing" => ["NO LONGER CRASHING", :green]
-}.each do |key, (title, color)|
-  entries = diff[key]
+sections = [
+  [parse["gained"], "PARSE REGRESSED (parsed before, fails now)", :red],
+  [compile["gained"], "COMPILE REGRESSED (compiled before, fails now)", :red],
+  [crashes["gained"], "NEWLY CRASHING", :red],
+  [parse["lost"], "PARSE FIXED", :green],
+  [compile["lost"], "COMPILE FIXED", :green],
+  [crashes["lost"], "NO LONGER CRASHING", :green]
+]
+
+sections.each do |entries, title, color|
   next if entries.empty?
 
   puts "\n#{Color.send(color, "#{title}: #{entries.size}")}"
@@ -114,6 +138,8 @@ table(
   puts Color.dim("  ... and #{entries.size - 20} more") if entries.size > 20
 end
 
-puts "\n#{Color.green("No change in outcomes.")}" if diff.values.all?(&:empty?)
+puts "\n#{Color.green("No change in outcomes.")}" if sections.all? { |entries, _, _| entries.empty? }
 
-exit 1 if fail_on_regression && !(diff["regressed"] + diff["newly_crashing"]).empty?
+regressions = parse["gained"] + compile["gained"] + crashes["gained"]
+
+exit 1 if fail_on_regression && !regressions.empty?

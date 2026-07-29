@@ -3,18 +3,21 @@
 
 # Measures one Herb version against the extracted corpus and prints JSON.
 #
-#   bin/measure-herb --version 0.10.2 --out runs/0.10.2.json
-#   bin/measure-herb --gem-path ../herb
+#   bin/measure-herb --version 0.10.2 --out runs/release.json
+#   bin/measure-herb --gem-path ../herb --label "this branch"
 
 require "json"
 require "optparse"
+require "ripper"
+require "fileutils"
 
-options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil, gem_path: nil, out: nil }
+options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil, gem_path: nil, out: nil, label: nil }
 
 OptionParser.new do |parser|
   parser.banner = "usage: measure-herb [options]"
   parser.on("--version V", "Herb gem version to measure (default: whatever is activated)") { |v| options[:version] = v }
   parser.on("--gem-path PATH", "Load Herb from a working tree instead of an installed gem") { |v| options[:gem_path] = v }
+  parser.on("--label TEXT", "How to name this run in a comparison (default: derived)") { |v| options[:label] = v }
   parser.on("--corpus DIR", "Directory of .erb files (default: erb/)") { |v| options[:root] = File.expand_path(v) }
   parser.on("--limit N", Integer, "Only measure the first N files, for a quick check") { |v| options[:limit] = v }
   parser.on("--out FILE", "Write JSON here instead of stdout") { |v| options[:out] = v }
@@ -27,39 +30,74 @@ elsif options[:version]
 end
 
 require "herb"
+require "herb/engine"
 
-METRIC = "files_with_recursive_errors"
+PARSE_METRIC = "files_with_recursive_errors"
+COMPILE_METRIC = "files_that_fail_to_compile_to_valid_ruby"
 
-document = Herb.parse("<div></div>").value
-
-unless document.respond_to?(:recursive_errors)
+unless Herb.parse("<div></div>").value.respond_to?(:recursive_errors)
   abort "herb #{Herb::VERSION} has no DocumentNode#recursive_errors; cannot measure comparably"
 end
+
+def git_describe(dir)
+  return nil unless File.directory?(File.join(dir, ".git"))
+
+  Dir.chdir(dir) do
+    branch = `git rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
+    sha = `git rev-parse --short HEAD 2>/dev/null`.strip
+
+    next nil if sha.empty?
+
+    branch.empty? || branch == "HEAD" ? sha : "#{branch}@#{sha}"
+  end
+rescue StandardError
+  nil
+end
+
+herb_ref = options[:gem_path] ? git_describe(File.expand_path(options[:gem_path])) : nil
+
+label =
+  options[:label] ||
+  if options[:gem_path]
+    herb_ref ? "working tree (#{herb_ref})" : "working tree"
+  else
+    "released #{Herb::VERSION}"
+  end
 
 files = Dir.glob(File.join(options[:root], "**", "*.erb")).sort
 files = files.first(options[:limit]) if options[:limit]
 
 abort "no .erb files under #{options[:root]}" if files.empty?
 
-failing = {}
-crashed = {}
+parse_failing = {}
+parse_crashed = {}
+compile_failing = {}
 total_errors = 0
 
 started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
 files.each do |path|
   relative = path.sub("#{options[:root]}/", "")
+  source = File.read(path)
 
   begin
-    errors = Herb.parse(File.read(path)).value.recursive_errors
+    errors = Herb.parse(source).value.recursive_errors
 
-    next if errors.empty?
+    unless errors.empty?
+      total_errors += errors.size
 
-    total_errors += errors.size
-
-    failing[relative] = errors.map { |error| error.class.name.split("::").last }.tally
+      parse_failing[relative] = errors.map { |error| error.class.name.split("::").last }.tally
+    end
   rescue StandardError => error
-    crashed[relative] = error.class.name
+    parse_crashed[relative] = error.class.name
+  end
+
+  begin
+    compiled = Herb::Engine.new(source).src
+
+    compile_failing[relative] = "InvalidRuby" if Ripper.sexp(compiled).nil?
+  rescue Exception => error # rubocop:disable Lint/RescueException
+    compile_failing[relative] = error.class.name
   end
 end
 
@@ -73,27 +111,34 @@ corpus_commit =
   end
 
 report = {
+  "label" => label,
   "herb_version" => Herb::VERSION,
-  "metric" => METRIC,
+  "herb_ref" => herb_ref,
+  "source" => options[:gem_path] ? "working-tree" : "gem",
+  "parse_metric" => PARSE_METRIC,
+  "compile_metric" => COMPILE_METRIC,
   "corpus" => options[:root],
   "corpus_commit" => (corpus_commit.empty? ? nil : corpus_commit),
   "files" => files.size,
-  "files_failing" => failing.size,
-  "files_crashed" => crashed.size,
-  "files_clean" => files.size - failing.size - crashed.size,
+  "files_failing_parse" => parse_failing.size,
+  "files_crashed" => parse_crashed.size,
+  "files_failing_compile" => compile_failing.size,
+  "files_clean" => files.size - (parse_failing.keys | parse_crashed.keys | compile_failing.keys).size,
   "total_errors" => total_errors,
   "seconds" => elapsed.round(1),
-  "error_types" => failing.values.flat_map(&:keys).tally.sort_by { |_, count| -count }.to_h,
-  "failing" => failing.sort.to_h,
-  "crashed" => crashed.sort.to_h
+  "parse_error_types" => parse_failing.values.flat_map(&:keys).tally.sort_by { |_, count| -count }.to_h,
+  "compile_failure_types" => compile_failing.values.tally.sort_by { |_, count| -count }.to_h,
+  "parse_failing" => parse_failing.sort.to_h,
+  "parse_crashed" => parse_crashed.sort.to_h,
+  "compile_failing" => compile_failing.sort.to_h
 }
 
 json = JSON.pretty_generate(report)
 
 if options[:out]
-  FileUtils.mkdir_p(File.dirname(options[:out])) if defined?(FileUtils) || require("fileutils")
+  FileUtils.mkdir_p(File.dirname(options[:out]))
   File.write(options[:out], "#{json}\n")
-  warn "herb #{Herb::VERSION}: #{failing.size} failing, #{crashed.size} crashed, of #{files.size} files (#{elapsed.round(1)}s) -> #{options[:out]}"
+  warn "#{label}: #{parse_failing.size} parse, #{compile_failing.size} compile failures of #{files.size} files (#{elapsed.round(1)}s) -> #{options[:out]}"
 else
   puts json
 end
