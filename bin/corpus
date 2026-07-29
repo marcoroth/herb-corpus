@@ -220,21 +220,38 @@ def command_clone(argv)
 
   puts "Cloning #{pending.size} app(s)#{full ? "" : " (ERB-only sparse checkout)"}..."
 
-  args = ["submodule", "update", "--init", "--jobs", jobs.to_s]
-  args += ["--filter=blob:none", "--no-checkout"] unless full
-  args += pending.map(&:path)
+  git?("submodule", "init", "--", *pending.map(&:path))
 
-  return 1 unless git!(*args)
+  results = in_parallel(pending, jobs) { |app| clone_app(app, full: full) }
 
-  unless full
-    pending.each do |app|
-      configure_sparse(app.dir)
-      git?("checkout", "--", ".", chdir: app.dir) || git?("checkout", app.branch, chdir: app.dir)
-    end
+  cloned, failed = results.partition { |_, status| status == :ok }
+
+  failed.each do |app, status|
+    puts "#{Color.red("fail")} #{app.name} #{Color.dim("(#{status})")}"
+    FileUtils.rm_rf(app.dir)
   end
 
-  puts Color.green("Cloned #{pending.size} app(s).")
-  0
+  puts Color.green("Cloned #{cloned.size} app(s).")
+  puts Color.yellow("#{failed.size} failed.") if failed.any?
+
+  failed.empty? ? 0 : 1
+end
+
+def clone_app(app, full: false)
+  args = ["clone", "--quiet", "--filter=blob:none", "--no-checkout"]
+  args << "--sparse" unless full
+  args += [app.url, app.dir]
+
+  return :clone_failed unless git?(*args)
+
+  configure_sparse(app.dir) unless full
+  target = app.pinned_sha || app.branch
+
+  unless git?("checkout", "--quiet", target, chdir: app.dir)
+    return :checkout_failed unless git?("fetch", "--quiet", "origin", target, chdir: app.dir) && git?("checkout", "--quiet", target, chdir: app.dir)
+  end
+
+  :ok
 end
 
 def command_drift(argv)
