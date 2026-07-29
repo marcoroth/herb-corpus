@@ -49,6 +49,26 @@ jobs:
             puts "#{psych.size} entries, valid YAML, both parsers agree"
           '
 
+      - name: Check erb/ accounts for every app
+        run: |
+          ruby -rjson -ryerba -rset -e '
+            apps = Yerba.parse_file("corpus.yml").to_h["apps"]
+            manifest = JSON.parse(File.read("erb/MANIFEST.json"))
+
+            extracted = Set.new(manifest["apps"].keys)
+            excluded = Set.new(manifest["excluded"].map { |entry| entry["name"] })
+            accounted = extracted | excluded
+
+            unaccounted = apps.map { |app| app["name"] } - accounted.to_a
+            unknown = apps.select { |app| app["license"] == "unknown" && app["redistributable"] }
+                          .map { |app| app["name"] }
+
+            abort "not in erb/MANIFEST.json: #{unaccounted.join(", ")} — run `bin/corpus extract`" if unaccounted.any?
+            abort "redistributable with an unverified license: #{unknown.join(", ")}" if unknown.any?
+
+            puts "#{apps.size} apps: #{extracted.size} extracted, #{excluded.size} excluded, all accounted for"
+          '
+
       - name: Check corpus.yml against the Yerbafile
         run: |
           if ! yerba check; then

@@ -638,6 +638,31 @@ def append_manifest_entries(candidates)
   end
 end
 
+def remove_manifest_entries(names)
+  return if names.empty?
+
+  Dir.chdir(ROOT) do
+    document = Yerba.parse_file(File.basename(MANIFEST))
+    removed = []
+
+    names.each do |name|
+      index = document["apps"].to_a.index { |entry| entry["name"] == name }
+      next unless index
+
+      document.remove_at("apps", index)
+      removed << name
+    end
+
+    next if removed.empty?
+
+    document.save!(apply: true)
+
+    puts Color.dim("Removed #{removed.join(", ")} from corpus.yml.")
+  end
+
+  puts Color.yellow("Run `bin/corpus extract` to drop the removed app(s) from erb/.")
+end
+
 def command_remove(argv)
   keep = false
   move_to = nil
@@ -675,7 +700,7 @@ def command_remove(argv)
     puts "#{Color.red("removed")} #{app.name}#{Color.dim(keep ? " (checkout kept)" : "")}"
   end
 
-  puts Color.yellow("Remove the corresponding entries from corpus.yml before committing.")
+  remove_manifest_entries(apps.map(&:name))
 
   0
 end
