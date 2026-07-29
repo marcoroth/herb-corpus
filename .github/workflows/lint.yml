@@ -5,91 +5,33 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  yerba:
+  check:
+    name: Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: false
 
-      - uses: ruby/setup-ruby@v1
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler: none
+          bundler-cache: true
 
-      - run: gem install yerba
+      - name: Consistency checks
+        run: bundle exec bin/check
 
-      - name: Check corpus.yml is valid YAML
+      - name: Formatting
         run: |
-          ruby -ryaml -ryerba -e '
-            begin
-              psych = YAML.safe_load_file("corpus.yml")["apps"]
-            rescue Psych::SyntaxError => error
-              abort "corpus.yml is not valid YAML: #{error.message}"
-            end
-
-            yerba = Yerba.parse_file("corpus.yml").to_h["apps"]
-
-            abort "Psych and Yerba disagree on entry count: #{psych.size} vs #{yerba.size}" unless psych.size == yerba.size
-            abort "Psych and Yerba disagree on contents" unless psych == yerba
-
-            strings = %w[name repo license license_file note exclude_paths]
-
-            psych.each do |entry|
-              strings.each do |field|
-                value = entry[field]
-                next if value.nil? || value.is_a?(String)
-
-                abort "#{entry["name"]}: expected #{field} to be a string, got #{value.class} (#{value.inspect})"
-              end
-            end
-
-            puts "#{psych.size} entries, valid YAML, both parsers agree"
-          '
-
-      - name: Check erb/ accounts for every app
-        run: |
-          ruby -rjson -ryerba -rset -e '
-            apps = Yerba.parse_file("corpus.yml").to_h["apps"]
-            manifest = JSON.parse(File.read("erb/MANIFEST.json"))
-
-            extracted = Set.new(manifest["apps"].keys)
-            excluded = Set.new(manifest["excluded"].map { |entry| entry["name"] })
-            accounted = extracted | excluded
-
-            unaccounted = apps.map { |app| app["name"] } - accounted.to_a
-            unknown = apps.select { |app| app["license"] == "unknown" && app["redistributable"] }
-                          .map { |app| app["name"] }
-
-            abort "not in erb/MANIFEST.json: #{unaccounted.join(", ")} — run `bin/corpus extract`" if unaccounted.any?
-            abort "redistributable with an unverified license: #{unknown.join(", ")}" if unknown.any?
-
-            puts "#{apps.size} apps: #{extracted.size} extracted, #{excluded.size} excluded, all accounted for"
-          '
-
-      - name: Check corpus.yml against the Yerbafile
-        run: |
-          if ! yerba check; then
+          if ! bundle exec yerba check; then
             echo "::error title=corpus.yml needs formatting::Run \`yerba apply\` and commit the result."
             exit 1
           fi
-
-      - name: Check the manifest agrees with .gitmodules
-        run: |
-          ruby -ryerba -e '
-            manifest = Yerba.parse_file("corpus.yml").to_h["apps"].map { |entry| entry["name"] }
-            submodules = `git config -f .gitmodules --get-regexp "^submodule\..*\.path$"`
-              .lines.map { |line| File.basename(line.split(/\s+/, 2).last.strip) }
-
-            missing = submodules - manifest
-            extra = manifest - submodules
-            duplicates = manifest.tally.select { |_, count| count > 1 }.keys
-
-            abort "In .gitmodules but not corpus.yml: #{missing.join(", ")}" if missing.any?
-            abort "In corpus.yml but not .gitmodules: #{extra.join(", ")}" if extra.any?
-            abort "Duplicated in corpus.yml: #{duplicates.join(", ")}" if duplicates.any?
-
-            puts "#{manifest.size} apps, consistent across corpus.yml and .gitmodules"
-          '

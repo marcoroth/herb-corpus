@@ -1,0 +1,45 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Turns `bin/corpus drift --json` output into the values the weekly workflow
+# needs: step outputs naming which apps to update, and warnings for remotes that
+# could not be reached.
+
+require "json"
+require "optparse"
+
+OptionParser.new do |parser|
+  parser.banner = "usage: drift-report DRIFT.json"
+end.parse!
+
+path = ARGV.first || "drift.json"
+abort "no such file: #{path}" unless File.exist?(path)
+
+report = JSON.parse(File.read(path))
+
+drifted = report["drifted"] || []
+unreachable = report["unreachable"] || []
+names = drifted.map { |entry| entry["name"] }
+
+if (output = ENV["GITHUB_OUTPUT"])
+  File.open(output, "a") do |file|
+    file.puts "count=#{names.size}"
+    file.puts "apps=#{names.join(" ")}"
+    file.puts "unreachable=#{unreachable.size}"
+  end
+end
+
+unreachable.each do |entry|
+  message = "#{entry["name"]} (#{entry["repo"]}, branch #{entry["branch"]}) could not be queried. " \
+            "Its pinned commit may no longer be fetchable, so a fresh clone cannot reproduce the corpus."
+
+  puts "::warning title=Unreachable remote::#{message}"
+end
+
+puts "#{names.size} of #{report["total"]} pin(s) behind; #{unreachable.size} unreachable"
+
+drifted.first(20).each do |entry|
+  puts "  #{entry["name"]} #{entry["pinned"].to_s[0, 8]} -> #{entry["tip"].to_s[0, 8]} (#{entry["branch"]})"
+end
+
+puts "  ... and #{drifted.size - 20} more" if drifted.size > 20

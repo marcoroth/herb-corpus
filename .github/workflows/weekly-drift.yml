@@ -35,52 +35,29 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler: none
-
-      - run: gem install yerba
+          bundler-cache: true
 
       - name: Detect drift
         id: drift
         run: |
-          bin/corpus drift --json ${{ inputs.apps }} > drift.json
-          ruby -rjson -e '
-            d = JSON.parse(File.read("drift.json"))
-
-            names = d["drifted"].map { |a| a["name"] }
-
-            File.open(ENV["GITHUB_OUTPUT"], "a") do |f|
-              f.puts "count=#{names.size}"
-              f.puts "apps=#{names.join(" ")}"
-              f.puts "unreachable=#{d["unreachable"].size}"
-            end
-
-            puts "#{names.size} of #{d["total"]} pin(s) behind; #{d["unreachable"].size} unreachable"
-          '
-
-      - name: Flag unreachable remotes
-        if: steps.drift.outputs.unreachable != '0'
-        run: |
-          ruby -rjson -e '
-            JSON.parse(File.read("drift.json"))["unreachable"].each do |a|
-              puts "::warning title=Unreachable remote::#{a["name"]} (#{a["repo"]}, branch #{a["branch"]}) could not be queried. Its pinned commit may no longer be fetchable, so a fresh clone cannot reproduce the corpus."
-            end
-          '
+          bundle exec bin/corpus drift --json ${{ inputs.apps }} > drift.json
+          bin/drift-report drift.json
 
       - name: Clone the drifted apps
         if: steps.drift.outputs.count != '0'
-        run: bin/corpus clone --jobs 12 ${{ steps.drift.outputs.apps }}
+        run: bundle exec bin/corpus clone --jobs 12 ${{ steps.drift.outputs.apps }}
 
       - name: Move the drifted pins
         if: steps.drift.outputs.count != '0'
-        run: bin/corpus update --report update.json ${{ steps.drift.outputs.apps }}
+        run: bundle exec bin/corpus update --report update.json ${{ steps.drift.outputs.apps }}
 
       - name: Regenerate erb/ for those apps
         if: steps.drift.outputs.count != '0'
-        run: bin/corpus extract ${{ steps.drift.outputs.apps }}
+        run: bundle exec bin/corpus extract ${{ steps.drift.outputs.apps }}
 
       - name: Refresh the README stats block
         if: steps.drift.outputs.count != '0'
-        run: bin/corpus stats --write
+        run: bundle exec bin/corpus stats --write
 
       - name: Open or update the pull request
         if: steps.drift.outputs.count != '0'
@@ -89,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          .github/scripts/render-pr-body.rb drift.json update.json > pr-body.md
+          bin/render-pr-body drift.json update.json > pr-body.md
           rm -f drift.json update.json
 
           git config user.name "github-actions[bot]"

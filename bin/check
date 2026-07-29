@@ -1,0 +1,165 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Consistency checks for the corpus, run in CI and locally with `bin/check`.
+#
+#   bin/check            run every check
+#   bin/check --list     show what would run
+
+require "json"
+require "set"
+require "yaml"
+require "optparse"
+require "yerba"
+
+ROOT = File.expand_path("..", __dir__)
+MANIFEST = File.join(ROOT, "corpus.yml")
+EXTRACT_MANIFEST = File.join(ROOT, "erb", "MANIFEST.json")
+
+list_only = false
+
+OptionParser.new do |parser|
+  parser.banner = "usage: check [options]"
+  parser.on("--list", "List the checks without running them") { list_only = true }
+end.parse!
+
+module Color
+  ENABLED = $stdout.tty? && !ENV.key?("NO_COLOR")
+
+  def self.wrap(text, code) = ENABLED ? "\e[#{code}m#{text}\e[0m" : text.to_s
+
+  def self.red(text) = wrap(text, 31)
+  def self.green(text) = wrap(text, 32)
+  def self.dim(text) = wrap(text, 2)
+end
+
+CHECKS = []
+
+def check(name, &block) = CHECKS << [name, block]
+
+class Failure < StandardError; end
+
+def fail!(message) = raise(Failure, message)
+
+check "corpus.yml is valid YAML, and Yerba and Psych agree" do
+  begin
+    psych = YAML.safe_load_file(MANIFEST)["apps"]
+  rescue Psych::SyntaxError => error
+    fail! "corpus.yml is not valid YAML: #{error.message}"
+  end
+
+  yerba = Yerba.parse_file(MANIFEST).to_h["apps"]
+
+  fail! "entry count differs: Psych #{psych.size}, Yerba #{yerba.size}" unless psych.size == yerba.size
+
+  unless psych == yerba
+    differing = psych.zip(yerba).reject { |a, b| a == b }.map { |a, _| a["name"] }
+    fail! "parsers disagree on: #{differing.join(", ")}"
+  end
+
+  "#{psych.size} entries"
+end
+
+check "fields that should be strings are strings" do
+  entries = Yerba.parse_file(MANIFEST).to_h["apps"]
+  fields = %w[name repo license license_file note exclude_paths upstream]
+
+  entries.each do |entry|
+    fields.each do |field|
+      value = entry[field]
+      next if value.nil? || value.is_a?(String)
+
+      fail! "#{entry["name"]}: #{field} is #{value.class} (#{value.inspect}), expected a string"
+    end
+  end
+
+  "#{entries.size} entries, #{fields.size} fields each"
+end
+
+check "corpus.yml and .gitmodules describe the same apps" do
+  manifest = Yerba.parse_file(MANIFEST).to_h["apps"].map { |entry| entry["name"] }
+
+  submodules = Dir.chdir(ROOT) do
+    `git config -f .gitmodules --get-regexp "^submodule\\..*\\.path$"`
+      .lines.map { |line| File.basename(line.split(/\s+/, 2).last.to_s.strip) }
+  end
+
+  missing = submodules - manifest
+  extra = manifest - submodules
+  duplicates = manifest.tally.select { |_, count| count > 1 }.keys
+
+  fail! "in .gitmodules but not corpus.yml: #{missing.join(", ")}" if missing.any?
+  fail! "in corpus.yml but not .gitmodules: #{extra.join(", ")}" if extra.any?
+  fail! "duplicated in corpus.yml: #{duplicates.join(", ")}" if duplicates.any?
+
+  "#{manifest.size} apps"
+end
+
+check "erb/MANIFEST.json accounts for every app" do
+  fail! "erb/MANIFEST.json is missing; run `bin/corpus extract`" unless File.exist?(EXTRACT_MANIFEST)
+
+  apps = Yerba.parse_file(MANIFEST).to_h["apps"]
+  manifest = JSON.parse(File.read(EXTRACT_MANIFEST))
+
+  extracted = Set.new(manifest["apps"].keys)
+  excluded = Set.new((manifest["excluded"] || []).map { |entry| entry["name"] })
+
+  unaccounted = apps.map { |app| app["name"] } - (extracted | excluded).to_a
+
+  fail! "absent from erb/MANIFEST.json: #{unaccounted.join(", ")} — run `bin/corpus extract`" if unaccounted.any?
+
+  "#{extracted.size} extracted, #{excluded.size} excluded"
+end
+
+check "nothing is redistributed on an unverified license" do
+  apps = Yerba.parse_file(MANIFEST).to_h["apps"]
+  unverified = apps.select { |app| app["license"] == "unknown" && app["redistributable"] }
+
+  if unverified.any?
+    fail! "redistributable with license: unknown — #{unverified.map { |a| a["name"] }.join(", ")}"
+  end
+
+  "#{apps.count { |app| app["redistributable"] }} redistributable, all with a recorded license"
+end
+
+check "extracted files carry their app's license text" do
+  manifest = JSON.parse(File.read(EXTRACT_MANIFEST))
+
+  missing = manifest["apps"].filter_map do |name, entry|
+    next unless entry["license_file"]
+    next if File.file?(File.join(ROOT, "erb", name, File.basename(entry["license_file"])))
+
+    name
+  end
+
+  fail! "license text missing from erb/: #{missing.join(", ")}" if missing.any?
+
+  "#{manifest["apps"].count { |_, e| e["license_file"] }} apps ship their license"
+end
+
+if list_only
+  CHECKS.each { |name, _| puts "  #{name}" }
+  exit 0
+end
+
+failures = 0
+
+CHECKS.each do |name, block|
+  detail = block.call
+
+  puts "#{Color.green("ok")}   #{name} #{Color.dim("(#{detail})")}"
+rescue Failure => error
+  failures += 1
+  puts "#{Color.red("FAIL")} #{name}"
+  puts "       #{error.message}"
+end
+
+puts
+
+if failures.zero?
+  puts Color.green("All #{CHECKS.size} checks passed.")
+  exit 0
+end
+
+puts Color.red("#{failures} of #{CHECKS.size} checks failed.")
+exit 1

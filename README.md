@@ -25,7 +25,8 @@ herb-corpus/
 ├── apps/        one git submodule per application, pinned to an exact commit
 ├── erb/         every .erb file extracted flat, with a provenance manifest
 ├── corpus.yml   provenance and licensing for each app
-└── bin/corpus   management CLI
+├── Yerbafile    formatting rules for corpus.yml
+└── bin/         management CLI and the scripts CI runs
 ```
 
 `apps/` is the source of truth; `erb/` is generated from it and committed. They serve different needs:
@@ -152,6 +153,36 @@ templates would be indistinguishable. A human decides when the baseline moves.
 
 The number worth watching frequently is the parse-error count, and that belongs in Herb's own CI
 against a fixed corpus commit, not here.
+
+## Scripts
+
+Everything CI runs lives in `bin/`, so the same command can be run locally before pushing rather
+than only by opening a pull request:
+
+| | |
+| --- | --- |
+| `bin/corpus` | management CLI — clone, update, drift, extract, stats, measure |
+| `bin/check` | consistency checks across `.gitmodules`, `corpus.yml`, and `erb/MANIFEST.json` |
+| `bin/measure-herb` | measure one Herb version against the corpus |
+| `bin/diff-runs` | compare two measurement runs |
+| `bin/drift-report` | turn `corpus drift --json` into step outputs and annotations |
+| `bin/render-pr-body` | build the weekly pin-update pull request body |
+
+```sh
+bundle install
+bundle exec bin/check     # what CI checks
+bundle exec yerba check   # what CI checks about formatting
+```
+
+Only `bin/corpus` and `bin/check` need a gem, and only Yerba. `bin/diff-runs`, `bin/drift-report`,
+and `bin/render-pr-body` are Ruby stdlib only, so Herb's CI can compare a branch against a release
+with nothing installed beyond a corpus checkout.
+
+**Herb is deliberately not in the Gemfile.** The version under measurement is swapped per run —
+`bin/measure-herb` takes either an installed gem version or a working tree, and Herb's CI measures
+the last release against the branch in the same job. A Gemfile entry would pin one version for
+both and silently compare a branch against itself, so the measurement scripts run with
+`BUNDLE_GEMFILE` cleared and resolve Herb themselves.
 
 ## Measuring Herb against the corpus
 
