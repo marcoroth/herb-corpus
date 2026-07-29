@@ -89,10 +89,24 @@ jobs:
           if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' || true)" ]; then
             gh pr edit "$BRANCH" --title "$TITLE" --body-file pr-body.md
             echo "Updated existing pull request."
-          else
-            gh pr create --head "$BRANCH" --title "$TITLE" --body-file pr-body.md
-            echo "Opened pull request."
+            exit 0
           fi
+
+          if gh pr create --head "$BRANCH" --title "$TITLE" --body-file pr-body.md; then
+            echo "Opened pull request."
+            exit 0
+          fi
+
+          COMPARE="${{ github.server_url }}/${{ github.repository }}/compare/$BRANCH?expand=1"
+
+          echo "::warning title=Could not open the pull request::The pins are pushed to $BRANCH. Enable 'Allow GitHub Actions to create and approve pull requests' in Settings -> Actions -> General, or open it manually: $COMPARE"
+
+          {
+            echo
+            echo "Pins were pushed to \`$BRANCH\`, but opening the pull request was refused."
+            echo "Enable **Allow GitHub Actions to create and approve pull requests** in"
+            echo "Settings → Actions → General, or [open it manually]($COMPARE)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Job summary
         if: always()

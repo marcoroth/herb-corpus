@@ -8,7 +8,7 @@
 
 require "json"
 require "optparse"
-require "ripper"
+require "prism"
 require "fileutils"
 
 options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil, gem_path: nil, out: nil, label: nil }
@@ -100,7 +100,9 @@ files.each do |path|
   begin
     compiled = Herb::Engine.new(source).src
 
-    compile_failing[relative] = "InvalidRuby" if Ripper.sexp(compiled).nil?
+    result = Prism.parse(compiled)
+
+    compile_failing[relative] = "InvalidRuby(#{result.errors.first&.type})" unless result.success?
   rescue Exception => error # rubocop:disable Lint/RescueException
     compile_failing[relative] = error.class.name
   end
@@ -118,6 +120,7 @@ corpus_commit =
 report = {
   "label" => label,
   "herb_version" => Herb::VERSION,
+  "prism_version" => Prism::VERSION,
   "herb_ref" => herb_ref,
   "source" => options[:gem_path] ? "working-tree" : "gem",
   "parse_metric" => PARSE_METRIC,

@@ -10,10 +10,12 @@ require "optparse"
 require "set"
 
 fail_on_regression = false
+markdown_path = nil
 
 OptionParser.new do |parser|
   parser.banner = "usage: diff-runs BEFORE.json AFTER.json [options]"
   parser.on("--fail-on-regression", "Exit non-zero if any file regressed or started crashing") { fail_on_regression = true }
+  parser.on("--markdown FILE", "Also write a Markdown report, for a pull request comment") { |value| markdown_path = value }
 end.parse!
 
 before_path, after_path = ARGV
@@ -69,8 +71,6 @@ end
 before = load_run(before_path)
 after = load_run(after_path)
 
-# Two runs are only comparable if they counted the same thing over the same
-# input. Otherwise a moved number says nothing about Herb.
 %w[parse_metric compile_metric].each do |key|
   next unless before[key] && after[key]
   next if before[key] == after[key]
@@ -78,9 +78,12 @@ after = load_run(after_path)
   abort "runs measure different things (#{key}: #{before[key]} vs #{after[key]}); they are not comparable"
 end
 
+if before["prism_version"] && after["prism_version"] && before["prism_version"] != after["prism_version"]
+  abort "runs used different Prism versions (#{before["prism_version"]} vs #{after["prism_version"]}); compile results are not comparable"
+end
+
 if before["corpus_commit"] && after["corpus_commit"] && before["corpus_commit"] != after["corpus_commit"]
-  abort "runs measured different corpus commits (#{before["corpus_commit"][0, 8]} vs #{after["corpus_commit"][0, 8]}); " \
-        "re-measure both against the same corpus before comparing"
+  abort "runs measured different corpus commits (#{before["corpus_commit"][0, 8]} vs #{after["corpus_commit"][0, 8]}); re-measure both against the same corpus before comparing"
 end
 
 if before["files"] != after["files"]
@@ -141,5 +144,87 @@ end
 puts "\n#{Color.green("No change in outcomes.")}" if sections.all? { |entries, _, _| entries.empty? }
 
 regressions = parse["gained"] + compile["gained"] + crashes["gained"]
+
+def markdown_report(before, after, parse, compile, crashes, regressions)
+  out = []
+
+  out << "<!-- corpus-report -->"
+  out << "### Corpus: #{describe(after)} vs #{describe(before)}"
+  out << ""
+  out << "| | #{describe(before)} | #{describe(after)} | |"
+  out << "| --- | ---: | ---: | ---: |"
+
+  [
+    ["Parse failures", "files_failing_parse"],
+    ["Compile failures", "files_failing_compile"],
+    ["Crashes", "files_crashed"],
+    ["Files fully clean", "files_clean"]
+  ].each do |label, key|
+    change = after[key].to_i - before[key].to_i
+    arrow = change.zero? ? "–" : (change.positive? ? "**+#{change}**" : "#{change}")
+    out << "| #{label} | #{before[key]} | #{after[key]} | #{arrow} |"
+  end
+
+  out << ""
+  out << "Measured over #{after["files"]} templates from [herb-corpus](https://github.com/marcoroth/herb-corpus)."
+
+  if regressions.empty?
+    out << ""
+    out << "No file changed outcome."
+  end
+
+  render = lambda do |title, files, source, key, limit|
+    next if files.empty?
+
+    out << ""
+    out << "<details open><summary><b>#{title}: #{files.size}</b></summary>"
+    out << ""
+    out << "| File | Error |"
+    out << "| --- | --- |"
+
+    files.first(limit).each do |file|
+      detail = source[key][file]
+
+      described =
+        case detail
+        when Hash then detail.map { |type, count| count > 1 ? "`#{type}` ×#{count}" : "`#{type}`" }.join(", ")
+        when String then "`#{detail}`"
+        else ""
+        end
+
+      out << "| `#{file}` | #{described} |"
+    end
+
+    out << ""
+    out << "_… and #{files.size - limit} more._" if files.size > limit
+    out << "</details>"
+  end
+
+  render.call("Parse regressions", parse["gained"], after, "parse_failing", 40)
+  render.call("Compile regressions", compile["gained"], after, "compile_failing", 40)
+  render.call("New crashes", crashes["gained"], after, "parse_crashed", 40)
+
+  fixed = parse["lost"] + compile["lost"]
+
+  unless fixed.empty?
+    out << ""
+    out << "<details><summary>Fixed: #{fixed.size}</summary>"
+    out << ""
+
+    parse["lost"].first(20).each { |f| out << "- `#{f}` now parses" }
+    compile["lost"].first(20).each { |f| out << "- `#{f}` now compiles" }
+
+    out << "</details>"
+  end
+
+  out << ""
+
+  out.join("\n")
+end
+
+if markdown_path
+  File.write(markdown_path, markdown_report(before, after, parse, compile, crashes, regressions))
+  warn "Wrote #{markdown_path}"
+end
 
 exit 1 if fail_on_regression && !regressions.empty?
