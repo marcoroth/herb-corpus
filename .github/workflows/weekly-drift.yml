@@ -39,8 +39,8 @@ jobs:
       - name: Detect drift
         id: drift
         run: |
-          bundle exec bin/corpus drift --json ${{ inputs.apps }} > drift.json
-          bin/drift-report drift.json
+          bundle exec bin/corpus drift --json ${{ inputs.apps }} > "$RUNNER_TEMP/drift.json"
+          bin/drift-report "$RUNNER_TEMP/drift.json"
 
       - name: Clone the drifted apps
         if: steps.drift.outputs.count != '0'
@@ -48,7 +48,7 @@ jobs:
 
       - name: Move the drifted pins
         if: steps.drift.outputs.count != '0'
-        run: bundle exec bin/corpus update --report update.json ${{ steps.drift.outputs.apps }}
+        run: bundle exec bin/corpus update --report "$RUNNER_TEMP/update.json" ${{ steps.drift.outputs.apps }}
 
       - name: Regenerate erb/ for those apps
         if: steps.drift.outputs.count != '0'
@@ -65,8 +65,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          bin/render-pr-body drift.json update.json > pr-body.md
-          rm -f drift.json update.json
+          bin/render-pr-body "$RUNNER_TEMP/drift.json" "$RUNNER_TEMP/update.json" > "$RUNNER_TEMP/pr-body.md"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -74,7 +73,7 @@ jobs:
           # Rebuild the branch from the default branch each run, so the PR shows
           # only current drift rather than accumulating stale pin moves.
           git checkout -B "$BRANCH"
-          git add -A
+          git add -A -- apps erb corpus.yml README.md
 
           if git diff --cached --quiet; then
             echo "Pins reported as drifted but nothing changed on disk; nothing to push."
@@ -92,12 +91,12 @@ jobs:
           TITLE="Update corpus pins (${{ steps.drift.outputs.apps_phrase }})"
 
           if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' || true)" ]; then
-            gh pr edit "$BRANCH" --title "$TITLE" --body-file pr-body.md
+            gh pr edit "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
             echo "Updated existing pull request."
             exit 0
           fi
 
-          if gh pr create --head "$BRANCH" --title "$TITLE" --body-file pr-body.md; then
+          if gh pr create --head "$BRANCH" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"; then
             echo "Opened pull request."
             exit 0
           fi

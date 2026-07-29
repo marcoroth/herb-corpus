@@ -75,15 +75,8 @@ end
 before = load_run(before_path)
 after = load_run(after_path)
 
-%w[parse_metric compile_metric].each do |key|
-  next unless before[key] && after[key]
-  next if before[key] == after[key]
-
-  abort "runs measure different things (#{key}: #{before[key]} vs #{after[key]}); they are not comparable"
-end
-
-if before["prism_version"] && after["prism_version"] && before["prism_version"] != after["prism_version"]
-  abort "runs used different Prism versions (#{before["prism_version"]} vs #{after["prism_version"]}); compile results are not comparable"
+if before["metric"] && after["metric"] && before["metric"] != after["metric"]
+  abort "runs measure different things (#{before["metric"]} vs #{after["metric"]}); they are not comparable"
 end
 
 if before["corpus_commit"] && after["corpus_commit"] && before["corpus_commit"] != after["corpus_commit"]
@@ -94,16 +87,44 @@ if before["files"] != after["files"]
   puts Color.yellow("Warning: runs cover different file counts (#{before["files"]} vs #{after["files"]}); the corpus moved between them.")
 end
 
+SEVERITY = %w[
+  unexpected_error
+  template_error
+  invalid_ruby
+  compilation_failed
+  validation_error
+  timeout
+  failed
+  analyze_parse_error
+  strict_parse_error
+  strict_compilation_failed
+].freeze
+
+def worsened?(from, to)
+  from_rank = SEVERITY.index(from) || SEVERITY.size
+  to_rank = SEVERITY.index(to) || SEVERITY.size
+
+  to_rank < from_rank
+end
+
+def status_of(entry) = entry.is_a?(Hash) ? entry["status"] : entry
+
 def changes(before, after, key)
+  old = before[key] || {}
+  new = after[key] || {}
+
   {
-    "gained" => (Set.new(after[key].keys) - Set.new(before[key].keys)).sort,
-    "lost" => (Set.new(before[key].keys) - Set.new(after[key].keys)).sort
+    "gained" => (Set.new(new.keys) - Set.new(old.keys)).sort,
+    "lost" => (Set.new(old.keys) - Set.new(new.keys)).sort,
+    "changed" => (Set.new(old.keys) & Set.new(new.keys))
+                 .reject { |file| status_of(old[file]) == status_of(new[file]) }
+                 .sort
+                 .map { |file| [file, status_of(old[file]), status_of(new[file])] }
   }
 end
 
 parse = changes(before, after, "parse_failing")
 compile = changes(before, after, "compile_failing")
-crashes = changes(before, after, "parse_crashed")
 
 left = describe(before)
 right = describe(after)
@@ -114,27 +135,30 @@ puts
 
 table(
   [
-    ["parse failures", before["files_failing_parse"].to_s, after["files_failing_parse"].to_s,
-     delta(before["files_failing_parse"], after["files_failing_parse"])],
-    ["compile failures", before["files_failing_compile"].to_s, after["files_failing_compile"].to_s,
-     delta(before["files_failing_compile"], after["files_failing_compile"])],
-    ["crashes", before["files_crashed"].to_s, after["files_crashed"].to_s,
-     delta(before["files_crashed"], after["files_crashed"])],
-    ["total parse errors", before["total_errors"].to_s, after["total_errors"].to_s,
-     delta(before["total_errors"], after["total_errors"])],
-    ["files fully clean", before["files_clean"].to_s, after["files_clean"].to_s,
-     delta(before["files_clean"], after["files_clean"])]
+    ["malformed templates", before["files_malformed"].to_s, after["files_malformed"].to_s,
+     delta(before["files_malformed"].to_i, after["files_malformed"].to_i)],
+    ["parse issues (all)", before["files_failing_parse"].to_s, after["files_failing_parse"].to_s,
+     delta(before["files_failing_parse"].to_i, after["files_failing_parse"].to_i)],
+    ["compile issues", before["files_failing_compile"].to_s, after["files_failing_compile"].to_s,
+     delta(before["files_failing_compile"].to_i, after["files_failing_compile"].to_i)],
+    ["clean files", before["files_clean"].to_s, after["files_clean"].to_s,
+     delta(before["files_clean"].to_i, after["files_clean"].to_i)]
   ],
   ["", left, right, "DELTA"]
 )
 
+worse = (parse["changed"] + compile["changed"]).select { |_, from, to| worsened?(from, to) }
+better = (parse["changed"] + compile["changed"]).reject { |_, from, to| worsened?(from, to) }
+
 sections = [
-  [parse["gained"], ->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "parses", "parse")}" }, :red],
-  [compile["gained"], ->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "compiles", "compile")}" }, :red],
-  [crashes["gained"], ->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "crashes", "crash")} the parser" }, :red],
+  [parse["gained"], ->(n) { "#{pluralize(n, "file")} newly #{verb_for(n, "fails", "fail")} to parse" }, :red],
+  [compile["gained"], ->(n) { "#{pluralize(n, "file")} newly #{verb_for(n, "fails", "fail")} to compile" }, :red],
+  [worse.map { |file, from, to| "#{file}  #{from} -> #{to}" },
+   ->(n) { "#{pluralize(n, "file")} got a worse verdict" }, :red],
   [parse["lost"], ->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "parses", "parse")} again" }, :green],
   [compile["lost"], ->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "compiles", "compile")} again" }, :green],
-  [crashes["lost"], ->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "crashes", "crash")}" }, :green]
+  [better.map { |file, from, to| "#{file}  #{from} -> #{to}" },
+   ->(n) { "#{pluralize(n, "file")} got a better verdict" }, :green]
 ]
 
 sections.each do |entries, title, color|
@@ -147,9 +171,9 @@ end
 
 puts "\n#{Color.green("No change in outcomes.")}" if sections.all? { |entries, _, _| entries.empty? }
 
-regressions = parse["gained"] + compile["gained"] + crashes["gained"]
+regressions = parse["gained"] + compile["gained"] + worse.map(&:first)
 
-def markdown_report(before, after, parse, compile, crashes, regressions)
+def markdown_report(before, after, parse, compile, regressions, worse)
   out = []
 
   out << "<!-- corpus-report -->"
@@ -159,10 +183,10 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
   out << "| --- | ---: | ---: | ---: |"
 
   [
-    ["Parse failures", "files_failing_parse"],
-    ["Compile failures", "files_failing_compile"],
-    ["Crashes", "files_crashed"],
-    ["Files fully clean", "files_clean"]
+    ["Malformed templates", "files_malformed"],
+    ["Parse issues (all)", "files_failing_parse"],
+    ["Compile issues", "files_failing_compile"],
+    ["Clean files", "files_clean"]
   ].each do |label, key|
     change = after[key].to_i - before[key].to_i
     arrow = change.zero? ? "–" : (change.positive? ? "**+#{change}**" : "#{change}")
@@ -191,7 +215,9 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
 
       described =
         case detail
-        when Hash then detail.map { |type, count| count > 1 ? "`#{type}` ×#{count}" : "`#{type}`" }.join(", ")
+        when Hash
+          errors = (detail["errors"] || {}).map { |type, count| count > 1 ? "`#{type}` ×#{count}" : "`#{type}`" }
+          ["`#{detail["status"]}`", *errors].join(" — ")
         when String then "`#{detail}`"
         else ""
         end
@@ -208,8 +234,17 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
               parse["gained"], after, "parse_failing", 40)
   render.call(->(n) { "#{pluralize(n, "file")} no longer #{verb_for(n, "compiles", "compile")}" },
               compile["gained"], after, "compile_failing", 40)
-  render.call(->(n) { "#{pluralize(n, "file")} now #{verb_for(n, "crashes", "crash")} the parser" },
-              crashes["gained"], after, "parse_crashed", 40)
+
+  unless worse.empty?
+    out << ""
+    out << "<details open><summary><b>#{pluralize(worse.size, "file")} got a worse verdict</b></summary>"
+    out << ""
+    out << "| File | Was | Now |"
+    out << "| --- | --- | --- |"
+    worse.first(40).each { |file, from, to| out << "| `#{file}` | `#{from}` | `#{to}` |" }
+    out << ""
+    out << "</details>"
+  end
 
   fixed = parse["lost"] + compile["lost"]
 
@@ -230,7 +265,7 @@ def markdown_report(before, after, parse, compile, crashes, regressions)
 end
 
 if markdown_path
-  File.write(markdown_path, markdown_report(before, after, parse, compile, crashes, regressions))
+  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse))
   warn "Wrote #{markdown_path}"
 end
 

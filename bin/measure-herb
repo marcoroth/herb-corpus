@@ -8,8 +8,8 @@
 
 require "json"
 require "optparse"
-require "prism"
 require "fileutils"
+require "stringio"
 
 require_relative "../lib/pluralize"
 
@@ -19,7 +19,7 @@ options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil,
 
 OptionParser.new do |parser|
   parser.banner = "usage: measure-herb [options]"
-  parser.on("--version V", "Herb gem version to measure (default: whatever is activated)") { |v| options[:version] = v }
+  parser.on("--version V", "Herb gem version to measure") { |v| options[:version] = v }
   parser.on("--gem-path PATH", "Load Herb from a working tree instead of an installed gem") { |v| options[:gem_path] = v }
   parser.on("--label TEXT", "How to name this run in a comparison (default: derived)") { |v| options[:label] = v }
   parser.on("--corpus DIR", "Directory of .erb files (default: erb/)") { |v| options[:root] = File.expand_path(v) }
@@ -39,14 +39,16 @@ elsif options[:version]
 end
 
 require "herb"
-require "herb/engine"
+require "herb/project"
 
-PARSE_METRIC = "files_with_recursive_errors"
-COMPILE_METRIC = "files_that_fail_to_compile_to_valid_ruby"
-
-unless Herb.parse("<div></div>").value.respond_to?(:recursive_errors)
-  abort "herb #{Herb::VERSION} has no DocumentNode#recursive_errors; cannot measure comparably"
+unless defined?(Herb::Project) && Herb::Project.method_defined?(:analyze!)
+  abort "herb #{Herb::VERSION} has no Herb::Project#analyze!; cannot measure comparably"
 end
+
+METRIC = "herb_project_statuses"
+
+PARSE_STATUSES = %i[template_error unexpected_error strict_parse_error analyze_parse_error timeout failed].freeze
+COMPILE_STATUSES = %i[compilation_failed strict_compilation_failed invalid_ruby validation_error].freeze
 
 def git_describe(dir)
   return nil unless File.directory?(File.join(dir, ".git"))
@@ -80,39 +82,61 @@ abort "no .erb files under #{options[:root]}" if files.empty?
 
 parse_failing = {}
 parse_crashed = {}
-compile_failing = {}
-total_errors = 0
+project = Herb::Project.new(options[:root])
+
+project.file_paths = files
+project.silent = true
+project.no_log_file = true
+project.no_timing = true
+project.validate_ruby = true
 
 started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-files.each do |path|
-  relative = path.sub("#{options[:root]}/", "")
-  source = File.read(path)
+captured = StringIO.new
+original = $stdout
+$stdout = captured
 
-  begin
-    errors = Herb.parse(source).value.recursive_errors
-
-    unless errors.empty?
-      total_errors += errors.size
-
-      parse_failing[relative] = errors.map { |error| error.class.name.split("::").last }.tally
-    end
-  rescue StandardError => error
-    parse_crashed[relative] = error.class.name
-  end
-
-  begin
-    compiled = Herb::Engine.new(source).src
-
-    result = Prism.parse(compiled)
-
-    compile_failing[relative] = "InvalidRuby(#{result.errors.first&.type})" unless result.success?
-  rescue Exception => error # rubocop:disable Lint/RescueException
-    compile_failing[relative] = error.class.name
-  end
+begin
+  project.analyze!
+ensure
+  $stdout = original
 end
 
 elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+results = project.instance_variable_get(:@results)
+
+abort "Herb::Project produced no results" unless results
+
+relative = ->(path) { path.to_s.sub("#{options[:root]}/", "") }
+
+diagnostics = (results.file_diagnostics || {}).to_h { |path, list| [relative.call(path), list] }
+
+by_status = {}
+
+(PARSE_STATUSES + COMPILE_STATUSES).each do |status|
+  next unless results.respond_to?(status)
+
+  by_status[status.to_s] = Array(results.public_send(status)).map { |path| relative.call(path) }.sort
+end
+
+parse_failing = {}
+compile_failing = {}
+
+PARSE_STATUSES.each do |status|
+  by_status[status.to_s]&.each do |file|
+    parse_failing[file] = {
+      "status" => status.to_s,
+      "errors" => Array(diagnostics[file]).map { |d| d[:name] || d["name"] }.compact.tally
+    }
+  end
+end
+
+COMPILE_STATUSES.each do |status|
+  by_status[status.to_s]&.each { |file| compile_failing[file] = status.to_s }
+end
+
+malformed = by_status["template_error"] || []
 
 corpus_commit =
   begin
@@ -124,24 +148,20 @@ corpus_commit =
 report = {
   "label" => label,
   "herb_version" => Herb::VERSION,
-  "prism_version" => Prism::VERSION,
   "herb_ref" => herb_ref,
   "source" => options[:gem_path] ? "working-tree" : "gem",
-  "parse_metric" => PARSE_METRIC,
-  "compile_metric" => COMPILE_METRIC,
+  "metric" => METRIC,
   "corpus" => options[:root],
   "corpus_commit" => (corpus_commit.empty? ? nil : corpus_commit),
   "files" => files.size,
+  "files_clean" => Array(results.successful).size,
   "files_failing_parse" => parse_failing.size,
-  "files_crashed" => parse_crashed.size,
   "files_failing_compile" => compile_failing.size,
-  "files_clean" => files.size - (parse_failing.keys | parse_crashed.keys | compile_failing.keys).size,
-  "total_errors" => total_errors,
+  "files_malformed" => malformed.size,
+  "status_counts" => by_status.transform_values(&:size).reject { |_, count| count.zero? },
+  "diagnostic_counts" => diagnostics.values.flatten.filter_map { |d| d[:name] || d["name"] }.tally.sort_by { |_, c| -c }.to_h,
   "seconds" => elapsed.round(1),
-  "parse_error_types" => parse_failing.values.flat_map(&:keys).tally.sort_by { |_, count| -count }.to_h,
-  "compile_failure_types" => compile_failing.values.tally.sort_by { |_, count| -count }.to_h,
   "parse_failing" => parse_failing.sort.to_h,
-  "parse_crashed" => parse_crashed.sort.to_h,
   "compile_failing" => compile_failing.sort.to_h
 }
 
@@ -150,7 +170,10 @@ json = JSON.pretty_generate(report)
 if options[:out]
   FileUtils.mkdir_p(File.dirname(options[:out]))
   File.write(options[:out], "#{json}\n")
-  warn "#{label}: #{parse_failing.size} parse, #{compile_failing.size} compile failures of #{files.size} files (#{elapsed.round(1)}s) -> #{options[:out]}"
+
+  warn "#{label}: #{pluralize(malformed.size, "malformed template")}, " \
+       "#{parse_failing.size} parse and #{compile_failing.size} compile " \
+       "#{noun_for(compile_failing.size, "issue")} of #{files.size} files (#{elapsed.round(1)}s) -> #{options[:out]}"
 else
   puts json
 end
