@@ -832,15 +832,24 @@ end
 
 RUNS_DIR = File.join(ROOT, "runs")
 
-def measure_version(version, gem_path: nil, limit: nil, out: nil)
+def without_bundler(&block)
+  return yield unless defined?(Bundler)
+
+  Bundler.with_unbundled_env(&block)
+end
+
+def measure_version(version, gem_path: nil, limit: nil, out: nil, label: nil)
   args = [File.join(ROOT, "bin", "measure-herb")]
 
   args += ["--gem-path", gem_path] if gem_path
   args += ["--version", version] if version && !gem_path
+  args += ["--label", label] if label
   args += ["--limit", limit.to_s] if limit
   args += ["--out", out] if out
 
-  system(RbConfig.ruby, *args) or raise CommandError, "measurement failed for #{gem_path || version}"
+  ok = without_bundler { system(RbConfig.ruby, *args) }
+
+  ok or raise CommandError, "measurement failed for #{gem_path || version}"
 end
 
 def diff_runs!(before_path, after_path, fail_on_regression:)
@@ -887,7 +896,10 @@ def command_measure(argv)
   end
 
   if runs.size < 2
-    puts "\n#{File.read(runs.first).then { |json| JSON.parse(json) }.then { |r| "herb #{r["herb_version"]}: #{r["files_failing"]} of #{r["files"]} files failing" }}"
+    run = JSON.parse(File.read(runs.first))
+
+    puts "\n#{run["label"]}: #{run["files_failing_parse"]} parse, #{run["files_failing_compile"]} compile " \
+         "failure(s) of #{run["files"]} files"
     puts Color.dim("Pass a second --herb (or --gem-path) to compare.")
 
     return 0
