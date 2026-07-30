@@ -1,0 +1,207 @@
+<%= render "show_shared" %>
+
+<div class="row">
+  <div class="col-12 col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">
+        <h1><%= i @team.team_type.icon %> <%= @team.identifier_name %></h1>
+      </div>
+      <div class="card-body">
+        <div class="mb-3"><%= md @team.description %></div>
+      </div>
+    </div>
+
+    <% if @team.announcements.visible.any? %>
+      <div class="card mb-3">
+        <div class="card-header">
+          <h2>Announcements</h2>
+        </div>
+        <div class="card-body">
+          <% @team.announcements.visible.each do |announcement| %>
+            <h3>
+              <%= link_to announcement.title, announcement %>
+            </h3>
+            <%= md announcement.content %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if GatherPack::Features.enabled?(:qa) && @recent_questions.any? %>
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h2 class="mb-0">Questions</h2>
+          <%= link_to "View All", questions_path(q: { team_id_eq: @team.id, closed_eq: "0" }), class: "btn btn-sm btn-outline-primary" %>
+        </div>
+        <div class="card-body p-0">
+          <% @recent_questions.each do |question| %>
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+              <div>
+                <%= link_to question.title, question, "data-turbo": "false" %>
+                <% if question.closed? %>
+                  <span class="badge bg-secondary">Closed</span>
+                <% end %>
+                <br>
+                <small class="text-muted">
+                  <%= question.person.display_name %> &middot; <%= time_ago_in_words(question.created_at) %> ago
+                </small>
+              </div>
+              <div class="text-muted small">
+                <i class="fa-regular fa-comment"></i> <%= question.replies.size %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header">
+        <h2>About <%= @team.name %></h2>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 col-md-6">
+            <h3><%= @team.team_type.manager_title.pluralize(@team.managers.count) %></h3>
+            <div class="d-flex flex-row align-items-center flex-wrap mb-3">
+              <% @team.managers.order(display_name: :asc).each do |person| %>
+                <div class="p-1 w-10">
+                  <%= link_to person, title: person.display_name do %>
+                    <%= image_tag get_avatar_url_64(person.avatar), class: "person-img" %>
+                  <% end %>
+                </div>
+              <% end %>
+              <% if @team.all_managers.count > @team.managers.count %>
+                <div class="p-1 w-10">
+                  <%= link_to i("plus", size: "fa-2x"), "#", class: "badge bg-secondary", data: { bs_toggle: "modal", bs_target: "#ancestorManagersModal" }, title: "Show Parent Team Managers" %>
+
+                  <div class="modal fade" id="ancestorManagersModal" tabindex="-1" aria-labelledby="ancestorManagersModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h3 class="modal-title" id="ancestorManagersModalLabel">Indirect Managers</h3>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                          <% @team.all_ancestors.each do |ancestor| %>
+                            <div class="mb-3">
+                              <h4><%= as_badge ancestor %></h4>
+                              <div class="d-flex flex-row align-items-center flex-wrap">
+                                <% ancestor.managers.order(display_name: :asc).each do |person| %>
+                                  <div class="p-2 w-10">
+                                    <%= link_to person, title: person.display_name do %>
+                                      <%= image_tag get_avatar_url_128(person.avatar), class: "person-img" %>
+                                    <% end %>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <h3>Details</h3>
+            <% if @team.parent.present? %>
+              <p class="mb-1"><b>Part Of:</b> <%= link_to as_badge(@team.parent), @team.parent %></p>
+            <% end %>
+            <% if @team.siblings.any? %>
+              <p class="mb-1"><b>Sibling Teams:</b></p>
+              <div class="badge-container mb-2">
+                <% @team.siblings.order(name: :asc).each do |sibling| %>
+                  <%= link_to as_badge(sibling), sibling %>
+                <% end %>
+              </div>
+            <% end %>
+            <% if policy_scope(@team.children).any? %>
+              <p class="mb-1"><b>Sub-Teams:</b></p>
+              <div class="badge-container">
+                <% @team.children.order(name: :asc).each do |child| %>
+                  <%= link_to as_badge(child), child %>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <% if @team.join_permission == "has_account" && !@team.people.include?(current_user.person) %>
+          <%= link_to team_memberships_path(@team, membership: { person_id: current_user.person.id, manager: false }), class: "btn btn-success", data: { turbo_method: :post } do %>
+            <%= i "user-plus" %> Join
+          <% end %>
+        <% end %>
+        <% if @team.requires_approval? && !@team.people.include?(current_user.person) %>
+          <% pending_app = @team.membership_applications.pending.find_by(person: current_user.person) %>
+          <% if pending_app %>
+            <span class="badge bg-warning text-dark fs-6"><%= i "clock" %> Application Pending</span>
+          <% elsif policy(MembershipApplication.new(team: @team, person: current_user.person)).create? %>
+            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#applyToJoinModal">
+              <%= i "paper-plane" %> Apply to Join
+            </button>
+          <% end %>
+        <% end %>
+        <%= link_to "Edit", edit_team_path(@team), class: "btn btn-warning" if policy(@team).edit? %>
+        <%= link_to "Delete", @team, class: "btn btn-danger", data: { turbo_method: :delete, turbo_confirm: "Are you sure?" } if policy(@team).destroy? %>
+      </div>
+
+      <% if @team.requires_approval? && !@team.people.include?(current_user.person) && !@team.membership_applications.pending.exists?(person: current_user.person) && policy(MembershipApplication.new(team: @team, person: current_user.person)).create? %>
+        <div class="modal fade" id="applyToJoinModal" tabindex="-1" aria-labelledby="applyToJoinModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <%= simple_form_for [ current_user.person, MembershipApplication.new ], url: person_membership_applications_path(current_user.person, team_id: @team.id) do |f| %>
+                <div class="modal-header">
+                  <h3 class="modal-title" id="applyToJoinModalLabel">Apply to Join <%= @team.name %></h3>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <%= f.input :message, as: :text, input_html: { rows: 4 }, label: "Message (optional)", hint: "Tell the team managers why you'd like to join." %>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <%= f.submit "Submit Application", class: "btn btn-info" %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if GatherPack::Features.enabled?(:events) %>
+      <div class="card mb-3">
+        <div class="card-header">
+          <h2>Calendar</h2>
+        </div>
+        <div class="card-body">
+          <div data-controller="calendar"
+               data-calendar-default-view-value="listMonth"
+               data-calendar-timezone-value="<%= Settings[:time_zone].presence || "UTC" %>"
+               data-calendar-start-time-value="<%= Date.today.iso8601 %>"
+               data-calendar-inline-events-value="<%= @team.events.map { |event|
+                 bg = event.team&.color || "#3788d8"
+                 {
+                   id: event.id,
+                   title: event.name,
+                   allDay: false,
+                   start: event.start_time,
+                   end: event.end_time,
+                   url: event_path(event),
+                   backgroundColor: bg,
+                   textColor: Color::RGB.by_hex(bg).brightness > 0.5 ? "#6d6753" : "#fffdf6",
+                   extendedProps: { icon: "fa-" + (event.team&.team_type&.icon || "star") }
+                 }
+               }.to_json %>">
+            <div id="calendar" data-turbo="false"></div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
