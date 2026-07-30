@@ -2,4 +2,4 @@
 
 source "https://rubygems.org"
 
-gem "yerba", "~> 0.8"
+gem "yerba", "~> 0.8.1"
