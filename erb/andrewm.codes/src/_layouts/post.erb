@@ -1,0 +1,33 @@
+---
+layout: default
+---
+
+<% collection_label = resource.collection&.label || "posts" %>
+<% siblings = collections.send(collection_label).resources.sort_by(&:date).reverse %>
+<% idx = siblings.find_index { |p| p.relative_url == resource.relative_url } %>
+<% prev_post = idx && siblings[idx + 1] %>
+<% next_post = idx && idx > 0 ? siblings[idx - 1] : nil %>
+<% back = data.back || { "path" => "/posts/", "label" => "all posts" } %>
+<% updated_time = resource.updated_at %>
+
+<%= render PageShell.new(width: :narrow) do %>
+  <%= render BackLink.new(href: back["path"], label: back["label"]) %>
+
+  <%= render PostHeader.new(resource: resource) %>
+
+  <% if resource.stale? %>
+    <%= render StaleNote.new(updated_at: updated_time) %>
+  <% end %>
+
+  <%= render Prose.new(as: :article, variant: :post, max_w: false) do %>
+    <%= yield %>
+  <% end %>
+
+  <%= render PostFooter.new(
+    resource: resource,
+    previous_resource: prev_post,
+    next_resource: next_post,
+  ) %>
+
+  <%= render Webmentions.new(url: resource.relative_url) %>
+<% end %>
