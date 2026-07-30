@@ -1,0 +1,52 @@
+<% url_for_route ||= nil # specify a search path, otherwise uses current path %>
+<% url_for_route_params ||= url_for_route.present? ? Rails.application.routes.recognize_path(url_for_route) : {} %>
+<% sortable_url_for_params ||= url_for_route_params.merge(sortable_params) %>
+<% skip_title_and_description ||= false %>
+
+<% unless skip_title_and_description # skipped by admin %>
+  <h4 class="text-lg leading-5 mb-1" style=""><%= link_to citation.title, citation.url, class: "no-underline hover:underline" %></h4>
+  <% if citation.description.present? || citation.topics.present? %>
+    <p class="leading-5 mb-1">
+      <%= citation.description %>
+      <span class="text-sm text-gray-400 mb-1">
+        <%= topic_links(citation.topics, {class: "text-sm text-gray-400", include_current: true}, url: sortable_url_for_params) %>
+      </span>
+    </p>
+  <% end %>
+<% end %>
+<p class="leading-5 mb-1 text-gray-500 text-sm">
+  <% if citation.published_at.present? %>
+    <span class="localizeTime skipTimeTitle mr-2" title="Published at"><%= l(citation.published_at, format: :localize_time) %></span>
+  <% end %>
+  <%# skip showing publisher if self published %>
+  <% if [citation.publisher_name] != citation.authors_rendered %>
+    <span class="mr-2">
+      <%= link_to citation.publisher_name, sortable_url_for_params.merge(search_publisher: citation.publisher_name), class: "text-gray-500 decoration-publisher" %>
+    </span>
+  <% end %>
+  <% if citation.authors_rendered.any? %>
+    <span class="mr-2">
+      <% authors_count = citation.authors_rendered.count - 1 %>
+      <% rendered_text = "" %>
+      <% citation.authors_rendered.each_with_index do |author, index| %>
+        <% collapsed = rendered_text.length > 50 %>
+        <span class="<%= collapsed ? 'collapsible hidden' : '' %>">
+          <%= link_to(author, url_for(sortable_url_for_params.merge(search_author: author)), class: "text-gray-500 no-underline") %><%= index < authors_count ? ", " : "" %>
+        </span>
+        <% rendered_text += author %>
+      <% end %>
+      <% if rendered_text.length > 50 %>
+        <a href="#" class="expandSiblingsEllipse strong text-lg collapsible">...</a>
+      <% end %>
+    </span>
+  <% end %>
+  <% if citation.paywall %>
+    <span class="-ml-1 mr-2">($)</span>
+  <% end %>
+  <% if citation.word_count.present? %>
+    <span class="mr-2">
+      <%= number_with_delimiter(citation.word_count_rough) %>
+      words
+    </span>
+  <% end %>
+</p>

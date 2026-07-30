@@ -1,0 +1,109 @@
+<%= bops_task_accordion(id: "review-conditions-section") do |accordion| %>
+  <% accordion.with_heading(text: "Review conditions") %>
+
+  <% if @planning_application.consideration_set.current_review.started? %>
+    <%= render "planning_applications/review/tasks/summaries/considerations",
+          accordion: accordion,
+          current_review: @planning_application.consideration_set.current_review,
+          considerations: @planning_application.consideration_set.considerations %>
+  <% end %>
+
+  <% if @planning_application.review_heads_of_terms? && @planning_application.heads_of_term.current_review.started? %>
+    <%= render "planning_applications/review/tasks/summaries/heads_of_terms",
+          accordion: accordion,
+          current_review: @planning_application.heads_of_term.current_review,
+          terms: @planning_application.heads_of_term.terms.not_cancelled %>
+  <% end %>
+
+  <% if @planning_application.possibly_immune? && @planning_application.immunity_detail.reviews.evidence.any? %>
+    <%= accordion.with_section(id: "review-immunity-details", expanded: @planning_application.immunity_detail.current_evidence_review.errors.any?) do |section| %>
+      <% section.with_heading(text: "Review evidence of immunity") %>
+
+      <% section.with_status do %>
+        <%= render StatusTags::ReviewComponent.new(review_item: @planning_application.immunity_detail.current_evidence_review) %>
+      <% end %>
+
+      <% section.with_block do %>
+        <%= render(
+              PlanningApplications::ImmunityDetailsAssessmentComponent.new(planning_application: @planning_application, evidence_groups: @planning_application.immunity_detail.evidence_groups)
+            ) %>
+        <%= govuk_link_to "Edit", task_path(slug: "check-and-assess/assess-immunity/evidence-of-immunity", return_to: planning_application_review_tasks_path(@planning_application, anchor: "review-conditions-section")) %>
+      <% end %>
+
+      <% section.with_footer(id: "review-immunity-details-form") do %>
+        <%= render(partial: "planning_applications/review/immunity_details/form") %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if @planning_application.possibly_immune? && @planning_application.immunity_detail.reviews.enforcement.any? %>
+    <%= accordion.with_section(id: "review-immunity-enforcements", expanded: @planning_application.immunity_detail.current_enforcement_review.errors.any?) do |section| %>
+      <% section.with_heading(text: "Review assessment of immunity") %>
+
+      <% section.with_status do %>
+        <%= render StatusTags::ReviewComponent.new(review_item: @planning_application.immunity_detail.current_enforcement_review) %>
+      <% end %>
+
+      <% section.with_block do %>
+        <%= render(partial: "planning_applications/review/immunity_enforcements/details") %>
+      <% end %>
+
+      <% section.with_footer(id: "review-immunity-enforcements-form") do %>
+        <%= render(partial: "planning_applications/review/immunity_enforcements/form") %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if @planning_application.check_permitted_development_rights? &&  @planning_application.permitted_development_right_in_progress? %>
+    <% @permitted_development_right ||= @planning_application.permitted_development_right %>
+    <% accordion.with_section(id: "review-permitted-development-rights", expanded: @permitted_development_right.errors.any?) do |section| %>
+      <%= section.with_heading(text: "Review permitted development rights") %>
+      <% section.with_status do %>
+        <%= render StatusTags::ReviewComponent.new(review_item: @permitted_development_right) %>
+      <% end %>
+      <% section.with_block do %>
+        <%= render(partial: "planning_applications/review/permitted_development_rights/summary") %>
+      <% end %>
+      <% section.with_footer(id: "review-permitted-development-rights-form") do %>
+        <%= render(partial: "planning_applications/review/permitted_development_rights/form") %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if @planning_application.application_type.planning_conditions? %>
+    <% if @planning_application.pre_commencement_condition_set&.current_review&.started? %>
+      <%= render "planning_applications/review/tasks/summaries/pre_commencement_conditions",
+            accordion: accordion,
+            current_review: @planning_application.pre_commencement_condition_set.current_review,
+            conditions: @planning_application.pre_commencement_condition_set.approved_conditions %>
+    <% end %>
+
+    <% if @planning_application.condition_set&.current_review&.started? %>
+      <%= render "planning_applications/review/tasks/summaries/conditions",
+            accordion: accordion,
+            current_review: @planning_application.condition_set.current_review,
+            conditions: @planning_application.condition_set.conditions %>
+    <% end %>
+  <% end %>
+
+  <% if @planning_application.application_type.informatives? %>
+    <% if @planning_application.informative_set&.current_review&.started? %>
+      <%= render "planning_applications/review/tasks/summaries/informatives",
+            accordion: accordion,
+            current_review: @planning_application.informative_set.current_review,
+            informatives: @planning_application.informative_set.informatives %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<ul class="app-task-list__items">
+  <% if @planning_application.application_type.assess_against_policies? %>
+    <li class="app-task-list__item" id="review-policy-classes">
+      <span class="app-task-list__task-name">
+        <%= govuk_link_to "Review assessment against legislation", planning_application_review_policy_areas_policy_classes_path(@planning_application) %>
+      </span>
+    </li>
+  <% end %>
+
+  <%= render "planning_applications/review/tasks/sign_off_recommendation" %>
+</ul>

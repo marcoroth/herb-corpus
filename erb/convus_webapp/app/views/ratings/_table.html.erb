@@ -1,0 +1,93 @@
+<% ratings ||= @ratings %>
+<% skip_sortable ||= false %>
+<% skip_header ||= false %>
+
+<% render_user ||= false %>
+<% hide_private_users ||= false %>
+<% shown_private_user_ids = (current_user&.followings_approved_private&.pluck(:id) || []) if render_user && hide_private_users %>
+
+<% render_assign_topic ||= false %>
+<% assign_topic ||= @assign_topics&.first %>
+<% hide_header ||= false %>
+
+<% render_ranking ||= false %>
+<% ranking_modifier ||= 0 %>
+<% ranking_count = render_ranking && ratings.count %>
+
+<% filter_link ||= !render_ranking %>
+<% url_for_route ||= nil # specify a search path, otherwise uses current path %>
+<% url_for_route_params ||= url_for_route.present? ? Rails.application.routes.recognize_path(url_for_route) : {} %>
+<% filter_link = url_for_route_params if filter_link && url_for_route_params.present? %>
+
+<% group_citation_ratings = !render_assign_topic && !render_ranking %>
+
+<% table_classes = "table table-sm table-striped break-words max-w-full" %>
+<% table_classes += " toggleChecksWrapper" if render_assign_topic %>
+<% table_classes += " hide_header" if hide_header %>
+
+<%# large-width-container - but without x-padding on smaller screens %>
+<div class="mx-auto max-w-main-content ratings-table-wrapper">
+  <table class="<%= table_classes %>">
+    <% unless skip_header %>
+      <thead class="sortable">
+        <tr>
+          <% if render_assign_topic %>
+            <th><input type="checkbox" class="less-strong toggleChecks hiddenNoJs" value="true"></th>
+          <% elsif render_ranking %>
+            <th>Rank</th>
+          <% end %>
+          <th class="">
+            <%= sortable "created_at", "Rated", skip_sortable: skip_sortable, class: "sortable-link-narrow" %>
+            <%= sortable "display_name", "Article", skip_sortable: skip_sortable, class: "sortable-link-narrow" %>
+          </th>
+        </tr>
+      </thead>
+    <% end %>
+    <tbody>
+      <%# This is a shitty hack %>
+      <% rendered_ids = [] %>
+      <% ratings.each_with_index do |rating, i| %>
+        <% next if rendered_ids.include?(rating.citation_id) %>
+
+        <tr>
+          <%# special state for no ratings table that still needs to render something %>
+          <% if rating.is_a?(String) %>
+            <% colspan = 5 %>
+            <td><span class="block w-8"></span></td>
+            <td><span class="w-3 less-strong">
+                <em class="block lg:hidden mt-1 max-w-md"><%= rating %></em>
+              </span></td>
+            <td class="hidden lg:table-cell max-w-lg lg:max-w-2xl lg:w-rWidth"><em class="less-strong"><%= rating %></em></td>
+            <td colspan="<%= colspan %>"></td>
+          <% else %>
+            <% if render_assign_topic %>
+              <td style="width: 2rem;"><%= check_box_tag "rating_id_#{rating.id}", true, rating.has_topic?(assign_topic), class: "toggleableCheck" %></td>
+            <% elsif render_ranking %>
+              <% rank = ranking_count + ranking_modifier - i %>
+              <td class="rank-cell"><%= number_field_tag "rank_rating_#{rating.id}", rank, step: 1, class: "form-control w-8 border-slate-900 p-0 text-center leading-none" %></td>
+            <% end %>
+
+            <td class="maxWScreen max-w-lg lg:max-w-2xl lg:w-rWidth" style="padding-top: 1rem; padding-bottom: 1rem;">
+              <!-- max-w-md maxWScreen -->
+              <% if rating.missing_url? || rating.citation.blank? %>
+                <%= rating_display(rating) %>
+              <% else %>
+                <%= render partial: "/shared/citation", locals: {citation: rating.citation, url_for_route_params: url_for_route_params} %>
+              <% end %>
+
+              <%= render partial: "/shared/rating_row", locals: {rating: rating, render_user: render_user, filter_link: filter_link, hide_private_users: hide_private_users, shown_private_user_ids: shown_private_user_ids, wrapper_class: "mt-2"} %>
+
+              <% if group_citation_ratings %>
+                <% rendered_ids << rating.citation_id %>
+                <% viewable_ratings.where(citation_id: rating.citation_id).where.not(id: rating.id).each do |o_rating| %>
+                  <%= render partial: "/shared/rating_row", locals: {rating: o_rating, render_user: render_user, filter_link: filter_link, hide_private_users: hide_private_users, shown_private_user_ids: shown_private_user_ids} %>
+                <% end %>
+              <% end %>
+            </td>
+          <% end %>
+
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

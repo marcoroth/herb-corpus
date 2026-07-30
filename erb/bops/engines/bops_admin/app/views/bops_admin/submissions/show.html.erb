@@ -1,0 +1,147 @@
+<% content_for :page_title do %>
+  Submission <%= @submission.application_reference %> - <%= t("page_title") %>
+<% end %>
+
+<% add_parent_breadcrumb_link "Home", root_path %>
+<% add_parent_breadcrumb_link "Submissions", submissions_path %>
+
+<% content_for :title, "Submission #{@submission.application_reference}" %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-full">
+    <h1>Submission</h1>
+
+    <% if @submission.submitted? %>
+      <%= govuk_notification_banner(title_text: t(".awaiting_review.title")) do %>
+        <p class="govuk-notification-banner__heading">
+          <%= t(".awaiting_review.body") %>
+        </p>
+      <% end %>
+    <% end %>
+
+    <%= govuk_summary_list(actions: false, classes: "govuk-summary-list--no-border") do |summary_list| %>
+      <% {
+           "Submission service reference" => @submission.application_reference,
+           "Submission source" => @submission.source,
+           "Submission status" => @submission.status,
+           "Submission created at" => @submission.created_at.to_fs(:day_month_year_seconds),
+           "Submission started at" => @submission.started_at&.to_fs(:day_month_year_seconds),
+           "Submission completed at" => @submission.completed_at&.to_fs(:day_month_year_seconds),
+           "Submission failed at" => @submission.failed_at&.to_fs(:day_month_year_seconds),
+           "External UUID" => @submission.external_uuid
+         }.each do |key, value| %>
+        <% summary_list.with_row do |row| %>
+          <% row.with_key { key } %>
+          <% row.with_value { value } %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% if @submission.documents.any? %>
+      <h3>Submission documents</h3>
+      <%= govuk_table(
+            head: ["Filename", "Uploaded At", "View"],
+            rows: @submission.documents.order(:created_at).map do |document|
+              [
+                document.file.filename.to_s,
+                document.created_at.to_fs,
+                link_to_document("View", document)
+              ]
+            end
+          ) %>
+    <% else %>
+      <p>No documents have been extracted for this submission yet.</p>
+    <% end %>
+
+    <% if @submission.failed? %>
+      <%= govuk_details(summary_text: "Error") do %>
+        <pre><%= @submission.error_message %></pre>
+      <% end %>
+    <% end %>
+
+    <%= govuk_details(summary_text: "Request Body") do %>
+      <pre><%= JSON.pretty_generate(@submission.request_body) %></pre>
+    <% end %>
+
+    <%= govuk_details(summary_text: "Request Headers") do %>
+      <pre><%= JSON.pretty_generate(@submission.request_headers) %></pre>
+    <% end %>
+
+    <% if @submission.planning_portal? %>
+      <%= govuk_details(summary_text: "Application payload") do %>
+        <pre><%= JSON.pretty_generate(@submission.json_file) %></pre>
+      <% end %>
+
+      <%= govuk_details(summary_text: "Other files") do %>
+        <pre><%= JSON.pretty_generate(@submission.other_files) %></pre>
+      <% end %>
+    <% end %>
+
+    <hr class="govuk-section-break govuk-section-break--xl govuk-section-break--visible">
+
+    <% if @planning_application %>
+      <div class="govuk-grid-row">
+        <div class="govuk-grid-column-full">
+          <h2>Planning Application</h2>
+
+          <%= govuk_summary_list(actions: false, classes: "planning-applications-summary-list") do |pa_list| %>
+            <% {
+                 "Reference" => @planning_application.reference,
+                 "Status" => @planning_application.status.humanize,
+                 "Received at" => @planning_application.received_at&.to_fs,
+                 "Local Authority" => @planning_application.local_authority.council_name,
+                 "Application Type" => @planning_application.application_type.description
+               }.each do |key, value| %>
+              <% pa_list.with_row do |row| %>
+                <% row.with_key { key } %>
+                <% row.with_value { value } %>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <% if @planning_application.documents.any? %>
+            <h3>Planning Application documents</h3>
+            <%= govuk_table(
+                  id: "planning-application-documents-table",
+                  head: ["Filename", "Uploaded At", "View"],
+                  rows: @planning_application.documents.order(:created_at).map do |document|
+                    [
+                      document.file.filename.to_s,
+                      document.created_at.to_fs,
+                      link_to_document("View", document)
+                    ]
+                  end
+                ) %>
+          <% else %>
+            <p>No documents have been attached to this planning application yet.</p>
+          <% end %>
+        </div>
+      </div>
+    <% elsif @submission.case_record %>
+      <p>
+        There is a case associated with this submission with type:
+        <%= @submission.case_record.caseable_type %>
+        and case id:
+        <%= @submission.case_record.id + "." %>
+      </p>
+    <% elsif @submission.submitted? %>
+      <p><%= t(".awaiting_review.no_application_yet") %></p>
+    <% elsif @submission.started? %>
+      <p><%= t(".processing.body") %></p>
+    <% else %>
+      <p>There is no case associated with this submission.</p>
+    <% end %>
+
+    <% if @submission.submitted? || @submission.failed? %>
+      <%= form_with model: @submission, url: submission_path(@submission), method: :patch do |form| %>
+        <%= form.govuk_submit(t(".submit_button")) do %>
+          <%= back_link %>
+        <% end %>
+      <% end %>
+    <% else %>
+      <div class="govuk-button-group">
+        <%= back_link %>
+      </div>
+    <% end %>
+  </div>
+</div>

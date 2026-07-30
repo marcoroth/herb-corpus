@@ -1,0 +1,32 @@
+<%= render(Admin::CurrentHeader::Component.new(viewing: controller_name.humanize, competition_subject: nil, searchable_competitions: nil, period: @period, s_params: sortable_params, pagy: @pagy, render_chart: @render_chart, chart_collection: @matching_users, time_range: @time_range, time_range_column: @time_range_column)) %>
+
+<%# Local var because cell blocks run via instance_exec in the table component context %>
+<% show_dev_info = display_dev_info? %>
+
+<%= render(UI::Table::Component.new(records: @users, render_sortable: true, sticky: true)) do |table|
+  table.column(sortable: "created_at", lower_right: (->(u) { u.id } if show_dev_info)) do |user|
+    render(UI::Time::Component.new(time: user.created_at))
+  end
+
+  table.column(sortable: "display_name") do |user|
+    link_to(user.display_name, edit_admin_user_path(user), class: "twlink")
+  end
+
+  table.column(sortable: "strava_username", label: "Strava") { |user| strava_link(user) }
+
+  table.column(sortable: "last_sign_in_at", label: "Last sign in") do |user|
+    if user.last_sign_in_at.present?
+      render(UI::Time::Component.new(time: user.last_sign_in_at))
+    end
+  end
+
+  table.column(sortable: "sign_in_count", label: "Sign ins") { |user| number_display(user.sign_in_count) }
+
+  table.column(label: "Competitions") do |user|
+    link_to(number_display(user.competition_users.size), admin_competition_users_path(user: user.slug), class: "twlink")
+  end
+
+  table.column(sortable: "role") { |user| user.role unless user.role == "basic_user" }
+end %>
+
+<%= render(UI::Pagination::Component.new(pagy: @pagy, page_params: sortable_params)) %>

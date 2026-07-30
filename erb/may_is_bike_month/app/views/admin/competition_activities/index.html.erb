@@ -1,0 +1,81 @@
+<%= render(Admin::CurrentHeader::Component.new(viewing: controller_name.humanize, include_competition_select: competition_user_subject.blank?, competition_subject:, user_subject:, user_param: params[:user], searchable_competitions:, period: @period, s_params: sortable_params, pagy: @pagy, render_chart: @render_chart, chart_collection: @matching_competition_activities, time_range: @time_range, time_range_column: @time_range_column)) do |c| %>
+  <% c.with_extra_action do %>
+    <%= link_to "exclusion reason", url_for(sortable_params.merge(search_show_exclusion_reason: !@show_exclusion_reason)), class: "twlink #{"active" if @show_exclusion_reason}" %>
+  <% end %>
+<% end %>
+
+<% if competition_user_subject.present? %>
+  <p class="mb-2">
+    Activities for competition user:
+    <strong><%= competition_user_subject.display_name %></strong> in
+    <strong><%= competition_user_subject.competition.display_name %></strong>
+    <span class="less-strong"><em>&ndash; <%= link_to "view all activities", url_for(sortable_params.merge(search_competition_user_id: nil)), class: "twlink" %></em></span>
+  </p>
+<% end %>
+
+<%# Local vars because cell blocks run via instance_exec in the table component context %>
+<% show_dev_info = display_dev_info? %>
+<% show_exclusion_reason = @show_exclusion_reason %>
+
+<%= render(UI::Table::Component.new(records: @competition_activities, render_sortable: true, sticky: true)) do |table|
+  table.column(sortable: "start_at", label: "Start", lower_right: (->(ca) { ca.id } if show_dev_info)) do |ca|
+    render(UI::Time::Component.new(time: ca.start_at))
+  end
+
+  table.column(label: "Activity") do |ca|
+    link_to(ca.display_name.presence || ca.strava_id, ca.strava_url, class: "twlink", target: "_blank", rel: "noopener")
+  end
+
+  table.column(sortable: "competition_user_id", label: "User") do |ca|
+    safe_join([
+      link_to(ca.competition_user.display_name, edit_admin_competition_user_path(ca.competition_user), class: "twlink"),
+      "&nbsp;".html_safe,
+      link_to("🔍", admin_competition_activities_path(search_competition_user_id: ca.competition_user_id), title: "Filter activities by this user")
+    ])
+  end
+
+  if competition_subject.blank?
+    table.column(label: "Competition") { |ca| ca.competition&.display_name }
+  end
+
+  table.column(sortable: "distance_meters", label: "Distance") do |ca|
+    if ca.distance_meters
+      safe_join([
+        tag.span(safe_join([number_display(meters_to_miles(ca.distance_meters), round_to: 1), " mi"]), class: "unit-imperial"),
+        tag.span(safe_join([number_display(ca.distance_meters / 1000.0, round_to: 1), " km"]), class: "unit-metric hidden"),
+        (tag.div("manual entry after competition ended", class: "less-strong") if ca.manual_entry_after_competition_ended?)
+      ].compact)
+    end
+  end
+
+  table.column(label: "Elevation") do |ca|
+    if ca.elevation_meters
+      safe_join([
+        tag.span(safe_join([number_display(meters_to_feet(ca.elevation_meters)), " ft"]), class: "unit-imperial"),
+        tag.span(safe_join([number_display(ca.elevation_meters), " m"]), class: "unit-metric hidden")
+      ])
+    end
+  end
+
+  table.column(label: "Type") { |ca| ca.strava_type }
+
+  table.column(sortable: "included_in_competition", label: "Included?") do |ca|
+    if ca.included_in_competition
+      check_mark
+    elsif show_exclusion_reason
+      tag.ul(class: "list-disc list-inside") { safe_join(ca.exclusion_reasons.map { |r| tag.li(r) }) }
+    end
+  end
+
+  table.column(sortable: "created_at", label: "Created") do |ca|
+    render(UI::Time::Component.new(time: ca.created_at))
+  end
+
+  if show_dev_info
+    table.column(sortable: "updated_at") do |ca|
+      render(UI::Time::Component.new(time: ca.updated_at))
+    end
+  end
+end %>
+
+<%= render(UI::Pagination::Component.new(pagy: @pagy, page_params: sortable_params)) %>

@@ -1,0 +1,89 @@
+<% ratings ||= @ratings %>
+<% skip_sortable ||= false %>
+<% skip_citation ||= false %>
+<% filter_link ||= !skip_sortable %>
+
+<% table_classes = "table table-sm break-words" %>
+<div class="full-screen-table">
+  <table class="<%= table_classes %>">
+    <thead class="sortable">
+      <tr>
+        <th>
+          <%= sortable "created_at", "Rated", skip_sortable: skip_sortable %>
+        </th>
+        <th>
+          <%= sortable "user_id", skip_sortable: skip_sortable, class: "sortable-link-narrow" %>
+        </th>
+        <% unless skip_citation %>
+          <th>
+            <%= sortable "display_name", "Citation", skip_sortable: skip_sortable, class: "sortable-link-narrow" %>
+          </th>
+        <% end %>
+        <th>Version</th>
+        <% if display_dev_info? %>
+          <th class="only-dev-visible">
+            <%= sortable "version_integer", "Version #", skip_sortable: skip_sortable %>
+          </th>
+        <% end %>
+        <th>
+          <%= sortable "meta", "Meta?", skip_sortable: skip_sortable %>
+        </th>
+        <th>Keywords?</th>
+        <th>Text?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% ratings.each do |rating| %>
+        <tr>
+          <td>
+            <% if display_dev_info? %><code class="only-dev-visible-small ratingId"><%= rating.id %></code><% end %>
+            <%= link_to l(rating.created_at, format: :localize_time), admin_rating_path(rating), class: "localizeTime" %>
+          </td>
+          <td>
+            <small class="inline-block less-strong mr-1">
+              <%= link_to rating.user&.username, url_for(sortable_params.merge(user: rating.user_id)) %>
+            </small>
+            <span class="">
+              <%= agreement_display(rating.agreement, link: filter_link) %>
+              <%= quality_display(rating.quality, link: filter_link) %>
+              <%= learned_something_display(rating.learned_something?, link: filter_link) %>
+              <%= changed_opinion_display(rating.changed_opinion?, link: filter_link) %>
+              <%= significant_factual_error_display(rating.significant_factual_error?, link: filter_link) %>
+              <%= not_finished_display(rating.not_finished?, link: filter_link) %>
+            </span>
+          </td>
+          <% unless skip_citation %>
+            <td class="max-w-md maxWScreen">
+              <% if rating.missing_url? %>
+                missing url
+              <% else %>
+                <%= admin_citation_cell(rating.citation) %>
+              <% end %>
+            </td>
+          <% end %>
+          <td>
+            <small><%= rating.source %></small>
+          </td>
+          <% if display_dev_info? %>
+            <td>
+              <small><%= rating.version_integer %></small>
+            </td>
+          <% end %>
+          <td class="table-cell-check">
+            <%= check_mark if rating.metadata_present? %>
+          </td>
+          <td class="table-cell-check">
+            <% if rating.metadata_attributes[:keywords]&.any? %>
+              <%= check_mark %>
+            <% elsif rating.metadata_unprocessed? %>
+              <small class="block text-left text-error">unprocessed</small>
+            <% end %>
+          </td>
+          <td class="table-cell-check">
+            <%= check_mark if rating.citation_text.present? %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

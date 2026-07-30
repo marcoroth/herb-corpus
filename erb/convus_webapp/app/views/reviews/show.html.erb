@@ -1,0 +1,108 @@
+<h1 class="mb-4 standard-top-offset">
+  Review of <%= topic_review_display(@topic_review) %>
+  <small class="less-strong">(view <%= link_to "other reviews", reviews_path %>)</small>
+</h1>
+<h2 class="mb-2">
+  <% if @topic_review.pending? %>
+    <% if @topic_review.start_at.present? %>
+      This review is scheduled to start
+      <span class="localizeTime withPreposition"><%= l(@topic_review.start_at, format: :localize_time) %></span>.
+    <% else %>
+      This review is pending and doesn't have a scheduled start
+    <% end %>
+  <% else %>
+    <% if @topic_review.active? %>
+      This is the <em>current review</em>, the review period ends
+    <% else %>
+      This review ended
+    <% end %>
+    <span class="localizeTime withPreposition"><%= l(@topic_review.end_at || Time.current + 1.week, format: :localize_time) %></span>.
+  <% end %>
+</h2>
+
+<% if @topic_review.ended? %>
+  <div class="standard-top-offset">
+    <%= render partial: "/shared/citations_list", locals: {objects: @topic_review_citations.required, bordered_list: true, title: "Best articles on #{@topic_review.topic_name}"} %>
+  </div>
+  <% if @topic_review_citations.constructive.any? %>
+    <%= render partial: "/shared/citations_list", locals: {objects: @topic_review_citations.constructive, wrapper_class: "standard-top-offset", title: "Other recommended articles"} %>
+  <% end %>
+  <%# also add in recommended %>
+<% elsif @topic_review.pending? %>
+  <p>Email <a href="mailto:support@convus.org">support@convus.org</a> if you have questions</p>
+<% else %>
+  <p class="mt-4 mb-4">
+    Check out
+    <%= link_to ratings_path(search_topics: @topic_review.topic_name) do %>
+      articles that have been rated about <strong><%= @topic_review.topic_name %></strong>
+    <% end %>.
+  </p>
+
+  <!--   <% if @topic_review_citations.recommended.any? %>
+    <%= render partial: "/shared/citations_list", locals: {objects: @topic_review_citations.recommended, wrapper_class: "standard-top-offset", title: "Articles which users have recommended on this topic:", show_read: true} %>
+  <% end %> -->
+
+  <hr class="mt-8">
+
+  <p class="standard-top-offset">
+    <% if current_user.blank? %>
+      After you have rated some articles,
+    <% elsif @topic_review_votes.blank? %>
+      You haven't marked any ratings applicable to <strong><%= @topic_review.topic_name %></strong> yet.
+    <% end %>
+    <%= link_to "Select your ratings", ratings_path(user: "current_user", search_assign_topics: @topic_review&.slug) %> that apply to this topic.
+  </p>
+  <p class="mt-2">
+    Rank your ratings on this page by dragging and dropping them (higher up is better).
+  </p>
+<% end %>
+
+<% if @topic_review.active? && current_user.present? && @topic_review_votes.present? %>
+  <% topic_review ||= @topic_review %>
+  <% topic_review_votes ||= @topic_review_votes %>
+  <% required_ratings = topic_review_votes.required.ratings %>
+  <% constructive_ratings = topic_review_votes.constructive.ratings %>
+  <% not_recommended_ratings = topic_review_votes.not_recommended.ratings %>
+
+  <%= form_tag review_path(topic_review.slug), method: :patch, class: "standard-top-offset" do %>
+    <div data-controller="sortable-ratings">
+      <script>
+        window.rankOffset = <%= TopicReviewVote::RENDERED_OFFSET * 2 %> 
+      </script>
+      <%=
+        render partial: "/shared/citations_list",
+        locals: {objects: required_ratings,
+                 bordered_list: true,
+                 render_ranking: true,
+                 list_id: "bestList",
+                 ranking_modifier: constructive_ratings.count + TopicReviewVote::RENDERED_OFFSET,
+                 title: "Best articles on #{@topic_review.topic_name}"}
+      %>
+
+      <%=
+        render partial: "/shared/citations_list",
+        locals: {objects: constructive_ratings,
+                 render_ranking: true,
+                 wrapper_class: "mt-4",
+                 ranking_modifier: 0,
+                 list_id: "constructiveList",
+                 title: "Good Articles (but not the best)"}
+      %>
+
+      <div class="mt-8 pb-1.5">
+        <%= button_tag "Save ranking", type: "submit", class: "btn" %>
+      </div>
+
+      <h3 class="mt-8">Articles you <strong class="text-error">wouldn't</strong> recommend</h3>
+      <%=
+        render partial: "/shared/citations_list",
+        locals: {objects: not_recommended_ratings,
+                 render_ranking: true,
+                 bordered_list: true,
+                 list_id: "notRecommendedList",
+                 ranking_modifier: -(not_recommended_ratings.count + 1),
+                 skip_title: true}
+      %>
+    </div>
+  <% end %>
+<% end %>

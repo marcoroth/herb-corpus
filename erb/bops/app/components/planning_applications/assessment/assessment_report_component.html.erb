@@ -1,0 +1,243 @@
+<section id="application-details-section" class="govuk-!-margin-bottom-7">
+  <h3 class="govuk-heading-m"><%= t(".application_details") %></h3>
+
+  <%= helpers.govuk_summary_list(actions: false, classes: "govuk-summary-list--no-border") do |summary_list|
+        {
+          "Applicant" => planning_application.applicant_name,
+          "Application number" => planning_application.reference,
+          "Application type" => planning_application.application_type.description,
+          "Decision date" => planning_application.determination_date&.to_fs || "TBD",
+          "Site address" => planning_application.full_address,
+          "Use/development" => planning_application.description,
+          "Assigned officer" => planning_application.user&.name || "Unassigned",
+          "Recommendation agreed by" => planning_application.recommendation&.reviewer&.name || "TBD"
+        }.each do |pair|
+          summary_list.with_row do |row|
+            row.with_key { pair[0] }
+            row.with_value { pair[1] }
+          end
+        end
+      end %>
+</section>
+
+<section id="constraints-section" class="govuk-!-margin-bottom-7">
+  <h3 class="govuk-heading-m"><%= t(".constraints_including_article") %></h3>
+
+  <% if @planning_application.planning_application_constraints.active.empty? %>
+    <p class="govuk-!-padding-6 govuk-!-margin-bottom-6 background-light-grey">
+      <strong>There are no planning constraints on the application site.</strong>
+    </p>
+  <% else %>
+    <p>
+      The application site has these constraints:
+    </p>
+    <%= render(
+          partial: "shared/constraints/info",
+          locals: {
+            planning_application: @planning_application,
+            planning_application_constraints: @planning_application.planning_application_constraints.active,
+            show_update_button: false
+          }
+        ) %>
+  <% end %>
+  <% if show_edit_links && current_user.assessor? %>
+    <p class="govuk-body-s">
+      <% if task.present? %>
+        <%= helpers.govuk_link_to("Edit constraints", task_path(@planning_application, "check-and-validate/check-application-details/check-constraints", return_to: task.url)) %>
+      <% else %>
+        <%= helpers.govuk_link_to("Edit constraints", planning_application_validation_constraints_path(@planning_application)) %>
+      <% end %>
+    </p>
+  <% end %>
+</section>
+<section id="site-histories-section" class="govuk-!-margin-bottom-7">
+  <h3 class="govuk-heading-m"><%= t(".site_history") %></h3>
+  <%= render "planning_applications/assessment/site_histories/table", site_histories: site_histories, show_action: false %>
+</section>
+<% if immunity_detail && review = immunity_detail.current_enforcement_review %>
+  <section id="immunity-section">
+    <%= render(
+          PlanningApplications::ImmunityDetailsAssessmentComponent.new(planning_application: planning_application, evidence_groups: immunity_detail.evidence_groups)
+        ) %>
+    <p><strong>On the balance of probabilities, is the development immune from enforcement action?</strong></p>
+    <p>Decision: <%= review.decision %></p>
+    <p>Reason: <%= review.decision_reason %></p>
+    <p>Summary: <%= review.summary %></p>
+  </section>
+<% end %>
+<% if permitted_development_right.persisted? %>
+  <section id="permitted-development-rights-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".have_the_permitted_development_rights") %></h3>
+    <% if permitted_development_right.removed %>
+      <p><strong>Yes</strong></p>
+      <%= render(FormattedContentComponent.new(text: permitted_development_right.removed_reason)) %>
+    <% elsif permitted_development_right.removed == false %>
+      <p><strong>No</strong></p>
+    <% end %>
+  </section>
+<% end %>
+<% if summary_of_work.present? %>
+  <section id="summary-of-works-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".summary_of_works") %></h3>
+    <%= render(FormattedContentComponent.new(text: summary_of_work.entry)) %>
+  </section>
+<% end %>
+<% if site_description.present? %>
+  <section id="site-description-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".location_description") %></h3>
+    <%= render(FormattedContentComponent.new(text: site_description.entry)) %>
+  </section>
+<% end %>
+<% if consultation_summary.present? %>
+  <section id="consultation-summary-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".consultees") %></h3>
+    <% if planning_application.consultation&.consultees&.any? %>
+      <ul class="govuk-list govuk-list--bullet">
+        <% consultation.consultees.each do |consultee| %>
+          <li><%= "#{consultee.name} (#{consultee.origin})" %></li>
+        <% end %>
+      </ul>
+    <% end %>
+    <%= render(FormattedContentComponent.new(text: consultation_summary.entry)) %>
+  </section>
+<% end %>
+<% if neighbour_summary %>
+  <section id="neighbour-responses-summary-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".neighbour_responses") %></h3>
+    <% if consultation.neighbour_responses.any? %>
+      <p><%= neighbour_responses_summary_text(consultation.neighbour_responses_by_summary_tag) %></p>
+    <% end %>
+    <%= render(FormattedContentComponent.new(text: neighbour_summary.entry)) %>
+  </section>
+<% end %>
+<% if show_additional_evidence && additional_evidence.present? %>
+  <section id="other-considerations-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".other_considerations") %></h3>
+    <%= render(FormattedContentComponent.new(text: additional_evidence.entry)) %>
+  </section>
+<% end %>
+<% if @planning_application.planning_permission? %>
+  <section id="considerations-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".assessment_against_policies_and_guidance") %></h3>
+    <% if considerations.any? %>
+      <% considerations.each do |consideration| %>
+        <div class="govuk-inset-text govuk-!-padding-top-0 govuk-!-padding-bottom-0">
+          <h4 class="govuk-heading-m govuk-!-margin-bottom-1"><%= consideration.policy_area %></h4>
+          <dl class="govuk-summary-list">
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">
+                Policy
+              </dt>
+              <dd class="govuk-summary-list__value">
+                <ol class="govuk-list">
+                  <% consideration.policy_references.each do |reference| %>
+                    <li><%= reference.code_and_description %></li>
+                  <% end %>
+                </ol>
+              </dd>
+            </div>
+            <% if consideration.policy_guidance.present? %>
+              <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">
+                  Guidance
+                </dt>
+                <dd class="govuk-summary-list__value">
+                  <ol class="govuk-list">
+                    <% consideration.policy_guidance.each do |guidance| %>
+                      <li><%= guidance.description %></li>
+                    <% end %>
+                  </ol>
+                </dd>
+              </div>
+            <% end %>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">
+                Assessment
+              </dt>
+              <dd class="govuk-summary-list__value">
+                <%= render(FormattedContentComponent.new(text: consideration.assessment)) %>
+              </dd>
+            </div>
+            <div class="govuk-summary-list__row">
+              <dt class="govuk-summary-list__key">
+                Conclusion
+              </dt>
+              <dd class="govuk-summary-list__value">
+                <%= render(FormattedContentComponent.new(text: consideration.conclusion)) %>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="govuk-!-padding-6 govuk-!-margin-bottom-6 background-light-grey">
+        <strong><%= t(".no_considerations_assessed") %></strong>
+      </p>
+    <% end %>
+    <% if show_edit_links && current_user.assessor? %>
+      <p class="govuk-body-s">
+        <%= helpers.govuk_link_to("Edit assessment", task_path(@planning_application, "check-and-assess/assess-against-policies-and-guidance/assess-against-policies-and-guidance", return_to: task.url)) %>
+      </p>
+    <% end %>
+  </section>
+<% end %>
+
+<% if @planning_application.assess_against_policies? %>
+  <section id="policy-classes-section" class="govuk-!-margin-bottom-7">
+    <h3 class="govuk-heading-m"><%= t(".assessment_against_legislation") %></h3>
+
+    <dl class="govuk-summary-list" style="border-top: 1px solid #b1b4b6;">
+      <div class="govuk-summary-list__row">
+        <dt class="govuk-summary-list__key">
+          Is this proposal 'development' under Section 55 of the Town and Country Planning Act 1990?
+        </dt>
+        <dd class="govuk-summary-list__value">
+          <%= @planning_application.display_section_55_development %>
+        </dd>
+      </div>
+    </dl>
+    <% planning_application_policy_classes.each do |pa_policy_class| %>
+      <p><%= helpers.govuk_link_to pa_policy_class.description, pa_policy_class.url %></p>
+
+      <dl class="bops-assessment-list">
+        <% pa_policy_class.planning_application_policy_sections.each do |pa_policy_section| %>
+          <div class="bops-assessment-list__row">
+            <dt class="bops-assessment-list__section">
+              <%= pa_policy_section.section %>
+            </dt>
+            <dd class="bops-assessment-list__description">
+              <p>
+                <%= pa_policy_section.description %>
+              </p>
+              <% if comment = pa_policy_section.last_comment %>
+                <%= bops_ticket_panel(colour: "yellow") do |ticket| %>
+                  <% ticket.with_body { comment.text } %>
+                  <% ticket.with_footer { comment.information } %>
+                <% end %>
+              <% end %>
+            </dd>
+            <dd class="bops-assessment-list__status">
+              <%= render(StatusTags::BaseComponent.new(status: pa_policy_section.status)) %>
+            </dd>
+          </div>
+        <% end %>
+      </dl>
+      <% if show_edit_links && current_user.assessor? %>
+        <p class="govuk-body-s">
+          <%= helpers.govuk_link_to("Edit assessment", task_path(@planning_application, "check-and-assess/assess-against-policies-and-guidance/assess-against-policies-and-guidance", return_to: task.url)) %>
+        </p>
+      <% end %>
+    <% end %>
+    <div id="policy-classes-summary">
+      <h3 class="govuk-heading-m">Conclusion: assessment against policies</h3>
+      <%= render(StatusTags::BaseComponent.new(status: @planning_application.overall_policy_status)) %>
+    </div>
+  </section>
+<% end %>
+
+<% if @planning_application.decision? && @planning_application.public_comment? %>
+  <h3 class="govuk-heading-m"><%= t("recommendation.body", decision: planning_application.decision) %></h3>
+  <%= render(FormattedContentComponent.new(text: planning_application.public_comment)) %>
+<% end %>
+
+<%= render "planning_applications/assessment/recommendations/documents", planning_application: planning_application, documents: documents %>

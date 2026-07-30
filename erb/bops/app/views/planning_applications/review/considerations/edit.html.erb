@@ -1,0 +1,97 @@
+<% content_for :page_title do %>
+  Review assessment against policies and guidance - <%= t("page_title") %>
+<% end %>
+
+<%= render(
+      partial: "shared/review_task_breadcrumbs",
+      locals: {planning_application: @planning_application}
+    ) %>
+
+<% content_for :title, "Review assessment against policies and guidance" %>
+
+<%= render(
+      partial: "shared/proposal_header",
+      locals: {heading: "Review assessment against policies and guidance"}
+    ) %>
+
+<% if @planning_application.local_authority.planning_policy_and_guidance? %>
+  <p class="govuk-!-margin-bottom-7">
+  <%= govuk_link_to "Check your local policies and guidance",
+        @planning_application.local_authority.planning_policy_and_guidance,
+        new_tab: true %>
+  </p>
+<% end %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-full">
+    <h2 class="govuk-!-margin-bottom-0">Considerations</h2>
+    <hr class="govuk-section-break govuk-section-break--l govuk-section-break--visible">
+
+    <% if @considerations.any? %>
+      <ol data-controller="sortable" class="govuk-list sortable-list">
+        <% @considerations.each do |consideration| %>
+          <%= content_tag(:li,
+                id: dom_id(consideration),
+                class: "consideration sortable-list sortable-container govuk-!-margin-bottom-7",
+                data: {
+                  model_name: "Consideration",
+                  sortable_url: planning_application_review_considerations_item_position_path(@planning_application, consideration),
+                  sortable_handle: true
+                }) do %>
+
+            <div class="govuk-!-margin-bottom-6">
+              <span class="govuk-caption-m">Consideration <%= consideration.position %></span>
+              <h2 class="govuk-!-margin-bottom-3"><%= consideration.policy_area %></h2>
+
+              <div data-controller="summary">
+                <div class="bops-summary" data-summary-target="content">
+                  <h3>
+                    Policy
+                  </h3>
+
+                  <p>
+                    <%= consideration.policy_references.map(&:code_and_description).join("; ") %>
+                  </p>
+
+                  <% if consideration.policy_guidance.present? %>
+                    <h3>
+                      Guidance
+                    </h3>
+                    <p>
+                      <%= consideration.policy_guidance.map(&:description).join("; ") %>
+                    </p>
+                  <% end %>
+
+                  <h3>
+                    Assessment
+                  </h3>
+                  <%= render(FormattedContentComponent.new(text: consideration.assessment)) %>
+
+                  <h3>
+                    Conclusion
+                  </h3>
+                  <%= render(FormattedContentComponent.new(text: consideration.conclusion)) %>
+                </div>
+
+                <nav class="nav-links" data-summary-target="navigation" aria-label="Actions for consideration <%= consideration.position %>">
+                  <%= govuk_link_to "Edit", edit_planning_application_review_considerations_item_path(@planning_application, consideration) %>
+                </nav>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </ol>
+
+      <p><%= t(".drag_and_drop") %></p>
+    <% else %>
+      <p>
+        <strong>No considerations added</strong>
+        <hr class="govuk-section-break govuk-section-break--l govuk-section-break--visible">
+      </p>
+    <% end %>
+
+    <%= render "planning_applications/review/shared/review_information" %>
+
+    <%= govuk_button_link_to(t("back"), planning_application_review_tasks_path(@planning_application, anchor: "review-considerations"), secondary: true) %>
+  </div>
+</div>

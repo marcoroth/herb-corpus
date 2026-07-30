@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+
+<html lang="en" class="govuk-template app-html-class">
+  <%= render "application/head" %>
+
+  <body
+    class="govuk-template__body app-body-class"
+    data-test="My value"
+    data-other="report:details">
+    <%= javascript_tag nonce: true do %>
+      document.body.className += ' js-enabled' + ('noModule' in
+      HTMLScriptElement.prototype ? ' govuk-frontend-supported' : '');
+    <% end %>
+
+    <% if gtmid = Rails.configuration.google_tag_manager_id %>
+      <!-- Google Tag Manager (noscript) -->
+      <noscript>
+        <iframe
+          src="https://www.googletagmanager.com/ns.html?id=<%= gtmid %>"
+          title="Google Tag Manager"
+          height="0"
+          width="0"
+          style="display:none;visibility:hidden"></iframe>
+      </noscript>
+      <!-- End Google Tag Manager (noscript) -->
+    <% end %>
+
+    <% unless @blank_layout == true %>
+      <%= link_to "Skip to main content", "#main-content", class: "govuk-skip-link", "data-module": "govuk-skip-link" %>
+      <div class="bops-headers<% if @show_header_bar && !@show_sidebar %> bops-headers--sticky <% end %>">
+        <%= bops_environment_banner %>
+        <%= render "application/header" %>
+
+        <% if @show_header_bar %>
+          <%= render_navigation unless @show_sidebar %>
+          <%= render BopsCore::HeaderBarComponent.new(
+                left: [
+                  {text: tag.strong(govuk_link_to(@planning_application.reference,
+                    main_app.planning_application_path(@planning_application),
+                    no_visited_state: true))},
+                  {text: @planning_application.full_address}
+                ],
+                right: [
+                  {label: "Application information", href: main_app.planning_application_information_path(@planning_application)}
+                ],
+                toggle: (
+                  {
+                    condensed_text: "Show proposal description",
+                    expanded_text: "Hide proposal description",
+                    content: content_tag(:p, @planning_application.description, class: "govuk-!-margin-0")
+                  }
+                )
+              ) %>
+          <% if defined?(information_navigation_items) && information_navigation_items.any? %>
+            <%= govuk_service_navigation do |nav| %>
+              <% information_navigation_items.each { |item| nav.with_navigation_item(**item) } %>
+            <% end %>
+          <% end %>
+        <% else %>
+          <div class="govuk-width-container"><%= render_navigation %></div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="<% if @show_sidebar %> bops-fullwidth-container <% else %> govuk-width-container app-width-container--wide <% end %>">
+      <% if @show_sidebar %>
+        <%= render SidebarComponent.new(params:, task: @show_sidebar) %>
+      <% end %>
+
+      <main
+        class="govuk-main-wrapper govuk-main-wrapper--auto-spacing app-main-class"
+        id="main-content"
+        role="main">
+        <% if @show_sidebar %>
+          <div class="govuk-width-container"><%= render_navigation %></div>
+        <% end %>
+
+        <div class="govuk-width-container">
+          <%= render "application/flash_content" %>
+        </div>
+
+        <div class="govuk-width-container"><%= yield %></div>
+      </main>
+    </div>
+
+    <% unless @show_sidebar %>
+      <%= render "application/footer" %>
+    <% end %>
+
+    <%= javascript_include_tag "govuk", nonce: true %>
+  </body>
+</html>

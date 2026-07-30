@@ -1,0 +1,36 @@
+<%= render(Admin::CurrentHeader::Component.new(viewing: controller_name.humanize, competition_subject: nil, user_subject:, user_param: params[:user], searchable_competitions: nil, period: @period, s_params: sortable_params, pagy: @pagy, render_chart: @render_chart, chart_collection: @matching_strava_requests, time_range: @time_range)) %>
+
+<%# Local var because cell blocks run via instance_exec in the table component context %>
+<% show_dev_info = display_dev_info? %>
+
+<%= render(UI::Table::Component.new(records: @strava_requests, render_sortable: true, sticky: true)) do |table|
+  table.column(sortable: "created_at", lower_right: (->(sr) { sr.id } if show_dev_info)) do |strava_request|
+    render(UI::Time::Component.new(time: strava_request.created_at))
+  end
+
+  table.column(sortable: "user_id", label: "User") do |strava_request|
+    strava_request.user&.display_name
+  end
+
+  table.column(sortable: "kind") { |strava_request| strava_request.kind }
+
+  table.column(sortable: "status") do |strava_request|
+    if strava_request.success_response?
+      tag.span(strava_request.status, class: "text-emerald-600 dark:text-emerald-400")
+    else
+      tag.span(strava_request.status, class: "text-rose-600 dark:text-rose-400")
+    end
+  end
+
+  table.column(label: "Parameters") do |strava_request|
+    tag.code(strava_request.parameters&.to_json, class: "text-xs break-all")
+  end
+
+  table.column(label: "Error") do |strava_request|
+    if strava_request.error_response.present?
+      tag.code(strava_request.error_response.to_json, class: "text-xs break-all")
+    end
+  end
+end %>
+
+<%= render(UI::Pagination::Component.new(pagy: @pagy, page_params: sortable_params)) %>

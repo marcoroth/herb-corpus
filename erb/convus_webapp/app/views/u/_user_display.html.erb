@@ -1,0 +1,78 @@
+<% render_second_hr ||= false %>
+<% render_links = viewing_current_user? || user.account_public? || user.follower_approved?(current_user) %>
+<div>
+  <div><%# not p because button_to breaks it %>
+    <strong class="inline-block mr-1">User</strong>
+    <%= user.username %>
+    <% if viewing_current_user? %>
+      <em class="ml-3">This is you! <%= link_to "edit your account", edit_u_path(user.to_param), class: "link-primary font-semibold" %></em>
+    <% else %>
+      <span class="mx-1">-</span>
+      <% if current_user&.following?(user) %>
+        <%= button_to "stop following", {controller: "following", action: "destroy", id: user.to_param}, method: :delete, class: "link" %>
+      <% else %>
+        <%= link_to "follow", add_following_path(user.to_param) %>
+      <% end %>
+    <% end %>
+  </div>
+  <p class="mt-2">
+    <strong class="inline-block mr-1">Signed up</strong>
+    <span class="localizeTime"><%= l(user.created_at, format: :localize_time) %></span>
+  </p>
+  <p class="mt-2">
+    <strong class="inline-block mr-1">Following</strong>
+    <% if render_links %>
+      <%= link_to number_with_delimiter(user.followings_approved.count), following_u_path(id: user.to_param) %>
+    <% else %>
+      <%= number_with_delimiter(user.followings_approved.count) %>
+    <% end %>
+  </p>
+  <p class="mt-2">
+    <strong class="inline-block mr-1">Followers</strong>
+    <% if render_links %>
+      <%= link_to followers_u_path(id: user.to_param) do %>
+        <%= number_with_delimiter(user.followers_approved.count) %>
+        <% if viewing_current_user? && user.user_followers.unapproved.any? %>
+          <em class="less-strong">
+            - <%= number_with_delimiter(user.user_followers.unapproved.count) %> waiting on approval
+          </em>
+        <% end %>
+      <% end %>
+    <% else %>
+      <%= number_with_delimiter(user.followers_approved.count) %>
+    <% end %>
+  </p>
+  <p class="mt-2">
+    <strong class="inline-block mr-1">Kudos</strong>
+    <%= user.total_kudos || 0 %>
+    <span class="less-strong">
+      (<%= user.total_kudos_today %> today  |
+      <%= user.total_kudos_yesterday %> yesterday)
+    </span>
+  </p>
+  <p class="mt-2">
+    <strong class="inline-block mr-1">Ratings</strong>
+    <% if render_links %>
+      <%= link_to number_with_delimiter(user.ratings.count), ratings_path(user: user.to_param) %>
+    <% else %>
+      <%= number_with_delimiter(user.ratings.count) %>
+    <% end %>
+    <% if user.ratings_private? %>
+      <span class="less-strong">(private)</span>
+    <% else %>
+      <span class="ml-2 less-strong opacity-0">
+        (<%= number_with_delimiter(user.ratings.created_today.count) %> today  |
+        <%= number_with_delimiter(user.ratings.created_yesterday.count) %> yesterday)
+      </span>
+    <% end %>
+  </p>
+  <% if user.about.present? %>
+    <p class="mt-2">
+      <strong class="block">About</strong>
+      <%= user.about %>
+    </p>
+  <% end %>
+  <% if render_second_hr %>
+    <hr class="mt-4 mb-6">
+  <% end %>
+</div>

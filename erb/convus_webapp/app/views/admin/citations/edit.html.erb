@@ -1,0 +1,190 @@
+<%= content_for :main_wrapper_class, "container-padded" %>
+<% ratings = @citation.ratings %>
+
+<div class="large-width-container">
+  <h1 class="standard-top-offset mb-4">Edit Citation</h1>
+  <p class="mb-3">
+    Missing metadata: <%= missing_meta_count(@citation) %>
+    <% missing_meta = @citation.missing_meta_attrs %>
+    <% if missing_meta.count > 0 && missing_meta.count < Citation::COUNTED_META_ATTRS.count %>
+      <small class="less-strong">(<%= @citation.missing_meta_attrs.join(", ") %>)</small class="text-sm">
+    <% end %>
+  </p>
+  <%= form_with(model: @citation, url: admin_citation_url(@citation), method: :patch, class: "pb-2") do |f| %>
+    <%= render partial: "/shared/errors", locals: {obj: @citation, name: "Citation"} %>
+    <div class="row sm:grid-cols-2">
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :title %>
+          <%= f.text_field :title, class: "form-control", required: true %>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :url %>
+          <%= f.text_field :url, class: "form-control", disabled: true %>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <%= f.label :topics_string do %>
+        Topics
+        <small class="less-strong">Comma delineated</small>
+      <% end %>
+      <%= f.text_field :topics_string, placeholder: "If blank, topics are set from the Rating metadata", class: "form-control" %>
+    </div>
+    <div class="form-row">
+      <%= f.label :subject %>
+      <%= f.text_field :subject, class: "form-control" %>
+    </div>
+    <div class="form-row-btn">
+      <%= f.submit "save", class: "btn" %>
+    </div>
+    <div class="row sm:grid-cols-2">
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :authors_str do %>
+            Authors
+            <small class="less-strong">new line delineated</small>
+          <% end %>
+          <%= f.text_area :authors_str, class: "form-control" %>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :description %>
+          <%= f.text_area :description, class: "form-control" %>
+        </div>
+      </div>
+    </div>
+    <div class="row sm:grid-cols-2">
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :word_count %>
+          <%= f.number_field :word_count, class: "form-control" %>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :canonical_url %>
+          <%= f.text_field :canonical_url, class: "form-control" %>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :paywall, class: "form-control-check" do %>
+            <%= f.check_box :paywall %>
+            Has a paywall
+          <% end %>
+        </div>
+      </div>
+    </div>
+    <div class="row sm:grid-cols-3">
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :published_at do %>
+            Published at
+            <% if !@edit_published_date %>
+              <%= link_to "edit published at",
+                url_for(edit_published_date: true),
+                class: "less-strong sm:text-sm text-xs",
+                title: "iOS refuses to accept the date, also shouldn't be edited unintentionally (to avoid messing up the timezone, etc)" %>
+            <% end %>
+          <% end %>
+          <% if @edit_published_date %>
+            <%= f.hidden_field :timezone, class: "hiddenFieldTimezone" %>
+            <%= f.datetime_local_field :published_at_in_zone, class: "form-control" %>
+          <% else %>
+            <p class="form-control bg-gray-100 cursor-not-allowed">
+              <% if @citation.published_at.present? %>
+                <span class="localizeTime"><%= l(@citation.published_at, format: :localize_time) %></span>
+              <% else %>
+                <span class="less-strong">none</span>
+              <% end %>
+            </p>
+          <% end %>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-row">
+          <%= f.label :published_updated_at %>
+          <% if @edit_published_date %>
+            <%= f.datetime_local_field :published_updated_at_in_zone, class: "form-control" %>
+          <% else %>
+            <p class="form-control bg-gray-100 cursor-not-allowed">
+              <% if @citation.published_updated_at.present? %>
+                <span class="localizeTime"><%= l(@citation.published_updated_at, format: :localize_time) %></span>
+              <% else %>
+                <span class="less-strong">none</span>
+              <% end %>
+            </p>
+          <% end %>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-row">
+          <label>Publisher</label>
+          <p class="form-control bg-gray-100">
+            <%= link_to @citation.publisher_name, admin_publisher_path(@citation.publisher_id), class: "decoration-publisher" %>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <%= f.label :citation_text %>
+      <%= f.text_area :citation_text, class: "form-control text-sm", rows: 3 %>
+    </div>
+  <% end %>
+  <% if display_dev_info? %>
+    <div class="only-dev-visible">
+      <label class="small">Manually updated attributes:</label>
+      <code><%= @citation.manually_updated_attributes %></code>
+      <span class="small block">
+        At:
+        <% if @citation.manually_updated_at.present? %>
+          <span class="localizeTime"><%= l(@citation.manually_updated_at, format: :localize_time) %></span>
+        <% else %>
+          <span class="less-strong">none</span>
+        <% end %>
+      </label>
+    </div>
+  <% end %>
+
+  <h2 class="standard-top-offset mb-2">
+    <% ratings_count = ratings.count %>
+    <%= admin_number_display(ratings_count) %>
+    <%= "Rating".pluralize(ratings_count) %>
+    <% if ratings_count > 10 %>
+      <small>first 10 shown, <%= link_to "see all", admin_ratings_path(search_citation_id: @citation.id) %></small>
+    <% end %>
+    <%= button_to "reprocess ratings", admin_citation_path(@citation.to_param, update_citation_metadata_from_ratings: true), method: :patch, class: "link text-sm text-primary" %>
+  </h2>
+
+  <%= render partial: "/admin/ratings/table", locals: {ratings: ratings.limit(10), skip_sortable: true, skip_citation: true} %>
+</div>
+
+<%# skip reprocess, since we don't want to process inline %>
+<% ratings_ordered = UpdateCitationMetadataFromRatingsJob.ordered_ratings(@citation, skip_reprocess: true) %>
+
+<div class="large-width-container my-4">
+  <h2 class="mt-4">
+    <%= admin_number_display(ratings_ordered.count) %>
+    <%= "Rating".pluralize(ratings_ordered.count) %>
+    <small>with metadata that can be parsed</small>
+  </h2>
+  <div class="row sm:grid-cols-2">
+    <% ratings_ordered.each do |rating| %>
+      <div class="col mt-4 mr-2 py-2 border-gray-200 border">
+        <p>
+          <%= link_to l(rating.created_at, format: :localize_time), admin_rating_path(rating), class: "localizeTime" %>
+          by: <%= rating.user&.username %>
+
+        </p>
+        <div class="code-small">
+          <%# skipping canonical_url for now, because it's just noise %>
+          <%= pretty_print_json(rating.metadata_attributes.except(:canonical_url)) %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

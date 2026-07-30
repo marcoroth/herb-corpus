@@ -1,0 +1,138 @@
+<% content_for :page_title do %>
+  Documents - <%= t("page_title") %>
+<% end %>
+
+<% add_parent_breadcrumb_link "Home", root_path %>
+<% add_parent_breadcrumb_link "Application", planning_application_path(@planning_application) %>
+
+<% content_for :title, "Documents" %>
+
+<% if @planning_application.replacement_document_validation_requests.open_or_pending.with_active_document.any? %>
+  <div class="govuk-error-summary" aria-labelledby="error-summary-title" role="alert" tabindex="-1">
+    <svg class="alert__icon" fill="red" role="presentation" focusable="false" xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 25 25" height="25" width="25">
+      <path d="M13.6,15.4h-2.3v-4.5h2.3V15.4z M13.6,19.8h-2.3v-2.2h2.3V19.8z M0,23.2h25L12.5,2L0,23.2z"></path>
+    </svg>
+    <div class="govuk-error-summary__body">
+      <ul class="govuk-list govuk-error-summary__list">
+        <li>
+          Invalid documents:
+          <span>
+            <strong>
+              <%= @planning_application.replacement_document_validation_requests.open_or_pending.with_active_document.count %>
+            </strong>
+          </span>
+        </li>
+      </ul>
+    </div>
+  </div>
+<% end %>
+
+<%= render(
+      partial: "shared/proposal_header",
+      locals: {heading: "Documents"}
+    ) %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-two-thirds">
+    <p>
+      Check all documents to ensure they support the information provided by the applicant and add tags to indicate the document contents.
+    </p>
+    <p>
+      <% if @planning_application.validated? %>
+        <%= govuk_link_to(
+              t(".request_a_new"),
+              new_planning_application_validation_validation_request_path(@planning_application, type: "additional_document"),
+              class: "govuk-body"
+            ) %>
+      <% end %>
+    </p>
+    <p>
+      <% if @planning_application.can_edit_documents? %>
+        <%= govuk_link_to(
+              t(".upload_document"),
+              new_planning_application_document_path(@planning_application),
+              class: "govuk-body"
+            ) %>
+      <% end %>
+    </p>
+  </div>
+</div>
+<hr class="govuk-section-break govuk-section-break--l govuk-section-break--visible">
+<% if @additional_document_validation_requests.any? %>
+  <%= render(
+        partial: "planning_applications/validation/additional_document_validation_requests/additional_document_validation_requests_table",
+        locals: {validation_requests: @additional_document_validation_requests}
+      ) %>
+<% end %>
+<% if @documents.active.any? %>
+  <%= render "active_documents_table", documents: @documents.active %>
+<% end %>
+
+<h2>
+  Archived documents
+</h2>
+
+<% if filter_archived(@documents).present? %>
+  <table class="govuk-table archived-documents">
+    <thead class="govuk-table__head">
+      <tr class="govuk-table__row">
+        <th scope="col" class="govuk-table__header govuk-!-width-one-quarter">Document</th>
+        <th scope="col" class="govuk-table__header govuk-!-width-one-quarter">Tags</th>
+        <th scope="col" class="govuk-table__header govuk-!-width-one-quarter">Date uploaded</th>
+        <th scope="col" class="govuk-table__header govuk-!-width-one-quarter">Officer's comment</th>
+      </tr>
+    </thead>
+    <tbody class="govuk-table__body">
+      <% filter_archived(@documents).each do |document| %>
+        <tr class="govuk-table__row">
+          <td class="govuk-table__cell govuk-!-width-one-quarter">
+            <p class="govuk-!-margin-bottom-1">
+              <%= document_thumbnail_link document, thumbnail_args: {resize: "300x212"} %>
+            </p>
+            <p>
+              <%= document.name %><br>
+              <%= link_to_document "View in new window", document %>
+            </p>
+            <p>
+              <%= form_for document, url: planning_application_document_unarchive_path(document_id: document.id), class: "restore" do |form| %>
+                  <%= form.submit "Restore document", class: "govuk-body btn-link govuk-link" %>
+              <% end %>
+            </p>
+          </td>
+          <td class="govuk-table__cell govuk-!-width-one-quarter">
+            <% if document.tags.present? %>
+              <% document.tags.each do |tag| %>
+                <strong class="govuk-tag govuk-tag--turquoise document-tag"><%= I18n.t(:"#{tag}", scope: :document_tags) %></strong>
+              <% end %>
+            <% else %>
+              <p class="govuk govuk-!-margin-bottom-1">
+                <em>No tags added</em>
+              </p>
+            <% end %>
+          </td>
+          <td class="govuk-table__cell govuk-!-width-one-quarter">
+            <p class="govuk-!-margin-bottom-1">
+              <%= document.created_at.to_date.to_fs %>
+            </p>
+          </td>
+          <td class="govuk-table__cell govuk-!-width-one-quarter">
+            <p>
+              <% if document.archive_reason.present? %>
+                <%= document.archive_reason %>
+              <% else %>
+                <em>No reason provided</em>
+              <% end %>
+            </p>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p>
+    <strong>No documents archived</strong>
+  </p>
+<% end %>
+
+<%= back_link %>

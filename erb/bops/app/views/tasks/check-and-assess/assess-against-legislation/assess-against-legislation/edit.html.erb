@@ -1,0 +1,126 @@
+<%= render "task_header", task: @task, heading: "Assess – #{@form.assessment_area_name}" %>
+
+<%= render(ReviewerCommentComponent.new(comment: @form.assessment_area.current_review)) %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-full">
+    <% @form.grouped_policy_sections.each do |_title, sections| %>
+      <% sections.each do |section| %>
+        <% if (comment = section.last_comment) %>
+          <%= form_with url: @form.assessment_area_url, method: :patch, id: "remove-comment-form-#{comment.id}", scope: @form.param_key do |f| %>
+            <%= hidden_field_tag :task_action, "remove_comment" %>
+            <%= f.hidden_field :comment_id, value: comment.id %>
+          <% end %>
+          <%= form_with url: @form.assessment_area_url, method: :patch, id: "edit-comment-form-#{comment.id}", scope: @form.param_key do |f| %>
+            <%= hidden_field_tag :task_action, "edit_comment" %>
+            <%= f.hidden_field :comment_id, value: comment.id %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%= form_with model: @form, url: @form.assessment_area_url do |form| %>
+      <%= form.govuk_error_summary %>
+
+      <h2><%= @form.assessment_area_description %></h2>
+
+      <p>
+        Complete the assessment to show whether the application complies or does
+        not comply with the selected legislative class. You can add comments to
+        provide more information to support your assessment.
+      </p>
+
+      <p>
+        <%= govuk_link_to @form.assessment_area_legislation_url, new_tab: "" do %>
+          Open the Town and Country Planning (General Permitted Development)
+          (England) Order 2015 in a new window
+        <% end %>
+      </p>
+
+      <%= govuk_section_break(visible: true, size: "l") %>
+
+      <% @form.grouped_policy_sections.each do |title, sections| %>
+        <div class="govuk-summary-card" id="<%= title.parameterize %>">
+          <div class="govuk-summary-card__title-wrapper">
+            <h2 class="govuk-summary-card__title"><%= title %></h2>
+          </div>
+
+          <div class="govuk-summary-card__content">
+            <% sections.each_with_index do |section, index| %>
+              <% if index > 0 %>
+                <%= govuk_section_break(visible: true, size: "l") %>
+              <% end %>
+
+              <h3 class="govuk-!-margin-bottom-1">
+                <%= section.full_section %>
+              </h3>
+
+              <p><%= section.description %></p>
+
+              <% if comment = section.last_comment %>
+                <%= govuk_inset_text(classes: "govuk-!-margin-top-3") do %>
+                  <div data-controller="show-hide">
+                    <div class="govuk-!-margin-bottom-0" data-show-hide-target="toggleable">
+                      <%= simple_format(comment.text, class: "govuk-!-margin-bottom-1") %>
+                      <button type="button" data-action="click->show-hide#handleEvent" class="button-as-link govuk-!-font-size-16 govuk-!-margin-bottom-0">Edit</button>
+                      <button type="submit" form="remove-comment-form-<%= comment.id %>" class="button-as-link govuk-!-font-size-16 govuk-!-margin-bottom-0">Remove</button>
+                    </div>
+                    <div class="govuk-!-display-none govuk-!-margin-bottom-0" data-show-hide-target="toggleable">
+                      <div class="govuk-form-group">
+                        <%= label_tag "comment_text_#{comment.id}", "Edit comment", class: "govuk-label" %>
+                        <%= text_area_tag "#{@form.param_key}[comment_text]", comment.text, id: "comment_text_#{comment.id}", class: "govuk-textarea", rows: 3, form: "edit-comment-form-#{comment.id}" %>
+                      </div>
+                      <button type="submit" form="edit-comment-form-<%= comment.id %>" class="govuk-button govuk-!-margin-bottom-2">Save</button>
+                      <button type="button" data-action="click->show-hide#handleEvent" class="button-as-link govuk-!-font-size-16 govuk-!-margin-bottom-0">Cancel</button>
+                    </div>
+                  </div>
+
+                  <p class="govuk-body-s govuk-!-margin-top-1">
+                    <strong><%= comment.user&.name %>, <%= comment.created_at.to_fs %></strong>
+                  </p>
+
+                  <% if section.previous_comments.any? %>
+                    <%= govuk_details do |details| %>
+                      <% details.with_summary_html do %>
+                        <span class="govuk-!-font-size-16">Previous comments</span>
+                      <% end %>
+
+                      <ul class="govuk-list">
+                        <% section.previous_comments.reverse_each do |comment| %>
+                          <li>
+                            <%= simple_format(comment.text, class: "govuk-!-margin-bottom-1") %>
+
+                            <p class="govuk-body-s">
+                              <strong><%= comment.user.name %>, <%= comment.created_at.to_fs %></strong>
+                            </p>
+                          </li>
+                        <% end %>
+                      </ul>
+                    <% end %>
+                  <% end %>
+                <% end %>
+              <% end %>
+
+              <%= form.fields_for :"sections[]", section do |fields| %>
+                <%= fields.govuk_radio_buttons_fieldset :status, inline: true, small: true, legend: {size: "s", text: "Status"} do %>
+                  <%= fields.govuk_radio_button :status, "complies", label: {text: "Complies", class: "govuk-!-text-no-wrap"} %>
+                  <%= fields.govuk_radio_button :status, "does_not_comply", label: {text: "Does not comply", class: "govuk-!-text-wrap-nowrap"} %>
+                  <%= fields.govuk_radio_button :status, "to_be_determined", label: {text: "To be determined", class: "govuk-!-text-wrap-nowrap"} %>
+                <% end %>
+                <%= govuk_details(summary_text: "Add comment (optional)") do
+                      fields.fields_for :comments, section.comments.new do |comment|
+                        comment.govuk_text_area :text, rows: 3, width: "two-thirds", label: {text: "Add comment", size: "s"}
+                      end
+                    end %>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%= form.govuk_task_button "Save assessment", action: "update_assessment" do %>
+        <%= govuk_button_link_to "Back", @task.url, secondary: true %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,50 @@
+<%= render(Admin::CurrentHeader::Component.new(viewing: controller_name.humanize, competition_subject:, searchable_competitions:, period: @period, s_params: sortable_params, pagy: @pagy, render_chart: @render_chart, chart_collection: @matching_competitions, time_range: @time_range, time_range_column: @time_range_column)) do |c| %>
+  <% c.with_extra_action do %>
+    <%= link_to "New Competition", new_admin_competition_path, class: "twlink" %>
+  <% end %>
+<% end %>
+
+<%# Local var because cell blocks run via instance_exec in the table component context %>
+<% show_dev_info = display_dev_info? %>
+
+<%= render(UI::Table::Component.new(records: @competitions, render_sortable: true, sticky: true)) do |table|
+  table.column(sortable: "created_at", lower_right: (->(c) { c.id } if show_dev_info)) do |competition|
+    render(UI::Time::Component.new(time: competition.created_at))
+  end
+
+  table.column(sortable: "start_date") do |competition|
+    competition.start_date.to_s
+  end
+
+  table.column(sortable: "end_date") do |competition|
+    if competition.start_date.year == competition.end_date.year
+      l competition.end_date, format: :month_date
+    else
+      competition.end_date
+    end
+  end
+
+  table.column(sortable: "display_name") do |competition|
+    safe_join([competition.display_name, " ", tag.code(competition.slug, class: "only-dev-visible-small")])
+  end
+
+  table.column(label: "Current?") { |c| check_mark if c.current }
+
+  table.column(label: "Kind") { |c| c.kind.humanize }
+
+  if show_dev_info
+    table.column(sortable: "updated_at") do |competition|
+      render(UI::Time::Component.new(time: competition.updated_at))
+    end
+  end
+
+  table.column(label: "Users included") do |competition|
+    link_to number_display(competition.competition_users_included.count), admin_competition_users_path(search_competition_id: competition.slug), class: "twlink"
+  end
+
+  table.column(label: "Users excluded") do |competition|
+    number_display(competition.competition_users_excluded.count)
+  end
+end %>
+
+<%= render(UI::Pagination::Component.new(pagy: @pagy, page_params: sortable_params)) %>

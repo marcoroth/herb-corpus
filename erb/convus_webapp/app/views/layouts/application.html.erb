@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <% if @render_api_token %><%# put at the top so it is loaded absolutely as quickly as possible %>
+      <meta name="ext-token" content="<%= current_user.api_token %>">
+      <meta name="ext-username" content="<%= current_user.username %>">
+    <% end %>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <title><%= page_title %></title>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    <% if page_description.present? %>
+      <meta name="description" content="<%= page_description %>">
+    <% end %>
+    <% if Rails.env.development? %>
+      <%# hotwire-livereload v2+ injects its script via Rack middleware — no view helper needed %>
+      <link href="/favicon-dev.png" rel="icon" sizes="192x192">
+    <% else %>
+      <link href="/favicon.ico" rel="icon" sizes="192x192">
+      <link rel="apple-touch-icon-precomposed apple-touch-icon" href="/apple-touch-icon.png">
+    <% end %>
+  </head>
+  <body class="convus-body"> <%# class added to override external styles %>
+    <% if render_navbar? %>
+      <nav class="large-width-container flex flex-wrap mx-auto border-gray-200 border-b mb-4 pt-2">
+        <% root_active = controller_name == "landing" && action_name == "index" %>
+        <%= link_to in_admin? ? admin_root_url : user_root_url, class: "main-nav-link flex items-center #{root_active ? 'active' : ''}" do %>
+          <%= image_tag("icon.png", alt: "Convus Logo", class: "h-6") %>
+          <span class="hidden sm:inline-block ml-2 text-lg font-semibold -mt-navlign"><%= in_admin? ? "admin" : "Convus" %></span>
+        <% end %>
+        <% if in_admin? %>
+          <%= active_link admin_ratings_path, class: "main-nav-link ml-2", match_controller: true do %>
+            <span title="Ratings">Rat<span class="hidden md:inline">ings</span></span>
+          <% end %>
+          <%= active_link "Users", admin_users_path, class: "main-nav-link ml-2", match_controller: true %>
+          <%= active_link "Topics", admin_topics_path, class: "main-nav-link ml-2", match_controller: true %>
+          <%= active_link admin_topic_reviews_path, class: "main-nav-link ml-2", match_controller: true do %>
+            <span title="Reviews">Rev<span class="hidden md:inline">iews</span></span>
+          <% end %>
+          <%= active_link admin_publishers_path, class: "main-nav-link ml-2", match_controller: true do %>
+            <span title="Publishers">Pub<span class="hidden md:inline">lishers</span></span>
+          <% end %>
+          <%= active_link admin_citations_path, class: "main-nav-link ml-2", match_controller: true do %>
+            <span title="Citations">Cit<span class="hidden md:inline">ations</span></span>
+          <% end %>
+          <%= link_to "Exit", user_root_url, class: "main-nav-link ml-auto less-strong" %>
+        <% else %>
+          <%= active_link "Ratings", ratings_landing_url, class: "main-nav-link ml-2" %>
+          <% if current_user&.admin_access? %>
+            <%= active_link "admin", admin_root_path, class: "main-nav-link ml-2 less-strong" %>
+          <% end %>
+          <span class="ml-auto block">
+            <% if current_user.present? %>
+              <% user_active = controller_name == "ratings" && user_subject&.id == current_user.id %>
+              <%= link_to current_user.username.truncate(40), ratings_path(user: current_user.to_param), title: current_user.username, class: "main-nav-link #{user_active ? 'active' : ''}" %>
+              <span class="text-gray-400">|</span>
+              <%= button_to "logout", destroy_user_session_path, method: "delete", data: {turbo: false}, class: "main-nav-link" %>
+            <% else %>
+              <%= link_to "login", new_user_session_path, class: "main-nav-link" %>
+            <% end %>
+          </span>
+        <% end %>
+      </nav>
+    <% end %>
+    <div class="<%= content_for(:main_wrapper_class) || 'large-width-container-padded' %>">
+      <%= render partial: "shared/flash_messages" %>
+      <%= yield %>
+    </div>
+    <% if !Rails.env.development? && !@skip_ga %>
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-Z16M1CGWN8"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-Z16M1CGWN8');
+      </script>
+    <% end %>
+  </body>
+</html>

@@ -1,0 +1,117 @@
+<div class="border-b border-purple-100 dark:border-purple-700 py-[9px] max-lg:py-3.5">
+  <div
+    class="
+      grid grid-cols-[220px_1fr_110px] gap-3 items-center
+      max-lg:grid-cols-[1fr_auto] max-lg:grid-rows-[auto_auto]
+      max-lg:gap-x-[18px] max-lg:gap-y-1.5 max-lg:items-start
+    "
+  >
+    <div class="flex items-center gap-2 min-w-0 max-lg:col-start-1 max-lg:row-start-1">
+      <span
+        class="
+          font-mono font-bold text-purple-300 dark:text-purple-400 text-[13px]
+          text-left shrink-0
+        "
+      >
+        <%= @rank %>
+      </span>
+
+      <a
+        class="
+          inline-flex items-center shrink-0 opacity-75 hover:opacity-100
+          transition-opacity
+        "
+        href="<%= strava_url %>"
+        target="_blank"
+        rel="noopener"
+        title="View on Strava"
+      >
+        <%= helpers.image_tag("strava_logo.svg", alt: "Strava", class: "w-3.5 h-3.5 block") %>
+      </a>
+
+      <div class="flex items-center min-w-0 gap-1.5">
+        <button
+          type="button"
+          class="
+            twtext-color font-medium text-left
+            cursor-pointer outline-none underline decoration-1
+            decoration-transparent hover:decoration-current
+            aria-pressed:decoration-current aria-pressed:decoration-2
+            focus-visible:decoration-current
+          "
+          aria-pressed="false"
+          data-action="click->punch#toggleUser"
+          data-punch-target="userButton"
+          data-user-slug="<%= user_slug %>"
+        >
+          <%= @competition_user.display_name %>
+        </button>
+
+        <% if @competition_user.elevation_winner? %>
+          <%= render(UI::Tooltip::Component.new(text: "Elevation leader (person with the most elevation not in first place)")) do %>
+            <span class="text-[13px] leading-none whitespace-nowrap">⛰️🍰</span>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <div
+      class="
+        punchcard-week grid grid-cols-[repeat(31,1fr)] gap-0.5 h-7
+        max-lg:grid-cols-[repeat(7,24px)] max-lg:h-auto max-lg:max-w-max
+        max-lg:col-start-2 max-lg:row-span-2 max-lg:justify-self-end
+      "
+      style="--start-col: <%= start_col %>"
+    >
+      <% @period_date_strings.each do |date_string| %>
+        <%= render(Leaderboard::PunchcardUserPunch::Component.new(
+          date_string:,
+          distance_meters: distance_meters_on(date_string),
+          competition: @competition,
+          punch_id: "#{user_slug}-#{date_string}",
+          user_slug:,
+          upcoming: upcoming?(date_string)
+        )) %>
+      <% end %>
+    </div>
+
+    <div
+      class="
+        text-right font-mono text-[12px] text-purple-400 dark:text-purple-300
+        max-lg:col-start-1 max-lg:row-start-2 max-lg:text-left
+      "
+    >
+      <span class="twtext-color text-[18px] font-medium">
+        <b class="text-purple-500 dark:text-purple-400 font-bold">
+          <%= days_count %>
+        </b><span class="opacity-40">/<%= days_so_far %></span>
+      </span><br>
+
+      <span class="unit-imperial">
+        <%= number_display(meters_to_miles(distance_meters), round_to: 1) %> mi
+      </span>
+
+      <span class="unit-metric hidden">
+        <%= number_display(distance_meters / 1000.0, round_to: 1) %> km
+      </span>
+
+      <br>
+
+      <span class="opacity-40">
+        <span class="unit-imperial">
+          <%= thousands_display(meters_to_feet(elevation_meters), decimals: 1) %>
+          ft
+        </span>
+
+        <span class="unit-metric hidden">
+          <%= thousands_display(elevation_meters, decimals: 1) %> m
+        </span>
+      </span>
+    </div>
+  </div>
+
+  <%= render(Leaderboard::UserActivitiesForDateWrapper::Component.new(
+    competition_user: @competition_user,
+    competition: @competition
+  )) %>
+</div>

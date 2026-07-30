@@ -1,0 +1,79 @@
+<% content_for :page_title do %>
+  Description change validation request - <%= t("page_title") %>
+<% end %>
+
+<% add_parent_breadcrumb_link "Home", root_path %>
+<% add_parent_breadcrumb_link "Application", planning_application_path(@planning_application) %>
+<% content_for :title, "Description change" %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-two-thirds">
+    <h1>
+      Request approval to a description change
+    </h1>
+    <p>
+      <strong>At:</strong> <%= @planning_application.full_address %> <br>
+      <strong>Date received:</strong> <%= @planning_application.received_at.to_date.to_fs %> <br>
+      <strong>Application number:</strong> <%= @planning_application.reference %>
+    </p>
+
+    <div>
+      <p> <strong> Previous description:</strong><br>
+        <%= @validation_request.previous_description %>
+      </p>
+      <p> <strong> Proposed description:</strong><br>
+        <%= @validation_request.proposed_description %>
+      </p>
+    </div>
+    <p>
+      <% if @validation_request.open? %>
+        Sent on <%= @validation_request.created_at.to_date.to_fs %>. Agent or applicant has not yet responded.
+      <% else %>
+        <%= @validation_request.approved? ? "Approved" : "Rejected" %>
+        <p>
+          <% if @validation_request.rejected? %>
+            <%= govuk_link_to "Request a new description change", new_planning_application_validation_validation_request_path(@planning_application, type: "description_change"), class: "govuk-body" %>
+          <% end %>
+        </p>
+      <% end %>
+    </p>
+
+    <% if @validation_request.open? %>
+      <%= form_with(
+            model: [@planning_application, @validation_request],
+            url: cancel_planning_application_validation_validation_request_path(
+              @planning_application,
+              @validation_request
+            ),
+            scope: :validation_request,
+            method: :patch
+          ) do |form| %>
+        <%= form.hidden_field(:return_to, value: @back_path) %>
+        <div class="govuk-button-group">
+          <%= govuk_button_link_to t(".back"), @back_path, secondary: true %>
+
+          <%= form.submit(
+                t(".cancel_this_request"),
+                class: "button-as-link govuk-body"
+              ) %>
+        </div>
+      <% end %>
+    <% end %>
+    <% if @validation_request.closed? %>
+      <%= form_with(
+            model: @planning_application,
+            url: validate_planning_application_validation_description_changes_path(
+              @planning_application
+            )
+          ) do |form| %>
+          <%= form.hidden_field(:return_to, value: @back_path) %>
+          <%= form.hidden_field(:valid_description, value: true) %>
+          <div class="govuk-button-group">
+            <%= form.govuk_submit("Save and mark as complete") do %>
+              <%= govuk_button_link_to("Back", @back_path, secondary: true) %>
+            <% end %>
+          </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,78 @@
+<%= render "task_header", task: @task %>
+
+<% @form.considerations.group_by(&:policy_area).each_with_index do |(policy_area, considerations), index| %>
+  <%= govuk_summary_card(title: policy_area, html_attributes: {id: policy_area.parameterize}) do |card| %>
+    <% considerations.each do |consideration| %>
+      <% if consideration.draft? %>
+        <% if considerations.length == 1 %>
+          <% card.with_action do %>
+            <%= govuk_link_to("Remove", main_app.planning_application_assessment_consideration_guidance_path(@planning_application, consideration, return_to: return_to_or_task_path(@task)), method: :delete, data: {confirm: "Are you sure?"}) %>
+          <% end %>
+        <% end %>
+      <% else %>
+        <div id="consideration_<%= consideration.id %>" class="display-flex">
+          <strong class="govuk-body-s"><%= consideration.proposal %></strong>
+          <span class="flex-right-align">
+            <% unless @planning_application.determined? %>
+              <%= govuk_link_to "Edit", edit_task_component_path(@planning_application, @task, consideration) %>
+              |
+              <%= govuk_link_to "Remove", main_app.planning_application_assessment_consideration_guidance_path(@planning_application, consideration, return_to: return_to_or_task_path(@task)), method: :delete, data: {confirm: "Are you sure?"} %>
+            <% end %>
+          </span>
+        </div>
+        <ul class="govuk-list">
+          <li><%= summary_tag_label(consideration.summary_tag) %></li>
+
+          <% consideration.policy_guidance.each do |guidance| %>
+            <li class="govuk-body-xs">
+              <%= govuk_link_to guidance.description, guidance.url, new_tab: true %>
+            </li>
+          <% end %>
+
+          <% consideration.policy_references.each do |reference| %>
+            <li class="govuk-body-xs"><%= reference.code_and_description %></li>
+          <% end %>
+        </ul>
+        <%= consideration.advice %>
+        <hr
+          class="
+            govuk-section-break govuk-section-break--l
+            govuk-section-break--visible
+          ">
+      <% end %>
+    <% end %>
+
+    <% unless @planning_application.determined? %>
+      <%= govuk_details(
+            summary_text: "Add advice",
+            open: @form.consideration.errors.any? && @form.consideration.policy_area == policy_area,
+            classes: "govuk-!-margin-bottom-2"
+          ) do %>
+        <%= render "bops_preapps/tasks/check-and-assess/assessment-summaries/planning-considerations-and-advice/form",
+              policy_area: policy_area, form_url: task_path(@planning_application, @task), form_method: :post, index: index + 1 %>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<% unless @planning_application.determined? %>
+  <%= govuk_details(summary_text: "Add a new consideration", open: @form.considerations.none? || @form.consideration.errors.any?) do %>
+    <div data-controller="consideration-form">
+      <%= form_with model: @form, url: @form.url do |form| %>
+        <%= form.govuk_fieldset legend: {text: "Add a new consideration"} do %>
+          <%= form.govuk_collection_select :policy_area,
+                current_local_authority.policy_areas.menu,
+                :last, :last, options: {include_blank: true},
+                label: {text: "Select policy area"},
+                data: {consideration_form_target: "policyAreaSelect"} %>
+          <%= hidden_field_tag :return_to, return_to_or_task_path(@task) %>
+          <%= form.govuk_task_button "Add consideration", action: "add_consideration", secondary: true, class: "govuk-!-margin-bottom-2" %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+  <%= form_with model: @form, url: @form.url do |form| %>
+    <%= return_to_hidden_field %>
+    <%= render "task_submit_buttons", form: form %>
+  <% end %>
+<% end %>

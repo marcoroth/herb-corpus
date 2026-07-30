@@ -1,0 +1,51 @@
+<% redirect_to = local_assigns[:redirect_to] %>
+
+<table class="govuk-table current-documents">
+  <tbody class="govuk-table__body">
+    <% documents.each do |document| %>
+      <tr class="govuk-table__row" id="<%= dom_id(document) %>" data-document-url-value="<%= url_for_document(document) %>"
+    data-document-title-value="<%= document.file.filename %>">
+        <td class="govuk-table__cell govuk-!-width-one-quarter">
+          <%= render(
+                partial: "documents/document_row_image",
+                locals: {
+                  planning_application: @planning_application,
+                  document: document,
+                  resize: "500x500",
+                  width: 180,
+                  height: 120,
+                  edit_and_archive: false
+                }
+              ) %>
+        </td>
+
+        <td class="govuk-table__cell govuk-!-width-one-half">
+          <%= render "documents/document_row_info", document: document %>
+        </td>
+
+        <% unless action_name == "validation_documents" %>
+          <td class="govuk-table__cell">
+            <% if @planning_application.can_edit_documents? %>
+              <% if document.representable? %>
+                <p class="govuk-!-margin-right-2 govuk-!-text-align-right">
+                  <%= govuk_link_to "Edit", main_app.edit_planning_application_document_path(@planning_application, document, redirect_to: redirect_to) %><br>
+                  <%= govuk_link_to "Archive", main_app.planning_application_document_archive_path(@planning_application, document, redirect_to: redirect_to) %><br>
+                  <% if (replacement_request = document.replacement_document_validation_request) %>
+                    <%= govuk_link_to "Cancel replacement request",
+                          new_validation_request_cancellation_path(
+                            planning_application_reference: @planning_application.reference,
+                            validation_request_id: replacement_request.id,
+                            task_slug: task_slug_for(replacement_request)
+                          ) %>
+                  <% else %>
+                    <%= govuk_link_to "Request replacement", main_app.new_planning_application_validation_validation_request_path(planning_application_reference: @planning_application.reference, document: document, type: "replacement_document") %>
+                  <% end %>
+                </p>
+              <% end %>
+            <% end %>
+          </td>
+        <% end %>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

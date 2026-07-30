@@ -1,0 +1,164 @@
+<%= content_for :main_wrapper_class, "container-padded" %>
+<div class="large-width-container mb-5">
+  <h1 class="standard-top-offset mb-4">Admin Rating</h1>
+  <div class="mb-4"><%# must be div, escapes p tag %>
+    <%= button_to "Delete rating", {controller: "ratings", action: "destroy", id: @rating.id}, method: :delete, class: "gray-link" %>
+  </div>
+</div>
+
+<div class="large-width-container mb-5">
+  <div class="row sm:grid-cols-2">
+    <div class="col">
+      <table class="table-list">
+        <tbody>
+          <tr>
+            <td>User</td>
+            <td><%= link_to @rating.user.username, edit_admin_user_path(@rating.user) %></td>
+          </tr>
+          <tr>
+            <td>Created</td>
+            <td>
+              <span class="localizeTime"><%= l(@rating.created_at, format: :localize_time) %></span>
+            </td>
+          </tr>
+          <tr>
+            <td>Updated</td>
+            <td>
+              <span class="localizeTime"><%= l(@rating.updated_at, format: :localize_time) %></span>
+            </td>
+          </tr>
+          <tr>
+            <td>Metadata</td>
+            <td>
+              <% if @rating.metadata_at.present? %>
+                <span class="localizeTime"><%= l(@rating.updated_at, format: :localize_time) %></span>
+              <% end %>
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <table class="table-list">
+        <tbody>
+          <tr>
+            <td>Citation</td>
+            <td>
+              <%= link_to @rating.display_name, admin_citation_path(@rating.citation), class: "mr-2" %>
+              <%= link_to display_icon("link"), @rating.citation_url, class: "mr-2" %>
+              <small class="less-strong"><%= link_to "submitted url", @rating.submitted_url %></small>
+            </td>
+          </tr>
+          <tr>
+            <td>Checks</td>
+            <td>
+              <%= agreement_display(@rating.agreement) %>
+              <%= quality_display(@rating.quality) %>
+              <%= learned_something_display(@rating.learned_something?) %>
+              <%= changed_opinion_display(@rating.changed_opinion?) %>
+              <%= significant_factual_error_display(@rating.significant_factual_error?) %>
+              <%= not_finished_display(@rating.not_finished?) %>
+              <%= not_understood_display(@rating.not_understood?) %>
+            </td>
+          </tr>
+          <tr>
+            <td>Version</td>
+            <td><code class="text-sm"><%= @rating.source %></code></td>
+          </tr>
+          <tr>
+            <td>Topics</td>
+            <td>
+              <span class="text-sm text-gray-400 mb-1">
+                <%= topic_links(@rating.topics, {class: "text-gray-400", include_current: true}, url: admin_ratings_path) %>
+              </span>
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <%= render partial: "/admin/ratings/table", locals: {ratings: [@rating], skip_sortable: true, skip_citation: true} %>
+  </div>
+
+  <div class="row sm:grid-cols-2 standard-top-offset">
+    <% metadata_attributes = @rating.metadata_attributes %>
+    <div class="col">
+      <h3>
+        Citation metadata attributes
+        <%= button_to "reprocess rating", admin_rating_path(@rating.to_param, set_metadata_attributes: true), method: :patch, class: "link text-sm text-primary" %>
+      </h3>
+      <div class="code-small">
+        <%= pretty_print_json(metadata_attributes) %>
+      </div>
+    </div>
+    <div class="col mt-2 sm:mt-7">
+      <table class="table-list">
+        <tbody>
+          <tr>
+            <td>Authors rendered</td>
+            <td>
+              <% Citation.authors_rendered(metadata_attributes[:authors]).each do |author| %>
+                <span class="block"><%= author %></span>
+              <% end %>
+            </td>
+          </tr>
+          <tr>
+            <td>Metadata Topic Names</td>
+            <td>
+              <% metadata_attributes[:topics_string]&.split(",") do |topic_name| %>
+                <span class="block"><%= topic_name %></span>
+              <% end %>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <h3 class="mt-5">
+    Citation text:
+    <% if @rating.citation_text_best.present? %>
+      <small>
+        <%= admin_number_display(@rating.citation_text_best.length) %> characters,
+        <%= admin_number_display(MetadataAttributer.text_best_word_count(@rating.citation_text_best)) %> words
+      </small>
+    <% end %>
+  </h3>
+  <% if @rating.citation_text_best.present? %>
+    <textarea class="form-control text-sm" rows="3"><%= @rating.citation_text_best %></textarea>
+  <% else %>
+    No citation text
+  <% end %>
+
+  <div class="row sm:grid-cols-2 standard-top-offset">
+    <div class="col">
+      <h3>
+        JSON-LD Parsed
+      </h3>
+      <div class="code-small">
+        <%= pretty_print_json(@rating.json_ld_parsed) %>
+      </div>
+    </div>
+    <div class="col">
+      <h3>
+        JSON-LD Full
+      </h3>
+      <div class="code-small">
+        <%= pretty_print_json(@rating.json_ld_content) %>
+      </div>
+    </div>
+  </div>
+
+  <div class="standard-top-offset">
+    <h3 class="mt-5">Raw Metadata:</h3>
+    <% if @rating.metadata_present? %>
+      <div class="code-small"><%= pretty_print_json(@rating.citation_metadata_raw) %></div>
+    <% else %>
+      No metadata
+    <% end %>
+  </div>
+
+</div>

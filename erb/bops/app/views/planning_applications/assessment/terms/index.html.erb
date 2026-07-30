@@ -1,0 +1,72 @@
+<% content_for :page_title do %>
+  Heads of terms - <%= t("page_title") %>
+<% end %>
+
+<%= render(
+      partial: "shared/assessment_task_breadcrumbs",
+      locals: {planning_application: @planning_application}
+    ) %>
+
+<% content_for :title, heads_of_terms_task_header(@planning_application) %>
+
+<%= render(
+      partial: "shared/proposal_header",
+      locals: {heading: heads_of_terms_task_header(@planning_application)}
+    ) %>
+
+<%= render(ReviewerCommentComponent.new(comment: @heads_of_term.current_review)) %>
+
+<% if @planning_application.pre_application? %>
+  <p><%= t(".preapp_reminder") %></p>
+<% end %>
+
+<div class="govuk-grid-row">
+  <div class="govuk-grid-column-full">
+    <hr class="govuk-section-break govuk-section-break--l govuk-section-break--visible">
+    <ol data-controller="sortable" id="heads-of-terms-list" class="govuk-list sortable-list">
+      <% @heads_of_term.not_cancelled_terms.select(&:persisted?).each.with_index(1) do |term, position| %>
+        <%= render(Sortable::ListItemComponent.new(
+              record: term,
+              position: position,
+              record_class: "term",
+              record_controller: "terms",
+              record_sortable_url: planning_application_assessment_term_position_path(@planning_application, term),
+              edit_record_url: edit_planning_application_assessment_term_path(@planning_application, term),
+              remove_record_url: planning_application_assessment_term_path(@planning_application, term),
+              current_request: term.current_validation_request,
+              show_status_tag: !@planning_application.pre_application?
+            )) %>
+      <% end %>
+
+    </ol>
+    <p><%= t(".drag_and_drop") %></p>
+  </div>
+
+  <div class="govuk-grid-column-two-thirds">
+    <div class="govuk-!-margin-bottom-8">
+      <details class="govuk-details" <%= "open" if @term.errors.any? %>>
+        <summary class="govuk-details__summary">
+          <span class="govuk-details__summary-text">
+            Add a new heads of terms
+          </span>
+        </summary>
+        <div>
+          <%= render "form", url: planning_application_assessment_terms_path(@planning_application) %>
+        </div>
+        <hr class="govuk-section-break govuk-section-break--m govuk-section-break--visible">
+      </details>
+    </div>
+
+    <div class="govuk-button-group">
+      <%= form_with model: @term, url: confirm_planning_application_assessment_terms_path(@planning_application) do |form| %>
+        <% if @planning_application.pre_application? %>
+          <%= hidden_field_tag :redirect_to, params[:redirect_to] if params[:redirect_to].present? %>
+          <%= form.submit t("form_actions.term.confirm_without_sending"), class: "govuk-button" %>
+        <% else %>
+          <%= form.submit t("form_actions.term.confirm"), class: "govuk-button" %>
+        <% end %>
+        <%= govuk_button_link_to("Back", planning_application_assessment_path(@planning_application), secondary: true) %>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,161 @@
+<%# previously, this mirrored the browser extension. As of v0.8, that isn't true anymore %>
+<% rating ||= Rating.new %>
+<% render_menu ||= false %>
+<% editing_rating = rating.id.present? %>
+<%# TODO: why does render partial: "/shared/errors" not actually render the errors from turbo_streams? %>
+<% if rating.errors.any? %>
+  <div id="errorMessage" class="alert alert-error mb-4" role="alert">
+    <div class="alert-header">
+      <div class="flex items-center mr-2">
+        <h6>
+          <%= pluralize(rating.errors.count, "error") %> prevented this Rating from being saved
+        </h6>
+      </div>
+    </div>
+    <div class="alert-description">
+      <ul>
+        <% rating.errors.full_messages.each do |message| %>
+          <li>
+            <%= message %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+<% end %>
+<%# Need to manually specify the URL and method here because it can't just be the path %>
+
+<% form_url = editing_rating ? rating_url(rating) : ratings_url %>
+<% collapsible_field_classes = editing_rating ? '' : 'hidden' %>
+<%= form_with(model: rating, url: form_url, method: (editing_rating ? :patch : :post), class: "pb-2") do |f| %>
+  <% unless editing_rating %>
+    <%= f.hidden_field :source %>
+    <%= f.hidden_field :timezone, class: "hiddenFieldTimezone" %>
+  <% end %>
+  <div class="form-row collapsible <%= collapsible_field_classes %>" id="field-group-url">
+    <%= f.label :submitted_url, "URL" %>
+    <%= f.text_field :submitted_url, placeholder: "URL", disabled: editing_rating && rating.submitted_url.present?, class: "form-control", autocomplete: "off" %>
+  </div>
+  <div class="row grid-cols-2 divide-x">
+    <div class="col py-1">
+      <%= f.label :agreement_agree, class: "form-control-radio" do %>
+        <%= f.radio_button :agreement, "agree" %>
+        Agree
+      <% end %>
+      <%= f.label :agreement_neutral, class: "form-control-radio" do %>
+        <%= f.radio_button :agreement, "neutral" %>
+        Neutral
+      <% end %>
+      <%= f.label :agreement_disagree, class: "form-control-radio" do %>
+        <%= f.radio_button :agreement, "disagree" %>
+        Disagree
+      <% end %>
+    </div>
+    <div class="col py-1">
+      <%= f.label :quality_quality_high, class: "form-control-radio" do %>
+        <%= f.radio_button :quality, :quality_high %>
+        High Quality
+      <% end %>
+      <%= f.label :quality_quality_med, class: "form-control-radio" do %>
+        <%= f.radio_button :quality, :quality_med %>
+        Neutral
+      <% end %>
+      <%= f.label :quality_quality_low, class: "form-control-radio" do %>
+        <%= f.radio_button :quality, :quality_low %>
+        Low Quality
+      <% end %>
+    </div>
+  </div>
+  <div class="form-row mt-2">
+    <%= f.label :learned_something, class: "form-control-check" do %>
+      <%= f.check_box :learned_something %>
+      Learned something new
+    <% end %>
+  </div>
+  <div class="form-row ">
+    <%= f.label :changed_opinion, class: "form-control-check" do %>
+      <%= f.check_box :changed_opinion %>
+      Changed my opinion
+    <% end %>
+  </div>
+  <div class="form-row ">
+    <%= f.label :not_understood, class: "form-control-check" do %>
+      <%= f.check_box :not_understood %>
+      Did not understand
+    <% end %>
+  </div>
+  <div class="form-row">
+    <%= f.label :significant_factual_error, class: "form-control-check" do %>
+      <%= f.check_box :significant_factual_error %>
+      Significant factual error(s)
+    <% end %>
+  </div>
+  <div class="row grid-cols-2 mt-2">
+    <div class="col">
+      <div class="form-row-btn">
+        <%= f.submit "save", class: "btn" %>
+      </div>
+    </div>
+    <% if render_menu %>
+      <div class="col mt-4 text-right">
+        <button type="button" aria-label="Menu" id="rating-menu-btn" tabindex="-1">
+          <span class="sr-only">Menu</span>
+          <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z"></path>
+          </svg>
+        </button>
+      </div>
+    <% end %>
+  </div>
+  <div class="form-row collapsible <%= collapsible_field_classes %>" id="field-group-title">
+    <%= f.label :citation_title, "Title" %>
+    <%= f.text_field :citation_title, placeholder: rating.citation&.title || "optional", class: "form-control", disabled: !rating.edit_title? %>
+  </div>
+  <div class="form-row mt-3 collapsible <%= collapsible_field_classes %>" id="field-group-topics">
+    <%= f.label :topics_text do %>
+      Topics
+      <small class="less-strong">new line delineated</small>
+    <% end %>
+    <%= f.text_area :topics_text, placeholder: "optional", class: "form-control" %>
+  </div>
+<% end %>
+<% if render_menu %>
+  <div id="rating-menu"  class="collapsible hidden">
+    <hr>
+    <div class="form-row">
+      <label class="form-control-check" for="show_topics">
+        <input type="checkbox" name="show_topics" id="show_topics" value="1" data-target-id="field-group-topics">
+        Show Topics
+        <small class="less-strong">always</small>
+      </label>
+    </div>
+    <div class="form-row">
+      <label class="form-control-check" for="show_url">
+        <input type="checkbox" name="show_url" id="show_url" value="1" data-target-id="field-group-url">
+        Show URL
+        <small class="less-strong">only applies to current rating</small>
+      </label>
+    </div>
+    <div class="form-row">
+      <label class="form-control-check" for="show_title">
+        <input type="checkbox" name="show_title" id="show_title" value="1" data-target-id="field-group-title">
+        Show Title
+        <small class="less-strong">only applies to current rating</small>
+      </label>
+    </div>
+    <p class="text-sm mt-4 hidden-safari_ios">Open rating dialog with <code>control</code> + <code>shift</code> + <code>R</code></p>
+    <%# NOTE: This doesn't do anything in rails, included here only to make copying for browser extension possible %>
+    <div class="mt-4 text-right">
+      <button class="gray-link text-sm" type="submit" id="logout-btn">logout</button>
+    </div>
+  </div>
+  <%# if rendering the menu, include the templates too %>
+  <div class="hidden" id="templates">
+    <div class="shareTemplate mt-6 mb-8 text-center">
+      <button class="btn btnShare">
+        <span class="text-lg ml-2">Share</span>
+        <svg class="w-5 inline ml-3 mr-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"></path></svg>
+      </button>
+    </div>
+  </div>
+<% end %>

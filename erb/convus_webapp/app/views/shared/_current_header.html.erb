@@ -1,0 +1,92 @@
+<%# NOTE: THIS IS ONLY FOR Admin Views right now %>
+
+<%# NOTE: when you add new search_ params here, also add it to hidden_search_fields %>
+<% viewing ||= controller_name.humanize %>
+<% cheader_keys = %w[search_author search_citation_id search_publisher user search_status
+                     search_topics] %>
+<% header_present ||= (cheader_keys & params.keys).any? || current_topics.present? ||
+                      @search_status.present? %>
+
+<% if header_present %>
+  <div class="mb-6" data-controller="admin-current-header">
+    <% skip_topics ||= false %>
+    <% if !skip_topics && current_topics.present? %>
+      <p class="mb-2">
+        Viewing <%= viewing.downcase %> for
+        <%= topic_links(current_topics, name_and_slugs: current_topics.map {|t| [t.name, t.slug] }, url: "/admin/topics/") %>
+        <em class="less-strong">
+          &ndash; view <%= viewing.downcase %> for
+          <%= link_to "all topics", url_for(sortable_params.merge(search_topics: nil)) %>
+        </em>
+      </p>
+    <% end %>
+    <% if user_subject.present? %>
+      <p class="mb-2">
+        <%= viewing %> for
+        <strong><%= link_to user_subject.username, edit_admin_user_path(user_subject) %></strong>
+        <em class="less-strong">
+          &ndash; view <%= viewing.downcase %> for
+          <%= link_to "all users", url_for(sortable_params.merge(user: nil)) %>
+        </em>
+      </p>
+    <% end %>
+    <% if @searched_citation.present? %>
+      <p class="mb-2">
+        <%= viewing %> for
+        <strong><%= admin_citation_display(@searched_citation) %></strong>
+        <em class="less-strong">
+          &ndash; view <%= viewing.downcase %> for
+          <%= link_to "all citations", url_for(sortable_params.merge(search_citation_id: nil)) %>
+        </em>
+      </p>
+    <% end %>
+    <% if @publisher.present? %>
+      <p class="mb-2">
+        <%= viewing %> for
+        <strong><%= @publisher.name %></strong>
+        <em class="less-strong">
+          &ndash; view <%= viewing.downcase %> for
+          <%= link_to "all publishers", url_for(sortable_params.merge(search_publisher: nil)) %>
+        </em>
+      </p>
+    <% end %>
+    <% if @author.present? %>
+      <p class="mb-2">
+        <%= viewing %> for
+        <strong><%= @author %></strong>
+        <em class="less-strong">
+          &ndash; view <%= viewing.downcase %> for
+          <%= link_to "all authors", url_for(sortable_params.merge(search_author: nil)) %>
+        </em>
+      </p>
+    <% end %>
+    <% if @search_status.present? %>
+      <p class="mb-2">
+        <%= viewing %> with status:
+        <strong><%= @search_status.humanize %></strong>
+        <em class="less-strong">
+          &ndash; view <%= viewing.downcase %> for
+          <% if @searchable_statuses.present? %>
+            <%= select_tag :search_status, options_for_select(@searchable_statuses.map { |s| [s.humanize, s] }, selected: @search_status), class: "form-control-inline updateOnChange mx-1", "data-updateUrl" => url_for(sortable_params.merge(search_status: "UpdateThis")) %>
+            <% unless @search_status == "all" %> or for <% end %>
+          <% end %>
+          <% if @search_status != "all" %>
+            <%= link_to "all statuses", url_for(sortable_params.merge(search_status: nil)) %>
+          <% end %>
+        </em>
+      </p>
+    <% end %>
+  </div>
+<% end %>
+
+<% render_period ||= false %>
+<% total_count ||= @pagy&.count || collection.count %>
+<% if render_period %>
+  <%= render partial: "/shared/period_select", locals: {total_count: total_count} %>
+<% end %>
+<% skip_pagination ||= false %>
+<% unless skip_pagination %>
+  <div class="row mt-4">
+    <%= render partial: "/shared/pagination", locals: {pagy: @pagy, name: viewing} %>
+  </div>
+<% end %>

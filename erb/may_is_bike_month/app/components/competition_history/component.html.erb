@@ -1,0 +1,322 @@
+<% num_class = "font-mono text-[13px] font-medium twtext-color tabular-nums" %>
+<% sub_class = "font-mono text-[11px] text-purple-400 dark:text-purple-300 tabular-nums" %>
+<% head_class = "w-36 min-w-36 text-purple-300 dark:text-purple-400 text-[10px] uppercase tracking-[0.12em] font-medium whitespace-nowrap border-x border-purple-200 dark:border-purple-600" %>
+<% selected_head_class = "#{head_class} bg-purple-200/70 dark:bg-purple-700" %>
+<% cell_class = "w-36 min-w-36 px-3 py-3 align-top border-b border-purple-100 dark:border-purple-700" %>
+<% selected_cell_class = "#{cell_class} bg-purple-50/40 dark:bg-purple-900/30" %>
+<% placing_cell_class = cell_class %>
+<% numeric_cell_class = "#{cell_class} text-right whitespace-nowrap" %>
+
+<div class="wrapper-padding overflow-x-auto pb-3">
+  <table class="mx-auto text-left border-separate border-spacing-0">
+    <thead>
+      <tr class="bg-purple-100 dark:bg-purple-800">
+        <th class="<%= head_class %> px-3 py-2.5 text-left">Year</th>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-left">
+          <span class="mr-1">🥇</span>1st
+        </th>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-left">
+          <span class="mr-1">🥈</span>2nd
+        </th>
+
+        <% if selected_users.empty? %>
+          <th class="<%= head_class %> px-3 py-2.5 text-left">
+            <span class="mr-1">🥉</span>3rd
+          </th>
+        <% end %>
+
+        <% selected_users.each do |user| %>
+          <th class="<%= selected_head_class %> px-3 py-2.5 text-left">
+            <span class="truncate max-w-36 inline-block align-bottom">
+              <%= user.display_name %>
+            </span>
+          </th>
+        <% end %>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-left">
+          <span class="mr-1">🏮</span>Last
+        </th>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-right">Riders</th>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-right">
+          <span class="unit-imperial">Miles</span>
+          <span class="unit-metric hidden">Km</span>
+        </th>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-right">
+          <span class="unit-imperial">Feet</span>
+          <span class="unit-metric hidden">Meters</span>
+        </th>
+
+        <th class="<%= head_class %> px-3 py-2.5 text-right">Everyday</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <% rows.each do |row| %>
+        <tr class="odd:bg-purple-50/60 dark:odd:bg-purple-800/40">
+          <td class="<%= cell_class %> whitespace-nowrap">
+            <%= link_to competition_path(row.slug), class: "block no-underline" do %>
+              <div class="font-mono font-medium text-[20px] twtext-color leading-none">
+                <%= row.year %>
+              </div>
+
+              <div class="text-[11px] text-purple-400 dark:text-purple-300 mt-1">
+                <%= row.display_name %>
+              </div>
+            <% end %>
+          </td>
+
+          <% top_placings = [row.first_place, row.second_place] %>
+          <% top_placings << row.third_place if selected_users.empty? %>
+
+          <% top_placings.each do |competition_user| %>
+            <td class="<%= placing_cell_class %>">
+              <% if competition_user %>
+                <div class="twtext-color font-medium text-[13px] truncate max-w-36">
+                  <%= competition_user.display_name %>
+                </div>
+                <div class="<%= sub_class %> mt-0.5">
+                  <span class="unit-imperial">
+                    <%= miles_display(competition_user.distance_meters) %> mi
+                  </span>
+
+                  <span class="unit-metric hidden">
+                    <%= number_display(competition_user.distance_meters / 1000.0, round_to: 0) %>
+                    km
+                  </span>
+
+                  <span class="opacity-50 mx-0.5">·</span>
+
+                  <span class="unit-imperial">
+                    <%= thousands_display(meters_to_feet(competition_user.elevation_meters)) %>
+                    ft
+                  </span>
+
+                  <span class="unit-metric hidden">
+                    <%= thousands_display(competition_user.elevation_meters) %>
+                    m
+                  </span>
+                </div>
+              <% else %>
+                <span class="text-purple-300 dark:text-purple-400 opacity-50">
+                  —
+                </span>
+              <% end %>
+            </td>
+          <% end %>
+
+          <% row.selected_competition_users.each do |competition_user| %>
+            <td class="<%= selected_cell_class %>">
+              <% if competition_user %>
+                <% position = row.position_in_table(competition_user) %>
+                <div class="twtext-color font-medium text-[13px]">
+                  #<%= number_display(competition_user.rank_in_competition) %>
+                </div>
+                <% if position == :first || position == :second %>
+                  <div
+                    class="
+                      text-purple-400 dark:text-purple-300 text-[18px]
+                      leading-none mt-0.5
+                    "
+                    aria-label="See <%= position == :first ? "1st" : "2nd" %> place"
+                  >
+                    ←
+                  </div>
+                <% elsif position == :last %>
+                  <div
+                    class="
+                      text-purple-400 dark:text-purple-300 text-[18px]
+                      leading-none mt-0.5 text-right
+                    "
+                    aria-label="See last place"
+                  >
+                    →
+                  </div>
+                <% else %>
+                  <div class="<%= sub_class %> mt-0.5">
+                    <span class="unit-imperial">
+                      <%= miles_display(competition_user.distance_meters) %> mi
+                    </span>
+
+                    <span class="unit-metric hidden">
+                      <%= number_display(competition_user.distance_meters / 1000.0, round_to: 0) %>
+                      km
+                    </span>
+
+                    <span class="opacity-50 mx-0.5">·</span>
+
+                    <span class="unit-imperial">
+                      <%= thousands_display(meters_to_feet(competition_user.elevation_meters)) %>
+                      ft
+                    </span>
+
+                    <span class="unit-metric hidden">
+                      <%= thousands_display(competition_user.elevation_meters) %>
+                      m
+                    </span>
+                  </div>
+                <% end %>
+              <% else %>
+                <span class="text-purple-300 dark:text-purple-400 opacity-50">
+                  —
+                </span>
+              <% end %>
+            </td>
+          <% end %>
+
+          <td class="<%= placing_cell_class %>">
+            <% if row.last_place %>
+              <div class="twtext-color font-medium text-[13px] truncate max-w-36">
+                <%= row.last_place.display_name %>
+              </div>
+              <div class="<%= sub_class %> mt-0.5">
+                <span class="unit-imperial">
+                  <%= miles_display(row.last_place.distance_meters) %> mi
+                </span>
+
+                <span class="unit-metric hidden">
+                  <%= number_display(row.last_place.distance_meters / 1000.0, round_to: 0) %>
+                  km
+                </span>
+
+                <span class="opacity-50 mx-0.5">·</span>
+
+                <span class="unit-imperial">
+                  <%= thousands_display(meters_to_feet(row.last_place.elevation_meters)) %>
+                  ft
+                </span>
+
+                <span class="unit-metric hidden">
+                  <%= thousands_display(row.last_place.elevation_meters) %> m
+                </span>
+              </div>
+            <% else %>
+              <span class="text-purple-300 dark:text-purple-400 opacity-50">
+                —
+              </span>
+            <% end %>
+          </td>
+
+          <td class="<%= numeric_cell_class %>">
+            <div class="flex items-center justify-end gap-2">
+              <div
+                class="
+                  relative h-1 w-10 bg-purple-100 dark:bg-purple-900/60
+                  rounded-full overflow-hidden
+                "
+              >
+                <div
+                  class="
+                    absolute inset-y-0 left-0 bg-purple-400
+                    dark:bg-purple-500 rounded-full
+                  "
+                  style="width: <%= bar_pct(row.rider_count, max_rider_count) %>%"
+                ></div>
+              </div>
+
+              <span class="<%= num_class %>">
+                <%= number_display(row.rider_count) %>
+              </span>
+            </div>
+          </td>
+
+          <td class="<%= numeric_cell_class %>">
+            <div class="flex items-center justify-end gap-2">
+              <div
+                class="
+                  relative h-1 w-10 bg-purple-100 dark:bg-purple-900/60
+                  rounded-full overflow-hidden
+                "
+              >
+                <div
+                  class="
+                    absolute inset-y-0 left-0 bg-purple-400
+                    dark:bg-purple-500 rounded-full
+                  "
+                  style="width: <%= bar_pct(row.distance_meters, max_distance_meters) %>%"
+                ></div>
+              </div>
+
+              <span class="<%= num_class %>">
+                <span class="unit-imperial">
+                  <%= miles_display(row.distance_meters) %>
+                </span>
+
+                <span class="unit-metric hidden">
+                  <%= number_display(row.distance_meters / 1000.0, round_to: 0) %>
+                </span>
+              </span>
+            </div>
+          </td>
+
+          <td class="<%= numeric_cell_class %>">
+            <div class="flex items-center justify-end gap-2">
+              <div
+                class="
+                  relative h-1 w-10 bg-purple-100 dark:bg-purple-900/60
+                  rounded-full overflow-hidden
+                "
+              >
+                <div
+                  class="
+                    absolute inset-y-0 left-0 bg-purple-400
+                    dark:bg-purple-500 rounded-full
+                  "
+                  style="width: <%= bar_pct(row.elevation_meters, max_elevation_meters) %>%"
+                ></div>
+              </div>
+
+              <span class="<%= num_class %>">
+                <span class="unit-imperial">
+                  <%= thousands_display(meters_to_feet(row.elevation_meters)) %>
+                </span>
+
+                <span class="unit-metric hidden">
+                  <%= thousands_display(row.elevation_meters) %>
+                </span>
+              </span>
+            </div>
+          </td>
+
+          <td class="<%= row.legacy? ? "#{cell_class} text-right" : numeric_cell_class %>">
+            <% if row.legacy? %>
+              <span
+                class="
+                  inline-block w-20 text-[10px] text-purple-300
+                  dark:text-purple-400 italic
+                "
+              >
+                No daily requirement
+              </span>
+            <% else %>
+              <div class="flex items-center justify-end gap-2">
+                <div
+                  class="
+                    relative h-1 w-10 bg-purple-100 dark:bg-purple-900/60
+                    rounded-full overflow-hidden
+                  "
+                >
+                  <div
+                    class="
+                      absolute inset-y-0 left-0 bg-purple-400
+                      dark:bg-purple-500 rounded-full
+                    "
+                    style="width: <%= bar_pct(row.everyday_count, max_everyday_count) %>%"
+                  ></div>
+                </div>
+
+                <span class="<%= num_class %>">
+                  <%= number_display(row.everyday_count) %>
+                </span>
+              </div>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

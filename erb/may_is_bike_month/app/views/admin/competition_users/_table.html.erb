@@ -1,0 +1,34 @@
+<%# Local vars because cell blocks run via instance_exec in the table component context %>
+<% show_dev_info = display_dev_info? %>
+<% include_competition = local_assigns.fetch(:include_competition, true) %>
+<% render_sortable = local_assigns.fetch(:render_sortable, true) %>
+
+<%= render(UI::Table::Component.new(records: competition_users, render_sortable:, sticky: true)) do |table|
+  table.column(sortable: "created_at", lower_right: (->(cu) { cu.id } if show_dev_info)) do |cu|
+    render(UI::Time::Component.new(time: cu.created_at))
+  end
+
+  table.column(sortable: "display_name") do |cu|
+    link_to(cu.display_name, edit_admin_competition_user_path(cu), class: "twlink")
+  end
+
+  if include_competition
+    table.column(sortable: "competition_id") { |cu| cu.competition.display_name }
+  end
+
+  if show_dev_info
+    table.column(sortable: "updated_at") do |cu|
+      render(UI::Time::Component.new(time: cu.updated_at))
+    end
+  end
+
+  table.column(label: "Activities") do |cu|
+    link_to(number_display(cu.competition_activities.count), admin_competition_activities_path(search_competition_user_id: cu.id), class: "twlink")
+  end
+
+  table.column(label: "Rank") do |cu|
+    "#{cu.rank_in_competition}/#{cu.rider_count_in_competition}" if cu.included_in_competition
+  end
+
+  table.column(label: "Included?") { |cu| check_mark if cu.included_in_competition }
+end %>

@@ -1,0 +1,207 @@
+<%= content_for :main_wrapper_class, "container-padded" %>
+<div class="large-width-container">
+  <% search_params_present = (params.keys - %w[user controller action]).any? %>
+  <% unless search_params_present %>
+    <p class="mb-3 text-center less-strong">
+      Rating articles is easy and quick&mdash;install the <%= link_to "app / browser extension", browser_extensions_path %> and give it a try.
+    </p>
+  <% end %>
+  <% if @viewing_single_user %>
+    <% unless search_params_present %>
+      <%= render partial: "/u/user_display", locals: {user: user_subject, render_second_hr: true, only_render_name: search_params_present} %>
+    <% end %>
+    <div>
+      <h1>
+        Ratings by <%= user_subject.username %>
+        <%# when there are search_params, add something to show that it's you %>
+        <% if viewing_current_user? %><small class="less-strong">(you)</small><% end %>
+      </h1>
+      <% if @ratings_private %>
+        <h2 class="mt-4">
+          Ratings are private
+          <% if @can_view_ratings %>
+            <small class="less-strong">
+              (they're visible because
+              <% if viewing_current_user? %>it's your account<% else %>you follow them<% end %>)
+            </small>
+          <% end %>
+        </h2>
+      <% end %>
+    </div>
+  <% else %>
+    <h1>
+      <% if viewing_display_name == "following" %>
+        Ratings by people you <%= link_to "follow", following_u_path(id: current_user.to_param) %>
+      <% else %>
+        Ratings
+      <% end %>
+    </h1>
+  <% end %>
+</div>
+<% if @can_view_ratings %>
+  <div class="large-width-container pt-2 pl-4" data-controller="ratings-filter" id="ratingsFilter">
+    <%= form_tag ratings_path, method: :get, id: "ratingsFilterForm" do %>
+      <%= render partial: "/shared/hidden_search_fields", locals: {skip_all_convus_params: true} %>
+      <div class="flex flex-wrap">
+        <%= label_tag :user_all, class: "form-control-radio flex-initial min-w-fit mr-2" do %>
+          <%= radio_button_tag :user, "all", viewing_display_name == "all", class: "submitOnChange" %>
+          All
+        <% end %>
+        <% if viewing_display_name == "other users" %>
+          <%= label_tag :user_other_users, class: "form-control-radio flex-initial min-w-fit mr-2" do %>
+            <%= radio_button_tag :user, "other_users", viewing_display_name == "other users", class: "submitOnChange" %>
+            By other users
+          <% end %>
+        <% end %>
+        <%= label_tag :user_current_user, class: "form-control-radio flex-initial mr-2 min-w-fit" do %>
+          <%= radio_button_tag :user, "current_user", @viewing_single_user, class: "submitOnChange" %>
+          By you
+        <% end %>
+        <%= label_tag :user_following, class: "form-control-radio mr-2 min-w-fit" do %>
+          <%= radio_button_tag :user, "following", viewing_display_name == "following", class: "submitOnChange" %>
+          By people you follow
+        <% end %>
+        <% if @viewing_single_user && !viewing_current_user? %>
+          <%= label_tag "user_#{user_subject.username}", class: "form-control-radio flex-initial ml-2 min-w-fit" do %>
+            <%= radio_button_tag :user, user_subject.username, true, class: "submitOnChange" %>
+            By <%= user_subject.username %>
+          <% end %>
+        <% end %>
+      </div>
+      <div class="mt-2">
+        <% if @search_agreement == "disagree" %>
+          <%= label_tag :search_disagree, class: "form-control-check" do %>
+            <%= check_box_tag :search_disagree, true, params[:search_disagree], class: "submitOnChange" %>
+            Only ratings marked "Disagree"
+          <% end %>
+        <% end %>
+        <% if @search_agreement == "agree" %>
+          <%= label_tag :search_agree, class: "form-control-check" do %>
+            <%= check_box_tag :search_agree, true, params[:search_agree], class: "submitOnChange" %>
+            Only ratings marked "Agree"
+          <% end %>
+        <% end %>
+
+        <% if @search_quality == "low" %>
+          <%= label_tag :search_quality_low, class: "form-control-check" do %>
+            <%= check_box_tag :search_quality_low, true, @search_quality == "low", class: "submitOnChange" %>
+            Only "Low quality" ratings
+          <% end %>
+        <% else %>
+          <%= label_tag :search_quality_high, class: "form-control-check" do %>
+            <%= check_box_tag :search_quality_high, true, @search_quality == "high", class: "submitOnChange" %>
+            Only "High quality" ratings
+          <% end %>
+        <% end %>
+
+        <%# TODO: iterate through rendering these %>
+        <% if @search_learned_something %>
+          <%= label_tag :search_learned_something, class: "form-control-check" do %>
+            <%= check_box_tag :search_learned_something, true, params[:search_learned_something], class: "submitOnChange" %>
+            Only "Learned something" ratings
+          <% end %>
+        <% end %>
+        <% if @search_changed_opinion %>
+          <%= label_tag :search_changed_opinion, class: "form-control-check" do %>
+            <%= check_box_tag :search_changed_opinion, true, params[:search_changed_opinion], class: "submitOnChange" %>
+            Only "Changed opinion" ratings
+          <% end %>
+        <% end %>
+        <% if @search_significant_factual_error %>
+          <%= label_tag :search_significant_factual_error, class: "form-control-check" do %>
+            <%= check_box_tag :search_significant_factual_error, true, params[:search_significant_factual_error], class: "submitOnChange" %>
+            Only "Significant factual error" ratings
+          <% end %>
+        <% end %>
+        <% if @search_not_understood %>
+          <%= label_tag :search_not_understood, class: "form-control-check" do %>
+            <%= check_box_tag :search_not_understood, true, params[:search_not_understood], class: "submitOnChange" %>
+            Only "Not understood" ratings
+          <% end %>
+        <% end %>
+
+        <% if current_user.present? && !viewing_current_user? %>
+          <% if !@disagree_following || @not_rated %>
+            <%= label_tag :search_not_rated, class: "form-control-check" do %>
+              <%= check_box_tag :search_not_rated, true, @not_rated, class: "submitOnChange" %>
+              Only articles you haven't rated
+            <% end %>
+          <% end %>
+          <% if !@not_rated || @disagree_following %>
+            <%= label_tag :search_disagree_following, class: "form-control-check" do %>
+              <%= check_box_tag :search_disagree_following, true, @disagree_following, class: "submitOnChange" %>
+              Only following disagreed ratings
+              <small>articles you rated differently from the people you follow (high vs low quality/agreement)</small>
+              <% if @disagree_following %>
+                <span class="less-strong block ml-5">Sorry Andy, this doesn't work yet 😘</span>
+              <% end %>
+            <% end %>
+          <% end %>
+        <% end %>
+        <%# Topics to render: current passed topics and primary review topic %>
+        <% primary_topic_id = primary_topic_review&.topic_id %>
+        <% ([primary_topic_review&.topic] + current_topics).compact.uniq.each do |topic| %>
+          <% checked = current_topics.include?(topic) %>
+          <label class="form-control-check"><%# TODO: make this a functioning label_tag %>
+            <%= check_box_tag "search_topics[]", topic.slug, checked, class: "submitOnChange" %>
+            Only articles about <%= topic_review_display(topic) %>
+            <% if topic.id == primary_topic_id %><small class="less-strong">(current topic)</small><% end %>
+          </label>
+        <% end %>
+        <% if primary_topic_review.present? && viewing_current_user? %>
+          <%= label_tag :search_topic_assignment, class: "form-control-check" do %>
+            <%= check_box_tag :search_topic_assignment, true, @assigning, class: "submitOnChange" %>
+            Choose which of your ratings are applicable to <%= topic_review_display(primary_topic_review) %>
+          <% end %>
+        <% end %>
+
+        <%# Other links %>
+        <% if @publisher.present? %>
+          <%= label_tag :search_publisher, class: "form-control-check" do %>
+            <%= check_box_tag :search_publisher, @publisher.to_param, params[:search_publisher], class: "submitOnChange" %>
+            Only articles by <%= @publisher.name %>
+          <% end %>
+        <% end %>
+        <% if @author.present? %>
+          <%= label_tag :search_author, class: "form-control-check" do %>
+            <%= check_box_tag :search_author, @author, params[:search_author], class: "submitOnChange" %>
+            Only articles by <%= @author %>
+          <% end %>
+        <% end %>
+      </div>
+      <%= submit_tag "Update ratings", class: "btn mt-2 hiddenOnJs" %>
+    <% end %>
+  </div>
+  <div class="large-width-container mt-4">
+    <%= render partial: "/shared/pagination", locals: {pagy: @pagy, name: "Rating"} %>
+  </div>
+  <% hide_private_users = ["all", "other users"].include?(viewing_display_name) %>
+  <% if @assigning %>
+    <%# duplicating this whole thing is gross, but... HACK HACK HACK %>
+    <%= form_tag add_topic_ratings_path(sortable_params), method: :post, class: "" do %>
+      <%= hidden_field_tag :included_ratings, @ratings.pluck(:id).join(",") %>
+
+      <p class="large-width-container mb-3">
+        <%= button_tag type: "submit", class: "btn" do %>
+          Mark checked ratings applicable to <%= topic_review_display(@assign_topics, "ml-1") %>
+        <% end %>
+      </p>
+      <%= render partial: "table", locals: {ratings: @ratings, render_user: !@viewing_single_user, hide_private_users: hide_private_users, render_assign_topic: @assigning} %>
+      <p class="large-width-container mt-2 mb-3">
+        <%= button_tag type: "submit", class: "btn" do %>
+          Mark checked ratings applicable to <%= topic_review_display(@assign_topics, "ml-1") %>
+        <% end %>
+      </p>
+    <% end %>
+  <% else %>
+    <%# duplicating this whole thing is gross. It's also duplicated in admin/citations/edit %>
+    <% if @pagy.count > 0 %>
+      <%= render partial: "table", locals: {ratings: @ratings, render_user: !@viewing_single_user, hide_private_users: hide_private_users} %>
+    <% end %>
+  <% end %>
+  <div class="large-width-container">
+    <div class="row">
+      <%= render partial: "/shared/pagination", locals: {pagy: @pagy, name: "Rating", skip_total: true} %>
+    </div>
+  </div>
+<% end %>

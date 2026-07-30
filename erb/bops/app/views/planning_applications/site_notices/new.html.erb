@@ -1,0 +1,86 @@
+<% content_for :page_title do %>
+  Site notice - <%= t("page_title") %>
+<% end %>
+
+<% add_parent_breadcrumb_link "Home", root_path %>
+<% add_parent_breadcrumb_link "Application", planning_application_path(@planning_application) %>
+<% add_parent_breadcrumb_link "Consultation", planning_application_consultation_path(@planning_application) %>
+<% content_for :title, "Site notice" %>
+
+<%= render(
+      partial: "shared/proposal_header",
+      locals: {heading: "Send site notice"}
+    ) %>
+
+<% if @planning_application.environment_impact_assessment&.required? %>
+  <strong class="govuk-tag">
+    Subject to EIA
+  </strong>
+<% end %>
+
+<% if @planning_application.site_notices.exists? %>
+  <%= render "status",
+        planning_application: @planning_application,
+        site_notice: @planning_application.last_site_notice,
+        config: current_local_authority.site_notice %>
+<% end %>
+
+<%= form_with(
+      model: [@planning_application, @site_notice],
+      class: "govuk-!-margin-top-5 my-form",
+      method: :post
+    ) do |form| %>
+  <div data-controller="show-hide-form">
+    <%= form.govuk_error_summary %>
+
+    <%= form.govuk_radio_buttons_fieldset(
+          :required,
+          legend: {text: "Does this application require a site notice?", size: "m"}
+        ) do %>
+      <%= form.govuk_radio_button :required, true, label: {text: "Yes"}, data: {action: "change->show-hide-form#handleEvent"} %>
+      <%= form.govuk_radio_button :required, false, label: {text: "No"}, data: {action: "change->show-hide-form#handleEvent"} %>
+    <% end %>
+
+    <%= tag.div(id: "site-notice-options", class: class_names("govuk-!-display-none": @site_notice.errors.blank?)) do %>
+      <%= form.govuk_number_field :quantity,
+            label: {text: t("planning_applications.site_notices.quantity.label")},
+            width: "one-quarter",
+            min: 1 %>
+
+      <%= form.govuk_text_area :location_instructions,
+            label: {text: t("planning_applications.site_notices.location_instructions.label")}, hint: {text: t("planning_applications.site_notices.location_instructions.hint")},
+            rows: 5 %>
+
+      <div class="grey-box" id="email-site-notice">
+        <%= form.govuk_radio_buttons_fieldset(
+              :method,
+              legend: {text: "Email the site notice", size: "m"},
+              hint: {text: "If you are printing the site notice yourself, you can skip this step."}
+            ) do %>
+          <%= form.govuk_radio_button :method, :internal_team, label: {text: "Send it by email to internal team to post"} do %>
+            <%= form.govuk_text_field :internal_team_email, label: {text: "Internal team email"} %>
+          <% end %>
+          <%= form.govuk_radio_button :method, :applicant, label: {text: "Send it by email to applicant"} %>
+        <% end %>
+
+        <%= form.submit "Email site notice and mark as complete", class: "govuk-button govuk-button--primary govuk-!-margin-bottom-0" %>
+      </div>
+
+      <h3>OR</h3>
+
+      <div class="grey-box" id="print-site-notice">
+        <%= form.govuk_date_field :displayed_at, legend: {text: "Print the site notice"}, hint: {text: "Create and then download a PDF which you can print. Enter the date the site notice will be displayed"} %>
+        <%= form.submit "Create site notice", class: "govuk-button govuk-button--primary govuk-!-margin-bottom-0" %>
+      </div>
+
+      <div class="govuk-button-group govuk-!-padding-top-7">
+        <%= back_link %>
+      </div>
+    <% end %>
+
+    <div class="govuk-button-group govuk-!-padding-top-7 govuk-!-display-none" id="site-notice-form-actions">
+      <%= form.submit "Save and mark as complete", class: "govuk-button govuk-button--primary" %>
+      <%= back_link %>
+    </div>
+  </div>
+<% end %>
