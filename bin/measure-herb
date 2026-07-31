@@ -15,7 +15,7 @@ require_relative "../lib/pluralize"
 
 include Pluralize
 
-options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil, gem_path: nil, out: nil, label: nil }
+options = { root: File.expand_path("../erb", __dir__), limit: nil, version: nil, gem_path: nil, out: nil, label: nil, file_timeout: 30 }
 
 OptionParser.new do |parser|
   parser.banner = "usage: measure-herb [options]"
@@ -24,6 +24,7 @@ OptionParser.new do |parser|
   parser.on("--label TEXT", "How to name this run in a comparison (default: derived)") { |v| options[:label] = v }
   parser.on("--corpus DIR", "Directory of .erb files (default: erb/)") { |v| options[:root] = File.expand_path(v) }
   parser.on("--limit N", Integer, "Only measure the first N files, for a quick check") { |v| options[:limit] = v }
+  parser.on("--file-timeout SECONDS", Float, "Per-file parse+compile timeout, if this Herb supports it (default: 30)") { |v| options[:file_timeout] = v }
   parser.on("--out FILE", "Write JSON here instead of stdout") { |v| options[:out] = v }
 end.parse!
 
@@ -80,31 +81,76 @@ files = files.first(options[:limit]) if options[:limit]
 
 abort "no .erb files under #{options[:root]}" if files.empty?
 
-project = Herb::Project.new(options[:root])
+FILE_TIMEOUT_SUPPORTED = Herb::Project.method_defined?(:file_timeout=)
 
-project.file_paths = files
-project.silent = true
-project.no_log_file = true
-project.no_timing = true
-project.validate_ruby = true
+unless FILE_TIMEOUT_SUPPORTED
+  warn "herb #{Herb::VERSION} has no configurable per-file timeout; measuring with its built-in default"
+end
+
+def build_project(root, file_paths, file_timeout)
+  project = Herb::Project.new(root)
+
+  project.file_paths = file_paths
+  project.silent = true
+  project.no_log_file = true
+  project.no_timing = true
+  project.validate_ruby = true
+  project.file_timeout = file_timeout if FILE_TIMEOUT_SUPPORTED
+
+  project
+end
+
+def analyze_quietly(project)
+  captured = StringIO.new(+"")
+  original = $stdout
+  $stdout = captured
+
+  begin
+    project.analyze!
+  ensure
+    $stdout = original
+  end
+
+  project.instance_variable_get(:@results)
+end
 
 started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-captured = StringIO.new
-original = $stdout
-$stdout = captured
+results = analyze_quietly(build_project(options[:root], files, options[:file_timeout]))
 
-begin
-  project.analyze!
-ensure
-  $stdout = original
+abort "Herb::Project produced no results" unless results
+
+timeout_rechecks = {}
+timed_out = Array(results.respond_to?(:timeout) ? results.timeout : nil).dup
+
+if timed_out.any?
+  warn "#{pluralize(timed_out.size, "file")} timed out; re-checking #{noun_for(timed_out.size, "it", "them")}..."
+
+  retry_results = analyze_quietly(build_project(options[:root], timed_out, options[:file_timeout]))
+
+  retry_statuses = %i[successful skipped failed timeout template_error unexpected_error strict_parse_error
+                      analyze_parse_error validation_error compilation_failed strict_compilation_failed invalid_ruby]
+
+  timed_out.each do |path|
+    new_status = retry_statuses.find do |status|
+      retry_results.respond_to?(status) && Array(retry_results.public_send(status)).include?(path)
+    end
+
+    next if new_status.nil? || new_status == :timeout
+
+    results.timeout.delete(path)
+    results.public_send(new_status) << path
+
+    diagnostics = retry_results.file_diagnostics[path]
+    results.file_diagnostics[path] = diagnostics if diagnostics&.any?
+
+    timeout_rechecks[path] = new_status.to_s
+  end
+
+  warn "#{timeout_rechecks.size} of #{timed_out.size} did not reproduce"
 end
 
 elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-
-results = project.instance_variable_get(:@results)
-
-abort "Herb::Project produced no results" unless results
 
 relative = ->(path) { path.to_s.sub("#{options[:root]}/", "") }
 
@@ -159,6 +205,8 @@ report = {
   "status_counts" => by_status.transform_values(&:size).reject { |_, count| count.zero? },
   "diagnostic_counts" => diagnostics.values.flatten.filter_map { |d| d[:name] || d["name"] }.tally.sort_by { |_, c| -c }.to_h,
   "seconds" => elapsed.round(1),
+  "file_timeout" => (FILE_TIMEOUT_SUPPORTED ? options[:file_timeout] : nil),
+  "timeout_rechecks" => timeout_rechecks.transform_keys(&relative).sort.to_h,
   "parse_failing" => parse_failing.sort.to_h,
   "compile_failing" => compile_failing.sort.to_h
 }
