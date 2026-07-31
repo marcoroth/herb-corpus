@@ -173,10 +173,14 @@ puts "\n#{Color.green("No change in outcomes.")}" if sections.all? { |entries, _
 
 regressions = parse["gained"] + compile["gained"] + worse.map(&:first)
 
-def markdown_report(before, after, parse, compile, regressions, worse)
+def markdown_report(before, after, parse, compile, regressions, worse, better)
+  fixed = parse["lost"] + compile["lost"]
+  no_changes = regressions.empty? && fixed.empty? && better.empty?
+
   out = []
 
   out << "<!-- corpus-report -->"
+  out << "<!-- corpus-no-changes -->" if no_changes
   out << "### Corpus: #{describe(after)} vs #{describe(before)}"
   out << ""
   out << "| | #{describe(before)} | #{describe(after)} | |"
@@ -196,7 +200,7 @@ def markdown_report(before, after, parse, compile, regressions, worse)
   out << ""
   out << "Measured over #{pluralize(after["files"], "template")} from [`herb-corpus`](https://github.com/marcoroth/herb-corpus)."
 
-  if regressions.empty?
+  if no_changes
     out << ""
     out << "No file changed outcome."
   end
@@ -246,8 +250,6 @@ def markdown_report(before, after, parse, compile, regressions, worse)
     out << "</details>"
   end
 
-  fixed = parse["lost"] + compile["lost"]
-
   unless fixed.empty?
     out << ""
     out << "<details><summary>#{pluralize(fixed.size, "file")} fixed</summary>"
@@ -256,6 +258,21 @@ def markdown_report(before, after, parse, compile, regressions, worse)
     parse["lost"].first(20).each { |f| out << "- `#{f}` now parses" }
     compile["lost"].first(20).each { |f| out << "- `#{f}` now compiles" }
 
+    shown = parse["lost"].first(20).size + compile["lost"].first(20).size
+    out << "" << "_… and #{fixed.size - shown} more._" if fixed.size > shown
+
+    out << "</details>"
+  end
+
+  unless better.empty?
+    out << ""
+    out << "<details><summary>#{pluralize(better.size, "file")} got a better verdict</summary>"
+    out << ""
+    out << "| File | Was | Now |"
+    out << "| --- | --- | --- |"
+    better.first(40).each { |file, from, to| out << "| `#{file}` | `#{from}` | `#{to}` |" }
+    out << ""
+    out << "_… and #{better.size - 40} more._" if better.size > 40
     out << "</details>"
   end
 
@@ -265,7 +282,7 @@ def markdown_report(before, after, parse, compile, regressions, worse)
 end
 
 if markdown_path
-  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse))
+  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better))
   warn "Wrote #{markdown_path}"
 end
 
