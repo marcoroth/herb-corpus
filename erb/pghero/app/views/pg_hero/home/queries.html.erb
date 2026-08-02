@@ -1,5 +1,5 @@
 <div class="content">
-  <% if @query_stats_enabled && !@historical_query_stats_enabled %>
+  <% if @query_stats_enabled && !@historical_query_stats_enabled && !@database.query_stats_table_exists? %>
     <%= button_to "Reset", reset_query_stats_path, class: "btn btn-danger push-right" %>
   <% end %>
 
@@ -9,11 +9,31 @@
 
   <% if @historical_query_stats_enabled %>
     <%= render partial: "query_stats_slider" %>
-  <% elsif @database.query_stats_table_exists? && (columns = @database.missing_query_stats_columns).any? %>
+  <% elsif @database.query_stats_table_exists? && !@database.queries_table_exists? %>
     <div class="clear-both">
-      <p>Add missing columns to re-enable historical query stats.</p>
-      <pre><code><% @database.missing_query_stats_columns.each do |column| %>ALTER TABLE pghero_query_stats ADD COLUMN "<%= column %>" <%= column == "query_hash" ? "bigint" : "text" %>;
-<% end %></code></pre>
+      <p>Update the database to re-enable historical query stats.</p>
+      <% if PgHero.show_migrations %>
+      <pre><code>rails generate pghero:upgrade_query_stats
+rails db:migrate</code></pre>
+      <% else %>
+      <pre><code class="language-pgsql">CREATE TABLE pghero_queries (
+    id bigserial PRIMARY KEY,
+    query text
+);
+CREATE INDEX ON pghero_queries USING hash (query);
+
+ALTER TABLE pghero_query_stats ADD COLUMN query_id bigint;
+
+INSERT INTO pghero_queries (query)
+    SELECT DISTINCT query FROM pghero_query_stats WHERE query IS NOT NULL;
+
+UPDATE pghero_query_stats SET query_id = pghero_queries.id, query = NULL
+    FROM pghero_queries WHERE pghero_queries.query = pghero_query_stats.query;
+
+ALTER TABLE pghero_query_stats DROP COLUMN query;
+
+VACUUM (FULL, ANALYZE) pghero_query_stats;</code></pre>
+      <% end %>
       <p>Then restart the web server.</p>
     </div>
   <% end %>
