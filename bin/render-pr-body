@@ -11,13 +11,42 @@
 
 require "json"
 
+require_relative "../lib/components"
 require_relative "../lib/pluralize"
 
 include Pluralize
 
-drift_path, update_path = ARGV
+ROOT = File.expand_path("..", __dir__)
 
-abort "usage: render-pr-body.rb DRIFT_JSON UPDATE_JSON" unless drift_path && update_path
+drift_path, update_path, before_path = ARGV
+
+abort "usage: render-pr-body.rb DRIFT_JSON UPDATE_JSON [ADOPTION_BEFORE_JSON]" unless drift_path && update_path
+
+def read_json(body)
+  return nil if body.nil? || body.strip.empty?
+
+  JSON.parse(body)
+rescue JSON::ParserError
+  nil
+end
+
+def adoption_before(path)
+  return read_json(File.exist?(path) ? File.read(path) : nil) if path
+
+  read_json(`git -C #{ROOT} show HEAD:adoption.json 2>/dev/null`)
+end
+
+def new_adoptions(before, after)
+  return [] unless before && after && before.any?
+
+  after.flat_map do |app, components|
+    components.filter_map do |component, entry|
+      next if before.dig(app, component)
+
+      [COMPONENTS.dig(component, "project") || "Other", component, app, entry, !before.key?(app)]
+    end
+  end
+end
 
 drift = JSON.parse(File.read(drift_path))
 update = File.exist?(update_path) ? JSON.parse(File.read(update_path)) : { "moved" => [], "skipped" => [], "failed" => [] }
@@ -52,13 +81,43 @@ if moved.any?
   out << ""
 end
 
+after = read_json(File.exist?(File.join(ROOT, "adoption.json")) ? File.read(File.join(ROOT, "adoption.json")) : nil)
+adopted = new_adoptions(adoption_before(before_path), after)
+
+if adopted.any?
+  fresh = adopted.select(&:last).map { |row| row[2] }.uniq
+
+  out << "### New adopters"
+  out << ""
+  out << "#{pluralize(adopted.size, "component")} newly detected since the last run#{fresh.any? ? ", across #{pluralize(fresh.size, "app")} not previously seen adopting anything" : ""}:"
+  out << ""
+
+  adopted.group_by(&:first).sort.each do |project, rows|
+    out << "**#{project}**"
+    out << ""
+
+    rows.group_by { |row| row[1] }.sort_by { |component, _| COMPONENTS.keys.index(component) || 99 }.each do |component, entries|
+      apps = entries.sort_by { |row| row[2].downcase }.map do |_, _, app, entry, first_time|
+        "`#{app}`#{first_time ? "*" : ""} (#{entry["adoption_date"] || "date unknown"})"
+      end
+
+      out << "- `#{component}`: #{apps.join(", ")}"
+    end
+
+    out << ""
+  end
+
+  out << "`*` marks an app appearing in the adoption report for the first time." if fresh.any?
+  out << ""
+end
+
 if unreachable.any?
   out << "### Unreachable"
   out << ""
   out << "These remotes could not be queried. The pinned commits may no longer be fetchable, which means a fresh clone cannot reproduce the corpus:"
   out << ""
 
-  unreachable.each { |entry| out << "- `#{entry["name"]}` — `#{entry["repo"]}` branch `#{entry["branch"]}`" }
+  unreachable.each { |entry| out << "- `#{entry["name"]}`: `#{entry["repo"]}` branch `#{entry["branch"]}`" }
 
   out << ""
 end
@@ -67,7 +126,7 @@ if failed.any?
   out << "### Failed to update"
   out << ""
 
-  failed.each { |entry| out << "- `#{entry["name"]}` — #{entry["reason"]}" }
+  failed.each { |entry| out << "- `#{entry["name"]}`: #{entry["reason"]}" }
 
   out << ""
 end
@@ -76,7 +135,7 @@ if skipped.any?
   out << "### Skipped"
   out << ""
 
-  skipped.each { |entry| out << "- `#{entry["name"]}` — #{entry["reason"]}" }
+  skipped.each { |entry| out << "- `#{entry["name"]}`: #{entry["reason"]}" }
 
   out << ""
 end

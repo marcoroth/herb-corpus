@@ -13,8 +13,10 @@ require "open3"
 require "optparse"
 require "fileutils"
 require "set"
+require "shellwords"
 require "yerba"
 
+require_relative "../lib/components"
 require_relative "../lib/pluralize"
 
 include Pluralize
@@ -22,9 +24,23 @@ include Pluralize
 ROOT = File.expand_path("..", __dir__)
 APPS_DIR = File.join(ROOT, "apps")
 MANIFEST = File.join(ROOT, "corpus.yml")
+HERB_CONFIGS = %w[.herb.yml .herb.yaml herb.yml].freeze
+TEMPLATE_EXTENSIONS = %w[erb rhtml herb].freeze
+TEMPLATE_GLOB = "**/*.{#{TEMPLATE_EXTENSIONS.join(",")}}"
 
 SPARSE_PATTERNS = [
-  "/**/*.erb",
+  *TEMPLATE_EXTENSIONS.map { |extension| "/**/*.#{extension}" },
+  ".herb.yml",
+  ".herb.yaml",
+  "herb.yml",
+  ".herb/**",
+  "Gemfile",
+  "Gemfile.lock",
+  "package.json",
+  "yarn.lock",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "aube-lock.yaml",
   "LICENSE*",
   "LICENCE*",
   "MIT-LICENSE*",
@@ -121,10 +137,18 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
 
   def excluded_paths = meta["exclude_paths"].to_s.split(",").map(&:strip).reject(&:empty?)
 
+  def herb_config
+    return nil unless cloned?
+
+    HERB_CONFIGS.find { |name| File.file?(File.join(dir, name)) }
+  end
+
   def erb_files
     return [] unless cloned?
 
-    files = Dir.glob("**/*.erb", base: dir, flags: File::FNM_DOTMATCH).reject { |file| file.start_with?(".git/") }
+    files = Dir.glob(TEMPLATE_GLOB, base: dir, flags: File::FNM_DOTMATCH).reject do |file|
+      file.start_with?(".git/") || File.directory?(File.join(dir, file))
+    end
 
     return files if excluded_paths.empty?
 
@@ -206,15 +230,31 @@ def short(sha) = sha ? sha[0, 8] : "-"
 
 def command_clone(argv)
   full = false
+  refresh = false
   jobs = 4
 
   OptionParser.new do |parser|
     parser.banner = "usage: corpus clone [options] [APP...]"
     parser.on("--full", "Download full history and all blobs (default: blobless partial clone)") { full = true }
     parser.on("--jobs N", Integer, "Parallel clone jobs (default: #{jobs})") { |value| jobs = value }
+    parser.on("--refresh", "Re-apply sparse patterns to apps already cloned") { refresh = true }
   end.parse!(argv)
 
   apps = load_apps(argv)
+
+  if refresh
+    already = apps.select(&:cloned?)
+
+    puts "Refreshing sparse patterns for #{pluralize(already.size, "app")}..."
+
+    in_parallel(already, jobs) do |app|
+      configure_sparse(app.dir)
+      git?("checkout", "--quiet", "--", ".", chdir: app.dir)
+    end
+
+    puts Color.green("Refreshed #{pluralize(already.size, "app")}.")
+  end
+
   pending = apps.reject(&:cloned?)
 
   if pending.empty?
@@ -503,7 +543,7 @@ def command_list(argv)
   table(rows, ["APP", "REPO", "BRANCH", "ERB", "LICENSE"])
 
   total = apps.select(&:cloned?).sum { |app| app.erb_files.size }
-  puts "\n#{Color.bold(apps.size.to_s)} #{noun_for(apps.size, "app")}, #{Color.bold(total.to_s)} .erb #{noun_for(total, "file")}."
+  puts "\n#{Color.bold(apps.size.to_s)} #{noun_for(apps.size, "app")}, #{Color.bold(total.to_s)} template #{noun_for(total, "file")}."
 
   excluded = apps.reject(&:redistributable?)
   if excluded.any?
@@ -788,6 +828,14 @@ def command_extract(argv)
       FileUtils.cp(File.join(app.dir, app.license_file), File.join(out, app.name, File.basename(app.license_file)))
     end
 
+    if (config = app.herb_config)
+      FileUtils.cp(File.join(app.dir, config), File.join(out, app.name, config))
+    end
+
+    herb_directory = Dir.exist?(File.join(app.dir, ".herb")) ? ".herb" : nil
+
+    FileUtils.cp_r(File.join(app.dir, ".herb"), File.join(out, app.name, ".herb")) if herb_directory
+
     entries[app.name] = {
       "repo" => app.repo,
       "url" => app.url,
@@ -795,6 +843,8 @@ def command_extract(argv)
       "sha" => app.head_sha,
       "license" => app.license,
       "license_file" => app.license_file,
+      "herb_config" => config,
+      "herb_directory" => herb_directory,
       "files" => files.size
     }
 
@@ -822,9 +872,9 @@ def command_extract(argv)
   bytes = Dir.glob("#{out}/**/*").select { |path| File.file?(path) }.sum { |path| File.size(path) }
 
   if incremental
-    puts "\n#{Color.bold(total.to_s)} #{noun_for(total, "file")} re-extracted from #{pluralize(apps.size, "app")}; corpus now #{Color.bold(corpus_total.to_s)} .erb #{noun_for(corpus_total, "file")} across #{pluralize(entries.size, "app")} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
+    puts "\n#{Color.bold(total.to_s)} #{noun_for(total, "file")} re-extracted from #{pluralize(apps.size, "app")}; corpus now #{Color.bold(corpus_total.to_s)} template #{noun_for(corpus_total, "file")} across #{pluralize(entries.size, "app")} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
   else
-    puts "\n#{Color.bold(corpus_total.to_s)} .erb #{noun_for(corpus_total, "file")} from #{Color.bold(entries.size.to_s)} #{noun_for(entries.size, "app")} -> #{out} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
+    puts "\n#{Color.bold(corpus_total.to_s)} template #{noun_for(corpus_total, "file")} from #{Color.bold(entries.size.to_s)} #{noun_for(entries.size, "app")} -> #{out} (#{(bytes / 1024.0 / 1024).round(1)} MB)"
   end
 
   puts Color.yellow("Excluded (not redistributable): #{excluded.map(&:name).join(", ")}") if excluded.any?
@@ -836,12 +886,20 @@ README = File.join(ROOT, "README.md")
 STATS_START = "<!-- corpus:stats:start -->"
 STATS_END = "<!-- corpus:stats:end -->"
 
+# Derived from TEMPLATE_EXTENSIONS so the label cannot drift from what is
+# actually extracted.
+def template_extensions_phrase
+  quoted = TEMPLATE_EXTENSIONS.map { |extension| "`.#{extension}`" }
+
+  "#{quoted[0..-2].join(", ")} and #{quoted.last}"
+end
+
 def corpus_stats
   apps = load_apps
   manifest = JSON.parse(File.read(File.join(ROOT, "erb", "MANIFEST.json")))
   extracted = manifest["apps"] || {}
 
-  bytes = Dir.glob(File.join(ROOT, "erb", "**", "*.erb")).sum { |path| File.size(path) }
+  bytes = Dir.glob(File.join(ROOT, "erb", TEMPLATE_GLOB)).select { |path| File.file?(path) }.sum { |path| File.size(path) }
 
   {
     applications: apps.size,
@@ -854,10 +912,10 @@ end
 
 def render_stats(stats)
   [
-    "| | |",
+    "| Corpus | |",
     "| --- | --- |",
     "| Applications and engines | **#{stats[:applications]}** |",
-    "| `.erb` files in `erb/` | **#{format("%d", stats[:extracted_files]).gsub(/(\d)(?=(\d{3})+\z)/, "\\1,")}** from #{stats[:extracted_apps]} apps |",
+    "| #{template_extensions_phrase} files in `erb/` | **#{format("%d", stats[:extracted_files]).gsub(/(\d)(?=(\d{3})+\z)/, "\\1,")}** from #{stats[:extracted_apps]} apps |",
     "| Size of `erb/` | ~#{stats[:megabytes]} MB |",
     "| Excluded pending license review | #{stats[:excluded_apps]} apps |"
   ].join("\n")
@@ -943,6 +1001,486 @@ def command_measure(argv)
   diff_runs!(*runs.last(2), fail_on_regression: fail_on_regression)
 end
 
+ADOPTION_START = "<!-- corpus:adoption:start -->"
+ADOPTION_END = "<!-- corpus:adoption:end -->"
+ADOPTION_CACHE = File.join(ROOT, "adoption.json")
+
+
+DEPENDENCY_FILES = {
+  "gem" => %w[Gemfile Gemfile.lock],
+  "npm" => %w[package.json yarn.lock package-lock.json pnpm-lock.yaml aube-lock.yaml],
+  "config" => HERB_CONFIGS,
+  "directory" => %w[.herb]
+}.freeze
+
+def read_if_present(dir, name)
+  path = File.join(dir, name)
+
+  File.file?(path) ? File.read(path) : ""
+end
+
+def npm_version_for(app, component)
+  package = read_if_present(app.dir, "package.json")
+
+  unless package.empty?
+    begin
+      json = JSON.parse(package)
+      deps = (json["dependencies"] || {}).merge(json["devDependencies"] || {})
+
+      return deps[component] if deps[component]
+    rescue JSON::ParserError
+      nil
+    end
+  end
+
+  %w[pnpm-lock.yaml aube-lock.yaml yarn.lock package-lock.json].each do |file|
+    body = read_if_present(app.dir, file)
+    next if body.empty?
+    next unless body.include?(component)
+
+    if (match = body[/#{Regexp.escape(component)}@(\d[\w.\-]*)/, 1])
+      return match
+    end
+
+    return "present"
+  end
+
+  nil
+end
+
+def gem_version_for(app, component, spec)
+  lock = read_if_present(app.dir, "Gemfile.lock")
+  gemfile = read_if_present(app.dir, "Gemfile")
+
+  names = [component, *Array(spec["aliases"])]
+
+  names.each do |name|
+    if (version = lock[/^\s{4}#{Regexp.escape(name)} \(([^)]+)\)/, 1])
+      return version.split("-").first
+    end
+  end
+
+  names.each { |name| return "present" if gemfile =~ /^\s*gem\s+["']#{Regexp.escape(name)}["']/ }
+
+  nil
+end
+
+def gem_explicit?(app, spec, names)
+  gemfile = read_if_present(app.dir, "Gemfile")
+
+  return true if names.any? { |name| gemfile =~ /^\s*gem\s+["']#{Regexp.escape(name)}["']/ }
+
+  declared = read_if_present(app.dir, "Gemfile.lock")[/^DEPENDENCIES\n(.*?)(?:\n\n|\z)/m, 1].to_s
+
+  names.any? { |name| declared =~ /^\s+#{Regexp.escape(name)}[\s!(]*$/ }
+end
+
+def npm_explicit?(app, component)
+  package = read_if_present(app.dir, "package.json")
+
+  return false if package.empty?
+
+  json = JSON.parse(package)
+
+  (json["dependencies"] || {}).key?(component) || (json["devDependencies"] || {}).key?(component)
+rescue JSON::ParserError
+  false
+end
+
+def dependency_scope(app, component, spec)
+  names = [component, *Array(spec["aliases"])]
+
+  case spec["kind"]
+  when "gem" then gem_explicit?(app, spec, names) ? "explicit" : "transitive"
+  when "npm" then npm_explicit?(app, component) ? "explicit" : "transitive"
+  end
+end
+
+def first_seen(app, component, spec)
+  files = DEPENDENCY_FILES.fetch(spec["kind"], [])
+  earliest = nil
+
+  if %w[config directory].include?(spec["kind"])
+    files.each do |file|
+      out = `git -C #{app.dir.shellescape} log --diff-filter=A --format='%aI %H' -1 -- #{file.shellescape} 2>/dev/null`.strip
+      next if out.empty?
+
+      date, sha = out.split(" ", 2)
+      candidate = { "date" => date[0, 10], "commit" => sha, "source" => file }
+
+      earliest = candidate if earliest.nil? || candidate["date"] < earliest["date"]
+    end
+
+    return earliest
+  end
+
+  needles = [component, *Array(spec["aliases"])]
+
+  files.each do |file|
+    next unless File.file?(File.join(app.dir, file))
+
+    needles.each do |needle|
+      line = `git -C #{app.dir.shellescape} log -S#{needle.shellescape} --format='%aI %H' --reverse -- #{file.shellescape} 2>/dev/null`.lines.first
+      next unless line
+
+      date, sha = line.strip.split(" ", 2)
+      candidate = { "date" => date[0, 10], "commit" => sha, "source" => file }
+
+      earliest = candidate if earliest.nil? || candidate["date"] < earliest["date"]
+    end
+  end
+
+  earliest
+end
+
+def load_adoption_cache
+  return {} unless File.exist?(ADOPTION_CACHE)
+
+  JSON.parse(File.read(ADOPTION_CACHE))
+rescue JSON::ParserError
+  {}
+end
+
+def adoption_report(refresh_history: true, jobs: 12)
+  apps = load_apps.select(&:cloned?)
+  cache = load_adoption_cache
+  pending = []
+
+  report = apps.filter_map do |app|
+    components = COMPONENTS.filter_map do |component, spec|
+      version =
+        case spec["kind"]
+        when "gem" then gem_version_for(app, component, spec)
+        when "npm" then npm_version_for(app, component)
+        when "config" then app.herb_config && (config_version_for(app, app.herb_config) || "present")
+        when "directory" then Dir.exist?(File.join(app.dir, ".herb")) ? "present" : nil
+        end
+
+      next unless version
+
+      cached = cache.dig(app.name, component)
+
+      entry = {
+        "adopted" => true,
+        "version" => version,
+        "scope" => dependency_scope(app, component, spec),
+        "adoption_date" => cached && cached["adoption_date"],
+        "adoption_commit" => cached && cached["adoption_commit"],
+        "source" => cached && cached["source"]
+      }
+
+      pending << [app, component, spec, entry] unless entry["adoption_date"]
+
+      [component, entry]
+    end.to_h
+
+    config = app.herb_config
+    next if components.empty? && config.nil?
+
+    [app.name, {
+      "repo" => app.repo,
+      "pin" => app.pinned_sha,
+      "config" => config,
+      "config_version" => config_version_for(app, config),
+      "components" => components
+    }]
+  end.to_h
+
+  if refresh_history && pending.any?
+    warn "searching history for #{pluralize(pending.size, "component")}..."
+
+    in_parallel(pending, jobs) do |app, component, spec, entry|
+      found = first_seen(app, component, spec)
+      next unless found
+
+      entry["adoption_date"] = found["date"]
+      entry["adoption_commit"] = found["commit"]
+      entry["source"] = found["source"]
+    end
+
+    report.each do |name, data|
+      data["components"].each do |component, entry|
+        next unless entry["adoption_date"]
+
+        cache[name] ||= {}
+        cache[name][component] = entry.slice("adoption_date", "adoption_commit", "source")
+      end
+    end
+
+    File.write(ADOPTION_CACHE, "#{JSON.pretty_generate(cache.sort.to_h)}\n")
+  end
+
+  report
+end
+
+def config_version_for(app, config)
+  return nil unless config
+
+  data = begin
+    Yerba.parse_file(File.join(app.dir, config)).to_h
+  rescue StandardError
+    nil
+  end
+
+  data.is_a?(Hash) && data["version"] ? data["version"].to_s : nil
+end
+
+def adoption_config_summary(report)
+  keys = Hash.new(0)
+  rules = Hash.new { |hash, key| hash[key] = Hash.new(0) }
+  formatter = Hash.new { |hash, key| hash[key] = Hash.new(0) }
+  rewriters = Hash.new(0)
+  parsed = 0
+
+  report.each do |name, data|
+    next unless data["config"]
+
+    file = File.join(APPS_DIR, name, data["config"])
+    next unless File.file?(file)
+
+    config = begin
+      Yerba.parse_file(file).to_h
+    rescue StandardError
+      nil
+    end
+
+    next unless config.is_a?(Hash)
+
+    parsed += 1
+    config.each_key { |key| keys[key] += 1 }
+
+    if (linter = config["linter"]).is_a?(Hash)
+      (linter["rules"] || {}).each do |rule, setting|
+        state = setting.is_a?(Hash) ? (setting["enabled"] == false ? "off" : "tuned") : setting.to_s
+        rules[rule][state] += 1
+      end
+    end
+
+    next unless (section = config["formatter"]).is_a?(Hash)
+
+    %w[maxLineLength indentWidth].each do |key|
+      formatter[key][section[key].to_s] += 1 if section[key]
+    end
+
+    next unless (rewriter = section["rewriter"]).is_a?(Hash)
+
+    %w[pre post].each do |phase|
+      Array(rewriter[phase]).each { |name| rewriters["#{phase}: #{name}"] += 1 }
+    end
+  end
+
+  { keys: keys, rules: rules, formatter: formatter, rewriters: rewriters, parsed: parsed }
+end
+
+def adoption_timeline(report)
+  dated = report.flat_map do |_, data|
+    first = data["components"].filter_map do |component, entry|
+      [COMPONENTS.dig(component, "project"), entry["adoption_date"]] if entry["adoption_date"]
+    end
+
+    first.group_by(&:first).map { |project, pairs| [project, pairs.map(&:last).min] }
+  end
+
+  return nil if dated.empty?
+
+  months = dated.map { |_, date| date[0, 7] }.uniq.sort
+  axis = []
+  year, month = months.first.split("-").map(&:to_i)
+
+  loop do
+    label = format("%04d-%02d", year, month)
+    axis << label
+    break if label == months.last
+
+    month += 1
+    (month = 1) && (year += 1) if month > 12
+  end
+
+  series = COMPONENTS.values.map { |spec| spec["project"] }.uniq.filter_map do |project|
+    counts = dated.select { |name, _| name == project }.map { |_, date| date[0, 7] }.tally
+    next if counts.empty?
+
+    running = 0
+
+    [project, axis.map { |label| running += counts.fetch(label, 0) }]
+  end
+
+  out = []
+  out << "```mermaid"
+  out << "xychart"
+  out << %(  title "Cumulative adoption, by project")
+  out << "  x-axis [#{axis.map { |label| %("#{label}") }.join(", ")}]"
+  out << %(  y-axis "Apps" 0 --> #{[series.flat_map(&:last).max.to_i + 1, 2].max})
+
+  series.each { |_, line| out << "  line [#{line.join(", ")}]" }
+
+  out << "```"
+  out << ""
+  out << series.map { |project, line| "#{project} #{line.last}" }.join(" · ")
+
+  out.join("\n")
+end
+
+def render_adoption(report, summary, total)
+  out = []
+  by_project = COMPONENTS.group_by { |_, spec| spec["project"] }
+
+  by_project.each do |project, components|
+    names = components.map(&:first)
+    users = report.select { |_, data| names.any? { |component| data["components"].key?(component) } }
+    next if users.empty?
+
+    out << "" unless out.empty?
+    out << "### #{project}"
+    out << ""
+
+    counts = names.filter_map do |component|
+      count = report.count { |_, data| data["components"].key?(component) }
+      "`#{component}` #{count}" if count.positive?
+    end
+
+    out << "**#{users.size} of #{total}** applications use #{project}: #{counts.join(", ")}."
+    out << ""
+
+    names = names.select { |component| users.any? { |_, data| data["components"].key?(component) } }
+
+    out << "| App | Component | Version | Dependency | Adopted |"
+    out << "| --- | --- | --- | --- | --- |"
+
+    users.sort_by { |name, _| name.downcase }.each_with_index do |(name, data), index|
+      label = data["pin"] ? "[#{name}](https://github.com/#{data["repo"]}/tree/#{data["pin"]})" : name
+
+      out << "|  |  |  |  |  |" unless index.zero?
+
+      names.each do |component|
+        entry = data["components"][component]
+        next unless entry
+
+        adopted =
+          if entry["adoption_date"]
+            "[#{entry["adoption_date"]}](https://github.com/#{data["repo"]}/commit/#{entry["adoption_commit"]} \"first seen in #{entry["source"]}\")"
+          else
+            "–"
+          end
+
+        out << "| #{label} | #{component.sub("@herb-tools/", "")} | #{entry["version"] || "–"} | #{entry["scope"] || "–"} | #{adopted} |"
+        label = ""
+      end
+    end
+  end
+
+  if (timeline = adoption_timeline(report))
+    out << ""
+    out << "### Adoption over time"
+    out << ""
+    out << timeline
+  end
+
+  versions = report.filter_map { |_, data| data.dig("components", "herb", "version") }
+                   .reject { |version| version == "present" }
+                   .tally
+
+  if versions.any?
+    out << ""
+    ordered = versions.sort_by { |version, _| Gem::Version.new(version) rescue Gem::Version.new("0") }.reverse
+
+    out << "### Herb releases in use"
+    out << ""
+    out << "```mermaid"
+    out << "pie showData"
+    out << %(  title Herb releases across #{pluralize(versions.values.sum, "app")})
+
+    ordered.each { |version, count| out << %(  "#{version}" : #{count}) }
+
+    out << "```"
+  end
+
+  if summary[:keys].any?
+    out << ""
+    out << "### How the config is used"
+    out << ""
+    out << "Of the #{summary[:parsed]} Herb configs, the sections people set are " +
+           summary[:keys].sort_by { |_, count| -count }.map { |key, count| "`#{key}` (#{count})" }.join(", ") + "."
+  end
+
+  if summary[:formatter].any?
+    out << ""
+
+    summary[:formatter].each do |key, values|
+      out << "`formatter.#{key}`: " + values.sort_by { |_, count| -count }.map { |value, count| "**#{value}** (#{count})" }.join(", ")
+    end
+  end
+
+  if summary[:rewriters].any?
+    out << ""
+    out << "Rewriters: " + summary[:rewriters].sort_by { |_, count| -count }.map { |name, count| "`#{name}` (#{count})" }.join(", ")
+  end
+
+  tuned = summary[:rules].sort_by { |_, states| -states.values.sum }.first(10)
+
+  if tuned.any?
+    out << ""
+    out << "The linter rules most often adjusted:"
+    out << ""
+    out << "| Rule | Disabled | Tuned |"
+    out << "| --- | ---: | ---: |"
+
+    tuned.each do |rule, states|
+      out << "| `#{rule}` | #{states["off"] || states["false"] || 0} | #{states["tuned"] || 0} |"
+    end
+  end
+
+  out.join("\n")
+end
+
+def command_adoption(argv)
+  write = false
+  as_json = false
+  refresh_history = true
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus adoption [options]"
+    parser.on("--write", "Update the generated block in README.md") { write = true }
+    parser.on("--json", "Emit the structured report instead of Markdown") { as_json = true }
+    parser.on("--no-history", "Use only cached adoption dates; do not search git history") { refresh_history = false }
+  end.parse!(argv)
+
+  total = load_apps.size
+  report = adoption_report(refresh_history: refresh_history)
+
+  if as_json
+    puts JSON.pretty_generate({ "total" => total, "components" => COMPONENTS.keys, "apps" => report })
+    return 0
+  end
+
+  block = render_adoption(report, adoption_config_summary(report), total)
+
+  unless write
+    puts block
+    return 0
+  end
+
+  readme = File.read(README)
+
+  unless readme.include?(ADOPTION_START) && readme.include?(ADOPTION_END)
+    raise CommandError, "README.md is missing the #{ADOPTION_START} / #{ADOPTION_END} markers"
+  end
+
+  updated = readme.sub(
+    /#{Regexp.escape(ADOPTION_START)}.*?#{Regexp.escape(ADOPTION_END)}/m,
+    "#{ADOPTION_START}\n\n#{block}\n\n#{ADOPTION_END}"
+  )
+
+  if updated == readme
+    puts "README.md already up to date."
+  else
+    File.write(README, updated)
+    puts Color.green("Updated the adoption block in README.md.")
+  end
+
+  0
+end
+
 def command_stats(argv)
   write = false
 
@@ -985,6 +1523,7 @@ COMMANDS = {
   "update" => method(:command_update),
   "status" => method(:command_status),
   "stats" => method(:command_stats),
+  "adoption" => method(:command_adoption),
   "measure" => method(:command_measure),
   "list" => method(:command_list),
   "add" => method(:command_add),
@@ -1001,12 +1540,13 @@ USAGE = <<~TEXT
     update    Move each pin to the tip of its tracked branch
     status    Show each app's pin, checkout state, and drift
     stats     Print corpus totals, or refresh the generated block in README.md
+    adoption  Report which apps depend on Herb and how they configure it
     measure   Run one or two Herb versions over the corpus and diff the results
     drift     Report which pins are behind their branch (no checkout needed)
-    list      List apps with repo, branch, .erb count, and license
+    list      List apps with repo, branch, template count, and license
     add       Add a new app as a submodule and stub its manifest entry
     remove    Remove an app's submodule and checkout
-    extract   Copy the .erb files into erb/ with a provenance manifest
+    extract   Copy the template files into erb/ with a provenance manifest
 
   Run `corpus <command> --help` for command-specific options.
 TEXT

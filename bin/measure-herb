@@ -22,7 +22,7 @@ OptionParser.new do |parser|
   parser.on("--version V", "Herb gem version to measure") { |v| options[:version] = v }
   parser.on("--gem-path PATH", "Load Herb from a working tree instead of an installed gem") { |v| options[:gem_path] = v }
   parser.on("--label TEXT", "How to name this run in a comparison (default: derived)") { |v| options[:label] = v }
-  parser.on("--corpus DIR", "Directory of .erb files (default: erb/)") { |v| options[:root] = File.expand_path(v) }
+  parser.on("--corpus DIR", "Directory of template files (default: erb/)") { |v| options[:root] = File.expand_path(v) }
   parser.on("--limit N", Integer, "Only measure the first N files, for a quick check") { |v| options[:limit] = v }
   parser.on("--file-timeout SECONDS", Float, "Per-file parse+compile timeout, if this Herb supports it (default: 30)") { |v| options[:file_timeout] = v }
   parser.on("--out FILE", "Write JSON here instead of stdout") { |v| options[:out] = v }
@@ -76,10 +76,12 @@ label =
     "released #{Herb::VERSION}"
   end
 
-files = Dir.glob(File.join(options[:root], "**", "*.erb"), File::FNM_DOTMATCH).sort
+files = Dir.glob(File.join(options[:root], "**", "*.{erb,rhtml,herb}"), File::FNM_DOTMATCH)
+        .reject { |path| File.directory?(path) }
+        .sort
 files = files.first(options[:limit]) if options[:limit]
 
-abort "no .erb files under #{options[:root]}" if files.empty?
+abort "no template files under #{options[:root]}" if files.empty?
 
 FILE_TIMEOUT_SUPPORTED = Herb::Project.method_defined?(:file_timeout=)
 
