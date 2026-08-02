@@ -1,0 +1,180 @@
+<% breadcrumb :admin %>
+
+<section>
+  <% if can?(:rebuild_classification_mappings, :dash_board) || can?(:update_computed_attributes, :dash_board) || can?(:clear_all, :cache) %>
+    <div class="row">
+      <div class="small-12 columns maintenance-administration">
+        <h4>
+          <i class="fa fa-arrow-circle-o-right" aria-hidden="true"></i>
+          maintenance
+        </h4>
+
+        <% if can?(:rebuild_classification_mappings, :dash_board) %>
+          <%= turbo_localized_stream_from "admin_dashboard_concept_mapping_job" %>
+          <%= render 'data_cycle_core/dash_board/concept_mappings_button', rebuilding: @rebuilding_classification_mappings %>
+        <% end %>
+
+        <% if can?(:update_computed_attributes, :dash_board) %>
+          <% computed_attributes_reveal_id = SecureRandom.hex(10) %>
+          <button
+            type="button"
+            class="button small update-computed-attributes-button"
+            data-open="<%= computed_attributes_reveal_id %>"
+          >
+            <i class="fa fa-cogs" aria-hidden="true"></i>
+            <%= t('dash_board.maintenance.computed_attributes.title', locale: active_ui_locale) %>
+          </button>
+          <div class="reveal update-computed-attributes-reveal" id="<%= computed_attributes_reveal_id %>" data-reveal>
+            <%= turbo_frame_tag "admin_dashboard_computed_attributes_form", src: admin_computed_attributes_form_path, loading: 'lazy' do %>
+              <div class="reveal-body text-center">
+                <i class="fa fa-spinner fa-spin fa-2x" aria-hidden="true"></i>
+              </div>
+            <% end %>
+
+            <button
+              class="close-button"
+              data-close
+              aria-label="Close modal"
+              type="button"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+        <% end %>
+
+        <% if can?(:clear_all, :cache) %>
+          <%= button_to safe_join([
+              tag.i(class: 'fa fa-shield'),
+              t('data_cycle_core.cache.clear_all', locale: active_ui_locale)
+            ], ' '),
+            clear_all_caches_path,
+            class: 'button small',
+            method: :delete,
+            data: {
+              dc_tooltip: t('data_cycle_core.cache.clear_all', locale: active_ui_locale),
+            },
+            form: {
+              data: {
+                turbo: true,
+                turbo_stream: true,
+                turbo_confirm: t('common.confirm_delete_all_caches', locale: active_ui_locale)
+              }
+            } %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="row">
+    <div class="small-12 columns">
+      <h4>
+        <i class="fa fa-database" aria-hidden="true"></i>
+        core database
+      </h4>
+
+      <% if can?(:show_admin_activities, :dash_board) %>
+        <%= link_to 'activities', admin_activities_path, class: 'button small hollow' %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="grid-external-modules">
+    <div class="grid-parent">
+      <%= render 'data_cycle_core/dash_board/pg_total_stats', stat_database: @stat_database %>
+      <%= render 'data_cycle_core/dash_board/job_queue_stats', stat_job_queue: @stats_job_queue %>
+    </div>
+  </div>
+
+  <% if @grouped_external_systems&.dig(:import).present? || @grouped_external_systems&.dig(:webhook).present? || (can?(:create, DataCycleCore::ExternalSystem) && DataCycleCore.external_system_template_paths.present?) %>
+    <div class="row">
+      <div class="small-12 columns">
+        <h4>
+          <i class="fa fa-arrow-circle-o-down" aria-hidden="true"></i>
+          import modules
+          <% if can?(:create, DataCycleCore::ExternalSystem) && DataCycleCore.external_system_template_paths.present? %>
+            <% random_id = SecureRandom.hex(10) %>
+            <a href="#" class="add-external_system-button button small" data-open="<%= random_id %>">
+              <i class="fa fa-plus"></i>
+            </a>
+            <div
+              class="reveal new-item remote-render"
+              id="<%= random_id %>"
+              data-reveal
+              data-remote-path="data_cycle_core/external_systems/new"
+            ></div>
+          <% end %>
+        </h4>
+      </div>
+    </div>
+    <div class="grid-external-modules">
+      <%= turbo_localized_stream_from "admin_dashboard_import_modules" if @grouped_external_systems&.dig(:import).present? %>
+
+      <div class="grid-parent">
+        <%= render partial: 'import_modules', collection: @grouped_external_systems&.dig(:import), as: :import_data %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @grouped_external_systems&.dig(:export).present? %>
+    <div class="row">
+      <div class="small-12 columns">
+        <h4>
+          <i class="fa fa-arrow-circle-o-up" aria-hidden="true"></i>
+          export modules
+        </h4>
+      </div>
+    </div>
+    <div class="grid-external-modules">
+      <div class="grid-parent">
+        <%= render partial: 'export_modules', collection: @grouped_external_systems&.dig(:export), as: :external_system %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @grouped_external_systems&.dig(:service).present? %>
+    <div class="row">
+      <div class="small-12 columns">
+        <h4>
+          <i class="fa fa-wrench" aria-hidden="true"></i>
+          service modules
+        </h4>
+      </div>
+    </div>
+    <div class="grid-external-modules">
+      <div class="grid-parent">
+        <%= render partial: 'export_modules', collection: @grouped_external_systems&.dig(:service), as: :external_system %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @grouped_external_systems&.dig(:foreign).present? %>
+    <div class="row">
+      <div class="small-12 columns">
+        <h4>
+          <i class="fa fa-refresh" aria-hidden="true"></i>
+          foreign modules
+        </h4>
+      </div>
+    </div>
+    <div class="grid-external-modules">
+      <div class="grid-parent">
+        <%= render partial: 'export_modules', collection: @grouped_external_systems&.dig(:foreign), as: :external_system %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if can?(:show, :live_logs) %>
+    <div class="row">
+      <div class="small-12 columns">
+        <h4>
+          <i class="fa fa-align-left" aria-hidden="true"></i>
+          live logs
+        </h4>
+      </div>
+    </div>
+    <div class="grid-external-modules">
+      <%= turbo_stream_from "admin_dashboard_live_log" %>
+      <%= render 'data_cycle_core/dash_board/live_logs' %>
+    </div>
+  <% end %>
+</section>

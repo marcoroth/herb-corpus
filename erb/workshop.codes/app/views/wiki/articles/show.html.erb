@@ -1,0 +1,67 @@
+<% content_for :page_title, @article.title + " | Wiki" %>
+<% content_for :og_description, strip_tags(markdown(@article.content || "")).truncate(150).gsub("\n"," ") %>
+<% content_for :og_summary_small, "true" %>
+<% content_for :noindex, "true" if controller_path.include?("poison") %>
+
+<article class="article top-offset">
+  <%= render "wiki/quick_navigation" %>
+
+  <main class="article__main" id="article">
+    <%= link_to "All articles", wiki_poison_path, class: "hidden" %>
+    <%= link_to @article.category.title, wiki_category_path(@article.category.slug), class: "article__category" %>
+
+    <h1 class="article__title">
+      <strong><%= @article.title %></strong>
+
+      <small class="article__subtitle mb-0" title="<%= @article.updated_at %>">
+        Last updated <%= @article.updated_at.strftime("%B %d, %Y") %>
+      </small>
+    </h1>
+
+    <div class="article__content">
+      <%= sanitized_markdown(@article.content || "_This article does not yet have a description_", rendererOptions: { header_anchors: true }) %>
+    </div>
+  </main>
+
+  <aside class="article__aside">
+    <div class="article__aside-content">
+      <h3 aria-level="2" class="mt-0 mb-1/4">Article details</h3>
+      <span class="text-dark">Created at:</span> <%= @initial_article.created_at.strftime("%d %b %Y %R") %> <br>
+      <span class="text-dark">Updated at:</span> <%= @article.created_at.strftime("%d %b %Y %R") %> <br>
+
+      <%= link_to wiki_article_edits_path(@article.group_id) do %>
+        <%= @edit_count %> Edit<%= "s" if @edit_count > 1 %>
+      <% end %>
+
+      <% if @article.category.is_documentation? %>
+        <div><em>Workshop documentation</em></div>
+      <% end %>
+
+      <div class="mt-1/4">
+        <span class="text-dark">Category:</span> <%= link_to @article.category.title, wiki_category_path(@article.category.slug) %> <br>
+      </div>
+
+      <% if @article.tags.present? %>
+        <div>
+          <span class="text-dark">Tags:</span>
+
+          <small>
+            <% @article.tags.tr("[]", "").split(/,\s*/).each do |tag| %>
+              <%= link_to tag + ", ", wiki_search_results_path(query: tag) %>
+            <% end %>
+          </small>
+        </div>
+      <% end %>
+
+      <div class="mt-1/2">
+        <%= link_to "Edit article", edit_wiki_article_path(@article.slug), class: "button button--secondary button--small" %>
+
+        <% if is_arbiter?(current_user) %>
+          <%= link_to "Destroy", wiki_article_path(@article.id), class: "button button--danger button--small", method: :delete, data: { confirm: "Are you sure you want to destroy this article? This cannot be undone." } %>
+        <% end %>
+      </div>
+
+      <%= render "wiki/articles/poison_articles" if @poison_articles.present? %>
+    </div>
+  </aside>
+</article>

@@ -1,0 +1,144 @@
+<%= form_for @dossier, url: update_identite_dossier_path(@dossier), html: { id: 'identite-form', class: "form", "data-controller" => "for-tiers" } do |f| %>
+  <%= f.hidden_field :for_tiers %>
+
+  <% if for_tiers? %>
+    <div class="fr-alert fr-alert--info fr-mb-4w">
+      <p class="fr-notice__text">
+        <%= t('.for_tiers.callout_text') %>
+
+        <%= link_to(t('.for_tiers.callout_link'),
+              'https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000006070721/LEGISCTA000006136404/#LEGISCTA000006136404',
+              title: helpers.new_tab_suffix(t('.for_tiers.callout_link_title')),
+              **helpers.external_link_attributes) %>
+      </p>
+    </div>
+    <div class="border-grey fr-p-3w fr-mb-4w">
+      <fieldset class="fr-fieldset mandataire-infos fr-mb-0">
+        <legend class="fr-fieldset__legend fr-fieldset__legend--regular">
+          <h2 class="fr-h5"><%= t('.for_self.self_title') %></h2>
+        </legend>
+
+        <% if mandataire_identity_locked? %>
+          <div class="fr-highlight fr-text--sm">
+            <%= t('.identity_locked_by_france_connect') %>
+          </div>
+        <% end %>
+
+        <div class="fr-fieldset__element fr-fieldset__element--short-text">
+          <%= render Dsfr::InputComponent.new(form: f, attribute: :mandataire_first_name, opts: { autocomplete: 'given-name', disabled: mandataire_identity_locked? }) %>
+        </div>
+
+        <div class="fr-fieldset__element fr-fieldset__element--short-text">
+          <%= render Dsfr::InputComponent.new(form: f, attribute: :mandataire_last_name, opts: { autocomplete: 'family-name', disabled: mandataire_identity_locked? }) %>
+        </div>
+      </fieldset>
+    </div>
+  <% elsif can_personal_data_be_transmitted? %>
+    <%= render Dsfr::AlertComponent.new(title: t('.for_self.callout_title'), state: :info, with_prefix: false, extra_class_names: 'fr-mb-2w') do |c| %>
+      <% c.with_body do %>
+        <%= t('.for_self.callout_text') %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= f.fields_for :individual, include_id: false do |individual| %>
+    <div class="border-grey fr-p-3w fr-mb-4w">
+      <fieldset class="fr-fieldset individual-infos fr-mb-0">
+        <legend class="fr-fieldset__legend fr-fieldset__legend--regular">
+          <h2 class="fr-h5">
+            <% if for_tiers? %>
+              <%= t('.for_tiers.beneficiaire_title') %>
+            <% else %>
+              <%= t('.for_self.self_title') %>
+            <% end %>
+          </h2>
+        </legend>
+
+        <% if identity_locked? %>
+          <div class="fr-highlight fr-text--sm">
+            <%= t('.identity_locked_by_france_connect') %>
+          </div>
+        <% end %>
+
+        <% unless @dossier.procedure.no_gender? %>
+          <div class="fr-fieldset__element">
+            <%= render Dsfr::RadioButtonListComponent.new(
+              form: individual,
+              target: :gender,
+              buttons: [
+                { label: Individual.human_attribute_name('gender.female'), value: Individual::GENDER_FEMALE, required: true, disabled: identity_locked?, translate: "no" },
+                { label: Individual.human_attribute_name('gender.male'), value: Individual::GENDER_MALE, required: true, disabled: identity_locked?, translate: "no" }
+              ],
+              error: individual.object.errors.full_messages_for(:gender).first,
+              inline: true
+            ) do %>
+              <%= t('activerecord.attributes.individual.gender') %>
+              <%= render EditableChamp::AsteriskMandatoryComponent.new %>
+            <% end %>
+          </div>
+        <% end %>
+
+        <div class="fr-fieldset__element fr-fieldset__element--short-text">
+          <% if for_tiers? %>
+            <%= render Dsfr::InputComponent.new(form: individual, attribute: :prenom) %>
+          <% else %>
+            <%= render Dsfr::InputComponent.new(form: individual, attribute: :prenom, opts: { autocomplete: 'given-name', disabled: identity_locked? }) %>
+          <% end %>
+        </div>
+
+        <div class="fr-fieldset__element fr-fieldset__element--short-text">
+          <% if for_tiers? %>
+            <%= render Dsfr::InputComponent.new(form: individual, attribute: :nom) %>
+          <% else %>
+            <%= render Dsfr::InputComponent.new(form: individual, attribute: :nom, opts: { autocomplete: 'family-name', disabled: identity_locked? }) %>
+          <% end %>
+        </div>
+
+        <% if @dossier.procedure.ask_birthday? %>
+          <div class="fr-fieldset__element">
+            <%= render Dsfr::InputComponent.new(form: individual, attribute: :birthdate, input_type: :date_field,
+                opts: { placeholder: 'Format : AAAA-MM-JJ', max: Date.today.iso8601, min: "1900-01-01", autocomplete: 'bday' }) %>
+          </div>
+        <% end %>
+
+        <% if for_tiers? %>
+          <div class="fr-fieldset__element">
+            <div class="fr-checkbox-group fr-mt-2w <%= 'fr-checkbox-group--error' if individual.object.errors.include?(:notification_method) %>">
+              <%= individual.check_box :notification_method, {
+              id: "notification_method_checkbox",
+              checked: email_notifications?(individual),
+              "data-action" => "for-tiers#toggleEmailInput",
+              "data-for-tiers-target" => "notificationMethodCheckbox",
+              "aria-describedby" => individual.object.errors.include?(:notification_method) ? "individual_notification_method-error" : nil
+            }, 'email', 'no_notification' %>
+
+              <label class="fr-label" for="notification_method_checkbox">
+                <%= t('.for_tiers.notify_beneficiary') %>
+              </label>
+
+              <% if individual.object.errors.include?(:notification_method) %>
+                <p
+                  class="fr-error-text"
+                  id="individual_notification_method-error"
+                >
+                  <%= individual.object.errors.full_messages_for(:notification_method).first %>
+                </p>
+              <% end %>
+            </div>
+          </div>
+          <div
+            class="fr-fieldset__element fr-fieldset__element--short-text <%= 'hidden' unless email_notifications?(individual) %>"
+            data-for-tiers-target="emailContainer"
+          >
+            <%= render Dsfr::InputComponent.new(form: individual, attribute: :email, input_type: :email_field, opts: { "data-for-tiers-target" => "emailInput" }) %>
+          </div>
+        <% end %>
+      </fieldset>
+    </div>
+  <% end %>
+
+  <div class="fr-btns-group fr-btns-group--inline">
+    <%= link_to t('views.users.dossiers.identite.back'), back_url, class: "fr-btn fr-btn--secondary" %>
+    <%= f.submit t('views.users.dossiers.identite.continue'), class: "fr-btn", "data-email-input-target": "next" %>
+  </div>
+<% end %>

@@ -1,0 +1,354 @@
+<% content_for(:title, 'Groupes') %>
+
+<h1 class="fr-h2">Gestion des groupes</h1>
+
+<div class="flex align-center">
+  <button
+    class="fr-btn fr-btn--primary fr-icon-add-line fr-btn--icon-left fr-mb-3w"
+    aria-controls="modal-add-groupe"
+    aria-haspopup="dialog"
+    data-fr-opened="false"
+  >
+    <%= t('.add_groupe_modal.title') %>
+  </button>
+
+  <%= render Procedure::ImportComponent.new(procedure: @procedure) %>
+</div>
+
+<dialog
+  id="modal-add-groupe"
+  class="fr-modal"
+  aria-labelledby="fr-modal-title-add-groupe"
+  role="dialog"
+>
+  <div class="fr-container fr-container--fluid fr-container-md">
+    <div class="fr-grid-row fr-grid-row--center">
+      <div class="fr-col-12 fr-col-md-8 fr-col-lg-6">
+        <div class="fr-modal__body">
+          <div class="fr-modal__header">
+            <button
+              class="fr-btn--close fr-btn"
+              aria-controls="modal-add-groupe"
+              title="<%= t('utils.modal_close_alt') %>"
+            >
+              <%= t('utils.modal_close') %>
+            </button>
+          </div>
+
+          <div class="fr-modal__content">
+            <h1 id="fr-modal-title-add-groupe" class="fr-modal__title">
+              <span class="fr-icon-add-line fr-icon--lg"></span>
+              <%= t('.add_groupe_modal.title') %>
+            </h1>
+
+            <%= form_for :groupe_instructeur, url: admin_procedure_groupe_instructeurs_path(@procedure), method: :post, data: { controller: 'enable-submit-if-filled', action: 'input->enable-submit-if-filled#fill' } do |f| %>
+              <div class="fr-input-group fr-mb-3w">
+                <%= f.label :label, t('.add_groupe_modal.label'), class: 'fr-label' %>
+                <%= f.text_field :label, required: true, class: 'fr-input fr-mt-1w', placeholder: t('.add_groupe_modal.placeholder'), data: { 'enable-submit-if-filled-target': 'input' } %>
+              </div>
+
+              <div class="fr-modal__footer fr-p-0 fr-m-0">
+                <ul class="fr-btns-group fr-btns-group--inline-sm">
+                  <li>
+                    <button
+                      class="fr-btn fr-btn--secondary"
+                      type="button"
+                      aria-controls="modal-add-groupe"
+                    >
+                      <%= t('.add_groupe_modal.cancel') %>
+                    </button>
+                  </li>
+
+                  <li>
+                    <%= f.button t('.add_groupe_modal.submit'), class: 'fr-btn', disabled: true, data: { 'enable-submit-if-filled-target': 'submit' } %>
+                  </li>
+                </ul>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<%= render Procedure::GroupesSearchComponent.new(procedure: @procedure,
+  query: @query,
+  to_configure_count: @procedure.groupe_instructeurs.filter(&:routing_to_configure?).count,
+  to_configure_filter: @to_configure_filter) %>
+
+<div class="flex justify-between align-baseline">
+  <div class="title fr-text--bold"><%= table_header %></div>
+
+  <%= render Dropdown::MenuComponent.new(wrapper: :div, button_options: { class: ['fr-btn--tertiary', 'fr-btn--icon-left', 'fr-icon-download-line'] }, menu_options: { class: ['dropdown-menu-simple'] }) do |menu| %>
+    <% menu.with_button_inner_html do %>
+      <%= t('.export_dropdown.title') %>
+    <% end %>
+
+    <% menu.with_item do %>
+      <%= link_to export_groupe_instructeurs_admin_procedure_groupe_instructeurs_path(@procedure, format: :csv), role: 'menuitem', class: 'fr-link' do %>
+        <%= t('.export_dropdown.export_instructeurs') %>
+      <% end %>
+    <% end %>
+
+    <% menu.with_item do %>
+      <%= link_to export_contact_informations_admin_procedure_groupe_instructeurs_path(@procedure, format: :csv), role: 'menuitem', class: 'fr-link' do %>
+        <%= t('.export_dropdown.export_contact_informations') %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="fr-table fr-table--no-caption fr-table--layout-fixed fr-mt-2w">
+  <div class="fr-table__wrapper">
+    <div class="fr-table__container">
+      <div class="fr-table__content">
+        <table>
+          <caption><%= table_header %></caption>
+
+          <thead>
+            <tr>
+              <th
+                scope="col"
+                class="<%= any_custom_contact_information? ? 'fr-col-6' : 'fr-col-9' %>"
+              >
+                Groupes
+              </th>
+
+              <% if any_custom_contact_information? %>
+                <th class="fr-col-3" scope="col">
+                  <%= t('.table.contact_informations') %>
+                </th>
+              <% end %>
+
+              <th class="fr-col-1" scope="col">
+                Dossiers
+              </th>
+
+              <th class="fr-col-2 fr-cell--right" scope="col">
+                Instructeurs
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <% @groupe_instructeurs.each do |gi| %>
+              <tr>
+                <td class="fr-cell--multiline" scope="col">
+                  <%= link_to admin_procedure_groupe_instructeur_path(@procedure, gi), class: 'fr-link' do %>
+                    <span><%= gi.label %></span>
+                  <% end %>
+
+                  <p>
+                    <%= gi.routing_rule&.to_s(@procedure.active_revision.types_de_champ) %>
+                  </p>
+
+                  <% if gi.defaut? %>
+                    <p class="fr-badge fr-badge--sm fr-badge--no-icon fr-mt-1w">
+                      <%= t('.table.defaut') %>
+                    </p>
+                  <% end %>
+
+                  <% if gi.closed %>
+                    <p class="fr-badge fr-badge--info fr-badge--sm fr-mt-1w">
+                      inactif
+                    </p>
+                  <% elsif gi.routing_rule.nil? && !gi.defaut? %>
+                    <p class="fr-badge fr-badge--warning fr-badge--sm fr-mt-1w">
+                      aucune règle
+                    </p>
+                  <% elsif gi.routing_rule.present? && gi.invalid_rule? %>
+                    <p class="fr-badge fr-badge--warning fr-badge--sm fr-mt-1w">
+                      règle invalide
+                    </p>
+                  <% elsif gi.non_unique_rule? %>
+                    <p class="fr-badge fr-badge--warning fr-badge--sm fr-mt-1w">
+                      règle déjà attribuée à <%= gi.groups_with_same_rule %>
+                    </p>
+                  <% end %>
+                </td>
+
+                <% if any_custom_contact_information? %>
+                  <td scope="col">
+                    <% if gi.contact_information.present? %>
+                      <p class="fr-badge fr-badge--success fr-badge--sm">
+                        <%= t('.table.custom').upcase %>
+                      </p>
+                    <% else %>
+                      <p class="fr-badge fr-badge--sm fr-badge--no-icon">
+                        <%= t('.table.not_custom').upcase %>
+                      </p>
+                    <% end %>
+                  </td>
+                <% end %>
+
+                <td scope="col">
+                  <span class="fr-mr-1w">
+                    <%= gi.dossiers.visible_by_administration.size %>
+                  </span>
+
+                  <span
+                    class="fr-icon fr-icon-folder-2-line fr-mr-2w"
+                    style="width: 25px; text-align: center;"
+                  ></span>
+                </td>
+
+                <td class="fr-cell--right" scope="col">
+                  <span class="fr-mr-1w"><%= gi.instructeurs.count %></span>
+
+                  <span
+                    class="fr-icon fr-icon-user-line"
+                    style="width: 25px; text-align: center;"
+                  ></span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="fr-mt-1w"><%= helpers.paginate @groupe_instructeurs %></div>
+</div>
+
+<%= form_for @procedure,
+  method: :patch,
+  url: admin_procedure_update_defaut_groupe_instructeur_path,
+  class: 'fr-my-3w',
+  data: { controller: 'autosubmit', turbo: 'true' } do %>
+  <%= label_tag :defaut_groupe_instructeur_id, 'Et si aucune règle ne correspond, router vers :', class: 'fr-label' %>
+
+  <%= select_tag :defaut_groupe_instructeur_id,
+    options_for_select(@procedure.groupe_instructeurs.pluck(:label, :id), selected: @procedure.defaut_groupe_instructeur.id),
+    class: 'fr-select' %>
+<% end %>
+
+<h2 class="fr-h3 fr-mt-6w"><%= t('.bulk_assignment.title') %></h2>
+
+<div class="fr-alert fr-icon-mail-line fr-mb-3w">
+  <%= t('.bulk_assignment.notification_alert_html') %>
+</div>
+
+<div class="fr-tabs">
+  <ul class="fr-tabs__list fr-ml-2w" role="tablist">
+    <li role="presentation">
+      <button
+        id="tab-bulk-add"
+        class="fr-tabs__tab fr-icon-add-line fr-tabs__tab--icon-left"
+        role="tab"
+        aria-selected="true"
+        aria-controls="panel-bulk-add"
+        tabindex="0"
+      >
+        <%= t('.bulk_assignment.tab_add') %>
+      </button>
+    </li>
+
+    <li role="presentation">
+      <button
+        id="tab-bulk-remove"
+        class="fr-tabs__tab fr-icon-subtract-line fr-tabs__tab--icon-left"
+        role="tab"
+        aria-selected="false"
+        aria-controls="panel-bulk-remove"
+        tabindex="-1"
+      >
+        <%= t('.bulk_assignment.tab_remove') %>
+      </button>
+    </li>
+  </ul>
+
+  <div
+    id="panel-bulk-add"
+    class="fr-tabs__panel fr-tabs__panel--selected"
+    role="tabpanel"
+    aria-labelledby="tab-bulk-add"
+  >
+    <h3 class="fr-h5"><%= t('.bulk_assignment.add_title') %></h3>
+    <%= render Procedure::InvitationWithTypoComponent.new(maybe_typos: @maybe_typos, url: add_instructeur_to_all_groupes_admin_procedure_groupe_instructeurs_path(@procedure), title: t('.bulk_assignment.typo_confirm_title')) %>
+
+    <%= form_tag add_instructeur_to_all_groupes_admin_procedure_groupe_instructeurs_path(@procedure),
+      method: :post,
+      class: 'form',
+      data: { controller: 'enable-submit-if-filled' } do %>
+      <div
+        class="instructeur-wrapper"
+        data-action="change->enable-submit-if-filled#fillCombobox"
+      >
+        <p class="fr-mb-1w">
+          <%= t('views.shared.groupe_instructeurs.instructeur_emails') %>
+        </p>
+
+        <p class="fr-hint-text">
+          <%= t('views.shared.groupe_instructeurs.copy_paste_hint') %>
+        </p>
+
+        <react-fragment>
+          <%= render ReactComponent.new 'ComboBox/MultiComboBox',
+            items: @available_instructeur_emails,
+            id: 'bulk_add_instructeur_emails',
+            name: 'emails[]',
+            allows_custom_value: true,
+            'aria-label': 'Emails',
+            data: { 'enable-submit-if-filled-target': 'input' } %>
+        </react-fragment>
+
+        <%= button_tag t('.bulk_assignment.add_submit'),
+          type: :submit,
+          class: 'fr-btn fr-btn--primary fr-icon-add-line fr-btn--icon-left',
+          disabled: true,
+          data: { 'enable-submit-if-filled-target': 'submit', confirm: t('.bulk_assignment.confirm_add_message') } %>
+      </div>
+    <% end %>
+  </div>
+
+  <div
+    id="panel-bulk-remove"
+    class="fr-tabs__panel"
+    role="tabpanel"
+    aria-labelledby="tab-bulk-remove"
+  >
+    <h3 class="fr-h5"><%= t('.bulk_assignment.remove_title') %></h3>
+
+    <%= form_tag remove_instructeur_from_all_groupes_admin_procedure_groupe_instructeurs_path(@procedure),
+      method: :delete,
+      class: 'form',
+      data: { controller: 'enable-submit-if-filled' } do %>
+      <div
+        class="instructeur-wrapper"
+        data-action="change->enable-submit-if-filled#fillCombobox"
+      >
+        <p class="fr-mb-1w">
+          <%= t('views.shared.groupe_instructeurs.instructeur_emails') %>
+        </p>
+
+        <p class="fr-hint-text">
+          <%= t('views.shared.groupe_instructeurs.copy_paste_hint') %>
+        </p>
+
+        <react-fragment>
+          <%= render ReactComponent.new 'ComboBox/MultiComboBox',
+            items: @procedure.instructeurs.map(&:email).sort,
+            id: 'bulk_remove_instructeur_emails',
+            name: 'emails[]',
+            allows_custom_value: true,
+            'aria-label': 'Emails',
+            data: { 'enable-submit-if-filled-target': 'input' } %>
+        </react-fragment>
+
+        <%= button_tag t('.bulk_assignment.remove_submit'),
+          type: :submit,
+          class: 'fr-btn fr-btn--primary fr-icon-subtract-line fr-btn--icon-left',
+          disabled: true,
+          data: { 'enable-submit-if-filled-target': 'submit', confirm: t('.bulk_assignment.confirm_remove_message') } %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% if flash[:routing_mode] == 'custom' %>
+  <%= render partial: 'custom_routing_modal' %>
+<% elsif flash[:routing_mode] == 'simple' %>
+  <%= render partial: 'simple_routing_modal', locals: { procedure: @procedure } %>
+<% end %>

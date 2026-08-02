@@ -1,0 +1,165 @@
+<div class="optimizer-container">
+  <div class="optimizer-header">
+    <h1 class="optimizer-title">Waveplate Optimizer</h1>
+  </div>
+
+  <% if current_user.sol3_phase.nil? %>
+    <div class="optimizer-gate">
+      <p class="optimizer-gate-message">
+        Set your SOL3 phase from the
+        <%= link_to "Dashboard", authenticated_root_path,
+          class: "optimizer-gate-link",
+          data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+        to use the Waveplate Optimizer.
+      </p>
+    </div>
+  <% else %>
+    <% if @selected_plan %>
+      <%= link_to optimizer_plans_modal_path,
+          data: { turbo_frame: "modal" },
+          class: "optimizer-plan-card" do %>
+        <%= image_tag @selected_plan.subject.image_url, class: "optimizer-plan-icon", alt: "Subject Icon" if @selected_plan.subject.image_url.present? %>
+        <div class="optimizer-plan-info">
+          <span class="optimizer-plan-name"><%= @selected_plan.subject.name %></span>
+          <span class="optimizer-plan-type"><%= @selected_plan.subject_type.upcase %> PLAN LOADED</span>
+        </div>
+      <% end %>
+    <% else %>
+      <%= link_to optimizer_plans_modal_path,
+          data: { turbo_frame: "modal" },
+          class: "optimizer-plan-card optimizer-plan-card--empty" do %>
+        <span class="optimizer-plan-placeholder">&gt; SELECT A PLAN</span>
+      <% end %>
+    <% end %>
+
+    <% if @selected_plan %>
+      <%= form_with url: optimizer_path, method: :get, data: { turbo_frame: "optimizer-results" } do |f| %>
+        <%= hidden_field_tag :run, "1" %>
+        <%= f.submit "> RUN OPTIMIZER", class: "optimizer-run-button" %>
+      <% end %>
+    <% end %>
+
+    <%= turbo_frame_tag "optimizer-results" do %>
+      <% if @results.present? %>
+
+          <!-- Summary metrics -->
+          <% total_runs = @totals[:total_runs] %>
+          <% total_wp = @totals[:total_wp] %>
+          <% days = total_wp > 0 ? (total_wp / 240.0).ceil : 0 %>
+
+          <div class="optimizer-metrics">
+            <div class="optimizer-metric-card">
+              <span class="optimizer-metric-label">Estimated cost</span>
+              <span class="optimizer-metric-value"><%= number_with_delimiter(total_wp) %><%= image_tag "/images/textures/waveplate.png", class: "optimizer-waveplate-icon", alt: "Waveplate Icon" %></span>
+            </div>
+            <div class="optimizer-metric-card">
+              <span class="optimizer-metric-label">Total runs needed</span>
+              <span class="optimizer-metric-value"><%= number_with_delimiter(total_runs) %> <span class="optimizer-metric-unit">runs</span></span>
+            </div>
+            <div class="optimizer-metric-card">
+              <span class="optimizer-metric-label">Daily rate (@240/day)</span>
+              <span class="optimizer-metric-value"><%= number_with_delimiter(days) %> <span class="optimizer-metric-unit">days</span></span>
+            </div>
+          </div>
+
+          <!-- Farming priority list -->
+          <% if @farming_priority.any? %>
+            <div class="optimizer-priority">
+              <h2 class="optimizer-results-title">&gt; FARMING_PRIORITY</h2>
+              <ol class="optimizer-priority-list">
+                <% @farming_priority.each_with_index do |entry, index| %>
+                  <li class="optimizer-priority-item">
+                    <span class="optimizer-priority-rank"><%= index + 1 %>.</span>
+                    <span class="optimizer-priority-label"><%= entry[:source_label] %></span>
+                    <span class="optimizer-priority-meta">
+                      <%= entry[:material_count] %> <%= "material".pluralize(entry[:material_count]) %>
+                      &middot;
+                      <%= entry[:waveplate_cost] %>
+                      <%= image_tag "/images/textures/waveplate.png", class: "optimizer-waveplate-icon", alt: "Waveplate" %>
+                      /run
+                    </span>
+                  </li>
+                <% end %>
+              </ol>
+            </div>
+          <% end %>
+
+          <!-- Farming Advisor -->
+          <%= turbo_frame_tag "farming-advisor", src: optimizer_advise_path do %>
+            <div class="optimizer-advisor">
+              <h2 class="optimizer-results-title">&gt; FARMING_ADVISOR</h2>
+              <div class="optimizer-advisor-card optimizer-advisor-card--loading">
+                <span class="optimizer-advisor-dot"></span>
+                <span class="optimizer-advisor-dot"></span>
+                <span class="optimizer-advisor-dot"></span>
+              </div>
+            </div>
+          <% end %>
+
+        <div class="optimizer-results" data-controller="toggle">
+          <div class="optimizer-results-header">
+            <h2 class="optimizer-results-title">&gt; MATERIAL_BREAKDOWN</h2>
+
+            <label class="optimizer-toggle-label">
+              <input type="checkbox"
+                      data-action="change->toggle#toggle"
+                      class="optimizer-toggle-input">
+              Show materials with no farmable source
+            </label>
+          </div>
+
+          <!-- Material breakdown list -->
+          <div class="optimizer-results-grid">
+            <% @results.each do |material_id, data| %>
+              <%= tag.div class: "optimizer-material-card #{'hidden' if data[:sources].empty?}",
+                          data: (data[:sources].empty? ? { toggle_target: "item" } : {}) do %>
+
+                <div class="optimizer-material-header">
+                  <div class="item-icon rarity-border-<%= data[:material].rarity %> optimizer-material-icon">
+                    <div class="rarity-bg-<%= data[:material].rarity %>">
+                      <% if data[:material].image_url.present? %>
+                        <%= image_tag(data[:material].image_url, alt: data[:material].name) %>
+                      <% else %>
+                        <span class="icon-initials"><%= data[:material].name[0..1].upcase %></span>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <div class="optimizer-material-details">
+                    <div class="optimizer-material-header-row">
+                      <span class="optimizer-material-name"><%= data[:material].name %></span>
+                      <span class="optimizer-material-deficit">-<%= number_with_delimiter(data[:deficit]) %></span>
+                    </div>
+
+                    <% first_source = data[:sources].values.first %>
+                    <% if first_source %>
+                      <span class="optimizer-material-cost">
+                        <%= number_with_delimiter(first_source[:estimated_runs]) %> runs &middot;
+                        <%= number_with_delimiter(first_source[:waveplate_cost]) %>
+                        <%= image_tag "/images/textures/waveplate.png", class: "optimizer-waveplate-icon", alt: "Waveplate" %>
+                      </span>
+                    <% else %>
+                      <span class="optimizer-material-cost" style="visibility: hidden;">0 runs &middot; 0</span>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="optimizer-material-sources-chips">
+                  <% if data[:sources].any? %>
+                    <% data[:sources].each do |source_name, _| %>
+                      <span class="optimizer-source-chip"><%= source_name %></span>
+                    <% end %>
+                  <% else %>
+                    <span class="optimizer-source-chip optimizer-source-chip--empty">Open-world only</span>
+                  <% end %>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<%= turbo_frame_tag "modal" %>

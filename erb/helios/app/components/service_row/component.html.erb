@@ -1,0 +1,272 @@
+<%= helpers.turbo_frame_tag dom_id,
+                             src: (helpers.service_row_path(service_name) if lazy),
+                             loading: (:lazy if lazy),
+                             class: row_class,
+                             data: {
+                               visibility_target: "frame",
+                               src: helpers.service_row_path(service_name),
+                             } do %>
+  <%#
+    The Stimulus controller lives inside the frame, not on it: a frame reload
+    replaces only the frame's children, so values placed on the frame itself
+    would keep the state of the very first render and the polling gate would
+    never see the answer it just fetched.
+  %>
+
+  <div
+    class="flex items-center justify-between gap-2 sm:gap-4"
+    data-controller="service-row--component"
+    data-service-row--component-name-value="<%= service_name %>"
+    data-service-row--component-status-value="<%= status_value %>"
+    data-service-row--component-recalculating-value="<%= recalculating? %>"
+  >
+    <div class="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+      <% if lazy %>
+        <%# Skeleton placeholder for lazy loading %>
+        <div class="flex size-5 items-center justify-center">
+          <span class="loading loading-spinner loading-sm"></span>
+        </div>
+      <% else %>
+        <%# Full content %>
+        <div id="<%= dom_id %>-status" class="<%= tooltip_class %>" data-tip="<%= status_label %>">
+          <div class="flex size-5 items-center justify-center">
+            <% if healthcheck_passing? || healthcheck_waiting? %>
+              <span class="bg-success flex size-5 items-center justify-center rounded-full">
+                <% if healthcheck_passing? %>
+                  <i class="fa-solid fa-check text-success-content text-xs"></i>
+                <% else %>
+                  <span class="loading loading-ball loading-xs text-success-content scale-75"></span>
+                <% end %>
+              </span>
+            <% else %>
+              <span class="<%= status_indicator_class %>"></span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-baseline gap-x-2 text-base font-semibold sm:flex-nowrap sm:truncate">
+          <span class="truncate"><%= compose_service.display_name %></span>
+
+          <% if show_version? %>
+            <span class="text-base-content/50 text-sm font-normal wrap-anywhere tabular-nums sm:text-base">
+              <%= version %>
+            </span>
+          <% end %>
+
+          <% if !lazy && incomplete_source? %>
+            <span
+              class="tooltip tooltip-right tooltip-warning font-normal"
+              data-tip="<%= t('configurations.show.incomplete') %>"
+            >
+              <a href="<%= datasources_path %>" class="hover:underline">
+                <i class="fa-solid fa-triangle-exclamation text-warning"></i>
+              </a>
+            </span>
+          <% end %>
+        </div>
+
+        <div class="text-base-content/60 hidden min-h-6 text-xs sm:flex sm:items-center sm:gap-1">
+          <span class="min-w-0 truncate font-mono"><%= compose_service.image %></span>
+
+          <% if !lazy && legacy_image? %>
+            <span
+              class="tooltip tooltip-right tooltip-warning shrink-0"
+              data-tip="<%= t('.legacy_image', image: recommended_image) %>"
+            >
+              <%= button_to service_image_path(service_name),
+                            method: :patch,
+                            disabled: pending,
+                            class: "btn btn-ghost btn-xs btn-circle text-warning",
+                            form: { class: "inline-block align-middle", data: { turbo_confirm: t('.legacy_image_confirm', image: recommended_image) } } do %>
+                <i class="fa-solid fa-circle-up"></i>
+              <% end %>
+            </span>
+          <% end %>
+
+          <% if !lazy && postgresql_upgrade_available? %>
+            <span
+              class="tooltip tooltip-right tooltip-warning shrink-0"
+              data-tip="<%= t('.postgresql_upgrade', major: postgresql_target_major) %>"
+            >
+              <%= button_to service_upgrade_path(service_name),
+                            method: :post,
+                            disabled: pending,
+                            class: "btn btn-ghost btn-xs btn-circle text-warning",
+                            form: {
+                              class: "inline-block align-middle",
+                              data: {
+                                turbo_confirm: t('.postgresql_upgrade_confirm.body', major: postgresql_target_major),
+                                turbo_confirm_title: t('.postgresql_upgrade_confirm.title', major: postgresql_target_major),
+                                turbo_confirm_button: t('.postgresql_upgrade_confirm.button'),
+                              },
+                            } do %>
+                <i class="fa-solid fa-circle-up"></i>
+              <% end %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex shrink-0 items-center gap-1 sm:gap-4">
+      <% unless helios? %>
+        <%#
+          Unmanaged-only: kept at the left of the cluster so the
+          open/logs/start/stop/recreate group stays aligned with the other rows.
+        %>
+        <% if unmanaged? %>
+          <div id="<%= dom_id %>-remove" class="tooltip tooltip-info" data-tip="<%= t('.remove') %>">
+            <%= button_to service_path(service_name),
+                          method: :delete,
+                          disabled: lazy || pending,
+                          class: "btn btn-ghost btn-sm btn-square",
+                          data: {
+                            turbo_confirm: t('.remove_confirm.body', service: compose_service.display_name),
+                            turbo_confirm_title: t('.remove_confirm.title', service: compose_service.display_name),
+                            turbo_confirm_button: t('.remove_confirm.button'),
+                            turbo_frame: "_top",
+                          } do %>
+              <i class="fa-solid fa-trash-can"></i>
+            <% end %>
+          </div>
+        <% end %>
+        <%#
+          Power-splitter-only: signals the container to derive all calculated
+          values again. Kept at the left of the cluster, like the Redis broom.
+        %>
+        <% if power_splitter? %>
+          <%#
+            The progress takes the place of its own trigger: a second signal
+            would discard what the running one has produced so far. The bare
+            percentage is enough here, what it counts is in the tooltip.
+          %>
+          <% if recalculating? %>
+            <span
+              id="<%= dom_id %>-recalculation-progress"
+              class="tooltip tooltip-info flex h-8 min-w-8 items-center justify-center"
+              data-tip="<%= t('.recalculating') %>"
+            >
+              <%#
+                Outlined rather than filled, so the number keeps the full
+                contrast of the row's own text color. Only the dot pulses:
+                animating the number itself would halve its contrast for half
+                of every cycle, which is what makes such a badge look faded.
+              %>
+
+              <span class="badge badge-sm border-base-content/60 gap-1.5 bg-transparent font-medium tabular-nums">
+                <% if recalculation_percent %>
+                  <span class="bg-info size-1.5 shrink-0 rounded-full motion-safe:animate-pulse"></span>
+                  <%= number_to_percentage(recalculation_percent, precision: 0) %>
+                <% else %>
+                  <span class="loading loading-spinner loading-xs"></span>
+                <% end %>
+              </span>
+            </span>
+          <% else %>
+            <div id="<%= dom_id %>-recalculation" class="tooltip tooltip-info" data-tip="<%= t('.recalculate') %>">
+              <%= button_to service_recalculation_path(service_name),
+                            method: :post,
+                            disabled: !recalculation_enabled?,
+                            class: "btn btn-ghost btn-sm btn-square",
+                            data: {
+                              turbo_confirm: t('.recalculate_confirm.body'),
+                              turbo_confirm_title: t('.recalculate_confirm.title'),
+                              turbo_confirm_button: t('.recalculate_confirm.button'),
+                              turbo_frame: "_top",
+                            } do %>
+                <i class="fa-solid fa-broom"></i>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+        <%#
+          Redis-only: kept at the left of the cluster so the start/stop/recreate
+          group stays aligned with the other service rows.
+        %>
+        <% if service_name == "redis" %>
+          <div id="<%= dom_id %>-cache" class="tooltip tooltip-info" data-tip="<%= t('.clear_cache') %>">
+            <%= button_to service_cache_path(service_name),
+                          method: :delete,
+                          disabled: !clear_cache_enabled?,
+                          class: "btn btn-ghost btn-sm btn-square",
+                          data: {
+                            turbo_confirm: t('.clear_cache_confirm.body'),
+                            turbo_confirm_title: t('.clear_cache_confirm.title'),
+                            turbo_confirm_button: t('.clear_cache_confirm.button'),
+                            turbo_frame: "_top",
+                          } do %>
+              <i class="fa-solid fa-broom"></i>
+            <% end %>
+          </div>
+        <% end %>
+        <% if (endpoint = open_endpoint) %>
+          <button
+            type="button"
+            data-controller="open-external"
+            data-action="click->open-external#open"
+            <% if endpoint[:url] %>
+              data-url="<%= endpoint[:url] %>"
+            <% end %>
+            <% if endpoint[:port] %>
+              data-port="<%= endpoint[:port] %>"
+            <% end %>
+            aria-label="<%= t('.open') %>"
+            class="btn btn-sm max-sm:btn-square"
+            <% unless open_button_enabled? %>
+              disabled
+            <% end %>
+          >
+            <i class="fa-solid fa-up-right-from-square"></i>
+            <span class="hidden sm:inline"><%= t('.open') %></span>
+          </button>
+        <% end %>
+        <div id="<%= dom_id %>-logs" class="tooltip tooltip-info" data-tip="<%= t('.logs') %>">
+          <% if logs_available? %>
+            <a
+              href="<%= service_log_path(service_name) %>"
+              data-turbo-frame="log-modal-content"
+              class="btn btn-ghost btn-sm btn-square"
+            >
+              <i class="fa-solid fa-file-lines"></i>
+            </a>
+          <% else %>
+            <span class="btn btn-ghost btn-sm btn-square btn-disabled" aria-disabled="true" tabindex="-1">
+              <i class="fa-solid fa-file-lines"></i>
+            </span>
+          <% end %>
+        </div>
+        <div class="join">
+          <div id="<%= dom_id %>-start" class="tooltip tooltip-info join-item" data-tip="<%= t('.start') %>">
+            <%= button_to service_task_path(service_name), method: :post, disabled: start_disabled?, class: "btn btn-ghost btn-sm btn-square", data: { service_row__component_target: "startButton" } do %>
+              <i class="fa-solid fa-play"></i>
+            <% end %>
+          </div>
+
+          <div id="<%= dom_id %>-stop" class="tooltip tooltip-info join-item" data-tip="<%= t('.stop') %>">
+            <%= button_to service_task_path(service_name), method: :delete, disabled: stop_disabled?, class: "btn btn-ghost btn-sm btn-square", data: { service_row__component_target: "stopButton" } do %>
+              <i class="fa-solid fa-stop"></i>
+            <% end %>
+          </div>
+
+          <div
+            id="<%= dom_id %>-recreate"
+            class="tooltip join-item <%= recreate_warning? ? 'tooltip-warning' : 'tooltip-info' %>"
+            data-tip="<%= recreate_warning? ? t('.recreate_pending') : t('.recreate') %>"
+          >
+            <%= button_to service_task_path(service_name), method: :patch, disabled: recreate_disabled?, class: "btn btn-ghost btn-sm btn-square", data: { service_row__component_target: "recreateButton" } do %>
+              <i class="fa-solid fa-arrows-rotate <%= 'text-warning' if recreate_warning? %>"></i>
+            <% end %>
+          </div>
+        </div>
+      <% else %>
+        <div id="<%= dom_id %>-recreate" class="tooltip tooltip-info" data-tip="<%= t('.recreate') %>">
+          <%= button_to service_task_path(service_name), method: :patch, disabled: recreate_disabled?, class: "btn btn-ghost btn-sm btn-square", data: { turbo_confirm: t('.self_recreate_confirm'), turbo_frame: "_top", service_row__component_target: "recreateButton" } do %>
+            <i class="fa-solid fa-arrows-rotate"></i>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

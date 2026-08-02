@@ -1,0 +1,98 @@
+<%# locals: (dashboard:) %>
+<% debits = dashboard.debit_transactions %>
+<% credits = dashboard.credit_transactions %>
+<% show_budget = dashboard.active_budget.present? %>
+<% budget_amounts = show_budget ? dashboard.budget_amounts : {} %>
+<% debit_budget_only = show_budget ? budget_amounts.keys.select { |c| c.debit? && !debits.key?(c) } : [] %>
+<% credit_budget_only = show_budget ? budget_amounts.keys.select { |c| c.credit? && !credits.key?(c) } : [] %>
+<% debit_rows = debits.keys + debit_budget_only %>
+<% credit_rows = credits.keys + credit_budget_only %>
+<table class="debit_credit">
+  <thead>
+    <tr>
+      <th colspan="<%= show_budget ? 4 : 2 %>"><%= t('balance.debit') %></th>
+      <th colspan="<%= show_budget ? 4 : 2 %>"><%= t('balance.credit') %></th>
+    </tr>
+    <tr>
+      <th><%= t('balance.category_name') %></th>
+      <th><%= t('balance.total_amount') %></th>
+      <% if show_budget %>
+        <th><%= t('balance.budget') %></th>
+        <th><%= t('balance.status') %></th>
+      <% end %>
+      <th><%= t('balance.category_name') %></th>
+      <th><%= t('balance.total_amount') %></th>
+      <% if show_budget %>
+        <th><%= t('balance.target') %></th>
+        <th><%= t('balance.status') %></th>
+      <% end %>
+    </tr>
+  </thead>
+  <tbody>
+    <% (-1..[debit_rows.count, credit_rows.count].max).each do |i| %>
+      <tr>
+        <% if i < 0 %>
+          <td></td>
+          <td class="amount"></td>
+          <% if show_budget %>
+            <td></td>
+            <td></td>
+          <% end %>
+          <td class="profit-and-loss"><%= t "balance.profit_or_loss" %></td>
+          <td class="profit-and-loss amount"><%= number_to_currency dashboard.profit_or_loss %></td>
+          <% if show_budget %>
+            <td></td>
+            <td></td>
+          <% end %>
+        <% else %>
+          <% debit_cat = debit_rows.count > i ? debit_rows[i] : nil %>
+          <% credit_cat = credit_rows.count > i ? credit_rows[i] : nil %>
+          <td><%= debit_cat.blank? ? (debit_rows.count > i ? '-' : '') : debit_cat&.full_name %></td>
+          <td class="amount"><%= (debit_rows.count > i && debits.key?(debit_cat)) ? number_to_currency(debits[debit_cat]) : '' %></td>
+          <% if show_budget %>
+            <% debit_budgeted = debit_cat && budget_amounts[debit_cat] %>
+            <td class="amount"><%= debit_budgeted ? number_to_currency(debit_budgeted) : '' %></td>
+            <td>
+              <% if debit_cat && debit_budgeted %>
+                <% status = budget_status(category: debit_cat, actual: debits[debit_cat].to_f, budgeted: debit_budgeted) %>
+                <% label = budget_pct_label(actual: debits[debit_cat].to_f, budgeted: debit_budgeted) %>
+                <% css_class = "budget-status budget-status--#{status}" %>
+                <span class="<%= css_class %>"><%= label %></span>
+              <% end %>
+            </td>
+          <% end %>
+          <td><%= credit_cat.blank? ? (credit_rows.count > i ? '-' : '') : credit_cat&.full_name %></td>
+          <td class="amount"><%= (credit_rows.count > i && credits.key?(credit_cat)) ? number_to_currency(credits[credit_cat]) : '' %></td>
+          <% if show_budget %>
+            <% credit_budgeted = credit_cat && budget_amounts[credit_cat] %>
+            <td class="amount"><%= credit_budgeted ? number_to_currency(credit_budgeted) : '' %></td>
+            <td>
+              <% if credit_cat && credit_budgeted %>
+                <% status = budget_status(category: credit_cat, actual: credits[credit_cat].to_f, budgeted: credit_budgeted) %>
+                <% label = budget_pct_label(actual: credits[credit_cat].to_f, budgeted: credit_budgeted) %>
+                <% css_class = "budget-status budget-status--#{status}" %>
+                <span class="<%= css_class %>"><%= label %></span>
+              <% end %>
+            </td>
+          <% end %>
+        <% end %>
+      </tr>
+    <% end %>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td><%= t('balance.totals') %></td>
+      <td class="amount"><%= number_to_currency dashboard.debit_total %></td>
+      <% if show_budget %>
+        <td></td>
+        <td></td>
+      <% end %>
+      <td><%= t('balance.totals') %></td>
+      <td class="amount"><%= number_to_currency dashboard.credit_total %></td>
+      <% if show_budget %>
+        <td></td>
+        <td></td>
+      <% end %>
+    </tr>
+  </tfoot>
+</table>

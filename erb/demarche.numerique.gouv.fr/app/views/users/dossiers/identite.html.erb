@@ -1,0 +1,68 @@
+<% content_for(:title, t("title", scope: [:metas, :users, :dossiers, :identite], procedure_label: @dossier.procedure.libelle)) %>
+
+<%= render partial: "shared/dossiers/submit_is_over", locals: { dossier: @dossier } %>
+
+<% if !dossier_submission_is_closed?(@dossier) %>
+  <div class="fr-highlight fr-text--sm"><%= t('utils.asterisk_html') %></div>
+  <% if @dossier.procedure.for_tiers_enabled? %>
+    <% identity_form_active = @dossier.identity_updated_at.present? || @dossier.individual&.errors&.any? %>
+    <%= form_for @dossier, url: identite_dossier_path(@dossier), method: :patch, html: { class: "form" }, data: { turbo: true, controller: :autosubmit } do |f| %>
+      <fieldset id="radio-rich-hint" class="fr-fieldset">
+        <legend class="fr-fieldset__legend--regular fr-fieldset__legend">
+          <%= t('views.users.dossiers.identite.legend') %>
+          <%= render EditableChamp::AsteriskMandatoryComponent.new %>
+        </legend>
+
+        <div class="fr-fieldset__element">
+          <div class="fr-radio-group fr-radio-rich">
+            <%= f.radio_button :for_tiers, false, required: true, id: "radio-self-manage", checked: identity_form_active && !@dossier.for_tiers %>
+
+            <label class="fr-label" for="radio-self-manage">
+              <%= t('activerecord.attributes.dossier.for_tiers.false') %>
+            </label>
+
+            <div class="fr-radio-rich__img">
+              <span class="fr-icon-user-fill"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="fr-fieldset__element">
+          <div class="fr-radio-group fr-radio-rich">
+            <%= f.radio_button :for_tiers, true, required: true, id: "radio-tiers-manage", checked: identity_form_active && @dossier.for_tiers %>
+
+            <label class="fr-label" for="radio-tiers-manage">
+              <%= t('activerecord.attributes.dossier.for_tiers.true') %>
+
+              <span class="fr-hint-text">
+                <%= t('activerecord.attributes.dossier.for_tiers.true_hint') %>
+              </span>
+            </label>
+
+            <div class="fr-radio-rich__img">
+              <span class="fr-icon-parent-fill"></span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="identite-buttons-group"
+          class="<%= class_names("fr-fieldset__element fr-mt-2w", "hidden" => identity_form_active) %>"
+        >
+          <div class="fr-btns-group fr-btns-group--inline">
+            <%= link_to t('views.users.dossiers.identite.back'), commencer_path(path: @dossier.procedure.path), class: "fr-btn fr-btn--secondary" %>
+            <%= f.submit t('views.users.dossiers.identite.continue'), class: "fr-btn", disabled: true %>
+          </div>
+        </div>
+
+        <%# autosubmit button to ATs: %>
+        <%= f.submit t('views.users.dossiers.identite.continue'), class: 'hidden' %>
+      </fieldset>
+    <% end %>
+  <% end %>
+  <% if !@dossier.procedure.for_tiers_enabled? || identity_form_active %>
+    <%= render Dossiers::IndividualFormComponent.new(dossier: @dossier) %>
+  <% else %>
+    <div id="identite-form"></div>
+  <% end %>
+<% end %>

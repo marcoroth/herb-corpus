@@ -1,0 +1,21 @@
+<%= fields_for champ.input_name, champ do |form| %>
+  <% if full %>
+    <%= turbo_stream.replace champ.input_group_id do %>
+      <%= render EditableChamp::EditableChampComponent.new champ:, form: %>
+    <% end %>
+  <% else %>
+    <%= turbo_stream.update input_label_id(champ) do %>
+      <%= render EditableChamp::ChampLabelContentComponent.new champ:, form: %>
+    <% end %>
+  <% end %>
+
+  <%# Announce the champ status into its persistent sr-only live region, which is %>
+  <%# never recreated by the replace above. See EditableChamp::SectionComponent. %>
+  <% polling = local_assigns.fetch(:polling, false) %>
+  <% if full && champ.status_announceable? && !(polling && champ.pending?) %>
+    <% status = render(Dsfr::InputStatusMessageComponent.new(champ:, as_announcement: true)) %>
+    <% if status.to_s.strip.present? %>
+      <%= turbo_stream.update "#{champ.focusable_input_id}-aria-live" do %><%= status %><% end %>
+    <% end %>
+  <% end %>
+<% end %>

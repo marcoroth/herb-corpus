@@ -1,0 +1,185 @@
+<% if dossiers.present? %>
+  <% dossiers.each do |dossier| %>
+    <div class="card" id="dossier_<%= dossier.id %>">
+      <%= render partial: 'dossier_card_content', locals: {
+        dossier: dossier,
+        linkable: @statut != "dossiers-supprimes",
+        personnalisation: @personnalisations_by_procedure_id&.[](dossier.procedure.id),
+        champs_by_stable_id: @champs_by_dossier_id&.[](dossier.id) || {}
+      } %>
+
+      <% if dossier.procedure.close? %>
+        <%= render Dsfr::AlertComponent.new(state: :info, size: :sm, extra_class_names: "fr-mb-2w") do |c| %>
+          <% c.with_body do %>
+            <% if dossier.brouillon? && can_recreate_a_dossier_from_a_procedure?(dossier.procedure) %>
+              <%= t('views.users.dossiers.dossiers_list.procedure_closed.brouillon.internal_procedure_html', link: link_to(t('views.users.dossiers.dossiers_list.procedure_closed.procedure'), commencer_path(dossier.procedure.replaced_by_procedure.path), **external_link_attributes, class: 'fr-link', title: new_tab_suffix(t('views.users.dossiers.dossiers_list.procedure_closed.title_new_procedure'))).html_safe) %>
+            <% elsif dossier.brouillon? %>
+              <%= t('views.users.dossiers.dossiers_list.procedure_closed.brouillon.other_html', link: link_to(t('views.users.dossiers.dossiers_list.procedure_closed.more_details'), closing_details_path(dossier.procedure.path), **external_link_attributes, class: 'fr-link', title: new_tab_suffix(t('views.users.dossiers.dossiers_list.procedure_closed.title_closing_details'))).html_safe) %>
+            <% elsif dossier.en_construction_ou_instruction? && can_recreate_a_dossier_from_a_procedure?(dossier.procedure) %>
+              <%= t('views.users.dossiers.dossiers_list.procedure_closed.en_cours.internal_procedure_html', link: link_to(t('views.users.dossiers.dossiers_list.procedure_closed.procedure'), commencer_path(dossier.procedure.replaced_by_procedure.path), **external_link_attributes, class: 'fr-link', title: new_tab_suffix(t('views.users.dossiers.dossiers_list.procedure_closed.title_new_procedure'))).html_safe) %>
+            <% elsif dossier.en_construction_ou_instruction? && !dossier.procedure.replaced_by_procedure.present? %>
+              <%= t('views.users.dossiers.dossiers_list.procedure_closed.en_cours.other_html', link: link_to(t('views.users.dossiers.dossiers_list.procedure_closed.more_details'), closing_details_path(dossier.procedure.path), **external_link_attributes, class: 'fr-link', title: new_tab_suffix(t('views.users.dossiers.dossiers_list.procedure_closed.title_closing_details'))).html_safe) %>
+            <% elsif dossier.termine? && can_recreate_a_dossier_from_a_procedure?(dossier.procedure) %>
+              <%= t('views.users.dossiers.dossiers_list.procedure_closed.termine.internal_procedure_html', link: link_to(t('views.users.dossiers.dossiers_list.procedure_closed.this_procedure'), commencer_path(dossier.procedure.replaced_by_procedure.path), **external_link_attributes, class: 'fr-link', title: new_tab_suffix(t('views.users.dossiers.dossiers_list.procedure_closed.title_new_procedure'))).html_safe) %>
+            <% elsif dossier.termine? %>
+              <%= t('views.users.dossiers.dossiers_list.procedure_closed.termine.other_html', link: link_to(t('views.users.dossiers.dossiers_list.procedure_closed.more_details'), closing_details_path(dossier.procedure.path), **external_link_attributes, class: 'fr-link', title: new_tab_suffix(t('views.users.dossiers.dossiers_list.procedure_closed.title_closing_details'))).html_safe) %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <% if dossier.en_construction? %>
+        <%= render Dossiers::EnConstructionNotSubmittedComponent.new(dossier: dossier, user: current_user) %>
+      <% end %>
+
+      <% if dossier.pending_correction? %>
+        <%= render Dsfr::NoticeComponent.new(state: 'warning', extra_class_names: "fr-mb-2w") do |c| %>
+          <% c.with_title { t('views.users.dossiers.dossiers_list.pending_correction.title') } %>
+          <% c.with_desc { t('views.users.dossiers.dossiers_list.pending_correction.body_html', link: messagerie_dossier_path(dossier), id: dossier.id) } %>
+        <% end %>
+      <% end %>
+
+      <% if dossier.pending_response? %>
+        <%= render Dsfr::NoticeComponent.new(state: 'warning', extra_class_names: "fr-mb-2w") do |c| %>
+          <% c.with_title { t('views.users.dossiers.dossiers_list.pending_response.title') } %>
+          <% c.with_desc { t('views.users.dossiers.dossiers_list.pending_response.message_html', link: messagerie_dossier_path(dossier), id: number_with_html_delimiter(dossier.id)) } %>
+        <% end %>
+      <% end %>
+
+      <% if show_new_message_notification?(dossier) %>
+        <%= render 'message_notice', dossier: %>
+      <% end %>
+
+      <% if dossier.transfer.present? %>
+        <%= render Dsfr::AlertComponent.new(state: :info, size: :sm, extra_class_names: "fr-pb-1w fr-mb-2w") do |c| %>
+          <% c.with_body do %>
+            <p class="fr-alert__title">
+              <%= t('views.users.dossiers.transfers.sender_title') %>
+            </p>
+
+            <% if dossier.transfer.from_support? %>
+              <p>
+                <%= t('views.users.dossiers.transfers.sender_body_from_support', email: dossier.transfer.email) %>
+              </p>
+            <% else %>
+              <p>
+                <%= t('views.users.dossiers.transfers.sender_body', email: dossier.transfer.email) %>
+              </p>
+            <% end %>
+
+            <%= link_to t('views.users.dossiers.transfers.revoke'), transfer_path(dossier.transfer), class: 'fr-link', method: :delete %>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <% if @statut != "dossiers-supprimes" %>
+        <div class="flex justify-end no-flex-xs fr-mt-1w">
+          <%= render partial: 'dossier_actions', locals: { dossier: dossier } %>
+        </div>
+      <% end %>
+
+      <% if @statut == "dossiers-supprimes" && dossier.en_construction? %>
+        <%= render Dsfr::AlertComponent.new(state: :info, size: :sm, extra_class_names: "fr-mb-2w") do |c| %>
+          <% c.with_body do %>
+            <p>
+              <%= t('views.users.dossiers.index.administration_no_longer_processes') %>
+            </p>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <% if @statut == "dossiers-supprimes" %>
+        <div class="flex justify-end no-flex-xs fr-mt-1w">
+          <% if dossier.hidden_by_reason != 'expired' %>
+            <%= link_to restore_dossier_path(dossier.id), method: :patch, class: "fr-btn fr-btn--sm" do %>
+              <%= t("views.users.dossiers.dossier_action.restore") %>
+
+              <span class="fr-sr-only">
+                <%= t('utils.file') %>
+                <%= t('utils.number') %>
+                <%= number_with_html_delimiter(dossier.id) %>
+              </span>
+            <% end %>
+          <% else %>
+            <% if dossier.expiration_can_be_extended? %>
+              <%= button_to users_dossier_repousser_expiration_and_restore_path(dossier), class: 'fr-btn fr-btn--sm' do %>
+                <%= t("views.users.dossiers.dossier_action.restore_and_extend_conservation_html", id: dossier.id, duree_conservation_dossiers_dans_ds: dossier.procedure.duree_conservation_dossiers_dans_ds) %>
+              <% end %>
+            <% else %>
+              <div class="flex justify-end no-flex-xs">
+                <ul
+                  class="
+                    fr-btns-group fr-btns-group--inline-md
+                    fr-btns-group--icon-left fr-btns-group--sm
+                  "
+                >
+                  <li>
+                    <%= render(partial: 'users/dossiers/show/download_dossier', locals: { dossier: dossier }) %>
+                  </li>
+
+                  <li>
+                    <%= render(partial: 'users/dossiers/show/download_attestation', locals: { dossier: dossier }) %>
+                  </li>
+                </ul>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+  <%= paginate dossiers, views_prefix: 'shared' %>
+<% else %>
+  <% if filter.present? && filter.active? %>
+    <div class="blank-tab">
+      <h2 class="empty-text">
+        <%= t('views.users.dossiers.dossiers_list.no_result_title') %>
+      </h2>
+
+      <p class="empty-text-details">
+        <%= t('views.users.dossiers.dossiers_list.no_result_text_with_filter') %>
+      </p>
+    </div>
+  <% elsif search %>
+    <div class="no-result-search fr-my-4w">
+      <h2 class="fr-h6 fr-mb-2w">
+        <%= t('views.users.dossiers.dossiers_list.no_result_search_title') %>
+      </h2>
+
+      <p class="fr-mb-1w">
+        <%= t('views.users.dossiers.dossiers_list.no_result_search_intro') %>
+      </p>
+
+      <ul>
+        <li>
+          <%= t('views.users.dossiers.dossiers_list.no_result_search_modify') %>
+
+          <div class="fr-hidden-md fr-mt-2w fr-mb-2w no-result-search__form">
+            <%= form_with url: dossiers_path, method: :get do %>
+              <%= render partial: 'search_input', locals: { search_terms: params[:search], input_id: 'search-no-result' } %>
+            <% end %>
+          </div>
+        </li>
+
+        <li>
+          <%= t('views.users.dossiers.dossiers_list.no_result_search_back_html',
+                link: link_to(t('views.users.dossiers.dossiers_list.no_result_search_back_link'), dossiers_path, class: 'fr-link')).html_safe %>
+        </li>
+      </ul>
+    </div>
+  <% else %>
+    <div class="blank-tab">
+      <h2 class="empty-text">
+        <%= t('views.users.dossiers.dossiers_list.no_result_title') %>
+      </h2>
+
+      <p class="empty-text-details">
+        <%= t('views.users.dossiers.dossiers_list.no_result_text_html', app_base: Current.application_base_url) %>
+      </p>
+
+      <p>
+        <%= link_to t("root.landing.how_to_find_procedure"), t("links.common.faq.comment_trouver_ma_demarche_url"), class: "fr-btn fr-btn--lg fr-mr-1w fr-mb-2w" %>
+      </p>
+    </div>
+  <% end %>
+<% end %>

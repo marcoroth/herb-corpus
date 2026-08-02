@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= t("pgbus.layout.title") %></title>
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+
+  <%# Prevent white flash in dark mode — must run before stylesheet loads %>
+  <script nonce="<%= content_security_policy_nonce %>">
+    if (localStorage.getItem('pgbus-dark') === 'true' ||
+        (!localStorage.getItem('pgbus-dark') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+    function pgbusToggleDarkMode() {
+      var isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('pgbus-dark', isDark);
+    }
+    function pgbusSyncAriaExpanded(menuId, expanded) {
+      var btn = document.querySelector('[aria-controls="' + menuId + '"]');
+      if (btn) btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+    function pgbusToggleMobileMenu() {
+      var menu = document.getElementById('pgbus-mobile-menu');
+      var openIcon = document.getElementById('pgbus-menu-open');
+      var closeIcon = document.getElementById('pgbus-menu-close');
+      if (!menu) return;
+      var isOpen = menu.classList.toggle('hidden') === false;
+      if (openIcon) openIcon.classList.toggle('hidden');
+      if (closeIcon) closeIcon.classList.toggle('hidden');
+      pgbusSyncAriaExpanded('pgbus-mobile-menu', isOpen);
+    }
+    function pgbusToggleLocaleMenu() {
+      var menu = document.getElementById('pgbus-locale-menu');
+      if (!menu) return;
+      var isOpen = menu.classList.toggle('hidden') === false;
+      pgbusSyncAriaExpanded('pgbus-locale-menu', isOpen);
+    }
+    function pgbusBulkRowToggle(checkbox) {
+      var first = checkbox.nextElementSibling;
+      var second = first && first.nextElementSibling;
+      if (first) first.disabled = !checkbox.checked;
+      if (second) second.disabled = !checkbox.checked;
+    }
+    function pgbusBindActions(root) {
+      (root || document).querySelectorAll('[data-pgbus-action]').forEach(function(el) {
+        if (el.dataset.pgbusBound === 'true') return;
+        el.dataset.pgbusBound = 'true';
+        var action = el.dataset.pgbusAction;
+        if (action === 'toggle-dark-mode') {
+          el.addEventListener('click', pgbusToggleDarkMode);
+        } else if (action === 'toggle-mobile-menu') {
+          el.addEventListener('click', pgbusToggleMobileMenu);
+        } else if (action === 'toggle-locale-menu') {
+          el.addEventListener('click', pgbusToggleLocaleMenu);
+        } else if (action === 'bulk-row-toggle') {
+          el.addEventListener('change', function() { pgbusBulkRowToggle(el); });
+        }
+      });
+    }
+    document.addEventListener('DOMContentLoaded', function() { pgbusBindActions(); });
+    document.addEventListener('turbo:load', function() { pgbusBindActions(); });
+    document.addEventListener('turbo:frame-load', function(e) { pgbusBindActions(e.target); });
+    <%# Turbo Drive caches pages via cloneNode(true), which keeps attributes
+        but drops event listeners. Clear the binding sentinel before caching
+        so pgbusBindActions() actually rebinds when the snapshot is restored. %>
+    document.addEventListener('turbo:before-cache', function() {
+      document.querySelectorAll('[data-pgbus-bound]').forEach(function(el) {
+        el.removeAttribute('data-pgbus-bound');
+      });
+    });
+    document.addEventListener('click', function(e) {
+      var switcher = document.getElementById('pgbus-locale-switcher');
+      var menu = document.getElementById('pgbus-locale-menu');
+      if (menu && switcher && !switcher.contains(e.target) && !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+        pgbusSyncAriaExpanded('pgbus-locale-menu', false);
+      }
+    });
+  </script>
+
+  <%# Self-hosted assets — no external CDN dependencies %>
+  <%= tag.link rel: "stylesheet", href: frontend_static_path(:style, format: :css, locale: nil), nonce: content_security_policy_nonce %>
+
+  <%# Importmap for ES modules — keys are internal symbols, values are app-controlled paths, no user input %>
+  <% importmaps = Pgbus::FrontendsController.js_modules.keys.index_with { |mod| frontend_module_path(mod, format: :js, locale: nil) } %>
+  <%= tag.script({ imports: importmaps }.to_json.html_safe, type: "importmap", nonce: content_security_policy_nonce) %> <%# herb:disable erb-no-unsafe-raw %>
+  <%= tag.script("", src: frontend_static_path(:apexcharts, format: :js, locale: nil), nonce: content_security_policy_nonce) %>
+
+  <script type="module" nonce="<%= content_security_policy_nonce %>">
+    import "application";
+  </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950 transition-colors"
+      <% if Pgbus.configuration.web_live_updates %>data-pgbus-refresh-interval="<%= Pgbus.configuration.web_refresh_interval %>"<% end %>>
+  <%# i18n data for JS modules %>
+  <div id="pgbus-i18n" class="hidden"
+       data-delete-title="<%= t("pgbus.dialogs.delete_title", default: "Delete") %>"
+       data-confirm-title="<%= t("pgbus.dialogs.confirm_title", default: "Are you sure?") %>"
+       data-delete-label="<%= t("pgbus.dialogs.delete", default: "Delete") %>"
+       data-confirm-label="<%= t("pgbus.dialogs.confirm", default: "Confirm") %>"></div>
+  <div class="min-h-full">
+    <!-- Top nav -->
+    <nav class="bg-gray-900 dark:bg-gray-950 border-b border-gray-800">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-14 items-center justify-between">
+          <!-- Left: brand + desktop nav -->
+          <div class="flex items-center space-x-8">
+            <div class="flex items-center space-x-3">
+              <% if Pgbus.configuration.return_to_app_url %>
+                <a href="<%= Pgbus.configuration.return_to_app_url %>" class="rounded-md p-1.5 text-gray-400 hover:text-white hover:bg-gray-700" title="<%= t("pgbus.layout.return_to_app") %>">
+                  <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/>
+                  </svg>
+                </a>
+              <% end %>
+              <%= link_to pgbus.root_path, class: "flex items-center space-x-2" do %>
+                <span class="text-lg font-bold text-white"><%= t("pgbus.layout.brand") %></span>
+                <span class="rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300"><%= Pgbus::VERSION %></span>
+              <% end %>
+            </div>
+
+            <!-- Desktop nav links (hidden on small screens) -->
+            <div class="hidden lg:flex space-x-1">
+              <%= pgbus_nav_link t("pgbus.layout.nav.dashboard"), pgbus.root_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.queues"), pgbus.queues_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.jobs"), pgbus.jobs_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.recurring"), pgbus.recurring_tasks_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.processes"), pgbus.processes_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.events"), pgbus.events_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.batches"), pgbus.batches_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.dlq"), pgbus.dead_letter_index_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.outbox"), pgbus.outbox_index_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.locks"), pgbus.locks_path %>
+              <%= pgbus_nav_link t("pgbus.layout.nav.insights"), pgbus.insights_path %>
+            </div>
+          </div>
+
+          <!-- Right: locale, dark mode, hamburger -->
+          <div class="flex items-center space-x-2">
+            <!-- Locale switcher -->
+            <div class="relative" id="pgbus-locale-switcher">
+              <button type="button" data-pgbus-action="toggle-locale-menu" aria-controls="pgbus-locale-menu" aria-expanded="false" aria-haspopup="true" class="rounded-md px-2 py-1 text-sm text-gray-300 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <%= pgbus_locale_flag(I18n.locale) %> <%= I18n.locale.to_s.upcase %>
+              </button>
+              <div id="pgbus-locale-menu" class="hidden absolute right-0 z-50 mt-1 w-44 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-white/10">
+                <div class="py-1" role="menu">
+                  <% available_locales.sort.each do |loc| %>
+                    <a href="<%= pgbus.set_locale_path(locale: loc) %>" role="menuitem" class="block px-3 py-1 text-sm no-underline <%= loc == I18n.locale ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' %>">
+                      <%= pgbus_locale_flag(loc) %> <%= pgbus_locale_name(loc) %>
+                    </a>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dark mode toggle -->
+            <button type="button" data-pgbus-action="toggle-dark-mode" class="rounded-md p-2 text-gray-400 hover:text-white focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900" aria-label="<%= t("pgbus.layout.toggle_dark_mode") %>">
+              <svg class="h-5 w-5 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
+              </svg>
+              <svg class="h-5 w-5 block dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+              </svg>
+            </button>
+
+            <!-- Mobile menu button (hidden on large screens) -->
+            <button type="button" data-pgbus-action="toggle-mobile-menu" aria-controls="pgbus-mobile-menu" aria-expanded="false" class="lg:hidden rounded-md p-2 text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="<%= t("pgbus.layout.toggle_menu") %>">
+              <!-- Hamburger icon -->
+              <svg id="pgbus-menu-open" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+              </svg>
+              <!-- Close icon (hidden by default) -->
+              <svg id="pgbus-menu-close" class="hidden h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile menu (hidden by default, shown on small screens when toggled) -->
+      <div id="pgbus-mobile-menu" class="hidden lg:hidden border-t border-gray-800">
+        <div class="space-y-1 px-3 py-3">
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.dashboard"), pgbus.root_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.queues"), pgbus.queues_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.jobs"), pgbus.jobs_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.recurring"), pgbus.recurring_tasks_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.processes"), pgbus.processes_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.events"), pgbus.events_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.batches"), pgbus.batches_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.dlq"), pgbus.dead_letter_index_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.outbox"), pgbus.outbox_index_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.locks"), pgbus.locks_path %>
+          <%= pgbus_mobile_nav_link t("pgbus.layout.nav.insights"), pgbus.insights_path %>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Toast container (fixed top-right) -->
+    <div id="pgbus-toast-container" class="fixed top-4 right-4 z-[100] flex flex-col space-y-2 max-w-sm"></div>
+
+    <!-- Flash messages rendered as toasts -->
+    <% if notice %>
+      <template data-pgbus-toast="success"><%= notice %></template>
+    <% end %>
+    <% if alert %>
+      <template data-pgbus-toast="error"><%= alert %></template>
+    <% end %>
+
+    <!-- Confirm dialog -->
+    <dialog id="pgbus-confirm-dialog" class="rounded-lg shadow-xl bg-white dark:bg-gray-800 p-0 backdrop:bg-gray-900/50 max-w-md w-full">
+      <div class="p-6">
+        <div class="flex items-start space-x-4">
+          <div id="pgbus-confirm-icon" class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/30">
+            <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white" id="pgbus-confirm-title"><%= t("pgbus.dialogs.confirm_title", default: "Are you sure?") %></h3>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300" id="pgbus-confirm-message"></p>
+          </div>
+        </div>
+      </div>
+      <form method="dialog" class="flex justify-end space-x-3 px-6 py-4 bg-gray-50 dark:bg-gray-900/50 rounded-b-lg">
+        <button value="cancel" class="rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"><%= t("pgbus.dialogs.cancel", default: "Cancel") %></button>
+        <button value="confirm" id="pgbus-confirm-btn" class="rounded-md px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"><%= t("pgbus.dialogs.confirm", default: "Confirm") %></button>
+      </form>
+    </dialog>
+
+    <!-- Alert dialog -->
+    <dialog id="pgbus-alert-dialog" class="rounded-lg shadow-xl bg-white dark:bg-gray-800 p-0 backdrop:bg-gray-900/50 max-w-md w-full">
+      <div class="p-6">
+        <div class="flex items-start space-x-4">
+          <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/>
+            </svg>
+          </div>
+          <p class="text-sm text-gray-700 dark:text-gray-300" id="pgbus-alert-message"></p>
+        </div>
+      </div>
+      <form method="dialog" class="flex justify-end px-6 py-4 bg-gray-50 dark:bg-gray-900/50 rounded-b-lg">
+        <button value="ok" class="rounded-md px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"><%= t("pgbus.dialogs.ok", default: "OK") %></button>
+      </form>
+    </dialog>
+
+    <!-- Content -->
+    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      <%= yield %>
+    </main>
+  </div>
+</body>
+</html>

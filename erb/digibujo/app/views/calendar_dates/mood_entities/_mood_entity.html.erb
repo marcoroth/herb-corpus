@@ -1,0 +1,62 @@
+<%# locals: (date:, entity:) %>
+<% mood_id = "mood_entity_#{date.iso8601}" %>
+
+<div id="<%= mood_id %>" class="dropdown--dock daylog--mood" style="anchor-name: --dropdown-<%= mood_id %>">
+    <button
+      type="button"
+      class="button--secondary button--circle button-sm"
+      popovertarget="dropdown-<%= mood_id %>"
+      style="anchor-name: --dropdown-<%= mood_id %>"
+      aria-label="<%= entity ? "Change mood" : "Pick mood" %>"
+      aria-haspopup="menu"
+    >
+      <% if entity %>
+        <%= entity.marker %>
+      <% else %>
+        <%= icon_tag("face") %>
+      <% end %>
+    </button>
+  
+    <div
+      id="hint-<%= mood_id %>"
+      class="hint"
+      popover="hint"
+      style="position-anchor: --hint-<%= mood_id %>"
+    >
+      <%= entity ? entity.mood.humanize : "Pick mood" %>
+    </div>
+  
+    <div
+      id="dropdown-<%= mood_id %>"
+      popover
+      style="position-anchor: --dropdown-<%= mood_id %>"
+      class="dropdown dropdown--element dropdown--element-bottom animations--side-in daylog--mood-dropdown"
+      data-controller="grid-navigation"
+      data-grid-navigation-columns-value="1"
+      data-action="keydown->grid-navigation#navigate"
+    >
+      <div class="dropdown--element-body">
+        <nav class="dropdown--menu" aria-label="Mood">
+          <% CalendarDate::MoodEntity::MOOD_MARKERS.each do |mood, emoji| %>
+            <% selected = entity&.mood == mood.to_s %>
+            <%= button_to calendar_date_mood_entity_path,
+                  method: :post,
+                  params: { date: date.iso8601, mood: mood },
+                  class: [
+                    "dropdown-item",
+                    ("dropdown-item--current" if selected)
+                  ],
+                  form_class: "dropdown--menu-form",
+                  form: { data: { turbo_stream: true } },
+                  data: {
+                    grid_navigation_target: "item",
+                    action: "focus->grid-navigation#syncPosition"
+                  },
+                  aria: { label: mood.to_s.humanize, pressed: selected } do %>
+              <span class="daylog--mood-menu-marker" aria-hidden="true"><%= emoji %></span>
+              <%= mood.to_s.humanize %>
+            <% end %>
+          <% end %>
+        </nav>
+      </div>
+    </div>

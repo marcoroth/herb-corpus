@@ -1,0 +1,140 @@
+<div class="slide active" id="black-slide"></div>
+
+<script>
+(function() {
+  var scheduleId = <%= raw @schedule.id.to_json %>;
+  var presenter = document.getElementById('presenter');
+  var slides = [];
+  var currentIndex = 0;
+
+  console.log('Presenter loaded for schedule:', scheduleId);
+
+  App.schedulePresenter = App.cable.subscriptions.create(
+    { channel: "SchedulePresenterChannel", schedule_id: scheduleId },
+    {
+      connected: function() {
+        console.log('Connected to SchedulePresenterChannel');
+        restoreState();
+      },
+      received: function(data) {
+        console.log('Received:', data);
+        if (data.action === "present") {
+          handlePresent(data);
+        } else if (data.action === "navigate_to") {
+          handleNavigateTo(data);
+        } else if (data.action === "present_image") {
+          handlePresentImage(data);
+        } else if (data.action === "black") {
+          handleBlack();
+        }
+      }
+    }
+  );
+
+  function clearSlides() {
+    presenter.innerHTML = '';
+    slides = [];
+    currentIndex = 0;
+  }
+
+  function showSlide(index) {
+    if (index < 0 || index >= slides.length) return;
+    slides.forEach(function(s) { s.classList.remove('active'); });
+    currentIndex = index;
+    slides[currentIndex].classList.add('active');
+  }
+
+  function createSlide() {
+    var div = document.createElement('div');
+    div.className = 'slide';
+    presenter.appendChild(div);
+    slides.push(div);
+    return div;
+  }
+
+  function handlePresent(data) {
+    clearSlides();
+
+    // Title slide
+    var titleSlide = createSlide();
+    titleSlide.innerHTML = '<h2>' + escapeHtml(data.title) + '</h2>';
+    fitText(titleSlide);
+
+    // Verse slides
+    var maxLines = 4;
+    data.verses.forEach(function(verse) {
+      // For scripture, also break on commas to get more lines
+      var raw = verse;
+      if (data.type === 'scripture') {
+        raw = verse.replace(/,\s*/g, ',\n');
+      }
+      var lines = raw.split(/\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+      for (var i = 0; i < lines.length; i += maxLines) {
+        var chunk = lines.slice(i, i + maxLines);
+        var slide = createSlide();
+        var text = chunk.map(function(l) { return escapeHtml(l); }).join('<br>');
+        if (data.type === 'scripture') {
+          slide.innerHTML = '<p class="verse-text">' + text + '</p>' +
+            '<p class="scripture-ref">' + escapeHtml(data.title) + '</p>';
+        } else {
+          slide.innerHTML = '<p class="verse-text">' + text + '</p>';
+        }
+        fitText(slide);
+      }
+    });
+
+    // Black slide at end
+    createSlide();
+
+    var targetIndex = data.verse_index || 1;
+    showSlide(targetIndex);
+    console.log('Navigated to verse index:', targetIndex);
+  }
+
+  function handleNavigateTo(data) {
+    console.log('Navigate to verse_index:', data.verse_index);
+    showSlide(data.verse_index);
+  }
+
+  function handlePresentImage(data) {
+    clearSlides();
+    var slide = createSlide();
+    slide.classList.add('image-slide');
+    var img = document.createElement('img');
+    img.src = data.image_url;
+    slide.appendChild(img);
+    showSlide(0);
+  }
+
+  function handleBlack() {
+    clearSlides();
+    createSlide();
+    showSlide(0);
+  }
+
+  function restoreState() {
+    var url = <%= raw current_state_admin_schedule_path(@schedule).to_json %>;
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function(r) { return r.json(); })
+      .then(function(state) {
+        console.log('Restoring state:', state);
+        if (state.action === 'present' && state.verses) {
+          handlePresent(state);
+        } else if (state.action === 'present_image' && state.image_url) {
+          handlePresentImage(state);
+        } else if (state.action === 'black') {
+          handleBlack();
+        }
+      })
+      .catch(function(err) {
+        console.log('No saved state to restore:', err);
+      });
+  }
+
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+  }
+})();
+</script>

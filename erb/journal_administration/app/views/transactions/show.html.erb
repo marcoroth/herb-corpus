@@ -1,0 +1,75 @@
+<header>
+  <h1><%= "#{@transaction.creditor} ➡️ #{@transaction.debitor}" %></h1>
+  <nav>
+    <%= link_to edit_transaction_path(@transaction) do %>
+      <b><%= t('common.edit') %></b>
+    <% end %>
+    <%= link_to t('transactions.show.new_chattel'), new_chattel_path(purchase_transaction_id: @transaction.id) %>
+  </nav>
+</header>
+
+<article>
+<% if @transaction.consolidatable? %>
+  <mark class="unconsolidated"><%= t('.unconsolidated') %></mark>
+<% end %>
+<dl>
+  <dt><%= t('transactions.table.type') %></dt>
+  <dd><%= @transaction.type_icon %> <%= @transaction.type %></dd>
+
+  <dt><%= t('transactions.table.creditor') %></dt>
+  <% creditor = @transaction.creditor %>
+  <dd><%= creditor ? link_to(creditor.to_s, account_path(creditor)) : '-' %></dd>
+
+  <dt><%= t('transactions.table.debitor') %></dt>
+  <% debitor = @transaction.debitor %>
+  <dd><%= debitor ? link_to(debitor.to_s, account_path(debitor)) : '-' %></dd>
+
+  <dt><%= t('transactions.table.amount') %></dt>
+  <dd><%= number_to_currency(@transaction.amount) %></dd>
+
+  <dt><%= t('transactions.table.category') %></dt>
+  <dd><%= @transaction.category&.name || t("common.uncategorized") %></dd>
+
+  <% if @transaction.split? %>
+    <dt><%= t("transaction_splits.split_indicator", count: @transaction.explicit_transaction_splits.size) %></dt>
+    <dd>
+      <ul>
+        <% @transaction.explicit_transaction_splits.each do |split| %>
+          <li><%= split.category&.to_s %> — <%= number_to_currency(split.amount) %><%= " (#{split.note})" if split.note.present? %></li>
+        <% end %>
+      </ul>
+    </dd>
+  <% end %>
+
+  <dt><%= t('transactions.table.booked_at') %></dt>
+  <dd><%= @transaction.booked_at ? l(@transaction.booked_at.to_date) : '-' %></dd>
+
+  <dt><%= t('transactions.table.interest_date') %></dt>
+  <dd><%= @transaction.interest_at ? l(@transaction.interest_at.to_date) : '-' %></dd>
+
+  <dt><%= t('transactions.table.note') %></dt>
+  <dd><%= @transaction.note %></dd>
+</dl>
+
+<% if Current.user.can_administer? %>
+  <dl>
+    <dt><%= Transaction.human_attribute_name(:original_note) %></dt>
+    <dd><%= @transaction.original_note %></dd>
+
+    <dt><%= Transaction.human_attribute_name(:original_balance_after_mutation) %></dt>
+    <dd><%= @transaction.original_balance_after_mutation %></dd>
+
+    <dt><%= Transaction.human_attribute_name(:original_tag) %></dt>
+    <dd><%= @transaction.original_tag %></dd>
+  </dl>
+<% end %>
+
+<section>
+  <h2><%= t('transactions.show.proof_of_purchase') %></h2>
+  <% if @transaction.proof_of_purchase.attached? %>
+    <%= link_to t('transactions.show.view_proof_of_purchase'), rails_blob_path(@transaction.proof_of_purchase, disposition: :inline) %>
+  <% else %>
+    <p><%= t('transactions.show.no_proof_of_purchase') %></p>
+  <% end %>
+</section>
+</article>

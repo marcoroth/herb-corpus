@@ -1,0 +1,69 @@
+<% content_for(:title) { "Bannières du site" } %>
+
+<header class="main-content__header">
+  <h1 class="main-content__page-title"><%= content_for(:title) %></h1>
+</header>
+
+<section class="main-content__body">
+  <p>
+    Messages d'information affichés en haut des pages et sur les écrans de
+    connexion. Les modifications sont appliquées immédiatement, sans
+    redéploiement.
+    <strong><%= @banners.count(&:active?) %> sur <%= @banners.size %></strong>
+    bannières actuellement actives.
+  </p>
+
+  <p>
+    Pour publier une bannière, renseignez son contenu et enregistrez. Pour la
+    retirer, videz le contenu et enregistrez.
+  </p>
+
+  <p>
+    <strong>Balises HTML autorisées :</strong>
+    <%= safe_join(Banner::SANITIZE_TAGS.map { tag.code("<#{it}>") }, ' ') %>.
+    Toute autre balise est automatiquement supprimée à l'affichage.
+  </p>
+
+  <% example = "<strong>Maintenance prévue</strong> le 10 avril à 22h. Plus d'infos sur le <a href=\"https://demarches-simplifiees.fr\">portail officiel</a>." %>
+
+  <p>Exemple : <code><%= example %></code></p>
+</section>
+
+<% @banners.each_with_index do |banner, index| %>
+  <% if index.positive? %>
+    <hr>
+  <% end %>
+
+  <section class="main-content__body">
+    <h2><%= Banner::TARGET_LABELS[banner.target] %></h2>
+
+    <% if banner.active? %>
+      <p class="flash-success">
+        <strong>Active</strong> — actuellement affichée sur le site
+      </p>
+    <% else %>
+      <p class="flash-notice">
+        <strong>Inactive</strong> — masquée tant que le contenu est vide
+      </p>
+    <% end %>
+
+    <p><%= Banner::TARGET_DESCRIPTIONS[banner.target] %></p>
+
+    <%= form_with model: banner, url: manager_banner_path(banner), method: :patch do |f| %>
+      <%= f.label :content, "Contenu de la bannière" %>
+      <%= f.text_area :content, rows: 3, placeholder: "Vider le champ pour désactiver la bannière" %>
+
+      <% if SUPER_ADMIN_OTP_ENABLED %>
+        <div class="field-unit field-unit--required fr-mt-2v">
+          <%= render Manager::OtpAttemptInputComponent.new(id: "otp_attempt_#{banner.target}") %>
+        </div>
+      <% end %>
+
+      <%= f.submit "Enregistrer", class: "button fr-mt-2v" %>
+
+      <p class="attribute-data fr-mt-2v">
+        Modifié le <%= l(banner.updated_at, format: :long) %>
+      </p>
+    <% end %>
+  </section>
+<% end %>

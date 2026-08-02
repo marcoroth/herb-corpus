@@ -1,0 +1,60 @@
+<%# locals: (review_from:, review_to:, collections_q:, collections:, collections_page:) %>
+<aside class="review--collections" aria-label="Collections">
+  <header class="review--collections-header">
+    <h3 class="review--side-name">Collections</h3>
+    <p class="review--side-description">Drop bullets to save them.</p>
+  </header>
+
+  <div class="review--collections-section">
+    <%= form_with url: review_collections_path(from: review_from.iso8601, to: review_to.iso8601),
+          method: :get,
+          class: "review--collections-search",
+          data: {
+            controller: "combobox",
+            combobox_target: "searchForm",
+            combobox_path_value: review_collections_path(from: review_from.iso8601, to: review_to.iso8601)
+          } do %>
+      <%= label_tag :q, "Search collections", class: "form-label utilities--sr-only" %>
+      <%= search_field_tag :q, collections_q,
+            placeholder: "Search collections",
+            class: "form-input",
+            data: {
+              combobox_target: "searchField",
+              action: "input->combobox#search search->combobox#commit keydown->combobox#navigate"
+            } %>
+    <% end %>
+
+    <%= link_to new_collection_path,
+          class: "collection--section-list-item review--collection-create",
+          data: { turbo_frame: "_top" } do %>
+      <%= icon_tag("plus", style: "color: var(--color-text-base);", class: "home--section-list-item-icon") %>
+      <span class="utilities--line-clamp-1">New collection</span>
+    <% end %>
+
+    <%= render layout: "pagination/paginated_list",
+          locals: {
+            page: collections_page,
+            container_id: "paginated-review-collections",
+            pagination_link_path: lambda { |next_param|
+              review_collections_path(
+                from: review_from.iso8601,
+                to: review_to.iso8601,
+                collections_page: next_param,
+                q: collections_q
+              )
+            }
+          } do %>
+      <% if collections.any? %>
+        <ul class="review--collections-list">
+          <% collections.each do |collection| %>
+            <%= render "reviews/collection_drop_target", collection: collection %>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="review--collections-empty">
+          <%= collections_q.present? ? "No collections found." : "No collections yet." %>
+        </p>
+      <% end %>
+    <% end %>
+  </div>
+</aside>

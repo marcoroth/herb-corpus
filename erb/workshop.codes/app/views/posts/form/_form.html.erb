@@ -1,0 +1,55 @@
+<%= form_with url: path, model: post, data: { role: "post-form tabs", remote: true }, html: { autocomplete: "off" } do |form| %>
+  <%= render "form_errors", errors: post.errors if post.errors.any? %>
+
+  <div class="standout p-0 text-left">
+    <div class="p-1/4">
+      <div class="form-group-uneven">
+        <div class="form-group mt-0">
+          <%= form.text_field :title, class: "form-input form-input--large", placeholder: "Title", aria: { label: "Title" } %>
+        </div>
+
+        <div class="form-group relative show-on-focus-within sm:mt-0">
+          <%= form.text_field :code, class: "form-input form-input--large", placeholder: "Code", data: { action: "reveal-on-difference", original: @post.code }, aria: { label: "Code" }, autocomplete: "off" %>
+
+          <% if current_user.posts.none? %>
+            <div class="bubble bubble--warning show-on-focus-within__content">
+              Not sure where to get a code? <br>
+              <%= link_to "Get started here", "https://workshop.codes/wiki/articles/uploading+new+content+to+existing+import+code", class: "button button--small button--light text-orange mt-1/8", target: "_blank" %>
+              <hr class="bubble__separator" />
+              Looking to get started with the Workshop? <br>
+              <%= link_to "Check out our Editor", editor_path, class: "button button--small button--light text-orange mt-1/8", target: "_blank" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="warning warning--mild mt-1/4 pt-1/8 pb-1/8" data-role="reveal-on-difference" style="display: none">
+        <p class="mb-0"><mark>Heads up!</mark></p>
+        <p class="mt-0"><small>If you aren't trying to have an import code for each version, you probably want to update your existing import code instead of making a new one. If you're not sure how to do that, read this <a href="https://workshop.codes/wiki/articles/uploading+new+content+to+existing+import+code" target="_blank"><mark>Wiki article</mark></a>.</small></p>
+        <p class="mt-0"><small>In case you forgot, your original import code is <code><%= @post.code %></code>.</small></p>
+      </div>
+
+      <%= svelte_component "DerivativesForm", { currentSources: post.source_derivs.map(&:source_code), maxCodes: Post::MAX_SOURCES } %>
+    </div>
+
+    <%= render "posts/form/tabs", form: form %>
+  </div>
+
+  <% tabs = ["description", "images", "snippet", "settings", "heroes", "maps"] %>
+  <% tabs << "revision" if @post.persisted? %>
+
+  <% tabs.each_with_index do |tab, index| %>
+    <div class="tabs-content <%= "tabs-content--active" if index == 0 %>" data-tab="<%= tab %>">
+      <%= render "posts/form/tabs/#{ tab }", form: form %>
+
+      <hr class="mt-1/2 mb-1/2" />
+
+      <div class="flex">
+        <%= link_to "🠨 #{ tabs[index - 1].capitalize }", "#", class: "button button--secondary", data: { action: "set-tab", target: tabs[index - 1] } if index > 0 %>
+        <%= link_to "#{ tabs[index + 1].capitalize } 🠦", "#", class: "button button--secondary ml-auto", data: { action: "set-tab", target: tabs[index + 1] } if index + 1 < tabs.size %>
+
+        <%= form.submit class: "button ml-auto", data: { disable_with: "..." } if index + 1 == tabs.size  %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

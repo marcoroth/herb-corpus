@@ -1,0 +1,128 @@
+<turbo-frame id="modal">
+  <div data-controller="turbo-modal">
+  <dialog class="modal" data-turbo-modal-target="dialog">
+    <div class="modal-box max-w-5xl w-full">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              data-action="click->turbo-modal#close">✕</button>
+
+      <h3 class="font-bold text-lg mb-4 text-base-content"><%= @song.title %> - Videos</h3>
+
+      <% if @song.video_links.count > 1 %>
+        <div role="tablist" class="tabs tabs-bordered mb-4">
+          <% @song.video_links.each_with_index do |video_link, index| %>
+            <input
+              type="radio"
+              name="video_tabs_<%= @song.id %>"
+              role="tab"
+              class="tab"
+              aria-label="Video <%= index + 1 %>"
+              <% if index == 0 %>checked="checked"<% end %>
+              data-video-tab="<%= @song.id %>_<%= index %>">
+          <% end %>
+        </div>
+
+        <% @song.video_links.each_with_index do |video_link, index| %>
+          <div
+            class="video-container"
+            data-video-content="<%= @song.id %>_<%= index %>"
+            style="<%= 'display: none;' unless index == 0 %>">
+            <div class="w-full" style="aspect-ratio: 16/9; min-height: 400px;">
+              <% if video_link.provider_youtube? %>
+                <iframe
+                  class="video-iframe"
+                  width="100%"
+                  height="100%"
+                  src="https://www.youtube.com/embed/<%= video_link.video_id %>"
+                  title="<%= @song.title %> - YouTube video"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen>
+                </iframe>
+              <% elsif video_link.provider_vimeo? %>
+                <iframe
+                  class="video-iframe"
+                  width="100%"
+                  height="100%"
+                  src="https://player.vimeo.com/video/<%= video_link.video_id %>"
+                  title="<%= @song.title %> - Vimeo video"
+                  frameborder="0"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowfullscreen>
+                </iframe>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% else %>
+        <% video_link = @song.video_links.first %>
+        <div class="w-full" style="aspect-ratio: 16/9; min-height: 400px;">
+          <% if video_link.provider_youtube? %>
+            <iframe
+              class="video-iframe"
+              width="100%"
+              height="100%"
+              src="https://www.youtube.com/embed/<%= video_link.video_id %>"
+              title="<%= @song.title %> - YouTube video"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen>
+            </iframe>
+          <% elsif video_link.provider_vimeo? %>
+            <iframe
+              class="video-iframe"
+              width="100%"
+              height="100%"
+              src="https://player.vimeo.com/video/<%= video_link.video_id %>"
+              title="<%= @song.title %> - Vimeo video"
+              frameborder="0"
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowfullscreen>
+            </iframe>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="modal-action">
+        <button class="btn btn-primary" data-action="click->turbo-modal#close">Cerrar</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+  </div>
+
+  <script>
+    (function() {
+      const modal = document.querySelector('turbo-frame#modal dialog');
+      if (!modal) return;
+
+      const videoTabs = modal.querySelectorAll('[data-video-tab]');
+      const videoContainers = modal.querySelectorAll('[data-video-content]');
+
+      videoTabs.forEach(tab => {
+        tab.addEventListener('change', function() {
+          if (this.checked) {
+            const targetId = this.dataset.videoTab;
+            videoContainers.forEach(container => {
+              const iframe = container.querySelector('.video-iframe');
+              if (container.dataset.videoContent !== targetId) {
+                container.style.display = 'none';
+                if (iframe && iframe.src) {
+                  iframe.dataset.pausedSrc = iframe.src;
+                  iframe.src = '';
+                }
+              } else {
+                container.style.display = 'block';
+                if (iframe && iframe.dataset.pausedSrc) {
+                  iframe.src = iframe.dataset.pausedSrc;
+                  delete iframe.dataset.pausedSrc;
+                }
+              }
+            });
+          }
+        });
+      });
+    })();
+  </script>
+</turbo-frame>

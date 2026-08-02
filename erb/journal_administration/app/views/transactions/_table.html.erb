@@ -1,0 +1,59 @@
+<%# locals: (transactions:, page:, show_uncategorized_amount: false) %>
+<%= render "transactions/filters" %>
+<%= render "shared/pagination", page: page %>
+
+<table class="transactions">
+  <thead>
+    <tr>
+      <th></th>
+      <th><%= t('.type') %></th>
+      <th><%= t('.creditor') %></th>
+      <th><%= t('.debitor') %></th>
+      <th><%= t('.amount') %></th>
+      <th><%= t('.booked_at') %></th>
+      <th><%= t('.interest_date') %></th>
+      <th><%= t('.category') %></th>
+      <th><%= t('.note') %></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% transactions.each do |transaction| %>
+      <% display_amount = show_uncategorized_amount ? transaction.uncategorized_amount : transaction.amount %>
+      <tr class="<%= 'unconsolidated' if transaction.consolidatable? %>">
+        <td>
+          <%= link_to transaction do %>
+            <b><%= t('.show') %></b>
+          <% end %>
+        </td>
+        <td><%= transaction.type_icon %></td>
+        <% creditor = transaction.creditor %>
+        <td><%= creditor ? link_to(creditor.name || creditor.account_number, account_path(creditor)) : "" %></td>
+        <% debitor = transaction.debitor %>
+        <td><%= debitor ? link_to(debitor.name || debitor.account_number, account_path(debitor)) : "" %></td>
+        <td><%= number_to_currency display_amount %></td>
+        <td><%= transaction.booked_at ? l(transaction.booked_at.to_date) : '' %></td>
+        <td><%= transaction.interest_at ? l(transaction.interest_at.to_date) : '' %></td>
+        <td><%= transaction.category&.to_s %></td>
+        <td><%= transaction&.note&.truncate(20) %></td>
+      </tr>
+      <% if transaction.split? %>
+        <% transaction.explicit_transaction_splits.each do |split| %>
+          <tr class="split-row">
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td><%= number_to_currency split.amount %></td>
+            <td></td>
+            <td></td>
+            <td><%= split.category&.to_s %></td>
+            <td><%= split.note&.truncate(20) %></td>
+          </tr>
+        <% end %>
+      <% end %>
+    <% end %>
+  </tbody>
+</table>
+
+<%= render "shared/pagination", page: page %>
