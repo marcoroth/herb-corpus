@@ -1,0 +1,46 @@
+<% if stats.rows.empty? %>
+  <div class="fd-card"><div class="fd-empty">No queues yet. They appear as soon as jobs are enqueued.</div></div>
+<% else %>
+  <div class="fd-queue-cards">
+    <% stats.rows.each do |queue| %>
+      <div class="fd-card fd-qcard<%= " paused-card" if queue.paused? %>" id="<%= dom_id_for_queue(queue.name) %>">
+        <div class="top">
+          <h3><%= queue.name %></h3>
+          <% if queue.paused? %>
+            <span class="fd-pill paused">PAUSED · <%= fd_duration(queue.paused_for) %></span>
+          <% else %>
+            <span class="fd-pill ready">ACTIVE</span>
+          <% end %>
+          <div class="right">
+            <% if queue.paused? %>
+              <%= button_to "▶ Resume", resume_queues_path(name: queue.name),
+                    class: "fd-btn sm primary", form_class: "fd-inline-form" %>
+            <% else %>
+              <%= button_to "⏸ Pause", pause_queues_path(name: queue.name),
+                    class: "fd-btn sm", form_class: "fd-inline-form",
+                    data: { turbo_confirm: "Pause #{queue.name}? Workers will stop picking up its jobs until you resume it." } %>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div>
+            <div class="k">Depth</div>
+            <div class="v"><%= number_with_delimiter(queue.depth) %></div>
+          </div>
+          <div>
+            <div class="k">Latency</div>
+            <div class="v"><%= queue.latency ? fd_duration(queue.latency) : "—" %></div>
+          </div>
+          <div>
+            <div class="k">Rate · 1h</div>
+            <div class="v"><%= number_with_delimiter(queue.rate_per_hour) %><small>/h</small></div>
+          </div>
+        </div>
+
+        <%= render "flightdeck/metrics/sparkline",
+                   sparkline: Flightdeck::Metrics::Sparkline.new(sparklines[queue.name] || []) %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

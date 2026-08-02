@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><%= content_for?(:title) ? yield(:title) : "Flightdeck" %></title>
+    <meta name="turbo-root" content="<%= root_path %>">
+    <%= csrf_meta_tags %>
+    <% if (css = flightdeck_asset_path("flightdeck.css")) %>
+      <link rel="stylesheet" href="<%= css %>">
+    <% end %>
+    <% if (js = flightdeck_asset_path("flightdeck.js")) %>
+      <script src="<%= js %>" defer></script>
+    <% end %>
+  </head>
+  <body data-controller="theme">
+    <div class="fd-app">
+      <aside class="fd-side">
+        <div class="fd-brand">
+          <%= flightdeck_brand_svg %>
+          <span class="fd-brand-word">FLIGHT<em>DECK</em></span>
+        </div>
+
+        <nav class="fd-nav">
+          <%= link_to root_path, class: "fd-nav-link#{" on" if current_page?(root_path)}" do %>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 13.5v-5h3v5m1.5 0v-9h3v9m1.5 0v-12h3v12" stroke-linejoin="round"/></svg>
+            Overview
+          <% end %>
+
+          <span class="fd-nav-section">Jobs</span>
+
+          <%= link_to jobs_path, class: "fd-nav-link#{" on" if fd_nav_active?(:all)}" do %>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="12" height="10" rx="1.5"/><path d="M4.5 6h6M4.5 9h4"/></svg>
+            All jobs <span class="fd-nav-count"><%= fd_nav_count(:all) %></span>
+          <% end %>
+
+          <%= link_to jobs_path(state: :failed), class: "fd-nav-link#{" on" if fd_nav_active?(:failed)}" do %>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7.5" cy="7.5" r="6"/><path d="M7.5 4.5v3.5M7.5 10.4v.2"/></svg>
+            Failed <span class="fd-nav-count"><%= fd_nav_count(:failed) %></span>
+          <% end %>
+
+          <span class="fd-nav-section">Infrastructure</span>
+
+          <%= link_to queues_path, class: "fd-nav-link#{" on" if controller_name == "queues"}" do %>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4h11M2 7.5h11M2 11h7"/></svg>
+            Queues <span class="fd-nav-count"><%= fd_nav_queue_count %></span>
+          <% end %>
+
+          <%= link_to processes_path, class: "fd-nav-link#{" on" if controller_name == "processes"}" do %>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="11" height="7" rx="1.5"/><path d="M5 13h5M7.5 9v4"/></svg>
+            Processes <span class="fd-nav-count <%= "alert" if fd_nav_any_dead_processes? %>"><%= fd_nav_process_count %></span>
+          <% end %>
+
+          <%= link_to recurring_tasks_path, class: "fd-nav-link#{" on" if controller_name == "recurring_tasks"}" do %>
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7.5" cy="7.5" r="6"/><path d="M7.5 4v3.5l2.5 1.5"/></svg>
+            Recurring <span class="fd-nav-count"><%= fd_nav_recurring_count %></span>
+          <% end %>
+        </nav>
+
+        <div class="fd-side-foot">
+          <b>flightdeck</b><br>
+          v<%= Flightdeck::VERSION %>
+        </div>
+      </aside>
+
+      <div class="fd-main">
+        <div class="fd-topbar">
+          <h2><%= content_for?(:page_title) ? yield(:page_title) : "Overview" %></h2>
+          <div class="fd-topbar-right">
+            <span class="fd-clock"
+                  data-controller="clock"
+                  data-clock-offset-value="<%= fd_zone_offset_seconds %>"
+                  data-clock-label-value="<%= fd_zone_label %>"><%= fd_clock_now %></span>
+
+            <button class="fd-live" type="button" aria-pressed="true"
+                    data-controller="live"
+                    data-live-interval-value="<%= fd_poll_ms %>"
+                    data-action="live#toggle">
+              <span class="fd-dot"></span>
+              <span data-live-target="label">LIVE · <%= fd_poll_seconds %>s</span>
+            </button>
+
+            <%# Which icon shows is decided by theme tokens, so it is correct on
+                first paint without waiting for JavaScript. The controller
+                refines the label to name the action once it connects. %>
+            <button class="fd-theme-toggle" type="button"
+                    data-action="theme#toggle" data-theme-target="button"
+                    aria-label="Switch theme" title="Switch theme">
+              <svg class="fd-icon-sun" width="15" height="15" viewBox="0 0 16 16" fill="none"
+                   stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+                <circle cx="8" cy="8" r="3.1"/>
+                <path d="M8 1.2v1.6M8 13.2v1.6M14.8 8h-1.6M2.8 8H1.2M12.8 3.2l-1.1 1.1M4.3 11.7l-1.1 1.1M12.8 12.8l-1.1-1.1M4.3 4.3 3.2 3.2"/>
+              </svg>
+              <svg class="fd-icon-moon" width="15" height="15" viewBox="0 0 16 16" fill="none"
+                   stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13.4 9.8A5.9 5.9 0 0 1 6.2 2.6a5.9 5.9 0 1 0 7.2 7.2z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <main class="fd-content">
+          <%= yield %>
+        </main>
+      </div>
+    </div>
+
+    <div id="fd-toasts" class="fd-toasts" aria-live="polite" aria-atomic="false"></div>
+  </body>
+</html>

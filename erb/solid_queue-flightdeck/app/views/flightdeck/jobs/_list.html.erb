@@ -1,0 +1,94 @@
+<% if query.state == :failed %>
+  <%= form_with url: bulk_retry_jobs_path(list_filters.merge(state: :failed)), method: :post,
+                data: { controller: "selection" } do |form| %>
+    <div class="fd-bulkbar" data-selection-target="bar" hidden>
+      <span><b data-selection-target="count">0</b> selected</span>
+      <button type="submit" class="fd-btn sm primary"
+              data-turbo-confirm="Retry the selected jobs?">Retry selected</button>
+      <button type="submit" class="fd-btn sm danger"
+              formaction="<%= bulk_discard_jobs_path(list_filters.merge(state: :failed)) %>"
+              data-turbo-confirm="Permanently discard the selected jobs? This cannot be undone.">Discard selected</button>
+      <span class="spacer"></span>
+      <%# Each "all matching" button names its own action: a single neutral
+          "apply to all" button inherited the form's action and silently
+          retried when the user meant to discard. %>
+      <span class="fd-bulkbar-all">or all <%= fd_count(query.count, capped: query.count_capped?) %> matching:</span>
+      <button type="submit" name="scope" value="all" class="fd-btn sm primary"
+              data-turbo-confirm="Retry all failed jobs matching the current filter?">Retry all</button>
+      <button type="submit" name="scope" value="all" class="fd-btn sm danger"
+              formaction="<%= bulk_discard_jobs_path(list_filters.merge(state: :failed)) %>"
+              data-turbo-confirm="Permanently discard all failed jobs matching the current filter? This cannot be undone.">Discard all</button>
+    </div>
+
+    <div class="fd-card">
+      <div class="fd-scroll-x">
+        <table class="fd-data">
+          <thead>
+            <tr>
+              <th style="width:34px">
+                <input type="checkbox" data-selection-target="all" data-action="selection#toggleAll"
+                       aria-label="Select all failed jobs on this page">
+              </th>
+              <th>Job</th>
+              <th>Error</th>
+              <th>Queue</th>
+              <th class="num">Attempts</th>
+              <th class="num">Failed</th>
+              <th style="width:150px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if rows.empty? %>
+              <tr><td colspan="7"><div class="fd-empty">No failed jobs<%= " match this filter" if query.filters? %>.</div></td></tr>
+            <% elsif groups.present? %>
+              <% groups.each do |group| %>
+                <tr class="fd-group-row">
+                  <td colspan="7">
+                    <%= group.key.upcase %> &middot; <%= pluralize(group.count, "job") %> on this page
+                    <% if group.last_failed_at %>&middot; last <%= fd_ago(group.last_failed_at) %><% end %>
+                    &nbsp;&middot;&nbsp;
+                    <button type="button" class="fd-linkish"
+                            data-action="selection#selectGroup"
+                            data-selection-group-param="<%= group.key %>">select group</button>
+                  </td>
+                </tr>
+                <%= render partial: "flightdeck/jobs/failed_row", collection: group.rows, as: :row,
+                           locals: { group_key: group.key } %>
+              <% end %>
+            <% else %>
+              <%= render partial: "flightdeck/jobs/failed_row", collection: rows, as: :row,
+                         locals: { group_key: nil } %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <%= render "flightdeck/jobs/pager", query: query, noun: "failed job" %>
+    </div>
+  <% end %>
+<% else %>
+  <div class="fd-card">
+    <div class="fd-scroll-x">
+      <table class="fd-data">
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Queue</th>
+            <th>State</th>
+            <th class="num">Priority</th>
+            <th class="num">Enqueued</th>
+            <th class="num">Progress</th>
+            <th style="width:90px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if rows.empty? %>
+            <tr><td colspan="7"><div class="fd-empty">No jobs<%= " match this filter" if query.filters? %>.</div></td></tr>
+          <% else %>
+            <%= render partial: "flightdeck/jobs/row", collection: rows, as: :row %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <%= render "flightdeck/jobs/pager", query: query, noun: "job" %>
+  </div>
+<% end %>

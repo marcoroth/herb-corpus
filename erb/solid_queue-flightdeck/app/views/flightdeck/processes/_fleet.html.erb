@@ -1,0 +1,54 @@
+<% if registry.any_dead? %>
+  <div class="fd-alert" role="alert">
+    <svg class="ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.5 15 14H1L8 1.5z" stroke-linejoin="round"/><path d="M8 6v4M8 12.2v.2"/></svg>
+    <div>
+      <b><%= pluralize(registry.dead.size, "process") %> missed heartbeats for longer than
+      <%= fd_duration(SolidQueue.process_alive_threshold) %>.</b>
+      <% if registry.dead_claimed_count.positive? %>
+        <%= pluralize(registry.dead_claimed_count, "claimed execution") %> will be released and
+        marked failed when they are pruned.
+      <% else %>
+        They hold no claimed executions.
+      <% end %>
+    </div>
+    <div class="right">
+      <% if registry.dead_claimed_count.positive? %>
+        <%= link_to "Inspect claimed", jobs_path(state: :in_progress), class: "fd-btn sm" %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<div class="fd-card">
+  <div class="fd-card-hd">
+    <h3>Processes</h3>
+    <span class="sub">grouped by supervisor · heartbeat threshold <%= fd_duration(SolidQueue.process_alive_threshold) %></span>
+  </div>
+  <div class="fd-scroll-x">
+    <table class="fd-data">
+      <thead>
+        <tr>
+          <th>Kind</th>
+          <th>Host</th>
+          <th class="num">PID</th>
+          <th>Configuration</th>
+          <th class="num">Claimed</th>
+          <th>Heartbeat</th>
+          <th style="width:90px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if registry.nodes.empty? %>
+          <tr><td colspan="7"><div class="fd-empty">No Solid Queue processes are registered.</div></td></tr>
+        <% else %>
+          <% registry.tree.each do |root| %>
+            <%= render "flightdeck/processes/row", node: root, child: false %>
+            <% root.children.each do |child| %>
+              <%= render "flightdeck/processes/row", node: child, child: true %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

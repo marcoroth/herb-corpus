@@ -1,0 +1,100 @@
+<% content_for :page_title, "Job ##{@job.id}" %>
+
+<div class="fd-jd-head">
+  <div class="t">
+    <h2><%= @job.class_name %></h2>
+    <div class="sub">
+      job #<%= number_with_delimiter(@job.id) %>
+      <% if @job.active_job_id.present? %>· active_job <%= @job.active_job_id %><% end %>
+    </div>
+  </div>
+  <%= fd_state_pill(@job.state) %>
+  <div class="actions">
+    <% if @job.retryable? %>
+      <%= button_to "↻ Retry now", retry_job_path(@job.id), class: "fd-btn primary", form_class: "fd-inline-form",
+            data: { turbo_confirm: "Retry #{@job.class_name} ##{@job.id}?" } %>
+    <% end %>
+    <% if @job.discardable? %>
+      <%= button_to "Discard", discard_job_path(@job.id, state: @job.state), class: "fd-btn danger",
+            form_class: "fd-inline-form",
+            data: { turbo_confirm: "Permanently discard #{@job.class_name} ##{@job.id}? This cannot be undone." } %>
+    <% end %>
+    <%= link_to "Back to jobs", jobs_path(state: params[:state].presence), class: "fd-btn" %>
+  </div>
+</div>
+
+<div class="fd-grid-jd">
+  <div class="fd-stack">
+    <% if @job.failed? %>
+      <div class="fd-card fd-error-box">
+        <div class="fd-card-hd">
+          <h3>Error</h3>
+          <span class="sub">failed <%= fd_full_time(@job.execution&.created_at) %></span>
+        </div>
+        <div class="msg">
+          <b><%= @job.error_class.presence || "Unknown error" %>:</b>
+          <%= @job.error_message.presence || "(no message recorded)" %>
+        </div>
+        <% if @job.backtrace.any? %>
+          <details class="fd-bt" open>
+            <summary>
+              Backtrace · <%= pluralize(@job.backtrace_total, "frame") %><%
+                %><% if @job.backtrace_truncated? %> (showing <%= @job.backtrace.size %>)<% end %> · app frames highlighted
+            </summary>
+            <pre class="fd-code"><% @job.backtrace_frames.each do |frame| %><%
+              %><% if frame[:app] %><span class="app-line"><%= frame[:line] %></span><% else %><%= frame[:line] %><% end %>
+<% end %></pre>
+          </details>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="fd-card">
+      <div class="fd-card-hd">
+        <h3>Arguments</h3>
+        <div class="right sub">
+          <%= number_to_human_size(@job.arguments_bytes) %>
+          <% if @job.arguments_truncated? %>· truncated for display<% end %>
+        </div>
+      </div>
+      <pre class="fd-code"><%= @job.arguments_preview %></pre>
+      <% if @job.arguments_truncated? %>
+        <div class="fd-card-bd">
+          <p class="fd-mono">Showing the first <%= number_to_human_size(Flightdeck::JobDetail::ARGUMENTS_DISPLAY_LIMIT) %>
+          of <%= number_to_human_size(@job.arguments_bytes) %>. Arguments are shown exactly as stored and are never deserialized.</p>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="fd-card">
+      <div class="fd-card-hd"><h3>Metadata</h3></div>
+      <div class="fd-meta-grid">
+        <div><div class="k">Queue</div><div class="v"><%= fd_queue_badge(@job.queue_name) %></div></div>
+        <div><div class="k">Priority</div><div class="v"><%= @job.priority %></div></div>
+        <div><div class="k">Enqueued</div><div class="v"><%= fd_full_time(@job.enqueued_at) %></div></div>
+        <div><div class="k">Scheduled</div><div class="v"><%= @job.scheduled_at ? fd_full_time(@job.scheduled_at) : "—" %></div></div>
+        <div><div class="k">Finished</div><div class="v"><%= @job.finished_at ? fd_full_time(@job.finished_at) : "—" %></div></div>
+        <div><div class="k">Active job ID</div><div class="v mono"><%= @job.active_job_id.presence || "—" %></div></div>
+        <div><div class="k">Concurrency key</div><div class="v mono"><%= @job.concurrency_key.presence || "—" %></div></div>
+        <div><div class="k">Worker</div><div class="v mono"><%= @job.process_label || "—" %></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fd-card">
+    <div class="fd-card-hd"><h3>Timeline</h3></div>
+    <div class="fd-timeline">
+      <% @job.timeline.each do |event| %>
+        <div class="fd-tl-item <%= event.status %>">
+          <div class="fd-tl-dot"></div>
+          <div class="fd-tl-body">
+            <div class="t"><%= event.label %></div>
+            <div class="d">
+              <%= event.at ? fd_full_time(event.at) : "—" %><% if event.detail.present? %> · <%= event.detail %><% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
