@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <%= javascript_include_tag "cable" %>
+    <title>Presenter</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        width: 100%; height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: "Source Sans Pro", Helvetica, sans-serif;
+        color: #fff;
+        font-size: 16px;
+      }
+
+      /* ── Slide container ── */
+      #presenter {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      /* ── Individual slide ── */
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 3vh 3vw;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        pointer-events: none;
+      }
+      .slide.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* ── Typography ── */
+      .slide h2 {
+        line-height: 1.2;
+        color: #fff;
+        font-weight: 700;
+        text-align: center;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        max-width: 95vw;
+      }
+
+      .slide .verse-text {
+        line-height: 1.4;
+        color: #fff;
+        font-weight: 700;
+        text-align: center;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        white-space: normal;
+        max-width: 95vw;
+      }
+
+      .slide .scripture-ref {
+        color: #ccc;
+        font-style: italic;
+        font-weight: 700;
+        margin-top: 0.4em;
+        text-align: center;
+      }
+
+      /* ── Fullscreen button ── */
+      #fullscreen-btn {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 9999;
+        background: #e74c3c;
+        border: 3px solid #fff;
+        color: #fff;
+        font-size: 2rem;
+        font-weight: 700;
+        padding: 1.25rem 2.5rem;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: opacity 0.3s ease, background 0.3s ease, transform 0.2s ease;
+        letter-spacing: 1px;
+      }
+      #fullscreen-btn:hover {
+        background: #c0392b;
+        transform: scale(1.05);
+      }
+      #fullscreen-btn.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* ── Image slide ── */
+      .slide.image-slide {
+        padding: 0;
+      }
+      .slide img {
+        width: 100vw;
+        height: 100vh;
+        object-fit: contain;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="fullscreen-btn">&#x26F6; Fullscreen</button>
+    <div id="presenter">
+      <%= yield %>
+    </div>
+    <script>
+      function fitText(slide) {
+        var target = slide.querySelector('.verse-text') || slide.querySelector('h2');
+        if (!target) return;
+
+        // Make slide temporarily visible for measurement
+        var wasActive = slide.classList.contains('active');
+        if (!wasActive) {
+          slide.style.transition = 'none';
+          slide.style.opacity = '0';
+          slide.classList.add('active');
+        }
+
+        var padH = window.innerWidth * 0.06;  // 3vw each side
+        var padV = window.innerHeight * 0.06; // 3vh each side
+        var maxW = window.innerWidth - padH;
+        var maxH = window.innerHeight - padV;
+
+        // Force a fixed width so text wraps and we can measure height
+        target.style.width = maxW + 'px';
+
+        var ref = slide.querySelector('.scripture-ref');
+        if (ref) ref.style.width = maxW + 'px';
+
+        // Reserve space for scripture reference
+        var refReserve = ref ? 0.15 : 0;
+
+        // Binary search for the largest font size that fits (in rem)
+        var lo = 30, hi = 350, best = lo;
+        while (lo <= hi) {
+          var mid = Math.round((lo + hi) / 2);
+          target.style.fontSize = (mid / 10) + 'rem';
+          if (ref) ref.style.fontSize = Math.max(mid * 0.7 / 10, 2) + 'rem';
+
+          var availH = ref ? maxH * (1 - refReserve) : maxH;
+          var fits = target.scrollHeight <= availH;
+
+          if (fits) {
+            best = mid;
+            lo = mid + 1;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        target.style.fontSize = (best / 10) + 'rem';
+        if (ref) ref.style.fontSize = Math.max(best * 0.7 / 10, 2) + 'rem';
+
+        // Restore visibility state
+        if (!wasActive) {
+          slide.classList.remove('active');
+          slide.style.opacity = '';
+          slide.style.transition = '';
+        }
+      }
+
+      window.fitText = fitText;
+    </script>
+    <script>
+      (function() {
+        var btn = document.getElementById('fullscreen-btn');
+
+        function toggleFullscreen() {
+          var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+          if (isFs) {
+            if (document.exitFullscreen) {
+              document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              document.webkitExitFullscreen();
+            }
+          } else {
+            var el = document.documentElement;
+            if (el.requestFullscreen) {
+              el.requestFullscreen();
+            } else if (el.webkitRequestFullscreen) {
+              el.webkitRequestFullscreen();
+            } else if (el.msRequestFullscreen) {
+              el.msRequestFullscreen();
+            }
+          }
+        }
+
+        btn.addEventListener('click', toggleFullscreen);
+
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            toggleFullscreen();
+          }
+        });
+
+        document.addEventListener('fullscreenchange', updateBtn);
+        document.addEventListener('webkitfullscreenchange', updateBtn);
+
+        function updateBtn() {
+          var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+          btn.classList.toggle('hidden', isFs);
+        }
+      })();
+    </script>
+  </body>
+</html>

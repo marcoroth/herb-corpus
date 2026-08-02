@@ -1,0 +1,80 @@
+<% self.title = t('titles.enter_2fa_code.one_time_code') %>
+
+<% if @landline_alert %>
+  <%= render AlertComponent.new(type: :warning, class: 'margin-bottom-2') do %>
+    <%= @presenter.landline_warning %>
+  <% end %>
+<% end %>
+
+<% if @presenter.otp_expiration.present? %>
+  <div id="otp-live-phase" class="usa-sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="otp-live-expiry" class="usa-sr-only" role="alert" aria-atomic="true"></div>
+
+  <%= render CountdownPhaseAlertComponent.new(
+        expiration: @presenter.otp_expiration,
+        phases: @presenter.alert_countdown_phases,
+        sr_phase_region_id: 'otp-live-phase',
+        sr_expiry_region_id: 'otp-live-expiry',
+        alert_options: { class: 'margin-bottom-4', role: 'presentation' },
+        countdown_options: { update_interval: 1.second },
+      ) %>
+<% end %>
+
+<%= render PageHeadingComponent.new.with_content(@presenter.header) %>
+
+<p>
+  <%= @presenter.phone_number_message %>
+</p>
+
+<p>
+  <%= @presenter.do_not_share_code_message %>
+</p>
+
+<%= simple_form_for('') do |f| %>
+  <% if @presenter.reauthn %>
+    <%= render 'two_factor_authentication/totp_verification/reauthn' %>
+  <% end %>
+  <%= render OneTimeCodeInputComponent.new(
+        form: f,
+        autofocus: true,
+        value: @presenter.code_value,
+        optional_prefix: '#',
+        field_options: {
+          error_messages: {
+            patternMismatch: t('errors.messages.phone_otp_format'),
+          },
+        },
+      ) %>
+  <%= f.input(
+        :remember_device,
+        as: :boolean,
+        label: t('forms.messages.remember_device'),
+        aria: { describedby: 'remember-browser-description' },
+        input_html: {
+          class: 'usa-checkbox__input--bordered',
+          checked: @presenter.remember_device_box_checked?,
+        },
+      ) %>
+  <p class='margin-top-1 font-body-2xs' id='remember-browser-description'><%= t('forms.messages.public_shared_device_html') %></p>
+  <%= f.submit t('forms.buttons.submit.default'), class: 'display-block margin-top-5 margin-bottom-2' %>
+  <%= hidden_field_tag 'otp_make_default_number',
+                       @presenter.otp_make_default_number %>
+  <%= render ButtonComponent.new(
+        url: otp_send_path(
+          otp_delivery_selection_form: {
+            otp_delivery_preference: @presenter.otp_delivery_preference,
+            resend: true,
+          },
+        ),
+        outline: true,
+        icon: :loop,
+        class: 'margin-bottom-neg-1',
+      ).with_content(t('links.two_factor_authentication.send_another_code')) %>
+<% end %>
+
+<%= render 'two_factor_authentication/troubleshooting_options', presenter: @presenter %>
+<% if MfaPolicy.new(current_user).two_factor_enabled? %>
+  <%= render 'shared/cancel', link: @presenter.cancel_link %>
+<% else %>
+  <%= render 'shared/cancel_or_back_to_options' %>
+<% end %>

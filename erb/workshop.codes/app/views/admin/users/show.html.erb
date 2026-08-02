@@ -1,0 +1,203 @@
+<% content_for :page_title, "Admin | User: #{@user.username}" %>
+
+<%= render "admin/navigation" %>
+
+<div class="wrapper" data-role="tabs">
+  <div class="heading mt-1/2 mb-1/2">
+    <h2><strong><%= @user.username %></strong> <small>(#<%= @user.id %>)</small></h2>
+  </div>
+
+  <% if flash[:alert] %>
+    <div class="warning mt-0 mb-1/4"><%= flash[:alert] %></div>
+  <% end %>
+
+  <nav class="tabs mb-1/2">
+    <%= tag.button "Status", class: "tabs__item tabs__item--active", data: { action: "set-tab", target: "status" } %>
+    <%= tag.button "Notifications <small>#{ @user.notifications.size }</small>".html_safe, class: "tabs__item", data: { action: "set-tab", target: "notifications" } %>
+    <%= tag.button "Badges <small>#{ @user.badges.size }</small>".html_safe, class: "tabs__item", data: { action: "set-tab", target: "badges" } %>
+    <%= tag.button "Posts <small>#{ @user.posts.size }</small>".html_safe, class: "tabs__item", data: { action: "set-tab", target: "posts" } %>
+    <%= tag.button "Comments <small>#{ @user.comments.size }</small>".html_safe, class: "tabs__item", data: { action: "set-tab", target: "comments" } %>
+    <%= tag.button "Activity <small>#{ @user.activities.size }</small>".html_safe, class: "tabs__item", data: { action: "set-tab", target: "activity" } %>
+  </nav>
+
+  <% if @user.linked_id %>
+    <div class="warning warning--orange mb-1/2">
+      This is a linked account. <%= link_to "View main account", admin_user_path(@user.linked_id), class: "text-lightest" %>
+    </div>
+  <% end %>
+
+  <div class="tabs-content tabs-content--active" data-tab="status">
+    <div class="well well--dark block">
+      <%= form_for @user, url: admin_user_path, method: :patch do |form| %>
+        <%= form.label :level, class: "form-label" %>
+        <%= form.select :level, User.levels.keys.to_a, {}, class: "form-select w-auto" %>
+
+        <div class="checkbox mt-1/2">
+          <%= form.check_box :verified %>
+          <%= form.label :verified, "Verified" %>
+        </div>
+
+        <% if @user.verified? %>
+          <div class="mt-1/8">
+            Verified nice url: <%= @user.nice_url %>
+          </div>
+        <% end %>
+
+        <div class="mt-1/4">
+          <%= form.submit class: "button button--small button--secondary" %>
+        </div>
+      <% end %>
+
+      <hr class="mt-1/4 mb-1/4">
+
+      <%= button_to "Delete user", admin_user_path(@user), method: :delete, class: "button button--small button--danger", data: { confirm: "Are you sure? The user and all of its associations will be removed. This can not be undone. Only use this in case of spam." } %>
+    </div>
+
+    <div class="mt-1/2">
+      <p>Created at: <strong><%= @user.created_at %></strong></p>
+      <p>Updated at: <strong><%= @user.updated_at %></strong></p>
+    </div>
+
+    <table class="w-auto mt-1/2">
+      <tr><td>Provider</td> <td><%= @user.provider || "None" %></td></tr>
+      <tr><td>Has email</td> <td><%= @user.email.present? %></td></tr>
+      <tr><td>Send email on notification</td> <td><%= @user.send_email_on_notification %></td></tr>
+      <tr><td>Posts</td> <td><%= @user.posts.size %></td></tr>
+      <tr><td>Favorites</td> <td><%= @user.favorites.size %></td></tr>
+      <tr><td>Comments</td> <td><%= @user.comments.size %></td></tr>
+      <tr><td>Collections</td> <td><%= @user.collections.size %></td></tr>
+      <tr><td>Notifications</td> <td><%= @user.notifications.size %></td></tr>
+      <tr><td>Activities</td> <td><%= @user.activities.size %></td></tr>
+      <tr><td>Remember tokens</td> <td><%= @user.remember_tokens.size %></td></tr>
+      <tr><td>Forgot password tokens</td> <td><%= @user.forgot_password_tokens.size %></td></tr>
+    </table>
+
+    <h3 class="mt-1/2">Currently linked accounts</h3>
+    <table class="w-auto">
+      <% @user.linked_users.each do |linked_user| %>
+        <tr>
+          <td><strong><%= linked_user.provider %></strong></td>
+          <td><%= linked_user.username %></td>
+        </tr>
+      <% end %>
+
+      <%= "None" unless @linked_users.any? %>
+    </table>
+
+    <h3 class="mt-1/2">Latest 10 visit tokens</h3>
+    <% @user.visits.order(started_at: :desc).limit(10).each do |visit| %>
+      <div class="well block mb-1/8">
+        Started at: <%= visit.started_at %><br>
+        Visit token: <%= visit.visit_token %><br>
+        Visitor token: <%= visit.visitor_token %><br>
+        Landing page: <%= visit.landing_page %><br>
+        Referrer: <%= visit.referrer %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="tabs-content" data-tab="notifications">
+    <div class="well well--dark block">
+      <h4 class="mt-0">Send this user a notifcation</h4>
+
+      <%= form_tag :admin_users_send_notification do %>
+        <div class="form-group mb-1/4">
+          <%= hidden_field :user_id, "", value: @user.id %>
+          <%= label_tag "Notification content (supports markdown)" %>
+          <%= text_area_tag :notification_content, "", class: "form-input mt-1/8" %>
+        </div>
+
+        <%= submit_tag "Send notification", class: "button button--secondary" %>
+      <% end %>
+    </div>
+
+    <h3 class="mt-1/2">Latest 10 notifications</h3>
+
+    <% @user.notifications.order(created_at: :desc).limit(10).each do |notification| %>
+      <div class="well well--dark block mb-1/8 p-1/4">
+        <em><%= time_ago_in_words(notification.created_at) %></em> -
+        <span class="text-lightest"><%= notification.content %></span>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="tabs-content" data-tab="badges">
+    <div class="well well--dark block">
+      <h4 class="mt-0">Badges</h4>
+
+      <div class="well block mb-1/2">
+        <div>
+          <% if @user.badges.any? %>
+            <% @user.badges.each do |badge| %>
+              <%= render "badges/badge", badge: badge, large: true %>
+            <% end %>
+          <% else %>
+            <em>No badges</em>
+          <% end %>
+        </div>
+      </div>
+
+      <%= form_for :badge, url: badges_path do |form| %>
+        <%= form.hidden_field :user_id, value: @user.id %>
+
+        <%= form.label :badge_id, class: "form-label" %>
+        <%= form.select :badge_id, badges.map { |b| ["#{ b["label"] } - #{ b["description"] }", b["id"]] }, {}, class: "form-select w-auto" %>
+
+        <br>
+
+        <%= submit_tag "Give badge", class: "button button--secondary mt-1/8" %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="tabs-content" data-tab="posts">
+    <h3 class="mt-0">Posts by <%= @user.username %></h3>
+
+    <table class="w-auto">
+      <tr>
+        <th>ID</th>
+        <th>Code</th>
+        <th>Title</th>
+        <th>Created at</th>
+      </tr>
+
+      <% @user.posts.order(created_at: :desc).each do |post| %>
+        <tr>
+          <td><%= link_to post.id, admin_post_path(post.id) %></td>
+          <td><strong><%= link_to post.code, post_path(post.code) %></strong></td>
+          <td><%= post.title %></td>
+          <td><%= post.created_at %></td>
+        </tr>
+      <% end %>
+
+      <tr><td><%= "No posts" if @user.posts.none? %></td></tr>
+    </table>
+  </div>
+
+  <div class="tabs-content" data-tab="comments">
+    <h3 class="mt-0">Latest 20 comments</h3>
+
+    <% @user.comments.order(created_at: :desc).limit(20).each do |comment| %>
+      <div class="well well--dark block mb-1/8 p-1/4">
+        <em><%= time_ago_in_words(comment.created_at) %></em>
+        <div class="text-lightest"><%= markdown(comment.content) %></div>
+
+        <hr class="mt-1/4 mb-1/4">
+
+        <%= link_to "🗑️", admin_comment_path(comment.id), method: :delete, data: { confirm: "Are you sure you wish to destroy this comment?" } %> |
+        On post: <%= link_to comment.post.title, post_path(comment.post.code), class: "text-lightest" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="tabs-content" data-tab="activity">
+    <h3 class="mt-0">Latest 20 activity</h3>
+
+    <% @user.activities.order(created_at: :desc).limit(20).each do |activity| %>
+      <div class="well well--dark block mb-1/8 p-1/4">
+        <em><%= time_ago_in_words(activity.created_at) %></em> -
+        <span class="text-lightest"><%= activity.content_type %></span>
+      </div>
+    <% end %>
+  </div>
+</div>

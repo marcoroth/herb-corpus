@@ -1,0 +1,69 @@
+<%# locals: (transaction:, transaction_split: nil) %>
+<% transaction_split = local_assigns[:transaction_split] || TransactionSplit.new(financial_transaction: transaction) %>
+<section>
+  <table>
+    <thead>
+      <tr>
+        <th><%= t("transaction_splits.table.category") %></th>
+        <th><%= t("transaction_splits.table.amount") %></th>
+        <th><%= t("transaction_splits.table.note") %></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% transaction.transaction_splits.where(remainder: false).select(&:persisted?).each do |split| %>
+        <tr>
+          <td><%= split.category&.to_s %></td>
+          <td><%= number_to_currency(split.amount) %></td>
+          <td><%= split.note %></td>
+          <td>
+            <%= button_to t("common.remove"),
+                  transaction_transaction_split_path(transaction, split),
+                  method: :delete,
+                  class: "button-danger" %>
+          </td>
+        </tr>
+      <% end %>
+      <% remainder = transaction.transaction_splits.find_by(remainder: true) %>
+      <% if remainder %>
+        <tr>
+          <td><em><%= remainder.category&.to_s || t("transaction_splits.table.remainder_label") %></em></td>
+          <td><em><%= number_to_currency(remainder.amount) %></em></td>
+          <td><em><%= t("transaction_splits.table.remainder_label") %></em></td>
+          <td></td>
+        </tr>
+      <% end %>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td><strong><%= t("transaction_splits.table.balance") %></strong></td>
+        <td><strong><%= number_to_currency(transaction.split_balance) %></strong></td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <%= form_with scope: :transaction_split, url: transaction_transaction_splits_path(transaction), method: :post do |f| %>
+    <fieldset>
+      <% if transaction_split.errors[:financial_transaction].any? %>
+        <p><%= transaction_split.errors.full_messages_for(:financial_transaction).to_sentence %></p>
+      <% end %>
+
+      <%= f.label :category_id, t("transaction_splits.table.category") %>
+      <%= f.select :category_id, grouped_category_options(selected: transaction_split.category_id), { include_blank: true } %>
+
+      <%= f.label :amount, t("transaction_splits.table.amount") %>
+      <%= f.number_field :amount, step: "0.01", min: "0.01", value: transaction_split.amount %>
+      <% if transaction_split.errors[:amount].any? %>
+        <p><%= transaction_split.errors.full_messages_for(:amount).to_sentence %></p>
+      <% end %>
+
+      <%= f.label :note, t("transaction_splits.table.note") %>
+      <%= f.text_field :note, value: transaction_split.note %>
+    </fieldset>
+    <div class="actions">
+      <%= f.submit t("transaction_splits.table.add") %>
+    </div>
+  <% end %>
+</section>

@@ -1,0 +1,81 @@
+<% content_for :page_title, "Your posts" %>
+
+<%= render "layouts/account", title: "Your codes" do %>
+  <div class="action-header">
+    <div class="action-header__actions mb-1/4">
+      <span>Sorted by</span>
+
+      <div class="dropdown" data-dropdown>
+        <%= tag.button params[:sort_posts] ? params[:sort_posts].humanize : "Created at", class: "dropdown__toggle ml-1/8", data: { action: "toggle-dropdown" } %>
+
+        <div class="dropdown__content" data-dropdown-content>
+          <%= link_to "Created at", account_posts_path, class: "dropdown__item #{ "text-lightest" unless params[:sort_posts].present? }" %>
+          <%= link_to "Updated at", account_posts_path(sort_posts: "updated_at"), class: "dropdown__item #{ "text-lightest" if params[:sort_posts] == "updated_at" }" %>
+          <%= link_to "Hotness", account_posts_path(sort_posts: "hotness"), class: "dropdown__item #{ "text-lightest" if params[:sort_posts] == "hotness" }" %>
+          <%= link_to "Favorites", account_posts_path(sort_posts: "favorites_count"), class: "dropdown__item #{ "text-lightest" if params[:sort_posts] == "favorites_count" }" %>
+        </div>
+      </div>
+    </div>
+
+    <div class="ml-auto pb-1/4 hidden lg:visible">
+      <%= svelte_component("LinkedLabel", { linked: "posts", empty: "Hover charts for views per day" }) %>
+    </div>
+  </div>
+
+
+  <% @posts.each do |post| %>
+    <div data-toggle-content>
+      <div class="item item--small <%= "faded" if post.private? || post.unlisted? || post.draft? %>">
+        <%= render "posts/thumbnail", post: post %>
+
+        <div class="lg:mr-1/4">
+          <div class="item__title">
+            <%= link_to post.title, post_path(post.code) %>
+
+            <%= tag.small "(Private)", class: "ml-1/8" if post.private? %>
+            <%= tag.small "(Unlisted)", class: "ml-1/8" if post.unlisted? %>
+            <%= tag.small "(Draft)", class: "ml-1/8" if post.draft? %>
+          </div>
+
+          <div class="item__actions">
+            <button class="well button button--secondary button--small pt-1/8 pb-1/8 pl-1/4 pr-1/4 mr-1/8" data-action="copy-to-clipboard" data-target="<%= post.code %>">
+              <span class="copy cursor-pointer" data-copy="<%= post.code %>"><%= post.code %></span>
+            </button>
+
+            <%= button_tag "Analytics", class: "text-lightest mr-1/4 mt-1/4 md:mt-0 cursor-pointer", data: { action: "toggle-content reveal-post-analytics", id: post.id }, aria: { controls: "analytics-#{ post.id }" } %>
+            <%= link_to "Edit", edit_post_path(post.code), class: "mr-1/4" %>
+            <%= link_to "Delete", post_path(post.code), class: "text-red", method: :delete, data: { confirm: "Are you sure you want to delete this code? This cannot be undone. \n\n This will delete code: \n #{ post.code } \n\n With title: \n #{ post.title }" } %>
+          </div>
+        </div>
+
+        <div class="linked-chart ml-auto hidden lg:visible">
+          <% data = {} %>
+          <% values = Statistic.where(on_date: 30.days.ago.to_date..Date.today, timeframe: :daily, model_id: post.id, content_type: :visit)
+                               .order(created_at: :asc)
+                               .select(:on_date, :value) %>
+
+          <% (30.days.ago.to_date..Date.today).map{ |date| data[date.strftime("%B %d")] = 0 } %>
+          <% values.map { |v| data[v.on_date.strftime("%B %d")] = v.value } %>
+
+          <%= svelte_component("LinkedChart", {
+              linked: "posts",
+              data: data,
+              fill: "var(--primary)",
+              showValue: true,
+              valuePosition: "floating",
+              tabindex: 0 }) %>
+        </div>
+      </div>
+
+      <div id="analytics-<%= post.id %>" data-role="content-to-toggle" style="display: none">
+        <div class="mb-1/1">
+          <%= render "posts/analytics", post: post %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%= tag.em "You've not yet posted anything" if @posts.blank? %>
+
+  <%= paginate @posts, window: 2 %>
+<% end %>

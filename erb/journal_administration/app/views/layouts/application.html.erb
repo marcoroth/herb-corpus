@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html <%= tag.attributes(theme_attributes) %> data-controller="theme">
+  <head>
+    <title>JournalAdministration</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="view-transition" content="same-origin">
+    <meta name="color-scheme" content="light dark">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= render "appkit/shared/pwa_meta" %>
+
+    <%= stylesheet_link_tag 'application', media: 'all', 'data-turbo-track': 'reload' %>
+
+    <%= javascript_importmap_tags %>
+  </head>
+  <body data-controller="search-dialog">
+    <header>
+      <nav data-controller="nav" data-action="click->nav#click">
+        <ul>
+          <li>
+            <button type="button"
+                    data-action="click->search-dialog#open"
+                    aria-label="<%= t('search.open') %>">
+              <%= t("search.open") %>
+            </button>
+          </li>
+          <li><%= link_to t('home'), dashboard_index_path, "aria-current": ("page" if current_page?(dashboard_index_path)) %></li>
+          <li><%= link_to t('journal'), transactions_path, "aria-current": ("page" if current_page?(transactions_path)) %></li>
+          <li><%= link_to t('main_nav.accounts', model: Account.model_name.human), accounts_path, "aria-current": ("page" if current_page?(accounts_path)) %></li>
+          <li><%= link_to t('main_nav.budgets', model: Budget.model_name.human), budgets_path, "aria-current": ("page" if current_page?(budgets_path)) %></li>
+          <li><%= link_to t('main_nav.categories', model: Category.model_name.human), categories_path, "aria-current": ("page" if current_page?(categories_path)) %></li>
+          <li><%= link_to t('main_nav.chattels', model: Chattel.model_name.human), chattels_path, "aria-current": ("page" if current_page?(chattels_path)) %></li>
+          <li>
+            <details>
+              <summary><%= t("main_nav.todo", model: Todo.model_name.human) %></summary>
+              <ul>
+                <li><%= link_to t("main_nav.todo_all"), todo_path %></li>
+                <li><%= link_to t("main_nav.todo_consolidatable_transactions"), transactions_path(filter: :no_category) %></li>
+                <li><%= link_to t("main_nav.todo_consolidatable_accounts"), accounts_path(filter: :untouched) %></li>
+                <li><%= link_to t("main_nav.todo_upload"), new_transactions_import_path %></li>
+              </ul>
+            </details>
+          </li>
+          <% if signed_in? %>
+            <li><%= link_to t("main_nav.profile"), edit_user_profile_path(Current.user), "aria-current": ("page" if current_page?(edit_user_profile_path(Current.user))) %></li>
+            <li><%= link_to t("main_nav.preferences"), edit_preferences_path, "aria-current": ("page" if current_page?(edit_preferences_path)) %></li>
+          <% end %>
+          <% if Current.user&.can_administer? %>
+            <li><%= link_to t("main_nav.admin"), admin_root_path, "aria-current": ("page" if current_page?(admin_root_path)) %></li>
+          <% end %>
+        </ul>
+      </nav>
+    </header>
+    <main>
+      <%= render "appkit/shared/flashes" %>
+      <%= yield %>
+    </main>
+    <dialog id="confirm-dialog">
+      <p id="confirm-dialog-message"></p>
+      <nav>
+        <button type="button" id="confirm-dialog-cancel" autofocus><%= t('common.cancel') %></button>
+        <button type="button" id="confirm-dialog-accept" class="button-danger" data-default-label="<%= t('common.delete') %>"></button>
+      </nav>
+    </dialog>
+    <dialog id="search-dialog"
+            data-search-dialog-target="dialog"
+            data-action="click->search-dialog#handleBackdropClick">
+      <article>
+        <form action="<%= searches_path %>"
+              method="get"
+              data-turbo-frame="search-results"
+              data-search-dialog-target="form">
+          <input type="search"
+                 name="q"
+                 placeholder="<%= t('search.placeholder') %>"
+                 autocomplete="off"
+                 data-search-dialog-target="input"
+                 data-action="input->search-dialog#debounceSearch">
+          <small class="search-shortcut"><%= t("search.shortcut_hint") %></small>
+        </form>
+        <turbo-frame id="search-results">
+        </turbo-frame>
+      </article>
+    </dialog>
+  </body>
+</html>

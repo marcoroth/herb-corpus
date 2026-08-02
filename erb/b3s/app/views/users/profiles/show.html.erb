@@ -1,0 +1,226 @@
+<% content_for(:body_class, "user_profile") %>
+<% content_for(:page_title, "#{@user.username}") %>
+
+<% if current_user? %>
+  <div class="functions">
+    <% if @user == current_user %>
+      <%= link_to "Edit your profile", edit_user_profile_path( @user.username) %>
+    <% elsif current_user.user_admin? %>
+      <%= link_to "Edit", edit_user_profile_path( @user.username) %>
+      /
+    <% end %>
+
+    <% unless @user == current_user %>
+      <%= link_to("Start a conversation",
+                  new_with_conversations_path(username: @user.username)) %>
+    <% end %>
+  </div>
+<% end %>
+
+<h2 class="section">
+  <%= link_to "Users", users_path %> &raquo; <%= profile_link(@user) %>
+</h2>
+
+<div id="userinfo">
+  <p class="avatar_and_name clearfix">
+    <%= avatar_image_tag @user %>
+    <%= profile_link(@user, @user.username, class: "username") %>
+
+    <% if @user.realname? || @user.location? %>
+      <br>
+      <% if @user.realname? %>
+        <%= h @user.realname %>
+      <% end %>
+      <% if @user.location? %>
+        <small>from</small>
+        <%= h @user.location %>
+      <% end %>
+    <% end %>
+
+    <% if @user.pronouns? %>
+      <br>
+      <%= @user.pronouns %>
+    <% end %>
+  </p>
+
+  <% if @user.previous_usernames.any? %>
+    <div class="previous_usernames">
+      <b> Previously Known As: </b>
+
+      <ul>
+        <% @user.previous_usernames.uniq.each do |username| %>
+          <li>
+            <%= username %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <% if @user.description? %>
+    <div class="description">
+      <%= render_post @user.description %>
+    </div>
+  <% end %>
+
+  <% if !B3S.config.signups_allowed && current_user? && current_user.user_admin? && !@user.user_admin? %>
+    <p class="grant_invites">
+      <strong> Invites: </strong> <%= @user.available_invites %> &ndash;
+      <%= link_to("Grant one",
+                  user_invites_path(user_id: @user.username),
+                  method: :post) %>
+      or
+      <%= link_to("revoke all",
+                  user_invites_path(user_id: @user.username),
+                  method: :delete,
+                  data: {
+                    confirm: "Are you sure you want to revoke all invites?"
+                  }) %>
+      <br>
+    </p>
+  <% end %>
+
+  <p class="posts_and_discussions">
+    <% if @discussions_count.positive? %>
+      <%= link_to("View discussions",
+                  user_profile_discussions_path( @user.username)) %>
+      (
+      <%= @discussions_count %>
+      )
+      <br>
+    <% end %>
+
+    <% if @user.participated_count.positive? %>
+      <%= link_to("View participated discussions",
+                  participated_user_profile_discussions_path( @user.username)) %>
+      (
+      <%= @user.participated_count %>
+      )
+      <br>
+    <% end %>
+
+    <% if @user.public_posts_count.positive? %>
+      <%= link_to "View posts", user_profile_posts_path( @user.username) %>
+      (
+      <%= @user.public_posts_count %>
+      )
+      <br>
+    <% end %>
+
+    <% unless !current_user? || @user == current_user %>
+      <%= link_to("Start a conversation with #{@user.username}",
+                  new_with_conversations_path(username: @user.username)) %>
+      <br>
+      <% if current_user.muted?(@user) %>
+        <%= link_to("Unmute user",
+                    unmute_user_profile_path( @user.username),
+                    method: :post) %>
+      <% else %>
+        <%= link_to("Mute user",
+                    mute_user_profile_path( @user.username),
+                    method: :post) %>
+      <% end %>
+    <% end %>
+  </p>
+
+  <p>
+    <% if @user.birthday? %>
+      <strong> Birthday </strong>
+      :
+      <%= @user.birthday.strftime("%b %d") %>
+      <br>
+    <% end %>
+
+    <strong> Member since </strong>:
+    <%= time_tag @user.created_at, class: "relative" %>
+    <br>
+
+
+    <% if @user.inviter %>
+      <strong> Invited by </strong>
+      :
+      <%= profile_link(@user.inviter) %>
+      <br>
+    <% end %>
+
+    <strong> Last active </strong>:
+    <% if @user.online? %>
+      <strong> Online now </strong>
+    <% else %>
+      <%= time_tag(@user.last_active, class: "relative") %>
+    <% end %>
+    <br>
+
+    <% if @user.memorialized? %>
+      This account has been memorialized.
+      <br>
+    <% elsif @user.deactivated? %>
+      This account has been deactivated.
+      <br>
+    <% elsif @user.admin? %>
+      <%= @user.username %>
+      is an
+      <span class="admin"><strong>admin</strong></span>
+      .
+      <br>
+    <% end %>
+  </p>
+
+  <div class="user-links">
+    <% @user.user_links.sorted.each do |ul| %>
+      <div class="user-link">
+        <div class="label">
+          <%= ul.label %>
+        </div>
+
+        <div class="link">
+          <%= user_link(ul) %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @invitees.any? %>
+    <div class="invitees">
+      <h3>
+        <%= @user.username %> has invited <%= @invitees.size %> users:
+      </h3>
+
+      <ul>
+        <% @invitees.each do |invitee| %>
+          <li>
+            <%= profile_link(invitee) %> (joined
+            <%= time_tag invitee.created_at, class: "relative" %>)
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+</div>
+
+<div id="userPosts">
+  <% if @posts && @posts.length > 0 %>
+    <% cache [@user, "profile/posts"] do %>
+      <%= render(partial: "posts/list", locals: { posts: @posts }) %>
+    <% end %>
+  <% elsif current_user? && @user == current_user %>
+    <div class="welcome">
+      <h2>Welcome to <%= B3S.config.forum_name %>!</h2>
+
+      <p>
+        This is your user profile. Normally your posts will show up in this
+        space, but you haven't posted anything yet.
+      </p>
+
+      <p>
+        Why don't you go
+        <%= link_to "check out some discussions", discussions_path %>, and maybe
+        introduce yourself?
+        <br>
+        Or maybe
+        <%= link_to "edit your profile", edit_user_profile_path( @user.username) %>
+        and add some more info about yourself?
+      </p>
+    </div>
+  <% end %>
+</div>

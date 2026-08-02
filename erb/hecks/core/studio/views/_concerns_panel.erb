@@ -1,0 +1,81 @@
+<%#
+  _concerns_panel.erb — Doctor concerns panel.
+
+  Renders the "Body concerns" section : last 10 Concern records
+  Doctor has noted, with a rolling-60s summary in the header.
+  Empty-state copy when no concerns are recorded (or when Doctor's
+  heki doesn't exist yet).
+
+  Tag convention :
+    section          data-domain="Concern"
+    each row         data-domain="Concern"
+    failure_kind     data-domain="Concern.failure_kind"
+
+  Inputs (set by the route handler) :
+    @concerns        Array<Hash> — recent concerns (capped at 10)
+    @concerns_total  Integer     — count in last 60s
+    @concerns_kinds  Hash        — { failure_kind => count }
+    @concerns_alert  Boolean     — true if EscalateOnSustainedConcerns
+                                   threshold has been crossed
+%>
+<section data-domain="Concern" class="card bg-base-200 shadow mb-6 <%= @concerns_alert ? "border border-error" : "" %>">
+  <div class="card-body">
+    <div class="flex items-baseline justify-between">
+      <h2 class="card-title <%= @concerns_alert ? "text-error" : "" %>">Body concerns</h2>
+      <div class="text-xs opacity-70">
+        last 60s :
+        <span class="font-semibold"><%= @concerns_total %></span>
+        <% if @concerns_kinds && !@concerns_kinds.empty? %>
+          <span class="opacity-60">
+            (<%= @concerns_kinds.map { |k, n| "#{k}=#{n}" }.join(", ") %>)
+          </span>
+        <% end %>
+      </div>
+    </div>
+
+    <% if @concerns.nil? || @concerns.empty? %>
+      <div class="alert alert-success mt-2">
+        <span>No body concerns recorded — daemons are speaking cleanly.</span>
+      </div>
+    <% else %>
+      <div class="overflow-x-auto mt-2">
+        <table class="table table-sm">
+          <thead>
+            <tr class="opacity-60 text-xs">
+              <th>when</th>
+              <th>kind</th>
+              <th>aggregate.command</th>
+              <th>script:line</th>
+              <th>narrative</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @concerns.each do |c| %>
+              <%
+                badge_class =
+                  case c[:severity]
+                  when :red    then "badge-error"
+                  when :orange then "badge-warning"
+                  else "badge-warning badge-outline"
+                  end
+                ac = [c[:aggregate], c[:command]].compact.join(".")
+                sl = [c[:script], c[:line]].compact.join(":")
+              %>
+              <tr data-domain="Concern">
+                <td class="text-xs whitespace-nowrap"><%= c[:noted_at] || "—" %></td>
+                <td>
+                  <span class="badge badge-sm <%= badge_class %>" data-domain="Concern.failure_kind">
+                    <%= c[:failure_kind] || "Unknown" %>
+                  </span>
+                </td>
+                <td class="text-xs font-mono"><%= ac.empty? ? "—" : ac %></td>
+                <td class="text-xs font-mono opacity-70"><%= sl.empty? ? "—" : sl %></td>
+                <td class="text-xs opacity-80"><%= c[:narrative] || "" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+</section>

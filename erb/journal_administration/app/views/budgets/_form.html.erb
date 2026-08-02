@@ -1,0 +1,50 @@
+<%# locals: (budget:) %>
+<%= turbo_frame_tag "budget_form" do %>
+  <%= form_with model: budget, data: { controller: "budget-categories" } do |f| %>
+    <% if budget.errors.any? %>
+      <div>
+        <% budget.errors.full_messages.each do |msg| %>
+          <p><%= msg %></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <fieldset>
+      <%= f.label :starts_at, t("budgets.form.starts_at") %>
+      <%= f.date_field :starts_at, value: budget.starts_at&.to_date, required: true %>
+    </fieldset>
+
+    <fieldset>
+      <%= f.label :ends_at, t("budgets.form.ends_at") %>
+      <%= f.date_field :ends_at, value: budget.ends_at&.to_date %>
+    </fieldset>
+
+    <section data-budget-categories-target="container">
+      <%= f.fields_for :budget_categories do |bc_form| %>
+        <%= render "budgets/budget_category_fields", f: bc_form %>
+      <% end %>
+    </section>
+
+    <template data-budget-categories-target="template">
+      <%= f.fields_for :budget_categories, BudgetCategory.new, child_index: "NEW_RECORD" do |bc_form| %>
+        <%= render "budgets/budget_category_fields", f: bc_form %>
+      <% end %>
+    </template>
+
+    <button type="button" data-action="budget-categories#add">
+      <%= t("budgets.form.add_category") %>
+    </button>
+
+    <%= f.submit %>
+
+    <% if budget.persisted? %>
+      <%= button_tag t("budgets.form.suggest_amounts"),
+          type: "submit",
+          formaction: budget_suggestion_path(budget),
+          formmethod: "post",
+          data: { turbo_frame: "budget_form" } %>
+    <% end %>
+
+    <%= link_to t("budgets.form.cancel"), budget.persisted? ? budget_path(budget) : budgets_path %>
+  <% end %>
+<% end %>

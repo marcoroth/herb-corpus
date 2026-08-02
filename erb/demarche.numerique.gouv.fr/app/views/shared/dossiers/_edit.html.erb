@@ -1,0 +1,61 @@
+<% if dossier.submitted_with_france_connect? && dossier.user.france_connect_informations.present? && current_user.instructeur? && !current_user.owns_or_invite?(dossier) %>
+  <% content_for(:notice_info) do %>
+    <%= render partial: "shared/dossiers/france_connect_informations_notice", locals: { user_information: dossier.user.france_connect_informations.first } %>
+  <% end %>
+<% end %>
+
+<% if dossier.submitted_with_pro_connect? && dossier.user.last_pro_connect_information.present? && current_user.instructeur? && !current_user.owns_or_invite?(dossier) %>
+  <% content_for(:notice_info) do %>
+    <%= render partial: "shared/dossiers/pro_connect_informations_notice", locals: { user_information: dossier.user.last_pro_connect_information } %>
+  <% end %>
+<% end %>
+
+<div class="dossier-edit fr-container counter-start-header-section">
+  <%= render partial: "shared/dossiers/submit_is_over", locals: { dossier: } %>
+  <%= render NestedForms::FormOwnerComponent.new %>
+
+  <%= form_for dossier, url: brouillon_dossier_url(dossier), method: :patch, html: { id: 'dossier-edit-form', class: 'form', multipart: true, novalidate: 'novalidate', data: { controller: 'prevent-submit-on-enter' } } do |f| %>
+    <%= render Dossiers::ErrorsFullMessagesComponent.new(dossier:) %>
+
+    <header class="fr-mb-12v">
+      <div class="fr-highlight">
+        <p class="fr-text--sm">
+          <strong><%= t('utils.asterisk_html') %></strong>
+
+          <% if dossier.brouillon? %>
+            <br>
+            <%= t('views.shared.dossiers.edit.autosave') %>
+          <% elsif dossier.en_construction? %>
+            <br>
+            <%= t('views.shared.dossiers.edit.autosave_submit') %>
+          <% end %>
+
+          <%= render Procedure::NoticeComponent.new(procedure: dossier.procedure) %>
+        </p>
+      </div>
+
+      <% if controller.try(:nav_bar_profile) == :user && current_user.invite?(dossier) %>
+        <div class="fr-pb-2w invite-cannot-submit">
+          <%= render ::Dsfr::AlertComponent.new(state: :info, title: nil, size: :sm, heading_level: :p, extra_class_names: 'fr-mt-1w') do |c| %>
+            <% c.with_body do %>
+              <p class="fr-pb-0">
+                <%= t('views.shared.dossiers.edit.invite_notice').html_safe %>
+              </p>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </header>
+
+    <h2 class="fr-sr-only">Formulaire</h2>
+
+    <fieldset class="fr-fieldset">
+      <%= render EditableChamp::SectionComponent.new(dossier:, types_de_champ: dossier.revision.root_types_de_champ_public) %>
+    </fieldset>
+
+    <%= render Dossiers::PendingCorrectionCheckboxComponent.new(dossier:) %>
+  <% end %>
+
+  <%= render Dossiers::InvalidIneligibiliteRulesComponent.new(dossier:) %>
+  <%= render Dossiers::EditFooterComponent.new(dossier:, annotation: false) %>
+</div>

@@ -1,0 +1,54 @@
+<%# locals: (monthlylog:, days:, date:, bullet_counts_by_date:, pictures_by_date:) %>
+<% if days.any? %>
+  <% offset = days.first.wday %>
+  <% padded = Array.new(offset, nil) + days %>
+
+  <div class="layout--grid layout--gapped monthlylog--calendar-grid" style="--grid-cols-number: 7;">
+    <% Date::DAYNAMES.each do |weekday| %>
+      <div class="layout--grid-item layout--surface-sunken monthlylog--weekday">
+        <%= weekday.first(3) %>
+      </div>
+    <% end %>
+
+    <% padded.each do |day| %>
+      <% if day.blank? %>
+        <div class="layout--grid-item" aria-hidden="true"></div>
+      <% else %>
+        <% count = bullet_counts_by_date[day].to_i %>
+        <% picture = pictures_by_date[day] %>
+        <div
+          class="layout--grid-item layout--surface-sunken monthlylog--date-cell"
+          data-controller="pops-drop monthlylog-calendar-drop-optimistic"
+          data-pops-drop-pops-url-value="<%= postpone_path %>"
+          data-pops-drop-bucket-id-value="<%= monthlylog.bucket.id %>"
+          data-pops-drop-pops-on-value="<%= day.iso8601 %>"
+          data-pops-drop-requested-with-value="pops-drop"
+          data-pops-drop-optimistic-value="monthlylog-calendar-drop-optimistic"
+          data-drop-zone-value="<%= day.iso8601 %>"
+          data-monthlylog-calendar-drop-optimistic-count-value="<%= count %>"
+          data-action="dragover->pops-drop#dragover dragleave->pops-drop#dragleave drop->pops-drop#drop"
+        >
+          <%= link_to monthlylog_bullets_path(monthlylog, date: day.iso8601),
+                data: { turbo_frame: "monthlylog_date" },
+                class: [
+                  "monthlylog--date-item",
+                  ("is-selected" if day == date),
+                  ("is-current" if day == Date.current)
+                ].compact.join(" ") do %>
+            <% if picture&.picture&.attached? %>
+              <%= image_tag picture.picture.variant(:thumb), class: "monthlylog--date-preview", alt: "" %>
+            <% end %>
+            <span class="monthlylog--date-number"><%= day.day %></span>
+            <span
+              class="monthlylog--indicator"
+              data-monthlylog-calendar-drop-optimistic-target="indicator"
+              <%= "hidden" unless count > 0 %>
+              aria-hidden="true"></span>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+<% else %>
+  <p class="monthlylog--by-date-placeholder">No period set for this spread.</p>
+<% end %>

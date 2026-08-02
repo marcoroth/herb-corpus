@@ -1,0 +1,111 @@
+<%= form_for @collection, url: url do |form| %>
+  <%= render "form_errors", errors: @collection.errors if @collection.errors.any? %>
+
+  <div class="form-group">
+    <%= form.text_field :title, class: "form-input form-input--large", placeholder: "Collection title" %>
+  </div>
+
+  <div data-role="tabs" class="mb-1/2">
+    <nav class="tabs mt-1/2">
+      <%= tag.button "Display", class: "tabs__item tabs__item--active", data: { action: "set-tab", target: "display" } %>
+      <%= tag.button "Codes", class: "tabs__item", data: { action: "set-tab", target: "codes" } %>
+    </nav>
+
+    <div class="tabs-content tabs-content--active" data-tab="display">
+
+      <div class="form-group mt-1/2">
+        <%= form.label :nice_url, "Collection URL", class: "form-label" %>
+
+        <label class="form-input url-input">
+          <%= request.base_url %>/c/
+          <%= form.text_field :nice_url, class: "inline-input" %>
+        </label>
+      </div>
+
+      <ul class="form-hint mt-1/4 mb-0">
+        <li><strong>Keep the URL relevant to your collection.</strong></li>
+        <li>Misused URLs will be removed. "parkour-collection" is fine, "privacy-policy" is not.</li>
+        <li>You can use letters, numbers, and dashes "-".</li>
+        <li>All letter must be lowercase. <small>(The URL itself is not case sensitive.)</small></li>
+        <li>Minimum of 5 characters, maximum of 20.</li>
+        <li>Only 1 URL can be active, changing the URL will mean the previous URL will lead to a 404 page.</li>
+      </ul>
+
+      <div class="form-group mt-1/2">
+        <%= form.label :description, "Description", class: "form-label" %>
+
+        <div class="form-hint">
+          Basic Markdown enabled. Limited to 1000 characters.
+        </div>
+
+        <%= form.text_area :description, class: "form-input form-textarea form-textarea--small", maxlength: 1000 %>
+      </div>
+
+      <div class="form-group-uneven mt-1/2">
+        <div class="well well--dark block">
+          <%= form.label :display, "Display collection as...", class: "form-label" %>
+
+          <div class="checkbox">
+            <%= form.radio_button :display_type, :list %>
+            <%= form.label :display_type, "List", value: :list %>
+          </div>
+
+          <div class="checkbox mt-1/4">
+            <%= form.radio_button :display_type, :cards %>
+            <%= form.label :display_type, "Cards", value: :cards %>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group mt-1/2">
+        <%= form.label :cover_image, "Cover image", class: "form-label" %>
+
+        <div class="cover-image well well--dark block">
+          <%= image_tag (@collection.cover_image.attached? ? landscape_large_variant_public_url(@collection.cover_image) : "//:0"),
+                        data: { image_preview: "cover" },
+                        class: "img-fluid",
+                        alt: "" %>
+        </div>
+
+        <%= form.file_field :cover_image,
+                            accept: "image/png, image/jpeg",
+                            direct_upload: true,
+                            data: { action: "image-preview", target: "cover" } %>
+
+        <%= hidden_field_tag :remove_cover_image, "", data: { clear_image_flag: "cover" } %>
+        <%= button_tag "Remove", type: "button", class: "mt-1/8 button button--small button--link text-red",
+                            data: { action: "clear-image", target: "cover" } %>
+
+        <p class="form-hint mt-1/4 mb-0">
+          Image will be processed to a 900x500 format. Max 2MB.
+        </p>
+      </div>
+    </div>
+
+    <div class="tabs-content" data-tab="codes">
+      <p>
+        <em>Select all codes that are part of this collection. Codes can only be in one collection.</em>
+      </p>
+
+      <% current_user.posts.select(:title, :id, :collection_id).each do |post| %>
+        <div class="checkbox well well--dark block p-1/4 mb-1/8">
+          <%= form.check_box :collection_posts, { multiple: true, checked: @collection.id.present? && post.collection_id == @collection.id }, post.id, false %>
+          <%= form.label :collection_posts, value: post.id do %>
+            <%= post.title %>
+
+            <% if post.collection_id.present? && post.collection_id != @collection.id %>
+              <em class="text-dark ml-1/4">
+                In collection
+                "<%= post.collection.title %>"
+              </em>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <hr class="mt-1/2 mb-1/2">
+
+  <%= submit_tag "Save", class: "button mt-1/4", data: { disable_with: "Saving..." } %>
+<% end %>

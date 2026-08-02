@@ -1,0 +1,154 @@
+<div class="object-browser-header object-browser-filter">
+  <form class="object-browser-filter-form">
+    <div class="fulltext-search">
+      <span class="search-icon">
+        <i class="fa fa-search" aria-hidden="true"></i>
+      </span>
+      <% search_id = SecureRandom.hex(10) %>
+      <%= hidden_field_tag "f[#{search_id}][t]", :fulltext_search %>
+      <input name="f[<%= search_id %>][v]" placeholder="<%= t('common.searchterm', locale: active_ui_locale) %>" autofocus class="object-browser-search">
+    </div>
+
+    <% if definition.dig('ui', 'edit', 'options', 'limited_by').blank? %>
+      <div class="union-filter">
+        <% union_id = SecureRandom.hex(10) %>
+        <%= hidden_field_tag "f[#{union_id}][t]", :union_filter_ids %>
+        <%= select_tag(
+          "f[#{union_id}][v]",
+          nil,
+          {
+            class: 'async-select',
+            include_blank: true,
+            data: {
+              max: 20,
+              placeholder: t('filter.relation_filter.placeholder.collection_or_stored_filter',
+                collection: DataCycleCore::WatchList.model_name.human(count: 1, locale: active_ui_locale),
+                stored_filter: DataCycleCore::StoredFilter.model_name.human(count: 1, locale: active_ui_locale),
+                locale: active_ui_locale),
+              search_path: select_search_or_collection_stored_filters_path
+            }
+          }
+        ) %>
+      </div>
+    <% end %>
+
+    <% if (rel_filter = definition.dig('ui', 'edit', 'options', 'filter', 0, 'advanced', 'relation_filter')).present? %>
+      <div class="relation-filter">
+        <%
+          rel_id = SecureRandom.hex(10)
+          rel_name, rel_definition = rel_filter.first
+          rel_key = rel_definition.is_a?(::Hash) ? rel_definition['attribute'] : rel_definition
+          filter_restrictions = DataCycleCore::Feature::AdvancedFilter.relation_filter_restrictions('relation_filter', rel_name)
+        %>
+        <%= hidden_field_tag "f[#{rel_id}][t]", :relation_filter %>
+        <%= hidden_field_tag "f[#{rel_id}][n]", rel_name %>
+        <%= hidden_field_tag "f[#{rel_id}][q]", rel_key %>
+        <%= hidden_field_tag "f[#{rel_id}][c]", 'a' %>
+        <%= hidden_field_tag "f[#{rel_id}][m]", 's' %>
+        <%= select_tag(
+          "f[#{rel_id}][v]",
+          nil,
+          {
+            class: 'async-select',
+            include_blank: true,
+            data: {
+              max: 20,
+              placeholder: t("filter.#{rel_name}", default: rel_key, locale: active_ui_locale),
+              search_path: select_search_things_path,
+              query_params: filter_restrictions.to_json
+            }
+          }
+        ) %>
+      </div>
+    <% end %>
+
+    <% if (sortable_config = definition.dig('ui', 'edit', 'options', 'sortable')).present? %>
+      <span class="filter-sortable">
+        <% sortable = DataCycleCore::Feature['Sortable'].available_object_browser_options(sortable_config, current_user) %>
+        <% filter_id = SecureRandom.hex(10) %>
+        <%= select_tag(
+                        "s[v][m]",
+                        options_for_select(
+                            sortable.map { |s| s.values_at(:label, :method) },
+                            sortable.presence&.first&.dig(:method)
+                        ),
+                        {
+                          include_blank: I18n.t('sortable.default', default: 'default', locale: active_ui_locale),
+                          id: "s_v_m_#{filter_id}",
+                          class: 'filter-sortable-select'
+                        }
+                    ) %>
+        <span class="filter-sortable-checkbox-wrapper">
+          <%= check_box nil,
+                        "s[v][o]",
+                        { checked: true, id: "s_v_o_#{filter_id}" },
+                        'ASC',
+                        'DESC' %>
+          <label for="s_v_o_<%= filter_id %>" data-dc-tooltip="<%= t("sortable.ordering.asc", locale: active_ui_locale) %>">
+            <%= tag.i(class: 'fa fa-sort-asc sort-asc') %>
+            <%= tag.i(class: 'fa fa-sort-desc sort-desc') %>
+          </label>
+        </span>
+      </span>
+    <% end %>
+
+    <div class="buttons">
+      <%= button_tag type: :submit, class: "button success" do %>
+        <i class="fa fa-search" aria-hidden="true"></i>
+        <%= t('actions.filter', locale: active_ui_locale) %>
+      <% end %>
+
+      <%= button_tag type: :reset, class: 'button clear alert round reset-button', data: { dc_tooltip: t('actions.reset', count: 2, locale: active_ui_locale) } do %>
+        <i class="fa fa-times" aria-hidden="true"></i>
+      <% end %>
+    </div>
+
+    <span class="item-count"></span>
+
+    <%= tag.i(class: 'fa fa-exclamation-triangle filter-warning', data: { dc_tooltip: limited_by_warning(content, definition, key, 'filter_warning') }) if definition.dig('ui', 'edit', 'options', 'limited_by').present? %>
+  </form>
+</div>
+
+<ul class="items margin-bottom-10 no-bullet">
+  <div class="loading">
+    <i class="fa fa-spinner fa-spin fa-fw"></i>
+  </div>
+</ul>
+
+<div class="item-info">
+  <div class="item-info-scrollable"></div>
+</div>
+
+<div class="object-browser-footer">
+  <div class="chosen-items items">
+    <ul class="chosen-items-container no-bullet"></ul>
+  </div>
+  <div class="buttons">
+    <span class="button-title">
+      <sup>
+        <span class="chosen-counter"></span>
+        <i class="fa fa-chevron-right" aria-hidden="true"></i>
+      </sup>
+    </span>
+    <a class="button-prime success small save-object-browser">
+      <i class="fa fa-check" aria-hidden="true"></i>
+    </a>
+
+    <% form_parameters = object_browser_new_form_parameters({
+            content: content,
+            button_class: 'small new-content-button',
+            locale: I18n.locale,
+            object_browser: true,
+            key: html_id,
+            scope: 'object_browser',
+            disabled: definition&.dig('ui', 'edit', 'options', 'limited_by').present?,
+            dc_tooltip: limited_by_warning(content, definition, key, 'create_button_warning')
+        }, definition) %>
+
+    <%= render 'data_cycle_core/contents/new_content_button', form_parameters if form_parameters.present? && local_assigns[:hide_new_button].blank? %>
+
+    <button class="button-prime small close-object-browser" type="button" data-close>
+      <i aria-hidden="true" class="fa fa-times"></i>
+    </button>
+  </div>
+</div>

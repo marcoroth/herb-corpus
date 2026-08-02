@@ -1,0 +1,66 @@
+<% self.title = t('titles.doc_auth.doc_capture') %>
+<% content_for :head do %>
+  <%= tag.meta name: 'acuant-sdk-initialization-endpoint', content: IdentityConfig.store.acuant_sdk_initialization_endpoint %>
+  <%= tag.meta name: 'acuant-sdk-initialization-creds', content: IdentityConfig.store.acuant_sdk_initialization_creds %>
+  <%= stylesheet_link_tag 'document-capture' %>
+<% end %>
+<%= tag.div id: 'document-capture-form', data: {
+      app_name: APP_NAME,
+      liveness_required: nil,
+      mock_client: mock_client.presence,
+      help_center_redirect_url: help_center_redirect_url(
+        flow: :idv,
+        step: :document_capture,
+      ),
+      id_type:,
+      document_capture_session_uuid:,
+      endpoint: api_verify_images_url,
+      status_endpoint: nil,
+      glare_threshold: IdentityConfig.store.doc_auth_client_glare_threshold,
+      sharpness_threshold: IdentityConfig.store.doc_auth_client_sharpness_threshold,
+      status_poll_interval_ms: IdentityConfig.store.poll_rate_for_verify_in_seconds * 1000,
+      max_capture_attempts_before_native_camera: doc_auth_selfie_capture ? ActiveSupport::Duration::SECONDS_PER_HOUR : IdentityConfig.store.doc_auth_max_capture_attempts_before_native_camera,
+      max_submission_attempts_before_native_camera: doc_auth_selfie_capture ? ActiveSupport::Duration::SECONDS_PER_HOUR : IdentityConfig.store.doc_auth_max_submission_attempts_before_native_camera,
+      max_attempts_before_manual_capture: IdentityConfig.store.doc_auth_manual_capture_failure_threshold,
+      manual_capture_after_failures_enabled: IdentityConfig.store.doc_auth_manual_capture_after_failures_enabled,
+      acuant_sdk_upgrade_a_b_testing_enabled:,
+      use_alternate_sdk:,
+      acuant_version:,
+      sp_name:,
+      flow_path:,
+      cancel_url: idv_cancel_path(step: :document_capture),
+      account_url: account_path,
+      failure_to_proof_url:,
+      opted_in_to_in_person_proofing:,
+      idv_in_person_url: (IdentityConfig.store.in_person_proofing_opt_in_enabled && Idv::InPersonConfig.enabled_for_issuer?(decorated_sp_session.sp_issuer)) ? idv_in_person_url : nil,
+      security_and_privacy_how_it_works_url: MarketingSite.security_and_privacy_how_it_works_url,
+      in_person_outage_message_enabled: IdentityConfig.store.in_person_outage_message_enabled,
+      in_person_outage_expected_update_date: IdentityConfig.store.in_person_outage_expected_update_date,
+      us_states_territories: @presenter.usps_states_territories,
+      choose_id_type_path:,
+      doc_auth_selfie_capture:,
+      doc_auth_desktop_test_mode: IdentityConfig.store.doc_auth_desktop_test_mode,
+      doc_auth_upload_enabled:,
+      skip_doc_auth_from_how_to_verify:,
+      skip_doc_auth_from_handoff:,
+      skip_doc_auth_from_socure:,
+      how_to_verify_url: idv_how_to_verify_url,
+      socure_errors_timeout_url:,
+      previous_step_url: @previous_step_url,
+      locations_url: idv_in_person_usps_locations_url,
+      sessions_url: api_internal_sessions_path,
+    } %>
+  <%= simple_form_for(
+        :doc_auth,
+        url: url_for,
+        method: 'PUT',
+        html: { class: 'js-document-capture-form' },
+      ) do |f| %>
+    <%= f.input(
+          :document_capture_session_uuid,
+          as: :hidden,
+          input_html: { value: document_capture_session_uuid },
+        ) %>
+  <% end %>
+
+<%= javascript_packs_tag_once 'document-capture' %>

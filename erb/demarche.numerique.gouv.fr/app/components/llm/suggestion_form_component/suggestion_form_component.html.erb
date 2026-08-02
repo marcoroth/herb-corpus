@@ -1,0 +1,111 @@
+<% if llm_rule_suggestion.completed? %>
+  <%= render Dsfr::CalloutComponent.new(title: t('.summary.title'), theme: :info) do |callout| %>
+    <% callout.with_html_body do %>
+      <%= t(".summary.#{rule}_html") %>
+    <% end %>
+  <% end %>
+  <% if suggestions_count.zero? %>
+    <%= render Dsfr::AlertComponent.new(state: :success) do |component| %>
+      <% component.with_body do %>
+        <p><%= t('.no_suggestion_html') %></p>
+
+        <%= form_for llm_rule_suggestion,
+                      url: accept_simplification_admin_procedure_types_de_champ_path(
+                        procedure,
+                        tunnel_id: llm_rule_suggestion.tunnel_id,
+                        rule: llm_rule_suggestion.rule,
+                        id: llm_rule_suggestion.id
+                      ),
+                      method: :post do |form| %>
+          <p class="fr-mt-1w">
+            <%= form.submit(t('.continue'), class: "fr-btn") %>
+          </p>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% else %>
+    <%= form_for llm_rule_suggestion,
+                    url: accept_simplification_admin_procedure_types_de_champ_path(
+                      procedure,
+                      tunnel_id: llm_rule_suggestion.tunnel_id,
+                      rule: llm_rule_suggestion.rule,
+                      id: llm_rule_suggestion.id
+                    ),
+                    method: :post,
+                    data: { controller: "enable-submit-if-checked" }, html: { class: 'llm-rule-suggestion-form' } do |form| %>
+      <div class="border-background-contrast-grey fr-p-2w">
+        <p class="fr-mb-3w flex align-center">
+          <span class="fr-badge fr-badge--info fr-mr-1w">
+            <%= t('.suggestions_count', count: suggestions_count) %>
+          </span>
+
+          <span class="fr-hint-text"><%= t('.ai_disclaimer') %></span>
+        </p>
+
+        <fieldset
+          class="fr-fieldset fr-mb-0"
+          data-action="click->enable-submit-if-checked#click"
+        >
+          <legend class="fr-fieldset__legend">
+            <%= t('.select_legend') %>
+          </legend>
+
+          <% ordered_llm_rule_suggestion_items.each do |llm_rule_suggestion_item| %>
+            <%= form.fields_for :llm_rule_suggestion_items, llm_rule_suggestion_item do |ff| %>
+              <%= render item_component.new(form_builder: ff) %>
+            <% end %>
+          <% end %>
+        </fieldset>
+      </div>
+
+      <ul class="fr-btns-group fr-btns-group--inline-md fr-mt-8v flex justify-center">
+        <li>
+          <%= form.submit(last_rule? ? t('.skip_and_finish') : t('.skip_and_continue'), class: "fr-btn fr-btn--secondary") %>
+        </li>
+
+        <li>
+          <%= form.submit(last_rule? ? t('.apply_and_finish') : t('.apply_and_continue'), class: "fr-btn", data: { 'enable-submit-if-checked-target': 'submit' }, disabled: !at_least_one_accepted?) %>
+        </li>
+      </ul>
+    <% end %>
+  <% end %>
+<% elsif stepper_finished? %>
+  <%= render Dsfr::AlertComponent.new(state: :success) do |component| %>
+    <% component.with_body do %>
+      <p><%= t('.finished_html') %></p>
+
+      <p class="fr-mt-1w">
+        <%= link_to(t('.restart'), restart_link, class: "fr-btn") %>
+      </p>
+    <% end %>
+  <% end %>
+<% elsif llm_rule_suggestion.state.in?(['pending', 'queued', 'running', 'failed']) %>
+  <div
+    data-controller="<%= poll_controller_data %>"
+    data-turbo-poll-url-value="<%= poll_url if should_poll? %>"
+    data-turbo-poll-interval-value="4000"
+    <%# max attempts is hardcoded to 20 %>
+    data-turbo-poll-strategy-value="fixed"
+  >
+    <%= display_message %>
+
+    <% if llm_rule_suggestion.state.in?(['running', 'queued']) %>
+      <%= render Dsfr::ProgressBarComponent.new(simulated: true, id: llm_rule_suggestion.id) do %>
+        <%= enqueue_button_text %>
+      <% end %>
+    <% else %>
+      <p><%= button %></p>
+    <% end %>
+  </div>
+<% elsif llm_rule_suggestion.state.in?(['accepted', 'skipped']) %>
+  <p>
+    <%= t(".already_processed_html.#{llm_rule_suggestion.accepted? ? 'accepted' : 'skipped'}") %>
+  </p>
+  <p class="fr-mt-1w">
+    <% if last_rule? %>
+      <%= link_to(t('.back_link'), back_link, class: "fr-link") %>
+    <% else %>
+      <%= link_to(t('.next_link'), next_link, class: "fr-link") %>
+    <% end %>
+  </p>
+<% end %>

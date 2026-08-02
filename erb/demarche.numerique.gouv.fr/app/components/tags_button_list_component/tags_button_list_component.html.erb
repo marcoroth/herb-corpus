@@ -1,0 +1,84 @@
+<% each_category do |category, tags, can_toggle_optional| %>
+  <div data-controller="tags-button-list">
+    <% if category.present? %>
+      <div class="flex">
+        <p class="fr-label fr-text--sm fr-text--bold fr-mb-1w">
+          <%= t(category, scope: ".categories") %>
+        </p>
+      </div>
+      <% if can_toggle_optional %>
+        <div class="fr-fieldset__element fr-px-0">
+          <div class="flex align-center">
+            <div class="fr-checkbox-group fr-checkbox-group--sm">
+              <%= check_box_tag("#{optional_toggle_id}_#{category}", 1, false, data: { "no-autosubmit" => true, action: "change->tags-button-list#toggleOptional" }, aria: { describedby: "#{optional_toggle_id}_#{category}_hint" }) %>
+
+              <%= label_tag "#{optional_toggle_id}_#{category}", for: "#{optional_toggle_id}_#{category}" do %>
+                <%= category == :champ_public ? "Voir les champs facultatifs et/ou conditionnés" : "Voir les annotations facultatives et/ou conditionnées" %>
+              <% end %>
+            </div>
+
+            <button
+              class="
+                fr-btn fr-btn--sm fr-btn--tertiary-no-outline
+                fr-icon-question-line fr-ml-1v
+              "
+              type="button"
+              title="Légende des balises"
+              aria-controls="<%= legend_modal_id %>"
+              aria-haspopup="dialog"
+              data-fr-opened="false"
+            >
+              Légende des balises
+            </button>
+          </div>
+
+          <p
+            class="fr-hint-text fr-mt-n1w fr-ml-3w fr-mb-3w"
+            id="<%= optional_toggle_id %>_<%= category %>_hint"
+          >
+            <%= category == :champ_public ? "Un champ non rempli par l’usager" : "Une annotation non remplie par l’instructeur" %>
+            restera vide.
+          </p>
+        </div>
+      <% end %>
+    <% end %>
+
+    <ul class="fr-tags-group" data-category="<%= category %>">
+      <% tags.each do |tag| %>
+        <% is_optional = can_toggle_optional && optional_or_conditional_tag?(tag) %>
+        <% label = button_label(tag) %>
+
+        <li
+          class="<%= class_names("hidden" => is_optional) %>"
+          data-tags-button-list-target="<%= is_optional ? "optionalItem" : nil %>"
+        >
+          <button
+            class="fr-tag fr-tag--sm <%= class_names("fr-tag--blue-ecume" => tag[:highlight], "fr-tag--purple-glycine" => tag[:conditional]) %>"
+            type="button"
+            title="<%= button_title(tag) %>"
+            data-action="click->tiptap#insertTag"
+            data-tiptap-target="tag"
+            data-tag-id="<%= tag[:id] %>"
+            data-tag-label="<%= label %>"
+            data-tag-mandatory="<%= tag[:mandatory].to_s %>"
+            data-tag-conditional="<%= tag[:conditional].to_s %>"
+          >
+            <%= label %>
+
+            <% if tag[:mandatory] %>
+              *
+            <% end %>
+
+            <% if tag[:conditional] %>
+              [conditionné]
+            <% end %>
+          </button>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<% if legend? %>
+  <%= render TagsLegendModalComponent.new(modal_id: legend_modal_id) %>
+<% end %>

@@ -1,0 +1,209 @@
+class CreatePgbusTables < ActiveRecord::Migration<%= migration_version %>
+  def up
+    # Install PGMQ schema based on pgmq_schema_mode configuration.
+    #
+    # Modes:
+    #   :auto      - Try extension first, fall back to embedded SQL (default)
+    #   :extension - Require the pgmq PostgreSQL extension
+    #   :embedded  - Use vendored SQL, no extension needed
+    pgmq_schema_mode = :<%= pgmq_schema_mode %>
+
+    case pgmq_schema_mode
+    when :extension
+      enable_extension "pgmq"
+      execute Pgbus::PgmqSchema.version_tracking_extension_sql
+    when :embedded
+      execute Pgbus::PgmqSchema.install_sql
+      execute Pgbus::PgmqSchema.version_tracking_sql
+    when :auto
+      if extension_available?("pgmq")
+        enable_extension "pgmq"
+        execute Pgbus::PgmqSchema.version_tracking_extension_sql
+      else
+        execute Pgbus::PgmqSchema.install_sql
+        execute Pgbus::PgmqSchema.version_tracking_sql
+      end
+    end
+
+    # Idempotent event processing deduplication
+    create_table :pgbus_processed_events do |t|
+      t.string :event_id, null: false
+      t.string :handler_class, null: false
+      t.datetime :processed_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+    end
+
+    add_index :pgbus_processed_events, [:event_id, :handler_class],
+      unique: true, name: "idx_pgbus_processed_events_unique"
+    add_index :pgbus_processed_events, :processed_at,
+      name: "idx_pgbus_processed_events_cleanup"
+
+    # Process registry (heartbeats, monitoring)
+    create_table :pgbus_processes do |t|
+      t.string :kind, null: false
+      t.string :hostname
+      t.integer :pid
+      t.jsonb :metadata, default: {}
+      t.datetime :last_heartbeat_at
+      t.timestamps
+    end
+
+    add_index :pgbus_processes, :last_heartbeat_at,
+      name: "idx_pgbus_processes_heartbeat"
+
+    # Failed events log (for dashboard visibility)
+    create_table :pgbus_failed_events do |t|
+      t.string :queue_name, null: false
+      t.bigint :msg_id
+      t.jsonb :payload
+      t.jsonb :headers
+      t.string :error_class
+      t.text :error_message
+      t.text :backtrace
+      t.integer :retry_count, default: 0
+      t.datetime :failed_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+    end
+
+    add_index :pgbus_failed_events, :queue_name, name: "idx_pgbus_failed_events_queue"
+    add_index :pgbus_failed_events, :failed_at, name: "idx_pgbus_failed_events_time"
+    add_index :pgbus_failed_events, [:queue_name, :msg_id],
+      unique: true, name: "idx_pgbus_failed_events_queue_msg"
+
+    # Concurrency semaphores (counting locks for job concurrency limits)
+    create_table :pgbus_semaphores do |t|
+      t.string :key, null: false
+      t.integer :value, null: false, default: 0
+      t.integer :max_value, null: false, default: 1
+      t.datetime :expires_at, null: false
+      t.datetime :created_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+    end
+
+    add_index :pgbus_semaphores, :key,
+      unique: true, name: "idx_pgbus_semaphores_key"
+    add_index :pgbus_semaphores, :expires_at,
+      name: "idx_pgbus_semaphores_expired"
+
+    # Blocked executions (jobs waiting for a concurrency semaphore)
+    create_table :pgbus_blocked_executions do |t|
+      t.string :concurrency_key, null: false
+      t.string :queue_name, null: false
+      t.jsonb :payload, null: false
+      t.integer :priority, null: false, default: 0
+      t.datetime :expires_at, null: false
+      t.datetime :created_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+    end
+
+    add_index :pgbus_blocked_executions, [:concurrency_key, :priority, :created_at],
+      name: "idx_pgbus_blocked_release_order"
+
+    # Batch tracking (coordinated job groups with callbacks)
+    create_table :pgbus_batches do |t|
+      t.string :batch_id, null: false
+      t.string :description
+      t.string :on_finish_class
+      t.string :on_success_class
+      t.string :on_discard_class
+      t.jsonb :properties, default: {}
+      t.integer :total_jobs, null: false, default: 0
+      t.integer :completed_jobs, null: false, default: 0
+      t.integer :failed_jobs, null: false, default: 0
+      t.integer :discarded_jobs, null: false, default: 0
+      t.string :status, null: false, default: "pending"
+      t.datetime :created_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+      t.datetime :finished_at
+    end
+
+    add_index :pgbus_batches, :batch_id,
+      unique: true, name: "idx_pgbus_batches_batch_id"
+    add_index :pgbus_batches, :status,
+      name: "idx_pgbus_batches_status"
+
+    # Recurring task definitions (synced from config/recurring.yml)
+    create_table :pgbus_recurring_tasks do |t|
+      t.string :key, null: false
+      t.string :class_name
+      t.string :command, limit: 2048
+      t.string :schedule, null: false
+      t.text :arguments
+      t.string :queue_name
+      t.integer :priority, default: 0
+      t.boolean :static, null: false, default: true
+      t.boolean :enabled, null: false, default: true
+      t.text :description
+      t.timestamps
+    end
+
+    add_index :pgbus_recurring_tasks, :key,
+      unique: true, name: "idx_pgbus_recurring_tasks_key"
+
+    # Recurring execution deduplication (prevents double-enqueue)
+    create_table :pgbus_recurring_executions do |t|
+      t.string :task_key, null: false
+      t.datetime :run_at, null: false
+      t.datetime :created_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+    end
+
+    add_index :pgbus_recurring_executions, [:task_key, :run_at],
+      unique: true, name: "idx_pgbus_recurring_executions_dedup"
+    add_index :pgbus_recurring_executions, :run_at,
+      name: "idx_pgbus_recurring_executions_cleanup"
+
+    # Stream queue registry — records which PGMQ queues back streams (vs jobs).
+    # Stream and job queues share the pgbus_ namespace, so maintenance
+    # (per-stream retention, orphan sweep) and wildcard workers rely on this
+    # table to tell them apart. Populated by ensure_stream_queue on first
+    # broadcast. See issues #308, #309.
+    create_table :pgbus_stream_queues do |t|
+      t.string :queue_name, null: false
+      t.datetime :created_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
+    end
+
+    add_index :pgbus_stream_queues, :queue_name,
+      unique: true, name: "idx_pgbus_stream_queues_queue_name"
+
+    # Create default queues via PGMQ
+    execute "SELECT pgmq.create('pgbus_default')"
+    execute "SELECT pgmq.create('pgbus_default_dlq')"
+
+    # Tune autovacuum for queue/archive tables and high-churn pgbus tables.
+    # Default settings are too conservative for the insert/delete churn of
+    # queue processing and concurrency lock management.
+    execute Pgbus::AutovacuumTuning.sql_for_all_queues
+    execute Pgbus::AutovacuumTuning.sql_for_high_churn_tables
+
+    # Set fillfactor on queue tables to reduce bloat from PGMQ's read
+    # UPDATE operations (vt, read_ct, last_read_at). Lower fillfactor
+    # reserves page space, reducing page density during heavy update churn.
+    execute Pgbus::TableMaintenance.fillfactor_sql_for_all_queues
+  end
+
+  def down
+    execute "SELECT pgmq.drop_queue('pgbus_default_dlq')"
+    execute "SELECT pgmq.drop_queue('pgbus_default')"
+
+    drop_table :pgbus_stream_queues
+    drop_table :pgbus_recurring_executions
+    drop_table :pgbus_recurring_tasks
+    drop_table :pgbus_batches
+    drop_table :pgbus_blocked_executions
+    drop_table :pgbus_semaphores
+    drop_table :pgbus_failed_events
+    drop_table :pgbus_processes
+    drop_table :pgbus_processed_events
+    drop_table :pgbus_pgmq_schema_versions
+
+    # Drop PGMQ schema (functions, types, tables)
+    execute "DROP SCHEMA IF EXISTS pgmq CASCADE"
+
+    # Also try to disable extension in case it was installed that way
+    disable_extension "pgmq" if extension_available?("pgmq")
+  end
+
+  private
+
+  def extension_available?(name)
+    result = execute("SELECT 1 FROM pg_available_extensions WHERE name = '#{name}' LIMIT 1")
+    result.any?
+  rescue ActiveRecord::StatementInvalid
+    false
+  end
+end

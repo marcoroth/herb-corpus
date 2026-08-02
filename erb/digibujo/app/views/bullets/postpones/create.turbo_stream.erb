@@ -1,0 +1,23 @@
+<% if @failed_bullet %>
+  <%= turbo_stream.update "toasts" do %>
+    <% messages = @failed_bullet.respond_to?(:errors) && @failed_bullet.errors.any? ? @failed_bullet.errors.full_messages : ["Could not postpone"] %>
+    <%= render "shared/toasts", type: "errmsg", messages: messages %>
+  <% end %>
+<% else %>
+  <%= turbo_stream.update "toasts" do %>
+    <% first = @bullets.first %>
+    <% if first.pops_on.present? %>
+      <% scheduled_on = first.pops_on.strftime("%B %d") %>
+      <% message = @bullets.size == 1 ? "Bullet scheduled for #{scheduled_on}" : "#{@bullets.size} bullets scheduled for #{scheduled_on}" %>
+    <% else %>
+      <% message = @bullets.size == 1 ? "Bullet parked for sometime" : "#{@bullets.size} bullets parked for sometime" %>
+    <% end %>
+
+    <%= render "shared/toasts", type: "notify", messages: [message] %>
+  <% end %>
+  <% @bullets.each do |bullet| %>
+    <% if bullet.bucket&.bucketable_type != "Daylog" || (bullet.pops_on.present? && bullet.pops_on > Date.current) %>
+      <%= turbo_stream.remove_all bullet %>
+    <% end %>
+  <% end %>
+<% end %>

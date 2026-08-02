@@ -1,0 +1,75 @@
+<%= semantic_form_for [:admin, @playlist], builder: ActiveAdmin::FormBuilder do |f| %>
+  <%= f.inputs "Details" do %>
+    <%= f.input :name %>
+    <%= f.input :active %>
+  <% end %>
+
+  <%= f.inputs "Playlist Section" do %>
+    <% f.has_many :playlist_sections, heading: 'Secciones', allow_destroy: true do |ps| %>
+      <% ps.input :name %>
+
+      <% ps.has_many :playlist_items, heading: 'Canciones', allow_destroy: true do |pi| %>
+        <% pi.input :position %>
+        <% pi.input :song %>
+      <% end %>
+
+      <% ps.has_many :scriptures, heading: 'Escrituras', allow_destroy: true do |sc| %>
+        <div data-controller="scripture-form">
+          <% sc.input :bible_version,
+              as: :select,
+              collection: Scripture.bible_versions,
+              input_html: {
+                "data-scripture-form-target": "bibleVersion",
+                "data-action": "change->scripture-form#handleBibleChange"
+              }
+          %>
+          <% sc.input :book_id,
+                      as: :select,
+                      collection: sc.object.bible.books.map{|book| [book.title, book.title]},
+                      input_html: {
+                        "data-scripture-form-target": "book",
+                        "data-action": "change->scripture-form#handleBookChange"
+                      }
+          %>
+
+        <% sc.object.book_id = sc.object.bible.books.first.title if sc.object.book_id.nil? %>
+        <% book = sc.object.bible.books.find{|book| book.title == sc.object.book_id }%>
+        <% chapters = book.chapters.map{|chapter| ["#{chapter.book_title} ##{chapter.num}", chapter.num]}%>
+        <% chapter = book.chapters.find{|chapter| chapter.num == sc.object.chapter_num.to_i } %>
+        <% verses = chapter ? chapter.verses.map{|verse| verse.num} : []%>
+
+          <% sc.input :chapter_num,
+                      as: :select,
+                      collection: chapters,
+                      input_html: {
+                        "data-scripture-form-target": "chapterNum",
+                        "data-action": "change->scripture-form#handleChapterNumChange"
+                      }
+          %>
+          <% sc.input :from,
+              as: :select,
+              collection: verses,
+              input_html: {
+                "data-scripture-form-target": "from"
+              }
+          %>
+          <% sc.input :to,
+              as: :select,
+              collection: verses,
+              input_html: {
+                "data-scripture-form-target": "to"
+              }
+          %>
+          <%= button_tag "Search Scripture", data: {action: "click->scripture-form#handleSearchScriptureClick"} %>
+          <% sc.input :content,
+                      input_html: {
+                        "data-scripture-form-target": "content"
+                      }
+          %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= f.actions %>
+<% end %>

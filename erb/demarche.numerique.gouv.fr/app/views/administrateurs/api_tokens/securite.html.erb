@@ -1,0 +1,136 @@
+<%= content_for :title, t('.title', name: @name) %>
+
+<%= render partial: 'shared/breadcrumbs_section',
+  locals: { steps: [[t('.dashboard'), tableau_de_bord_helper_path],
+    [t('users.profil.show.profile'), profil_path(context: :administrateur)],
+    [t('administrateurs.api_tokens.nom.new_token')]] } %>
+
+<div class="fr-container fr-mt-2w">
+  <h1><%= t('.security') %></h1>
+
+  <div class="flex align-center">
+    <div>
+      <%= image_tag("spider-128.png", width: '128px', style: 'display: block;', alt: "") %>
+    </div>
+
+    <div>
+      <blockquote
+        cite="https://fr.wikipedia.org/wiki/Un_grand_pouvoir,_grandes_responsabilit%C3%A9s#Utilisation_dans_Spider-Man"
+      >
+        <p>« <%= t('.great_power_quote') %> »</p>
+        <p class="fr-text--sm"><%= t('.quote_source') %></p>
+      </blockquote>
+    </div>
+  </div>
+
+  <p class="fr-mt-2w">
+    <%= t('.security_warning') %>
+    <br>
+    <b><%= t('.responsibility') %></b>
+  </p>
+
+  <p><%= t('.features_intro') %></p>
+
+  <%= form_with url: admin_api_tokens_path,
+    method: :post,
+    html: { class: 'fr-mt-2w' },
+    data: { controller: 'api-token-securite' } do |f| %>
+    <%= render Dsfr::RadioButtonListComponent.new(form: f,
+      target: :networkFiltering,
+      buttons: [ { label: t('.auto_assign'),
+        hint: t('.auto_assign_hint'),
+        value: :autoAssign,
+        checked: params[:networkFiltering] != 'customNetworks',
+        'data-action': 'click->api-token-securite#hideNetworkFiltering' },
+        { label: t('.custom_networks'),
+        value: :customNetworks,
+        checked: params[:networkFiltering] == 'customNetworks',
+        'data-action': 'click->api-token-securite#showNetworkFiltering' }]) do %>
+      <%= t('.network_filtering_label') %>
+    <% end %>
+
+    <div
+      class="fr-input-group fr-mb-4w <%= class_names('hidden': params[:networkFiltering] == 'none' || params[:networkFiltering].blank?, 'fr-input-group--error': params[:invalidNetwork].present?) %>"
+      data-api-token-securite-target="networkFiltering"
+    >
+      <%= f.label :name, class: 'fr-label' do %>
+        <%= t('.enter_ips') %>
+        <span class="fr-hint-text"><%= t('.network_hint') %></span>
+      <% end %>
+
+      <%= f.text_field :networks,
+        class: class_names('fr-input': true, 'fr-input--error': params[:invalidNetwork].present?),
+        autocomplete: 'off',
+        autocapitalize: 'off',
+        autocorrect: 'off',
+        spellcheck: false,
+        value: params[:networks],
+        'data-action': 'input->api-token-securite#setContinueButtonState',
+        'data-api-token-securite-target': 'networks' %>
+
+      <%- if params[:invalidNetwork].present? -%>
+        <p class="fr-error-text"><%= t('.invalid_network') %></p>
+      <%- end -%>
+    </div>
+
+    <%= render Dsfr::RadioButtonListComponent.new(form: f,
+      target: :lifetime,
+      buttons: [ { label: t('.one_week'),
+        value: :oneWeek,
+        checked: params[:lifetime] == 'oneWeek',
+        'data-action': 'click->api-token-securite#hideCustomLifetime' },
+        { label: t('.custom_lifetime_label'),
+        value: :custom,
+        checked: params[:lifetime] == 'custom',
+        'data-action': 'click->api-token-securite#showCustomLifetime'},
+        { label: t('.infinite'),
+        value: :infinite,
+        checked: params[:lifetime] == 'infinite',
+        'data-action': 'click->api-token-securite#hideCustomLifetime' }]) do %>
+      <%= t('.lifetime_label') %>
+    <% end %>
+
+    <div
+      class="fr-input-group fr-mb-4w hidden"
+      data-api-token-securite-target="customLifetime"
+    >
+      <%= f.label :name, class: 'fr-label' do %>
+        <%= t('.enter_expiry') %>
+      <% end %>
+
+      <input
+        autocomplete="off"
+        type="date"
+        class="fr-input width-33 fr-mb-4w"
+        name="customLifetime"
+        data-action="input->api-token-securite#setContinueButtonState"
+        data-api-token-securite-target="customLifetimeInput"
+        min="<%= Date.tomorrow.iso8601 %>"
+        max="<%= 1.year.from_now.to_date.iso8601 %>"
+      >
+    </div>
+
+    <%= f.hidden_field :name, value: params[:name] %>
+    <%= f.hidden_field :access, value: params[:access] %>
+    <%= f.hidden_field :target, value: params[:target] %>
+
+    <%- params[:"[targets]"]&.each do |target| -%>
+      <%= f.hidden_field 'targets[]', value: target %>
+    <%- end -%>
+
+    <ul class="fr-btns-group fr-btns-group--inline">
+      <li>
+        <%= f.button type: :submit,
+          class: "fr-btn fr-btn--primary",
+          disabled: true,
+          'data-api-token-securite-target': 'continueButton' do %>
+          <%= t('.create_token') %>
+        <% end %>
+      </li>
+
+      <li>
+        <%= link_to t('.back'), autorisations_admin_api_tokens_path(name: params[:name], access: params[:access], target: params[:target], targets: params[:targets]), class: "fr-btn fr-btn--secondary" %>
+      </li>
+    </ul>
+  <% end %>
+</div>

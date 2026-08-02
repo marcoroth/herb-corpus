@@ -1,0 +1,221 @@
+<div class="schedule-editor"
+     data-controller="schedule-editor"
+     data-schedule-editor-schedule-id-value="<%= schedule.id %>"
+     data-schedule-editor-search-songs-url-value="<%= search_songs_admin_schedules_path %>"
+     data-schedule-editor-search-scriptures-url-value="<%= search_scriptures_admin_schedules_path %>"
+     data-schedule-editor-add-item-url-value="<%= add_item_admin_schedule_path(schedule) %>"
+     data-schedule-editor-remove-item-url-value="<%= remove_item_admin_schedule_path(schedule) %>"
+     data-schedule-editor-reorder-items-url-value="<%= reorder_items_admin_schedule_path(schedule) %>"
+     data-schedule-editor-present-item-url-value="<%= present_item_admin_schedule_path(schedule) %>"
+     data-schedule-editor-navigate-to-url-value="<%= navigate_to_admin_schedule_path(schedule) %>"
+     data-schedule-editor-black-screen-url-value="<%= black_screen_admin_schedule_path(schedule) %>"
+     data-schedule-editor-bible-books-url-value="<%= bible_books_admin_schedules_path %>"
+     data-schedule-editor-bible-chapters-url-value="<%= bible_chapters_admin_schedules_path %>"
+     data-schedule-editor-bible-verses-url-value="<%= bible_verses_admin_schedules_path %>"
+     data-schedule-editor-create-and-add-scripture-url-value="<%= create_and_add_scripture_admin_schedule_path(schedule) %>"
+     data-schedule-editor-bible-versions-value="<%= Scripture.bible_versions.to_json %>"
+     data-schedule-editor-list-images-url-value="<%= list_images_admin_schedule_path(schedule) %>"
+     data-schedule-editor-upload-image-url-value="<%= upload_image_admin_schedule_path(schedule) %>"
+     data-schedule-editor-delete-image-url-value="<%= delete_image_admin_schedule_path(schedule) %>"
+     data-schedule-editor-present-image-url-value="<%= present_image_admin_schedule_path(schedule) %>"
+     >
+
+  <!-- Top bar -->
+  <div class="schedule-editor__toolbar">
+    <h2><%= schedule.name %></h2>
+    <div class="schedule-editor__toolbar-actions">
+      <button type="button"
+              class="schedule-editor__btn schedule-editor__btn--black"
+              data-action="click->schedule-editor#blackScreen">
+        Black Screen
+      </button>
+    </div>
+  </div>
+
+  <!-- 3-column layout -->
+  <div class="schedule-editor__columns">
+
+    <!-- Left: Songs -->
+    <div class="schedule-editor__col">
+      <div class="panel">
+        <h3>Songs</h3>
+        <div class="panel_contents">
+          <input type="text"
+                 placeholder="Search songs..."
+                 class="schedule-editor__search"
+                 autocomplete="off"
+                 data-schedule-editor-target="songSearch"
+                 data-action="input->schedule-editor#searchSongs">
+          <div class="schedule-editor__list"
+               data-schedule-editor-target="songList">
+            <!-- Songs loaded via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Schedule -->
+    <div class="schedule-editor__col schedule-editor__col--center">
+      <div class="panel">
+        <h3>Schedule Items</h3>
+        <div class="panel_contents">
+          <div class="schedule-editor__drop-zone"
+               data-schedule-editor-target="scheduleList"
+               data-action="dragover->schedule-editor#dragOver drop->schedule-editor#drop">
+            <% schedule.schedule_items.includes(:item).each do |si| %>
+              <div class="schedule-editor__item"
+                   draggable="true"
+                   data-schedule-item-id="<%= si.id %>"
+                   data-item-type="<%= si.item_type %>"
+                   data-item-id="<%= si.item_id %>"
+                   data-action="dragstart->schedule-editor#dragStartItem">
+                <span class="schedule-editor__item-icon">
+                  <% if si.item_type == 'ScheduleImage' %>
+                    <%= image_tag si.item.image.thumb.url, alt: si.item.respond_to?(:name) ? si.item.name : "Schedule image", class: "schedule-editor__item-thumb" %>
+                  <% elsif si.item_type == 'Song' %>
+                    ♪
+                  <% else %>
+                    📖
+                  <% end %>
+                </span>
+                <span class="schedule-editor__item-title">
+                  <%= si.item.respond_to?(:title) ? si.item.title : si.item.bible_reference %>
+                </span>
+                <div class="schedule-editor__item-actions">
+                  <button type="button"
+                          class="schedule-editor__btn schedule-editor__btn--present"
+                          data-action="click->schedule-editor#presentItem"
+                          data-schedule-item-id="<%= si.id %>">
+                    Present Now
+                  </button>
+                  <button type="button"
+                          class="schedule-editor__btn schedule-editor__btn--remove"
+                          data-action="click->schedule-editor#removeItem"
+                          data-schedule-item-id="<%= si.id %>">
+                    &times;
+                  </button>
+                </div>
+              </div>
+            <% end %>
+            <div class="schedule-editor__drop-placeholder" data-schedule-editor-target="dropPlaceholder">
+              Drag songs or scriptures here
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Preview -->
+    <div class="schedule-editor__col">
+      <div class="panel">
+        <h3>Preview</h3>
+        <div class="panel_contents">
+          <div class="schedule-editor__preview"
+               data-schedule-editor-target="preview"
+               data-action="keydown->schedule-editor#handlePreviewKeydown"
+               tabindex="0">
+            <p class="schedule-editor__preview-empty">Select an item and click "Present Now" to preview</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom row: Look Up Scripture + Images side by side -->
+  <div class="schedule-editor__bottom-row">
+
+    <!-- Look Up Scripture -->
+    <div class="schedule-editor__scripture-section">
+      <div class="panel">
+        <h3>Look Up Scripture</h3>
+        <div class="panel_contents">
+          <!-- Bible version tabs -->
+          <div class="schedule-editor__bible-tabs" data-schedule-editor-target="bibleTabs">
+            <% Scripture.bible_versions.each_with_index do |version, i| %>
+              <button type="button"
+                      class="schedule-editor__bible-tab<%= ' schedule-editor__bible-tab--active' if i == 0 %>"
+                      data-action="click->schedule-editor#switchBibleTab"
+                      data-bible-version="<%= version %>">
+                <%= version %>
+              </button>
+            <% end %>
+          </div>
+
+          <!-- Three nested panels: Books | Chapters | Verses -->
+          <div class="schedule-editor__bible-panels">
+            <!-- Books panel -->
+            <div class="schedule-editor__bible-panel">
+              <div class="schedule-editor__bible-panel-header">Books</div>
+              <input type="text"
+                     placeholder="Filter books..."
+                     class="schedule-editor__bible-filter"
+                     autocomplete="off"
+                     data-schedule-editor-target="bookFilter"
+                     data-action="input->schedule-editor#filterBooks">
+              <div class="schedule-editor__bible-list"
+                   data-schedule-editor-target="bookList">
+              </div>
+            </div>
+
+            <!-- Chapters panel -->
+            <div class="schedule-editor__bible-panel">
+              <div class="schedule-editor__bible-panel-header">Chapters</div>
+              <div class="schedule-editor__bible-list"
+                   data-schedule-editor-target="chapterList">
+              </div>
+            </div>
+
+            <!-- Verses panel -->
+            <div class="schedule-editor__bible-panel">
+              <div class="schedule-editor__bible-panel-header">Verses</div>
+              <input type="text"
+                     placeholder="Filter verses..."
+                     class="schedule-editor__bible-filter"
+                     autocomplete="off"
+                     data-schedule-editor-target="verseFilter"
+                     data-action="input->schedule-editor#filterVerses">
+              <div class="schedule-editor__bible-list"
+                   data-schedule-editor-target="verseList">
+              </div>
+            </div>
+          </div>
+
+          <!-- Add to schedule button -->
+          <button type="button"
+                  class="schedule-editor__btn schedule-editor__btn--add-scripture"
+                  data-schedule-editor-target="addScriptureBtn"
+                  data-action="click->schedule-editor#addScriptureToSchedule"
+                  disabled>
+            Add to Schedule
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Images panel -->
+    <div class="schedule-editor__images-section">
+      <div class="panel">
+        <h3>Images</h3>
+        <div class="panel_contents">
+          <div class="schedule-editor__image-upload">
+            <input type="text"
+                   placeholder="Image name..."
+                   class="schedule-editor__search"
+                   autocomplete="off"
+                   data-schedule-editor-target="imageName">
+            <input type="file"
+                   accept="image/*"
+                   class="schedule-editor__image-input"
+                   data-schedule-editor-target="imageUpload"
+                   data-action="change->schedule-editor#uploadImage">
+          </div>
+          <div class="schedule-editor__image-grid"
+               data-schedule-editor-target="imageList">
+            <!-- Images loaded via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,110 @@
+<%= form_with model: @referentiel, scope: :referentiel, url: form_url, **form_options do |form| -%>
+  <div class="<%= bordered_container_class_names %>">
+    <%= form.hidden_field :referentiel_id, value: params[:referentiel_id] %>
+
+    <div>
+      <% if Referentiels::APIReferentiel.csv_available? -%>
+        <%= render Dsfr::RadioButtonListComponent.new(form:, target: :type,
+          buttons: [{ label: t(".url_source_label"), value: 'Referentiels::APIReferentiel', hint: t(".url_source_hint"), data: { controller: 'autosubmit' } },
+            { label: t(".csv_source_label"), value: 'Referentiels::CsvReferentiel', hint: t(".csv_source_hint"), disabled: true }]) do %>
+          <%= t(".referentiel_source_question") %>
+        <% end -%>
+      <% else -%>
+        <%= form.hidden_field :type %>
+      <% end -%>
+
+      <% if @referentiel.type == 'Referentiels::APIReferentiel' -%>
+        <div
+          id="url-tiptap"
+          data-controller="tiptap"
+          data-tiptap-single-line-value="true"
+        >
+          <div class="fr-input-group fr-mb-3w">
+            <label class="fr-label fr-mb-1w"><%= t(".url_label") %></label>
+
+            <div
+              id="editor"
+              class="tiptap-editor tiptap-inline"
+              data-tiptap-target="editor"
+              data-turbo-force="browser"
+            ></div>
+
+            <%= hidden_field_tag "referentiel[url_tiptap]", @referentiel.url_tiptap&.to_json, data: { tiptap_target: 'input', action: 'input->autosubmit-validate-url#debounce' } %>
+            <%= render partial: 'administrateurs/referentiels/url_validation_feedback', locals: { referentiel: @referentiel } %>
+          </div>
+
+          <div class="fr-mb-3w">
+            <%= render TagsButtonListComponent.new(tags:) %>
+          </div>
+        </div>
+        <%= render partial: 'administrateurs/referentiels/test_data_fields', locals: { referentiel: @referentiel, test_data_tags: test_data_tags } %>
+      <% elsif @referentiel.type == 'Referentiels::CsvReferentiel' -%>
+        <div class="fr-input-group">
+          <%= form.label :piece_justificative_template, class: 'fr-label', for: dom_id(@type_de_champ, :piece_justificative_template) do %>
+            <%= t(".csv_file_label") %>
+            <span class="fr-text-hint"><%= t(".csv_file_hint") %></span>
+          <% end %>
+
+          <%= render Attachment::FileFieldComponent.new(context: Attachment::Context.new(attached_file: @type_de_champ.piece_justificative_template, view_as: :link), drop_zone: :none) %>
+        </div>
+      <% end -%>
+
+      <hr class="fr-hr fr-my-5w">
+    </div>
+
+    <div>
+      <%= render Dsfr::RadioButtonListComponent.new(form:, target: :mode, error: @referentiel.errors.full_messages_for(:mode).join(", "),
+        buttons: [{ label: t(".exact_match_label"), value: 'exact_match', hint: t(".exact_match_hint") },
+          { label: t(".autocomplete_label"), value: 'autocomplete', hint: t(".autocomplete_hint") }]) do %>
+        <%= t(".mode_legend") %>
+      <% end %>
+
+      <%= render Dsfr::InputComponent.new(form:, attribute: :hint) %>
+
+      <div class="clearfix"></div>
+    </div>
+
+    <% if @referentiel.type == 'Referentiels::APIReferentiel' -%>
+      <hr class="fr-hr fr-my-5w">
+      <div data-controller="hide-target">
+        <div class="fr-checkbox-group fr-mb-3w">
+          <%= form.check_box :authentication_method, { checked: @referentiel&.authentication_by_header_token?, class: 'fr-checkbox', data: { 'hide-target_target': 'source' } }, 'header_token', '0' %>
+          <%= form.label :authentication_method, t(".add_authentication"), class: 'fr-label' %>
+        </div>
+
+        <div
+          data-hide-target-target="toHide"
+          class="<%= class_names('fr-hidden': !@referentiel&.authentication_by_header_token?) %>"
+        >
+          <%= render Dsfr::InputComponent.new(form:, attribute: "authentication_data[header]", **authentication_data_header_opts) %>
+
+          <%= render Dsfr::InputComponent.new(form:, attribute: "authentication_data[value]", **authentication_data_header_value_opts) do |c| %>
+            <% c.with_describedby do %>
+              <div class="fr-messages-group">
+                <div class="fr-message fr-message--info">
+                  <%= t(".token_info") %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+
+          <button
+            type="button"
+            class="fr-btn fr-btn--secondary"
+            data-action="click->referentiel-new-form#changeHeaderValue"
+          >
+            <%= t(".change_header_value") %>
+          </button>
+        </div>
+      </div>
+    <% end -%>
+  </div>
+
+  <ul class="fr-btns-group fr-btns-group--inline-sm flex justify-center fr-mt-5w">
+    <li>
+      <%= link_to t(".cancel"), back_url, class: 'fr-btn fr-btn--secondary' %>
+    </li>
+
+    <li><%= form.submit t(".next_step"), submit_options %></li>
+  </ul>
+<% end -%>

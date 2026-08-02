@@ -1,0 +1,55 @@
+<%#
+locals:
+  @pii - user's information
+  @ssn - user's ssn
+  @presenter - An instance of Idv::InPerson::VerifyInfoPresenter
+%>
+
+<% content_for(:pre_flash_content) do %>
+  <%= render StepIndicatorComponent.new(
+        steps: @presenter.step_indicator_steps,
+        current_step: :verify_info,
+        locale_scope: 'idv',
+        class: 'margin-x-neg-2 margin-top-neg-4 tablet:margin-x-neg-6 tablet:margin-top-neg-4',
+      ) %>
+<% end %>
+
+<div id="form-steps-wait-alert">
+  <!-- Needed by form steps wait javascript -->
+</div>
+
+<% self.title = t('titles.idv.verify_info') %>
+
+<%= render PageHeadingComponent.new.with_content(t('headings.verify')) %>
+<% if @presenter.passport_flow? %>
+  <p>
+    <%= t('in_person_proofing.form.verify_info.passport_intro_text') %>
+  </p>
+<% end %>
+<div class='margin-top-4 margin-bottom-2'>
+  <%= render @presenter.identity_info_partial, pii: @pii %>
+  <%= render 'address_section', pii: @pii %>
+  <%= render 'ssn_section', ssn: @ssn %>
+  <div class="margin-top-5">
+    <%= render SpinnerButtonComponent.new(
+          url: idv_in_person_verify_info_path,
+          big: true,
+          wide: true,
+          action_message: t('idv.messages.verifying'),
+          method: :put,
+          form: {
+            class: 'button_to',
+            data: {
+              form_steps_wait: '',
+              error_message: t('idv.failure.exceptions.internal_error'),
+              alert_target: '#form-steps-wait-alert',
+              wait_step_path: idv_in_person_verify_info_path,
+              poll_interval_ms: IdentityConfig.store.poll_rate_for_verify_in_seconds * 1000,
+            },
+          },
+        ).with_content(t('forms.buttons.submit.default')) %>
+  </div>
+</div>
+
+<% javascript_packs_tag_once 'form-steps-wait' %>
+<%= render 'idv/doc_auth/cancel', step: 'verify' %>

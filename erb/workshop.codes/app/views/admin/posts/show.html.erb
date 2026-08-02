@@ -1,0 +1,95 @@
+<% content_for :page_title, "Admin | Post: #{@post.title}" %>
+
+<%= render "admin/navigation" %>
+
+<div class="wrapper" data-role="tabs">
+  <h2 class="mt-0 mb-0"><strong><%= @post.title %></strong> <small><%= link_to @post.code, post_path(@post.code) %></small></h2>
+
+  <nav class="tabs mt-1/2 mb-1/2" aria-label="Post controls">
+    <%= tag.button "Status", class: "tabs__item tabs__item--active", data: { action: "set-tab", target: "status" } %>
+    <%= tag.button "Images <small>#{ @post.images.size + (@post.banner_image.attached? ? 1 : 0) }</small>".html_safe, class: "tabs__item", data: { action: "set-tab", target: "images" } %>
+    <%= tag.button "Analytics".html_safe, class: "tabs__item", data: { action: "set-tab", target: "analytics" } %>
+  </nav>
+
+  <div class="tabs-content tabs-content--active" data-tab="status">
+    <p>User: <strong><%= link_to @post.user.username, admin_user_path(@post.user) %></strong></p>
+    <br>
+
+    <p>Created at: <strong><%= @post.created_at %></strong></p>
+    <p>Updated at: <strong><%= @post.updated_at %></strong></p>
+    <p>Last revision at: <strong><%= @post.last_revision_created_at %></strong></p>
+    <br>
+
+    <p>Total revisions: <strong><%= @post.revisions.size %></strong></p>
+    <p>Total comments: <strong><%= @post.comments.size %></strong></p>
+    <p>Total views: <strong><%= @post.impressions_count %></strong></p>
+    <p>Hotness: <strong><%= @post.hotness %></strong></p>
+    <p>Top hotness: <strong><%= @post.top_hotness %></strong></p>
+    <p>Top hotness at: <strong><%= @post.top_hotness_at %></strong></p>
+
+    <hr>
+
+    <h4>Destroy post</h4>
+
+    <%= form_tag :admin_post, url: admin_post_path(@post.id), method: :delete do %>
+      <div class="form-group mb-1/4">
+        <%= label_tag "Notify user of why their post will been deleted (supports markdown)" %>
+        <%= text_area_tag :notification_content, "", class: "form-input mt-1/8", placeholder: "Leave empty to not send a notification" %>
+      </div>
+
+      <%= submit_tag "Destroy post", class: "button button--danger", data: { confirm: "Are you sure you want to delete this item? This cannot be undone." } %>
+    <% end %>
+  </div>
+
+  <div class="tabs-content" data-tab="images">
+    <h4>Images</h4>
+
+    <% used_image_ids = JSON.parse(@post.image_order.presence || "[]") %>
+    <% sorted_images = @post.images.sort_by { |image| used_image_ids.include?(image.blob_id) ? 0 : 1 } %>
+
+    <div>image_order: <%= used_image_ids %></div>
+
+    <div class="gallery" style="--grid-size: 400px">
+      <% sorted_images.each do |image| %>
+        <div class="gallery__item gallery__item--static">
+          <%= image_tag landscape_tiny_variant_public_url(image), loading: "lazy", width: 450, height: 250, alt: "" %>
+
+          <div class="p-1/8 pl-1/4 flex justify-between align-center text-left">
+            <div>
+              ID: <%= image.id %>, Blob: <%= image.blob_id %> <br>
+              <em class="text-small"><%= image.created_at %></em>
+              <%= tag.em "Unused", class: "text-dark text-small" unless used_image_ids.include?(image.blob_id) %>
+            </div>
+
+            <%= button_to "Remove", admin_destroy_post_image_path(post_id: @post.id, image_id: image.id), method: :delete, class: "button button--danger button--small" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <h4>Banner image</h4>
+
+    <% if @post.banner_image.attached? %>
+      <div class="gallery">
+        <div class="gallery__item gallery__item--static">
+          <%= image_tag banner_small_variant_public_url(@post.banner_image), loading: "lazy", alt: "" %>
+
+          <div class="p-1/8 pl-1/4 flex justify-end align-center">
+            <%= button_to "Remove", admin_destroy_post_banner_image_path(post_id: @post.id), method: :delete, class: "button button--danger button--small" %>
+          </div>
+        </div>
+      </div>
+    <% else %>
+      <em>No banner image is attached</em>
+    <% end %>
+  </div>
+
+
+  <div class="tabs-content" data-tab="analytics">
+    <h3 class="mt-1/1">Total views per day</h3>
+    <div class="chart" data-role="chart" data-data="<%= @views.to_json %>"></div>
+
+    <h3 class="mt-1/1">Total copies per day</h3>
+    <div class="chart" data-role="chart" data-data="<%= @copies.to_json %>"></div>
+  </div>
+</div>

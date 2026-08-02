@@ -1,0 +1,61 @@
+<%# locals: (bullet:, return_path:) %>
+<% bulletable = bullet.bulletable %>
+
+<%= form_with model: bullet, class: "bullets-form" do |fr| %>
+  <% if bullet.errors.any? || bulletable.errors.any? %>
+    <div class="form--errors" role="alert">
+      <ul>
+        <% (bullet.errors.full_messages + bulletable.errors.full_messages).uniq.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= fr.fields_for :bulletable, bulletable do |bf| %>
+    <%= bf.hidden_field :id %>
+    <% if bullet.bulletable_type == "Note" %>
+      <%= bf.rich_text_area :body,
+            value: bulletable.body,
+            preset: "note",
+            autofocus: true do %>
+        <lexxy-prompt
+          trigger="#"
+          name="project"
+          src="<%= project_suggestions_path %>"
+          remote-filtering
+          supports-space-in-searches
+        ></lexxy-prompt>
+      <% end %>
+    <% else %>
+      <%= bf.rich_text_area :body,
+            value: bulletable.body,
+            preset: "inline",
+            autofocus: true %>
+      <% if bullet.bulletable_type == "Event" %>
+        <%= bf.hidden_field :starts_date, value: bulletable.starts_date %>
+        <%= bf.hidden_field :ends_date, value: bulletable.ends_date %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <div class="bullets-form--rail">
+    <div class="bullets-form--rail-actions">
+      <%= back_link_to return_path,
+            class: "button--tertiary button--icon-subtle bullets-form--back",
+            data: { turbo_frame: "_top", turbo_action: "advance" },
+            aria: { label: "Back" } do %>
+        <%= icon_tag("arrow-left", style: "color: var(--color-text-base);", class: "button--icon") %>
+      <% end %>
+    </div>
+
+    <div class="bullets-form--rail-submit">
+      <%= fr.button type: "submit",
+            class: "button--primary button--sm",
+            aria: { label: "Save" } do %>
+        <%= icon_tag("arrow-up", style: "color: var(--color-text-base);", class: "button--icon") %>
+        Save
+      <% end %>
+    </div>
+  </div>
+<% end %>
