@@ -27,6 +27,7 @@ MANIFEST = File.join(ROOT, "corpus.yml")
 HERB_CONFIGS = %w[.herb.yml].freeze
 TEMPLATE_EXTENSIONS = %w[erb rhtml herb].freeze
 TEMPLATE_GLOB = "**/*.{#{TEMPLATE_EXTENSIONS.join(",")}}"
+LICENSE_FILENAMES = %w[LICENSE LICENCE MIT-LICENSE COPYING UNLICENSE].freeze
 
 SPARSE_PATTERNS = [
   *TEMPLATE_EXTENSIONS.map { |extension| "/**/*.#{extension}" },
@@ -557,21 +558,41 @@ Candidate = Struct.new(:repo, :branch, :license, :redistributable, :name, keywor
   def dir = File.join(ROOT, path)
 end
 
+def redistributable_for(license, requested)
+  license != "unknown" && requested
+end
+
 def parse_batch(file)
   File.readlines(file, chomp: true).filter_map do |line|
     next if line.strip.empty? || line.start_with?("#")
 
     repo, branch, license, redistributable, name = line.split("\t").map { |field| field.to_s.strip }
     repo = repo.sub(%r{\Ahttps://github\.com/}, "").sub(%r{\Agit@github\.com:}, "").sub(/\.git\z/, "")
+    license = license.to_s.empty? ? "unknown" : license
 
     Candidate.new(
       repo: repo,
       branch: (branch unless branch.to_s.empty?),
-      license: (license.to_s.empty? ? "unknown" : license),
-      redistributable: redistributable.to_s != "false",
+      license: license,
+      redistributable: redistributable_for(license, redistributable.to_s != "false"),
       name: (name.to_s.empty? ? File.basename(repo) : name)
     )
   end
+end
+
+def detect_license_file(dir)
+  return nil unless Dir.exist?(dir)
+
+  entries = Dir.children(dir).select { |entry| File.file?(File.join(dir, entry)) }.sort
+
+  LICENSE_FILENAMES.each do |base|
+    pattern = /\A#{Regexp.escape(base)}(\..+)?\z/i
+    match = entries.find { |entry| entry.match?(pattern) }
+
+    return match if match
+  end
+
+  nil
 end
 
 def detect_default_branch(url)
@@ -607,7 +628,9 @@ def command_add(argv)
 
       repo = url.sub(%r{\Ahttps://github\.com/}, "").sub(%r{\Agit@github\.com:}, "").sub(/\.git\z/, "")
 
-      [Candidate.new(repo: repo, branch: branch, license: "unknown", redistributable: true, name: name || File.basename(repo))]
+      license = "unknown"
+
+      [Candidate.new(repo: repo, branch: branch, license: license, redistributable: redistributable_for(license, true), name: name || File.basename(repo))]
     end
 
   existing = Dir.exist?(APPS_DIR) ? Dir.children(APPS_DIR) : []
@@ -688,7 +711,7 @@ def append_manifest_entries(candidates)
         "name" => candidate.name,
         "repo" => candidate.repo,
         "license" => candidate.license,
-        "license_file" => nil,
+        "license_file" => detect_license_file(candidate.dir),
         "redistributable" => candidate.redistributable
       }
     end
