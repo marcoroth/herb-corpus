@@ -1,0 +1,86 @@
+<% content_for(:turbo_refresh_method, 'morph') %>
+<% content_for(:turbo_refresh_scroll, 'preserve') if @identifier_lookup %>
+
+<%= tag.div(data: {
+              controller: 'form-error unsaved-changes',
+              action: 'change->unsaved-changes#changed beforeunload@window->unsaved-changes#leavingPage turbo:before-visit@window->unsaved-changes#leavingPage'
+            },
+            # This is used by the dropzone controller to invoke form-error#changed.
+            class: 'form-error') do %>
+  <% content_for :breadcrumbs do %>
+    <%= render SdrViewComponents::Elements::BreadcrumbNavComponent.new do |component| %>
+      <% component.with_breadcrumb(text: 'Dashboard', link: dashboard_path) %>
+      <% component.with_collection_breadcrumb(text: @collection.title, link: collection_path(@collection.druid)) %>
+      <% component.with_breadcrumb(text: 'Article deposit') %>
+    <% end %>
+  <% end %>
+  <%= render SdrViewComponents::Elements::HeadingComponent.new(level: :h1, text: 'Article deposit', classes: 'mb-3') %>
+  <%= render SdrViewComponents::Elements::AlertComponent.new(variant: :danger, text: t('article_form.messages.validation')) if defined?(@valid) && !@valid %>
+
+  <%= render Edit::LabelComponent.new(label_text: 'Upload your article', mark_required: true) %>
+
+  <%# This is a "fake" form to allow rendering the file validation errors. %>
+  <%= form_with(model: @article_form, data: { form_error_target: 'filesInvalidFeedback' }) do |form| %>
+    <%= render Elements::Forms::InvalidFeedbackComponent.new(form:, field_name: :content) %>
+  <% end %>
+
+  <%= tag.div id: dom_id(@content, 'permanent'), data: { turbo_permanent: true } do %>
+    <%= render 'contents/edit', content: @content, form_id: @article_form.form_id %>
+
+    <div id="content-files" class="pane-section mt-5">
+      <%= turbo_frame_tag @content, 'show', src: content_path(@content), data: { controller: 'dropzone-files' }, class: 'dropzone-files' do %>
+        <%= render SdrViewComponents::Elements::SpinnerComponent.new %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%= render SdrViewComponents::Elements::HorizontalRuleComponent.new(classes: 'my-5') %>
+
+  <%= form_with(model: @article_form, data: { action: 'change->unsaved-changes#changed' }) do |form| %>
+    <%= form.hidden_field :collection_druid %>
+    <%= form.hidden_field :content_id %>
+    <%= form.hidden_field :form_id %>
+    <%= form.hidden_field :last_doi_lookup %>
+
+    <%= render Works::Edit::VersionIdentificationComponent.new(form:, data: { action: 'input->form-error#changed' }) %>
+
+    <%= render Works::Edit::LicenseComponent.new(form:, license_presenter: @license_presenter, license_help_url: Settings.article_license_url,
+                                                 show_terms_of_use: false, show_help_text: false, data: { action: 'input->form-error#changed' }) %>
+
+    <div class="mt-3">
+      <%= render Articles::Edit::TermsOfDepositComponent.new(form:) %>
+    </div>
+
+    <%= render SdrViewComponents::Elements::HorizontalRuleComponent.new(classes: 'my-5') %>
+
+    <%= render SdrViewComponents::Elements::AlertComponent.new(classes: 'mb-4') do %>
+      If you don't have a DOI or PMCID please use the <%= link_to 'full deposit form', new_work_path(collection_druid: @collection.druid) %> to deposit your item.
+    <% end %>
+
+    <%= render Elements::Forms::LabelComponent.new(form:, field_name: :identifier,
+                                                   label_text: I18n.t('article_form.fields.identifier.label'),
+                                                   tooltip: I18n.t('article_form.fields.identifier.tooltip_html'),
+                                                   mark_required: true, classes: 'fw-bold') %>
+    <div class="d-flex align-items-center">
+      <%= form.text_field :identifier, class: 'form-control w-50',
+                                       aria: Elements::Forms::InvalidFeedbackSupport.arias_for(form:, field_name: :identifier),
+                                       data: { action: 'change->unsaved-changes#changed input->form-error#changed' } %>
+      <%= render Elements::Forms::SubmitComponent.new(label: t('article_form.buttons.lookup_identifier'), value: 'lookup', classes: 'ms-2 text-nowrap') %>
+    </div>
+    <%= render Elements::Forms::InvalidFeedbackComponent.new(form:, field_name: :identifier) %>
+
+    <%= render Articles::Edit::LookupTableComponent.new(form:, extracted_abstract: @article_form.extracted_abstract, article_work_form: @article_work_form, classes: 'mt-3') %>
+
+    <div class="d-flex justify-content-start mt-5">
+      <p>Your work will be released immediately to everyone in the world once deposited. It will not receive a DOI.</p>
+    </div>
+
+    <div class="d-flex justify-content-between mb-4">
+      <div>
+        <%= render Elements::CancelButtonComponent.new(link: collection_path(@collection)) %>
+        <%= render Elements::Forms::SubmitComponent.new(label: 'Edit before deposit', variant: :'outline-primary', classes: 'me-2', data: { action: 'unsaved-changes#allowFormSubmission' }) %>
+        <%= render Works::Edit::SubmitComponent.new(work: @work, collection: @collection, data: { action: 'unsaved-changes#allowFormSubmission' }) %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

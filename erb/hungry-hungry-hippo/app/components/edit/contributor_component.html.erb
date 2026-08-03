@@ -1,0 +1,154 @@
+<% if collection_required? %>
+  <%= form.hidden_field :first_name %>
+  <%= form.hidden_field :last_name %>
+  <%= form.hidden_field :organization_name %>
+  <%= form.hidden_field :person_role %>
+  <%= form.hidden_field :organization_role %>
+  <%= form.hidden_field :stanford_degree_granting_institution %>
+  <%= form.hidden_field :suborganization_name %>
+  <%= form.hidden_field :role_type %>
+  <%= form.hidden_field :with_orcid %>
+  <%= form.hidden_field :orcid %>
+  <%= form.hidden_field :collection_required %>
+
+  <div class="h5 mb-0">Required author / contributor</div>
+  <p class="mb-4">You cannot edit this entry, but you can reorder it. Add more entries by clicking the button below.</p>
+
+  <p class="mb-1">
+    <% if person? %>
+      <b><%= first_name %> <%= last_name %></b> <i>(<%= person_role.titleize %>)</i> will be included in the list of authors and contributors for this work.
+    <% else %>
+      <b><%= organization_name %></b> <i>(<%= organization_role.titleize %>)</i><% if suborganization_name.present? %>, <b><%= suborganization_name %></b> <i>(Department)</i><% end %> will be included in the list of authors and contributors for this work.
+    <% end %>
+  </p>
+<% else %>
+  <%= tag.div data: contributors_data, class: 'mt-3' do %>
+    <%= render Elements::Forms::ToggleComponent.new(form:, field_name: :role_type, label_classes: 'fw-bold',
+                                                    label: 'Author / Contributor type', container_classes: 'mb-5', mark_required: true) do |component| %>
+      <% component.with_left_toggle_option(form:,
+                                           field_name: :role_type,
+                                           label: 'Individual',
+                                           value: 'person',
+                                           data: { action: 'change->contributors#showPersonSection change->tooltips#hideAll' }) %>
+      <% component.with_right_toggle_option(form:,
+                                            field_name: :role_type,
+                                            label: 'Organization',
+                                            value: 'organization',
+                                            data: { contributors_target: 'organizationOption', action: 'change->contributors#showOrganizationSection change->tooltips#hideAll' }) %>
+    <% end %>
+
+    <%# Contributor person name/orcid fields %>
+    <%= render Elements::Forms::FieldsetComponent.new(label: 'Person', hidden_label: true, data: { contributors_target: 'personSection' }) do %>
+      <%= render Elements::Forms::SelectFieldComponent.new(form:, field_name: :person_role, label_classes: 'fw-bold', tooltip: helpers.t('form.fields.contributors.role.tooltip_html'),
+                                                           options: PERSON_ROLES, label: role_label, container_classes: 'mb-5', mark_required: true,
+                                                           caption: helpers.t('form.fields.contributors.role.definitions_link_label_html')) %>
+
+      <%= render Elements::Forms::ToggleComponent.new(form:, field_name: :with_orcid, label_classes: 'fw-bold', tooltip: helpers.t('form.fields.contributors.with_orcid.tooltip_html'),
+                                                      label: helpers.t('form.fields.contributors.with_orcid.label'), container_classes: 'orcid-section mb-4', mark_required: true) do |component| %>
+        <% component.with_left_toggle_option(form:,
+                                             field_name: :with_orcid,
+                                             label: 'Lookup using ORCID iD',
+                                             data: { contributors_target: 'yesOrcidOption', action: 'change->contributors#showOrcidSection change->tooltips#hideAll' },
+                                             value: true) %>
+        <% component.with_right_toggle_option(form:,
+                                              field_name: :with_orcid,
+                                              label: 'Enter name manually',
+                                              data: { action: 'change->contributors#showNotOrcidSection change->tooltips#hideAll' },
+                                              value: false) %>
+      <% end %>
+
+      <%# Orcid fields %>
+      <div data-contributors-target="orcidSection">
+        <%= render Elements::Forms::LabelComponent.new(form:, field_name: :orcid, label_text: 'Enter ORCID iD', mark_required: true) %>
+        <div class="row mb-2">
+          <div class="col-lg-9">
+            <div class="input-group">
+              <span class="input-group-text">
+                <%= Settings.orcid.url %>
+              </span>
+              <%= form.text_field :orcid, class: 'form-control', data: { contributors_target: 'orcidInput', action: 'input->contributors#resolveOrcid' }, aria: orcid_aria %>
+            </div>
+          </div>
+          <div class="col-lg-3">
+            <% if user_orcid? %>
+              <%= render SdrViewComponents::Elements::ButtonComponent.new(variant: 'link',
+                                                                          data: { action: 'contributors#useMyOrcid' }) do %>
+                <%= helpers.orcid_icon(class: 'me-2') %>Use my ORCID iD
+                                                                          <% end %>
+            <% end %>
+          </div>
+        </div>
+        <%= render Elements::Forms::InvalidFeedbackComponent.new(form:, field_name: :orcid) %>
+        <div class="invalid-feedback" data-contributors-target="orcidFeedback"></div>
+        <p class="mb-4" data-contributors-target="orcidMessage">
+          Name fields will be autopopulated based on the ORCID entry above.
+        </p>
+
+        <div class="row">
+          <div class="col">
+            <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :first_name, label: 'First name', container_classes: 'mb-4', tooltip: helpers.t('form.fields.contributors.orcid_name.tooltip_html'),
+                                                               input_data: { contributors_target: 'orcidFirstNameInput', disabled: orcid_name_input_disabled? }, disabled: orcid_name_input_disabled?, mark_required: true) %>
+          </div>
+          <div class="col">
+            <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :last_name, label: 'Last name', container_classes: 'mb-4',
+                                                               input_data: { contributors_target: 'orcidLastNameInput', disabled: orcid_name_input_disabled? }, disabled: orcid_name_input_disabled?) %>
+          </div>
+        </div>
+      </div>
+
+      <%# Plain-old name fields (not orcid) %>
+      <div data-contributors-target="notOrcidSection">
+        <div class="row">
+          <div class="col">
+            <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :first_name, label: 'First name', tooltip: helpers.t('form.fields.contributors.first_name.tooltip_html'), container_classes: 'mb-4', mark_required: true) %>
+          </div>
+          <div class="col">
+            <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :last_name, label: 'Last name', container_classes: 'mb-4', mark_required: true) %>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <%= render NestedComponentPresenter.for(form:, field_name: :affiliations, model_class: AffiliationForm, form_component: Edit::AffiliationComponent, bordered: false, fieldset_classes: 'pane-section', nested_buttons_classes: 'pt-4') %>
+      </div>
+    <% end %>
+
+    <%# Contributor organization name field %>
+    <%= render Elements::Forms::FieldsetComponent.new(label: 'Organization', hidden_label: true, data: { contributors_target: 'organizationSection' }) do %>
+      <%= render Elements::Forms::SelectFieldComponent.new(form:, field_name: :organization_role, label_classes: 'fw-bold', tooltip: helpers.t('form.fields.contributors.role.tooltip_html'),
+                                                           options: ORGANIZATION_ROLES, label: role_label, container_classes: 'mb-5', mark_required: true,
+                                                           input_data: { contributors_target: 'organizationRoleSelect', action: 'change->contributors#showDegreeGrantingSection' }) %>
+
+      <%# Degree granting institution fields %>
+      <div data-contributors-target="degreeGrantingSection">
+        <%= render Elements::Forms::ToggleComponent.new(form:, field_name: :stanford_degree_granting_institution, label_classes: 'fw-bold', mark_required: true,
+                                                        label: 'Is Stanford the institution?', container_classes: 'stanford-degree-granting-institution-section mb-5') do |component| %>
+          <% component.with_left_toggle_option(form:,
+                                               field_name: :stanford_degree_granting_institution,
+                                               label: 'Yes',
+                                               data: { contributors_target: 'yesStanfordOption', action: 'change->contributors#showDegreeGrantingSuborganizationSection' },
+                                               value: true) %>
+          <% component.with_right_toggle_option(form:,
+                                                field_name: :stanford_degree_granting_institution,
+                                                label: 'No',
+                                                data: { action: 'change->contributors#showDegreeGrantingOrganizationSection' },
+                                                value: false) %>
+        <% end %>
+
+        <%# Stanford degree granting institution fields %>
+        <div data-contributors-target="degreeGrantingSuborganizationSection">
+          <%= form.hidden_field :organization_name, value: WorkForm::STANFORD_UNIVERSITY %>
+          <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :suborganization_name, label: 'Department / Institute / Center', label_classes: 'fw-bold', container_classes: 'mb-5') %>
+        </div>
+        <%# Not Stanford degree granting institution fields %>
+        <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :organization_name, label: organization_label, label_classes: 'fw-bold', container_classes: 'mb-5', data: { contributors_target: 'degreeGrantingOrganizationSection' }, mark_required: true) %>
+      </div>
+
+      <%# Not degree granting institution fields %>
+      <div data-contributors-target="notDegreeGrantingSection">
+        <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :organization_name, label: organization_label, label_classes: 'fw-bold', tooltip: helpers.t('form.fields.contributors.organization_name.tooltip_html'), container_classes: 'mb-5', mark_required: true) %>
+      </div>
+
+    <% end %>
+  <% end %>
+<% end %>

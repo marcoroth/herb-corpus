@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <% if Settings.google_analytics.enabled %>
+      <!-- Google Tag Manager -->
+      <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+      new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+      j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+      'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+      })(window,document,'script','dataLayer','GTM-P6SX5MBG');</script>
+      <!-- End Google Tag Manager -->
+    <% end %>
+    <title><%= content_for(:title) || 'SDR | Stanford Digital Repository' %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <% if Rails.env.test? %>
+      <%# Breadcrumbs were being unexpectedly prefetched in system specs. %>
+      <meta name="turbo-prefetch" content="false">
+    <% end %>
+    <%= capybara_lockstep if defined?(Capybara::Lockstep) %>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
+    <%#= tag.link rel: 'manifest', href: pwa_manifest_path(format: :json) %>
+
+    <%# To morph a page: content_for(:turbo_refresh_method, 'refresh') %>
+    <%= tag.meta name: 'turbo-refresh-method', content: content_for(:turbo_refresh_method) || 'replace' %>
+    <%# To preserve scroll position on a page: content_for(:turbo_refresh_scroll, 'preserve') %>
+    <%= tag.meta name: 'turbo-refresh-scroll', content: content_for(:turbo_refresh_scroll) || 'reset' %>
+
+    <%= tag.link rel: 'icon', type: 'image/png', href: Rails.env.development? ? '/hippo.png' : '/icon.png' %>
+    <%= tag.link rel: 'icon', type: 'image/svg+xml', href: Rails.env.development? ? '/hippo.svg' : '/icon.svg' %>
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, 'data-turbo-track': 'reload' %>
+    <link rel="stylesheet" href="<%= Settings.component_library.url %>/styles/sul.css">
+    <%= stylesheet_link_tag 'sdr_view_components', 'data-turbo-track': 'reload' %>
+    <%= stylesheet_link_tag 'component_library_overrides' %>
+    <%= javascript_importmap_tags %>
+  </head>
+  <body>
+    <% if Settings.google_analytics.enabled %>
+      <!-- Google Tag Manager (noscript) -->
+      <noscript><iframe title="Google Tag Manager" src="https://www.googletagmanager.com/ns.html?id=GTM-P6SX5MBG"
+      height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+      <!-- End Google Tag Manager (noscript) -->
+    <% end %>
+    <%= render SdrViewComponents::Elements::SkipLinksComponent.new %>
+    <%= render Structure::HeaderComponent.new %>
+    <div class="breadcrumbs">
+      <nav id="breadcrumbs" aria-label="Breadcrumbs for navigation" class="container">
+        <%= yield :breadcrumbs %>
+      </nav>
+    </div>
+    <%= tag.main id: 'main-container', data: { controller: 'tooltips', tooltips_ahoy_value: Settings.ahoy.tooltip } do %>
+      <% if content_for?(:fluid_body) %>
+        <div class="container-fluid px-0">
+          <%= yield :fluid_body %>
+        </div>
+      <% end %>
+
+      <div class="container">
+        <% unless @no_flash %>
+          <%# This prevents the flash from being cached by turbo. %>
+          <div data-turbo-temporary="true">
+            <% flash.each do |flash_type, msg| %>
+              <%= render SdrViewComponents::Elements::AlertComponent.new(variant: flash_type) do %>
+                <div><%= msg.html_safe %></div><%# erb_lint:disable ErbSafety %>
+              <% end %>
+            <% end %>
+          </div>
+        <% end %>
+        <%= yield %>
+      </div>
+    <% end %>
+    <%= render Structure::FooterComponent.new %>
+  </body>
+</html>

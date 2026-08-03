@@ -1,0 +1,108 @@
+<%= turbo_stream_from @work %>
+
+<% content_for :breadcrumbs do %>
+  <%= render SdrViewComponents::Elements::BreadcrumbNavComponent.new do |component| %>
+    <% component.with_breadcrumb(text: 'Dashboard', link: dashboard_path) %>
+    <% component.with_collection_breadcrumb(text: @work_presenter.collection.title, link: collection_path(@work_presenter.collection)) %>
+    <% component.with_title_breadcrumb(text: @work_presenter.title) %>
+  <% end %>
+<% end %>
+
+<% if Rails.env.development? && @work_presenter.work.accessioning? %>
+    <%= render SdrViewComponents::Elements::AlertComponent.new(variant: :info, dismissible: true) do %>
+      Note: run "bin/rake development:accession[<%= @work_presenter.druid %>]" to complete deposit for this work.
+    <% end %>
+<% end %>
+
+<%= render Works::Show::ReviewComponent.new(work: @work, review_form: @review_form) %>
+<%= render Works::Show::ReviewRejectedComponent.new(work: @work) %>
+<%= render Works::Show::PendingReviewComponent.new(work_presenter: @work_presenter) %>
+<%= render Works::Show::DepositingComponent.new(work_presenter: @work_presenter) %>
+<%= render Works::Show::DepositingGithubComponent.new(work_presenter: @work_presenter) %>
+<%= render Works::Show::HeaderComponent.new(presenter: @work_presenter) %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'details-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Details') %><% end %>
+  <% component.with_row(label: 'Public webpage', tooltip: t('collections.fields.sharing_link.tooltip_html'), values: [@work_presenter.purl_link]) %>
+  <% component.with_row(label: 'DOI', tooltip: t('works.fields.doi_link.tooltip_html'), values: [@work_presenter.doi_value]) %>
+  <% component.with_row(label: 'Collection', values: [@work_presenter.collection_link]) %>
+  <% component.with_row(label: 'Shared with') do |row_component| %>
+    <%= row_component.with_cell do %>
+      <div><%= @work_presenter.shared_with %></div>
+      <%= render Works::Show::ManageSharingButtonComponent.new(work: @work) %>
+    <% end %>
+  <% end %>
+  <% component.with_row(label: 'Depositor', values: [@work_presenter.depositor]) %>
+  <% component.with_row(label: 'Version', values: [@work_presenter.user_version]) %>
+  <% if @work_presenter.github_repository? %>
+    <% component.with_row(label: 'Automatically deposit future GitHub releases?',
+                          tooltip: I18n.t('works.fields.github_deposit_enabled.tooltip_html')) do |row_component| %>
+      <%= row_component.with_cell do %>
+        <div><%= @work_presenter.github_deposit_future_releases %></div>
+        <div class="d-flex">
+          <%= render Works::Show::GithubEditButtonComponent.new(presenter: @work_presenter) %>
+          <%= render Works::Show::GithubPollButtonComponent.new(work: @work, classes: 'ms-2') %>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+  <% component.with_row(label: 'Total number of files', values: [@work_presenter.number_of_files_in_deposit]) %>
+  <% component.with_row(label: 'Size', values: [number_to_human_size(@work_presenter.size_of_deposit)]) %>
+  <% component.with_row(label: 'Deposit created', values: [@work_presenter.deposited_at]) %>
+<% end %>
+
+<%= turbo_frame_tag @content, src: show_table_content_path(@content, druid: @work_presenter.druid) do %>
+  <%= render SdrViewComponents::Elements::SpinnerComponent.new %>
+<% end %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'title-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Title and contact', presenter: @work_presenter, tab: :title) %><% end %>
+  <% component.with_row(label: 'Title', values: [@work_presenter.title]) %>
+  <% component.with_row(label: 'Contact emails', values: [@work_presenter.contact_emails]) %>
+<% end %>
+
+<%= render Show::ContributorsShowComponent.new(contributors: @work_presenter.contributors, presenter: @work_presenter, label: 'Authors / Contributors') %>
+
+<% unless @work_presenter.github_repository? %>
+  <%= render SdrViewComponents::Tables::TableComponent.new(id: 'dates-table', classes: 'mb-5') do |component| %>
+    <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Dates', presenter: @work_presenter, tab: :dates) %><% end %>
+    <% component.with_row(label: 'Publication date', values: [@work_presenter.publication_date]) %>
+    <% component.with_row(label: 'Creation date', values: [@work_presenter.creation_date]) %>
+  <% end %>
+<% end %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'citation-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Citation', presenter: @work_presenter, tab: :citation) %><% end %>
+  <% component.with_row(label: 'Preferred citation', values: [@work_presenter.citation]) %>
+<% end %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'description-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Abstract and keywords', presenter: @work_presenter, tab: :abstract) %><% end %>
+  <% component.with_row(label: 'Abstract', values: [simple_format(@work_presenter.abstract).html_safe]) %> <%# erb_lint:disable ErbSafety %>
+  <% component.with_row(label: 'Keywords', values: [@work_presenter.keywords]) %>
+<% end %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'work-type-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Type of deposit', presenter: @work_presenter, tab: :types) %><% end %>
+  <% component.with_row(label: 'Deposit type', values: [@work_presenter.work_type]) %>
+  <% component.with_row(label: 'Deposit subtypes', values: [@work_presenter.all_work_subtypes]) %>
+  <% component.with_row(label: 'Version identification', values: [@work_presenter.article_version_identification]) if @work_presenter.article? %>
+<% end %>
+
+<%= render Works::Show::RelatedContentShowComponent.new(work_presenter: @work_presenter) %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'access-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Access settings', presenter: @work_presenter, tab: :access) %><% end %>
+  <% component.with_row(label: 'Available', values: [@work_presenter.release_date_label]) %>
+  <% component.with_row(label: 'Access', values: [@work_presenter.access_label]) %>
+<% end %>
+
+<%= render SdrViewComponents::Tables::TableComponent.new(id: 'license-table', classes: 'mb-5') do |component| %>
+  <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'License and additional terms of use', presenter: @work_presenter, tab: :license) %><% end %>
+  <% component.with_row(label: 'License', values: [@work_presenter.license_label]) %>
+  <% component.with_row(label: 'Terms of use', values: [simple_format(@work_presenter.terms_of_use).html_safe]) %> <%# erb_lint:disable ErbSafety %>
+<% end %>
+
+<%= turbo_frame_tag 'history', src: history_work_path(druid: @work_presenter.druid) do %>
+  <%= render SdrViewComponents::Elements::SpinnerComponent.new %>
+<% end %>

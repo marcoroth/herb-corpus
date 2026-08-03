@@ -1,0 +1,64 @@
+<%= render Elements::Forms::FieldsetComponent.new(data: fieldset_data, classes: fieldset_classes, id: fieldset_id) do |component| %>
+  <% if label_text %>
+    <% component.with_legend do %>
+      <h3 class="tooltip-header">
+        <%= render Edit::LabelComponent.new(label_text:, hidden_label:, mark_required:) %>
+        <%= render SdrViewComponents::Elements::TooltipComponent.new(target_label: label_text, tooltip:) %>
+      </h3>
+      <% if help_text %>
+        <p class="mb-2">
+          <%= help_text %>
+        </p>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= before_section %>
+
+  <%= tag.div(class: container_classes, data: { nested_form_target: 'container', nested_form_reorder_target: 'container' }) do %>
+    <template data-nested-form-target="template">
+      <%= form.fields_for field_name, template_model, child_index: 'NEW_RECORD' do |nested_form| %>
+        <%# NOTE: this div is duplicated below. If making a change here, also make the change below. %>
+        <%= tag.div(class: row_classes, data: { index: nested_form.options[:child_index], nested_form_target: 'instance', nested_form_reorder_target: 'instance' }) do %>
+          <% form_component_instance = form_component.new(form: nested_form) %>
+          <%= tag.div(class: column_classes) do %>
+            <%= render form_component_instance %>
+          <% end %>
+          <%= tag.div(class: nested_buttons_classes) do %>
+            <%= render Elements::DeleteButtonComponent.new(label: delete_button_label(form_component_instance:), data: { action: 'click->nested-form#delete', delete_btn: true }) unless hide_delete_button?(form_component_instance:) %>
+            <% if reorderable? %>
+              <%= render Elements::MoveUpButtonComponent.new(classes: 'd-none', data: { action: 'click->nested-form-reorder#moveUp' }) %>
+              <%= render Elements::MoveDownButtonComponent.new(classes: 'd-none', data: { action: 'click->nested-form-reorder#moveDown' }) %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </template>
+
+    <%= form.fields_for field_name do |nested_form| %>
+      <%# NOTE: Most empty forms are rendered so that, e.g., related links can be added to a collection.
+                Why? New instances of these fields are created by copying an HTML template element, so
+                we need that populated. Some forms are handled differently, such as participant fields,
+                which are populated via a textarea and an async lookup, so we do not want the empty form
+                rendered or else the form gets blank managers/depositors/reviewers. %>
+      <% next if nested_form.object.empty? && !render_empty? %>
+
+      <%# NOTE: this div is duplicated above. If making a change here, also make the change above. %>
+      <%= tag.div(class: row_classes, data: { index: nested_form.options[:child_index], nested_form_target: 'instance', nested_form_reorder_target: 'instance' }) do %>
+        <% form_component_instance = form_component.new(form: nested_form) %>
+        <%= tag.div(class: column_classes) do %>
+          <%= render form_component_instance %>
+        <% end %>
+        <%= tag.div(class: nested_buttons_classes) do %>
+          <%= render Elements::DeleteButtonComponent.new(label: delete_button_label(form_component_instance:), data: { action: 'click->nested-form#delete', delete_btn: true }) unless hide_delete_button?(form_component_instance:) %>
+          <% if reorderable? %>
+            <%= render Elements::MoveUpButtonComponent.new(classes: 'd-none', data: { action: 'click->nested-form-reorder#moveUp' }) %>
+            <%= render Elements::MoveDownButtonComponent.new(classes: 'd-none', data: { action: 'click->nested-form-reorder#moveDown' }) %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%= render SdrViewComponents::Elements::ButtonComponent.new(label: add_button_label, variant: :'outline-primary', classes: add_button_classes, data: add_button_data) unless hide_add_button? %>
+<% end %>

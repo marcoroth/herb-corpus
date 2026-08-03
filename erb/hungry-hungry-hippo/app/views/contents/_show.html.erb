@@ -1,0 +1,42 @@
+<%= turbo_frame_tag content, 'show' do %>
+  <%= turbo_stream_from 'show', content %>
+  <% if total_files > Settings.search.file_search_box_min # there is at least this many files in the object, so show search bar with section header %>
+      <div class="row">
+        <div class="col-3">
+          <p class="fw-bold"><%= t('work_form.panes.files.list') %></p>
+        </div>
+        <div class="col-5 ms-auto">
+          <%# Not using TextFieldComponent because field-container conflicts with input-group. %>
+          <%= form_with url: content_path(content), method: :get do |form| %>
+            <div class="input-group">
+              <%= render Elements::Forms::LabelComponent.new(form:, field_name: :q, default_label_class: 'input-group-text', classes: 'bg-white border-end-0') do %>
+                <%= search_icon %><span class="visually-hidden">Search files</span>
+              <% end %>
+              <%= form.text_field :q, id: 'content-files-search', class: 'form-control border-start-0', value: search_term, placeholder: 'Search ...' %>
+              <div class="input-group-text bg-white" style="padding: 0.3rem;">
+                <%= render Elements::Forms::SubmitComponent.new(label: 'Search', classes: 'btn-sm py-1') %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      <% if content_files.empty? # user has executed a search but there were no results %>
+        <p>There are no results matching "<%= search_term %>".</p>
+      <% end %>
+    <% else # just show section header %>
+      <p class="fw-bold"><%= t('work_form.panes.files.list') %></p>
+    <% end %>
+
+  <% if total_files.zero? # there are no files at all in the object, show the appropriate message to the user %>
+    <p>Your files will appear here once they have been uploaded.</p>
+  <% else # there is at least one file in the object, now decide if we show the hierarchical view without paging or the flat list view with paging %>
+      <div data-controller="disable-other">
+        <div class="row"><div class="col-12 m-2 text-end"><%= link_to 'Delete all files', content_path, data: { turbo_method: :delete, turbo_confirm: 'Are you sure you want to delete all files?' } %></div></div>
+        <% if total_files > Settings.file_upload.hierarchical_files_limit # lots of files, and the hierarchy would not work well, show flat list with paging %>
+          <%= render Works::Edit::ContentNonHierarchyComponent.new(content_obj: content, content_files:) %>
+        <% else # fewer files,  hierarchy will work fine, show hierarchy view without paging %>
+          <%= render Works::Edit::ContentHierarchyComponent.new(content_files:) %>
+        <% end %>
+      </div>
+  <% end %>
+<% end %>

@@ -1,0 +1,108 @@
+<%= turbo_stream_from @collection %>
+
+<% content_for :breadcrumbs do %>
+  <%= render SdrViewComponents::Elements::BreadcrumbNavComponent.new do |component| %>
+    <% component.with_breadcrumb(text: 'Dashboard', link: dashboard_path) %>
+    <% if current_page?(action: :new) %>
+      <% component.with_breadcrumb(text: I18n.t('collection_form.no_title')) %>
+    <% else %>
+      <% component.with_collection_breadcrumb(text: @collection_form.title, active: true) %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<% if Rails.env.development? && @collection_presenter.collection.accessioning? %>
+    <%= render SdrViewComponents::Elements::AlertComponent.new(variant: :info, dismissible: true) do %>
+      Note: run "bin/rake development:accession[<%= @collection_presenter.druid %>]" to complete deposit for this collection.
+    <% end %>
+<% end %>
+
+<% deposits_active = params[:tab] == 'deposits' %>
+<%= render SdrViewComponents::Elements::Tabs::TabListComponent.new(classes: 'mb-3', variant: :underline) do |component| %>
+  <% component.with_tab(id: 'details-tab', pane_id: 'details-pane', label: 'Collection information', active: !deposits_active) %>
+  <% component.with_tab(id: 'deposits-tab', pane_id: 'deposits-pane', label: 'Deposits', active: deposits_active) %>
+
+  <% component.with_header do %>
+    <%= render Collections::Show::HeaderComponent.new(presenter: @collection_presenter) %>
+  <% end %>
+
+  <%= component.with_pane(id: 'details-pane', tab_id: 'details-tab', active: !deposits_active) do %>
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'info-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Collection information') %><% end %>
+      <% component.with_row(label: 'Public webpage', values: [@collection_presenter.purl_link]) %>
+      <% component.with_row(label: 'Created by', values: [@collection_presenter.created_by]) %>
+      <% component.with_row(label: 'Collection created', values: [@collection_presenter.created_datetime]) %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'details-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Details', presenter: @collection_presenter, tab: :details) %><% end %>
+      <% component.with_row(label: 'Collection name', values: [@collection_presenter.title]) %>
+      <% component.with_row(label: 'Description', values: [@collection_presenter.description]) %>
+      <% component.with_row(label: 'Contact emails', values: [@collection_presenter.contact_emails]) %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'related-content-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Links to related information', presenter: @collection_presenter, tab: :related_links) %><% end %>
+      <% component.with_row(label: 'Related links') do |row_component| %>
+        <% row_component.with_cell do %><%= render SdrViewComponents::Tables::ListCellComponent.new(item_values: @collection_presenter.related_links) %> <% end %>
+      <% end %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'work-type-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Type of deposits', presenter: @collection_presenter, tab: :types) %><% end %>
+      <% component.with_row(label: 'Deposit type', values: [@collection_presenter.work_type]) %>
+      <% component.with_row(label: 'Deposit subtypes', values: [@collection_presenter.work_subtypes.join(', ')]) %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'works-contact-email-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Contact email for deposits', presenter: @collection_presenter, tab: :works_contact_email) %><% end %>
+      <% component.with_row(label: 'Contact email', values: [@collection_presenter.works_contact_email]) %>
+    <% end %>
+
+    <%= render Show::ContributorsShowComponent.new(contributors: @collection_presenter.contributors, presenter: @collection_presenter, label: 'Contributors for deposits') %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'release-visibility-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Release and visibility', presenter: @collection_presenter, tab: :access) %><% end %>
+      <% component.with_row(label: 'Release', values: [@collection_presenter.release]) %>
+      <% component.with_row(label: 'Visibility', values: [@collection_presenter.visibility]) %>
+      <% component.with_row(label: 'DOI Assignment', values: [@collection_presenter.doi_assignment]) %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'terms-licenses-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Terms of use and licenses', presenter: @collection_presenter, tab: :license) %><% end %>
+      <% component.with_row(label: 'Terms of use', values: [t('terms_of_use')]) %>
+      <% component.with_row(label: 'Additional terms of use', values: [simple_format(@collection_presenter.additional_terms_of_use).html_safe]) %> <%# erb_lint:disable ErbSafety %>
+      <% component.with_row(label: 'License', values: [@collection_presenter.license_option_label]) %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'participants-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Collection participants', presenter: @collection_presenter, tab: :participants) %><% end %>
+      <% component.with_row(label: 'Managers') do |row_component| %>
+        <% row_component.with_cell do %><%= render SdrViewComponents::Tables::ListCellComponent.new(item_values: @collection_presenter.participants(:managers)) %> <% end %>
+      <% end %>
+      <% component.with_row(label: 'Depositors') do |row_component| %>
+        <% row_component.with_cell do %><%= render SdrViewComponents::Tables::ListCellComponent.new(item_values: @collection_presenter.participants(:depositors)) %> <% end %>
+      <% end %>
+    <% end %>
+
+    <%= render SdrViewComponents::Tables::TableComponent.new(id: 'workflows-table', classes: 'mb-5') do |component| %>
+      <% component.with_caption do %><%= render Show::TableHeadingComponent.new(text: 'Workflows', presenter: @collection_presenter, tab: :workflow) %><% end %>
+      <% component.with_row(label: 'Review Workflow Status', values: [@collection_presenter.review_workflow_status]) %>
+      <% component.with_row(label: 'Reviewers') do |row_component| %>
+        <% row_component.with_cell do %><%= render SdrViewComponents::Tables::ListCellComponent.new(item_values: @collection_presenter.participants(:reviewers)) %> <% end %>
+      <% end %>
+      <% component.with_row(label: 'Article Workflow Status', values: [@collection_presenter.article_workflow_status]) if Settings.article_deposit.enabled %>
+      <% component.with_row(label: 'Github Workflow Status', values: [@collection_presenter.github_workflow_status]) if Settings.github.enabled %>
+    <% end %>
+
+    <%= turbo_frame_tag 'history', src: history_collection_path(druid: @collection_presenter.druid) do %>
+      <%= render SdrViewComponents::Elements::SpinnerComponent.new %>
+    <% end %>
+  <% end %>
+
+  <%= component.with_pane(id: 'deposits-pane', tab_id: 'deposits-tab', active: deposits_active) do %>
+    <%= turbo_frame_tag 'collection-works', src: works_collection_path(@collection) do %>
+      <%= render SdrViewComponents::Elements::SpinnerComponent.new %>
+    <% end %>
+  <% end %>
+<% end %>
