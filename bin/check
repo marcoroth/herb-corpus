@@ -141,6 +141,39 @@ check "extracted files carry their app's license text" do
   "#{manifest["apps"].count { |_, e| e["license_file"] }} apps ship their license"
 end
 
+check "apps that are not redistributable have nothing in erb/" do
+  apps = Yerba.parse_file(MANIFEST).to_h["apps"]
+  excluded = apps.select { |app| app["redistributable"] == false }
+
+  leaked = excluded.filter_map do |app|
+    dir = File.join(ROOT, "erb", app["name"])
+    next unless Dir.exist?(dir)
+
+    files = Dir.glob("**/*", base: dir, flags: File::FNM_DOTMATCH).count { |entry| File.file?(File.join(dir, entry)) }
+
+    "#{app["name"]} (#{pluralize(files, "file")})"
+  end
+
+  if leaked.any?
+    fail! "excluded from redistribution but present in erb/: #{leaked.join(", ")}. Run `bin/corpus extract`"
+  end
+
+  "#{excluded.size} excluded apps, none present in erb/"
+end
+
+check "erb/ holds nothing but extracted apps" do
+  extracted = Set.new(JSON.parse(File.read(EXTRACT_MANIFEST))["apps"].keys)
+  present = Dir.children(File.join(ROOT, "erb")).select { |entry| File.directory?(File.join(ROOT, "erb", entry)) }
+
+  orphans = present - extracted.to_a
+
+  if orphans.any?
+    fail! "in erb/ but not extracted from any app: #{orphans.join(", ")}. Run `bin/corpus extract`"
+  end
+
+  "#{present.size} directories, all accounted for"
+end
+
 if list_only
   CHECKS.each { |name, _| puts "  #{name}" }
   exit 0
