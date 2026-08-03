@@ -8,6 +8,8 @@
 # CI. This script wraps the submodule plumbing in task-shaped commands and
 # keeps corpus.yml (provenance and licensing) in step with .gitmodules.
 
+require "date"
+require "timeout"
 require "json"
 require "open3"
 require "optparse"
@@ -28,11 +30,19 @@ HERB_CONFIGS = %w[.herb.yml].freeze
 TEMPLATE_EXTENSIONS = %w[erb rhtml herb].freeze
 TEMPLATE_GLOB = "**/*.{#{TEMPLATE_EXTENSIONS.join(",")}}"
 LICENSE_FILENAMES = %w[LICENSE LICENCE MIT-LICENSE COPYING UNLICENSE].freeze
+PRIOR_ART_CACHE = File.join(ROOT, "prior-art.json")
+
+CASED_PATTERNS = (LICENSE_FILENAMES + %w[README])
+                 .flat_map { |name| [name, name.downcase, name.capitalize] }
+                 .uniq
+                 .map { |name| "#{name}*" }
+                 .freeze
 
 SPARSE_PATTERNS = [
   *TEMPLATE_EXTENSIONS.map { |extension| "/**/*.#{extension}" },
-  ".herb.yml",
+  *HERB_CONFIGS,
   ".herb/**",
+  *PRIOR_ART_CONFIGS,
   "Gemfile",
   "Gemfile.lock",
   "package.json",
@@ -40,11 +50,7 @@ SPARSE_PATTERNS = [
   "package-lock.json",
   "pnpm-lock.yaml",
   "aube-lock.yaml",
-  "LICENSE*",
-  "LICENCE*",
-  "MIT-LICENSE*",
-  "COPYING*",
-  "README*"
+  *CASED_PATTERNS
 ].freeze
 
 module Color
@@ -857,6 +863,10 @@ def command_extract(argv)
 
     FileUtils.cp_r(File.join(app.dir, ".herb"), File.join(out, app.name, ".herb")) if herb_directory
 
+    prior_art_configs = PRIOR_ART_CONFIGS.select { |name| File.file?(File.join(app.dir, name)) }
+
+    prior_art_configs.each { |name| FileUtils.cp(File.join(app.dir, name), File.join(out, app.name, name)) }
+
     entries[app.name] = {
       "repo" => app.repo,
       "url" => app.url,
@@ -866,6 +876,7 @@ def command_extract(argv)
       "license_file" => app.license_file,
       "herb_config" => config,
       "herb_directory" => herb_directory,
+      "prior_art_configs" => prior_art_configs,
       "files" => files.size
     }
 
@@ -907,8 +918,6 @@ README = File.join(ROOT, "README.md")
 STATS_START = "<!-- corpus:stats:start -->"
 STATS_END = "<!-- corpus:stats:end -->"
 
-# Derived from TEMPLATE_EXTENSIONS so the label cannot drift from what is
-# actually extracted.
 def template_extensions_phrase
   quoted = TEMPLATE_EXTENSIONS.map { |extension| "`.#{extension}`" }
 
@@ -1024,6 +1033,8 @@ end
 
 ADOPTION_START = "<!-- corpus:adoption:start -->"
 ADOPTION_END = "<!-- corpus:adoption:end -->"
+PRIOR_ART_START = "<!-- corpus:prior-art:start -->"
+PRIOR_ART_END = "<!-- corpus:prior-art:end -->"
 ADOPTION_CACHE = File.join(ROOT, "adoption.json")
 
 
@@ -1117,8 +1128,14 @@ def dependency_scope(app, component, spec)
   end
 end
 
+def component_files(spec) = spec["files"] || DEPENDENCY_FILES.fetch(spec["kind"], [])
+
+def config_file_for(app, spec)
+  component_files(spec).find { |name| File.file?(File.join(app.dir, name)) }
+end
+
 def first_seen(app, component, spec)
-  files = DEPENDENCY_FILES.fetch(spec["kind"], [])
+  files = component_files(spec)
   earliest = nil
 
   if %w[config directory].include?(spec["kind"])
@@ -1173,7 +1190,7 @@ def adoption_report(refresh_history: true, jobs: 12)
         case spec["kind"]
         when "gem" then gem_version_for(app, component, spec)
         when "npm" then npm_version_for(app, component)
-        when "config" then app.herb_config && (config_version_for(app, app.herb_config) || "present")
+        when "config" then (found = config_file_for(app, spec)) && (config_version_for(app, found) || "present")
         when "directory" then Dir.exist?(File.join(app.dir, ".herb")) ? "present" : nil
         end
 
@@ -1539,8 +1556,367 @@ def command_stats(argv)
   0
 end
 
+
+def git_capture(dir, *args, timeout: 25)
+  output = nil
+  status = nil
+
+  Open3.popen3("git", "-C", dir, *args) do |stdin, stdout, stderr, thread|
+    stdin.close
+
+    begin
+      Timeout.timeout(timeout) do
+        output = stdout.read
+        stderr.read
+      end
+
+      status = thread.value
+    rescue Timeout::Error
+      Process.kill("KILL", thread.pid)
+      thread.join
+      return nil
+    end
+  end
+
+  status&.success? ? output : nil
+end
+
+def prior_art_components
+  PRIOR_ART_TOOLS.flat_map do |tool, spec|
+    [
+      [tool, { "kind" => "gem", "tool" => tool }],
+      [spec["configs"].first, { "kind" => "config", "tool" => tool }]
+    ]
+  end.to_h
+end
+
+PRIOR_ART_COMPONENTS = prior_art_components.freeze
+
+def prior_art_config_for(app, tool)
+  PRIOR_ART_TOOLS.fetch(tool)["configs"].find { |name| File.file?(File.join(app.dir, name)) }
+end
+
+def prior_art_scope(app, tool)
+  pattern = PRIOR_ART_TOOLS.fetch(tool)["pattern"]
+
+  return "explicit" if read_if_present(app.dir, "Gemfile").match?(/^\s*gem\s+["']#{pattern}["']/)
+
+  declared = read_if_present(app.dir, "Gemfile.lock")[/^DEPENDENCIES\n(.*?)(?:\n\n|\z)/m, 1].to_s
+
+  declared.match?(/^\s+#{pattern}[\s!(]*$/) ? "explicit" : "transitive"
+end
+
+def prior_art_current(app, component, spec)
+  tool = spec["tool"]
+
+  if spec["kind"] == "config"
+    file = prior_art_config_for(app, tool)
+
+    return file ? { "adopted" => true, "file" => file } : { "adopted" => false }
+  end
+
+  pattern = PRIOR_ART_TOOLS.fetch(tool)["pattern"]
+  version = read_if_present(app.dir, "Gemfile.lock")[/^\s{4}#{pattern} \(([^)]+)\)/, 1]
+  explicit = read_if_present(app.dir, "Gemfile").match?(/^\s*gem\s+["']#{pattern}["']/)
+
+  return { "adopted" => false } unless version || explicit
+
+  { "adopted" => true, "version" => version || "present", "scope" => prior_art_scope(app, tool) }
+end
+
+def prior_art_config_history(app, tool)
+  out = git_capture(app.dir, "log", "--diff-filter=AD", "--format=commit %aI %H", "--name-status", "--reverse", "--", *PRIOR_ART_TOOLS.fetch(tool)["configs"])
+
+  return { "searched" => false } if out.nil?
+
+  added = nil
+  removed = nil
+  date = nil
+  sha = nil
+
+  out.each_line do |line|
+    line = line.chomp
+
+    if line.start_with?("commit ")
+      _, stamp, hash = line.split(" ", 3)
+      date = stamp[0, 10]
+      sha = hash
+      next
+    end
+
+    status, file = line.split("\t", 2)
+    next unless file
+
+    record = { "date" => date, "commit" => sha, "source" => file }
+
+    added ||= record if status.start_with?("A")
+    removed = record if status.start_with?("D")
+  end
+
+  { "searched" => true, "added" => added, "removed" => removed }
+end
+
+def prior_art_gem_history(app, tool, adopted)
+  pattern = PRIOR_ART_TOOLS.fetch(tool)["pattern"]
+  out = git_capture(app.dir, "log", "--pickaxe-regex", "-S#{pattern}", "--format=%aI %H", "--reverse", "--", "Gemfile")
+
+  return { "searched" => false } if out.nil?
+
+  lines = out.lines.map(&:strip).reject(&:empty?)
+
+  return { "searched" => true } if lines.empty?
+
+  stamp = lambda do |line|
+    date, sha = line.split(" ", 2)
+
+    { "date" => date[0, 10], "commit" => sha, "source" => "Gemfile" }
+  end
+
+  added = stamp.call(lines.first)
+  last = stamp.call(lines.last)
+
+  { "searched" => true, "added" => added, "removed" => (!adopted && last["commit"] != added["commit"]) ? last : nil }
+end
+
+def prior_art_history(app, component, spec, adopted)
+  if spec["kind"] == "config"
+    prior_art_config_history(app, spec["tool"])
+  else
+    prior_art_gem_history(app, spec["tool"], adopted)
+  end
+end
+
+def load_prior_art_cache
+  return JSON.parse(File.read(PRIOR_ART_CACHE)) if File.exist?(PRIOR_ART_CACHE)
+
+  {}
+end
+
+def prior_art_report(refresh_history: true, rescan: false, jobs: 12)
+  apps = load_apps.select(&:cloned?)
+  cache = load_prior_art_cache
+  pending = []
+
+  report = apps.to_h do |app|
+    components = PRIOR_ART_COMPONENTS.to_h do |component, spec|
+      entry = prior_art_current(app, component, spec)
+      cached = cache.dig(app.name, component)
+
+      if cached && cached["searched"] && !(rescan && cached["searched"] == "failed")
+        entry["searched"] = cached["searched"]
+        entry["added"] = cached["added"]
+        entry["removed"] = cached["removed"]
+      else
+        pending << [app, component, spec, entry]
+      end
+
+      [component, entry]
+    end
+
+    [app.name, { "repo" => app.repo, "pin" => app.pinned_sha, "components" => components }]
+  end
+
+  if refresh_history && pending.any?
+    warn "searching history for #{pluralize(pending.size, "entry")}..."
+
+    in_parallel(pending, jobs) do |app, component, spec, entry|
+      found = prior_art_history(app, component, spec, entry["adopted"])
+
+      entry["searched"] = found["searched"] ? true : "failed"
+      entry["added"] = found["added"]
+      entry["removed"] = found["removed"]
+    end
+
+    report.each do |name, data|
+      data["components"].each do |component, entry|
+        (cache[name] ||= {})[component] = entry.slice("adopted", "scope", "version", "file", "added", "removed", "searched")
+      end
+    end
+
+    File.write(PRIOR_ART_CACHE, "#{JSON.pretty_generate(cache.sort.to_h)}\n")
+  end
+
+  report
+end
+
+def stamp(repo, record, verb)
+  return nil unless record
+
+  "[#{record["date"]}](https://github.com/#{repo}/commit/#{record["commit"]} \"#{verb} #{record["source"]}\")"
+end
+
+def prior_art_span(from, to)
+  months = (to.year * 12 + to.month) - (from.year * 12 + from.month)
+
+  return pluralize([months, 1].max, "month") if months < 24
+
+  pluralize(months / 12, "year")
+end
+
+def herb_start(adoption, name)
+  (adoption[name] || {})
+    .select { |component, entry| COMPONENTS.dig(component, "project") == "Herb" && entry["adoption_date"] }
+    .min_by { |_, entry| entry["adoption_date"] }
+    &.last
+end
+
+def prior_art_rollup(data, tool)
+  entries = PRIOR_ART_COMPONENTS.select { |_, spec| spec["tool"] == tool }.keys.filter_map { |key| data["components"][key] }
+
+  adopted = entries.any? { |entry| entry["adopted"] }
+
+  {
+    "adopted" => adopted,
+    "direct" => entries.any? { |entry| entry["adopted"] && entry["scope"] != "transitive" },
+    "version" => entries.filter_map { |entry| entry["version"] }.first,
+    "file" => entries.filter_map { |entry| entry["file"] }.first,
+    "added" => entries.filter_map { |entry| entry["added"] }.min_by { |record| record["date"] },
+    "removed" => adopted ? nil : entries.filter_map { |entry| entry["removed"] }.max_by { |record| record["date"] },
+    "failed" => entries.any? { |entry| entry["searched"] == "failed" }
+  }
+end
+
+def prior_art_story(tool, roll, herb)
+  added = roll["added"]
+  removed = roll["removed"]
+  parts = []
+
+  parts << (added ? "Adopted `#{tool}` in #{added["date"][0, 4]}" : "Uses `#{tool}`")
+
+  if added && removed
+    parts << "used it for #{prior_art_span(Date.parse(added["date"]), Date.parse(removed["date"]))}"
+    parts << "dropped it in #{removed["date"][0, 4]}"
+  elsif removed
+    parts << "dropped it in #{removed["date"][0, 4]}"
+  elsif added
+    parts << "still using it #{prior_art_span(Date.parse(added["date"]), Date.today)} later"
+  end
+
+  parts << "started Herb in #{herb["adoption_date"][0, 4]}" if herb
+
+  "#{parts.join(", ")}."
+end
+
+def render_prior_art_tool(tool, report, adoption, total)
+  via = PRIOR_ART_TOOLS.fetch(tool)["via"]
+
+  rows = report.filter_map do |name, data|
+    roll = prior_art_rollup(data, tool)
+    next unless roll["adopted"] || roll["added"] || roll["removed"]
+    next if via && roll["adopted"] && !roll["direct"] && !roll["file"] && prior_art_rollup(report[name], via)["adopted"]
+
+    [name, data, roll, herb_start(adoption, name)]
+  end
+
+  return nil if rows.empty?
+
+  groups = {
+    "Migrated to Herb" => rows.select { |_, _, roll, herb| herb && !roll["adopted"] },
+    "Running both" => rows.select { |_, _, roll, herb| herb && roll["adopted"] },
+    "Still on #{tool}" => rows.select { |_, _, roll, herb| !herb && roll["adopted"] },
+    "Dropped #{tool}" => rows.reject { |_, _, roll, herb| herb || roll["adopted"] }
+  }
+
+  unresolved = report.count { |_, data| prior_art_rollup(data, tool)["failed"] }
+
+  out = []
+  out << "### #{tool}"
+  out << ""
+  out << "**#{rows.count { |_, _, roll, _| roll["adopted"] }} of #{total}** applications use `#{tool}` directly. #{groups["Migrated to Herb"].size} dropped it and now use Herb, and #{groups["Running both"].size} run both."
+  out << ""
+
+  if unresolved.positive?
+    out << "> History could not be searched in #{pluralize(unresolved, "repository")}, so the dropped and migrated counts are lower bounds."
+    out << ""
+  end
+
+  groups.each do |title, entries|
+    next if entries.empty?
+
+    out << "**#{title}** (#{entries.size})"
+    out << ""
+
+    entries.sort_by { |_, _, roll, _| roll.dig("added", "date") || "9999" }.each do |name, data, roll, herb|
+      repo = data["repo"]
+      link = data["pin"] ? "[#{name}](https://github.com/#{repo}/tree/#{data["pin"]})" : name
+
+      chips = [
+        stamp(repo, roll["added"], "added"),
+        stamp(repo, roll["removed"], "removed"),
+        roll["version"] ? "gem `#{roll["version"]}`#{roll["direct"] ? "" : " (transitive)"}" : nil,
+        roll["file"] ? "`#{roll["file"]}`" : nil
+      ]
+
+      if herb
+        chips << "[herb #{herb["adoption_date"]}](https://github.com/#{repo}/commit/#{herb["adoption_commit"]} \"first seen in #{herb["source"]}\")"
+      end
+
+      out << "- #{link}: #{prior_art_story(tool, roll, herb)}"
+      out << "  #{chips.compact.join(" · ")}"
+    end
+
+    out << ""
+  end
+
+  out.join("\n")
+end
+
+def render_prior_art(report, adoption, total)
+  PRIOR_ART_TOOLS.keys.filter_map { |tool| render_prior_art_tool(tool, report, adoption, total) }.join("\n")
+end
+
+def write_readme_block(start_marker, end_marker, block, label)
+  readme = File.read(README)
+
+  unless readme.include?(start_marker) && readme.include?(end_marker)
+    raise CommandError, "README.md is missing the #{start_marker} / #{end_marker} markers"
+  end
+
+  updated = readme.sub(
+    /#{Regexp.escape(start_marker)}.*?#{Regexp.escape(end_marker)}/m,
+    "#{start_marker}\n\n#{block}\n\n#{end_marker}"
+  )
+
+  if updated == readme
+    puts "README.md already up to date."
+  else
+    File.write(README, updated)
+    puts Color.green("Updated the #{label} block in README.md.")
+  end
+
+  0
+end
+
+def command_prior_art(argv)
+  as_json = false
+  refresh_history = true
+  rescan = false
+  write = false
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus prior-art [options]"
+    parser.on("--json", "Emit the structured report instead of Markdown") { as_json = true }
+    parser.on("--write", "Update the generated block in README.md") { write = true }
+    parser.on("--no-history", "Use only cached history; do not search git history") { refresh_history = false }
+    parser.on("--rescan", "Retry entries whose history search previously failed") { rescan = true }
+  end.parse!(argv)
+
+  report = prior_art_report(refresh_history: refresh_history, rescan: rescan)
+
+  return (puts JSON.pretty_generate(report)) || 0 if as_json
+
+  adoption = File.exist?(ADOPTION_CACHE) ? JSON.parse(File.read(ADOPTION_CACHE)) : {}
+  block = render_prior_art(report, adoption, load_apps.size)
+
+  return write_readme_block(PRIOR_ART_START, PRIOR_ART_END, block, "prior art") if write
+
+  puts block
+  0
+end
+
 COMMANDS = {
   "clone" => method(:command_clone),
+  "prior-art" => method(:command_prior_art),
   "update" => method(:command_update),
   "status" => method(:command_status),
   "stats" => method(:command_stats),
