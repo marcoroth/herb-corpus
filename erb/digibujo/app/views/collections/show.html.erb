@@ -1,60 +1,112 @@
 <% content_for(:title) { @collection.name } %>
 
-<div class="layout--page layout--container layout--container-md">
-  <div class="utilities--mx-auto collection--header">
-    <%= icon_tag(@collection.bucket.icon, style: "color: #{colour(@collection.bucket.colour)};", class: "collection--header-icon") %>
-      <h2><%= @collection.name %></h2>
-      <% if @collection.description.present? %>
-        <p><%= @collection.description %></p>
-      <% end %>
-  </div>
-  <div class="layout--surface">
-  <div class="layout--flex layout--justify-between layout--surface-header">
-    <%= back_link_to home_path, class: "button--tertiary button--sm" do %>
-      <%= icon_tag("arrow-left", style: "color: var(--color-text-base);", class: "button--icon") %>
-      Back
-    <% end %>
+<div class="chat--window collection--window">
+  <header class="chat--header layout--padded layout--flex layout--justify-between">
 
-    <div class="layout--flex layout--gapped">
-    <%= render "buckets/pins_button", bucket: @collection.bucket %>
-    <%= link_to collection_export_path(@collection),
-          class: "button--secondary button--sm",
-          data: { turbo: false } do %>
-      <%= icon_tag("file", style: "color: var(--color-text-base);", class: "button--icon") %>
-      Export
-    <% end %>
-    <%= link_to edit_collection_path(@collection), class: "button--secondary button--sm" do %>
-      <%= icon_tag("pencil", style: "color: var(--color-text-base);", class: "button--icon") %>
-      Edit
-    <% end %>
-    </div>
-  </div>
-
-  <div class="layout--list layout--padded collection--list">
-        <div
-          data-bulk-menu-target="list"
-        >
-          <%= render layout: "pagination/paginated_list",
-                locals: {
-                  page: @page,
-                  container_id: dom_id(@collection, :bullets_container),
-                  pagination_link_path: ->(next_param) { collection_path(@collection, page: next_param) }
-                } do %>
-            <% previous_date = @previous_date %>
-            <% @page.records.each do |bullet| %>
-              <% date = bullet.created_at.in_time_zone.to_date %>
-              <% if previous_date != date %>
-                <%= render "collections/date_divider", date: date %>
-                <% previous_date = date %>
-              <% end %>
-              <%= render partial: bullet.to_partial_path, locals: { bullet: bullet } %>
-            <% end %>
-          <% end %>
+      <div class="layout--flex layout--gapped">
+        <%= back_link_to home_path, class: "button--tertiary button--sm" do %>
+          <%= icon_tag("arrow-left") %>
+          Back
+        <% end %>
+        <div class="button--secondary button--sm">
+        <%= icon_tag(@collection.bucket.icon, style: "color: #{colour(@collection.bucket.colour)};") %>
+        <span><%= @collection.name %></span>
         </div>
+      </div>
+      <% if @collection.description.present? %>
+        <div class="layout--flex layout--gapped">
+          <%= icon_tag("info") %>
+          <%= @collection.description %>
+        </div>
+      <% end %>
+
+      <div class="layout--flex layout--gapped">
+        <%= render "buckets/pins_button", bucket: @collection.bucket %>
+    <div class="dropdown--dock">
+
+      <button
+        type="button"
+        class="button--secondary button--sm"
+        popovertarget="collection_actions"
+        aria-label="Collection options"
+        aria-haspopup="menu"
+      >
+        <%= icon_tag("dots") %>
+      </button>
+
+      <div
+        id="collection_actions"
+        class="dropdown dropdown--element dropdown--element-bottom animations--side-in"
+        style="position-anchor: collection_actions"
+        popover
+        data-controller="grid-navigation"
+        data-grid-navigation-columns-value="1"
+        data-action="keydown->grid-navigation#navigate"
+      >
+        <div class="dropdown--element-body">
+          <nav class="dropdown--menu" aria-label="Collection options">
+
+
+            <%= link_to collection_export_path(@collection),
+                  class: "dropdown-item",
+                  data: { turbo: false, grid_navigation_target: "item", action: "focus->grid-navigation#syncPosition" } do %>
+              <%= icon_tag("file") %>
+              Export
+            <% end %>
+
+            <%= link_to edit_collection_path(@collection),
+                  class: "dropdown-item",
+                  data: { turbo_frame: "_top", grid_navigation_target: "item", action: "focus->grid-navigation#syncPosition" } do %>
+              <%= icon_tag("pencil") %>
+              Edit
+            <% end %>
+          </nav>
+        </div>
+      </div>
+    </div>
+    </div>
+  </header>
+
+  <div
+    class="chat--wrap"
+    data-controller="chat-scroll"
+    data-chat-scroll-path-value="<%= collection_bullets_path(@collection) %>"
+  >
+    <div
+      id="<%= dom_id(@collection, :bullets_container) %>"
+      class="chat--scroller"
+      data-bulk-menu-target="list"
+      data-chat-scroll-target="scroller"
+    >
+      <% if @more_bullets %>
+        <div
+          class="chat--load-more-trigger"
+          data-chat-scroll-target="trigger"
+        >
+          <%= icon_tag("spinner", class: "icon icon--spin") %>
+          <span class="utilities--sr-only">Loading more bullets</span>
+        </div>
+      <% end %>
+
+      <% previous_date = nil %>
+      <% @bullets.each do |bullet| %>
+        <% date = bullet.created_at.in_time_zone.to_date %>
+        <% if previous_date != date %>
+        <div class="layout--flex layout--gapped layout--justify-center" role="separator" aria-label="<%= date.strftime('%b %-d, %Y') %>">
+          <%= link_to daylog_path(date: date.iso8601),
+                  class: "button--secondary button--sm",
+                  data: { turbo_frame: "_top" } do %>
+              <time datetime="<%= date.iso8601 %>"><%= date.strftime('%b %-d, %Y') %></time>
+            <% end %>
+          </div>
+          <% previous_date = date %>
+        <% end %>
+        <%= render partial: bullet.to_partial_path, locals: { bullet: bullet } %>
+      <% end %>
+    </div>
   </div>
 
   <%= render "bullets/composer",
         bucket_id: @collection.bucket.id,
         composer_id: dom_id(@collection, :bullets_composer) %>
-</div>
 </div>
