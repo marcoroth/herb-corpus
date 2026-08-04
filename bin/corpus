@@ -141,11 +141,14 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
   end
 
   def excluded_paths = meta["exclude_paths"].to_s.split(",").map(&:strip).reject(&:empty?)
+  def root = meta["root"].to_s
+  def root_dir = root.empty? ? dir : File.join(dir, root)
+  def repo_path(name) = root.empty? ? name : File.join(root, name)
 
   def herb_config
     return nil unless cloned?
 
-    HERB_CONFIGS.find { |name| File.file?(File.join(dir, name)) }
+    HERB_CONFIGS.find { |name| File.file?(File.join(root_dir, name)) }
   end
 
   def erb_files
@@ -859,13 +862,13 @@ def command_extract(argv)
       FileUtils.cp(File.join(app.dir, config), File.join(out, app.name, config))
     end
 
-    herb_directory = Dir.exist?(File.join(app.dir, ".herb")) ? ".herb" : nil
+    herb_directory = Dir.exist?(File.join(app.root_dir, ".herb")) ? ".herb" : nil
 
-    FileUtils.cp_r(File.join(app.dir, ".herb"), File.join(out, app.name, ".herb")) if herb_directory
+    FileUtils.cp_r(File.join(app.root_dir, ".herb"), File.join(out, app.name, ".herb")) if herb_directory
 
-    prior_art_configs = PRIOR_ART_CONFIGS.select { |name| File.file?(File.join(app.dir, name)) }
+    prior_art_configs = PRIOR_ART_CONFIGS.select { |name| File.file?(File.join(app.root_dir, name)) }
 
-    prior_art_configs.each { |name| FileUtils.cp(File.join(app.dir, name), File.join(out, app.name, name)) }
+    prior_art_configs.each { |name| FileUtils.cp(File.join(app.root_dir, name), File.join(out, app.name, name)) }
 
     entries[app.name] = {
       "repo" => app.repo,
@@ -1052,7 +1055,7 @@ def read_if_present(dir, name)
 end
 
 def npm_version_for(app, component)
-  package = read_if_present(app.dir, "package.json")
+  package = read_if_present(app.root_dir, "package.json")
 
   unless package.empty?
     begin
@@ -1066,7 +1069,7 @@ def npm_version_for(app, component)
   end
 
   %w[pnpm-lock.yaml aube-lock.yaml yarn.lock package-lock.json].each do |file|
-    body = read_if_present(app.dir, file)
+    body = read_if_present(app.root_dir, file)
     next if body.empty?
     next unless body.include?(component)
 
@@ -1081,8 +1084,8 @@ def npm_version_for(app, component)
 end
 
 def gem_version_for(app, component, spec)
-  lock = read_if_present(app.dir, "Gemfile.lock")
-  gemfile = read_if_present(app.dir, "Gemfile")
+  lock = read_if_present(app.root_dir, "Gemfile.lock")
+  gemfile = read_if_present(app.root_dir, "Gemfile")
 
   names = [component, *Array(spec["aliases"])]
 
@@ -1098,17 +1101,17 @@ def gem_version_for(app, component, spec)
 end
 
 def gem_explicit?(app, spec, names)
-  gemfile = read_if_present(app.dir, "Gemfile")
+  gemfile = read_if_present(app.root_dir, "Gemfile")
 
   return true if names.any? { |name| gemfile =~ /^\s*gem\s+["']#{Regexp.escape(name)}["']/ }
 
-  declared = read_if_present(app.dir, "Gemfile.lock")[/^DEPENDENCIES\n(.*?)(?:\n\n|\z)/m, 1].to_s
+  declared = read_if_present(app.root_dir, "Gemfile.lock")[/^DEPENDENCIES\n(.*?)(?:\n\n|\z)/m, 1].to_s
 
   names.any? { |name| declared =~ /^\s+#{Regexp.escape(name)}[\s!(]*$/ }
 end
 
 def npm_explicit?(app, component)
-  package = read_if_present(app.dir, "package.json")
+  package = read_if_present(app.root_dir, "package.json")
 
   return false if package.empty?
 
@@ -1131,7 +1134,7 @@ end
 def component_files(spec) = spec["files"] || DEPENDENCY_FILES.fetch(spec["kind"], [])
 
 def config_file_for(app, spec)
-  component_files(spec).find { |name| File.file?(File.join(app.dir, name)) }
+  component_files(spec).find { |name| File.file?(File.join(app.root_dir, name)) }
 end
 
 def first_seen(app, component, spec)
@@ -1140,7 +1143,7 @@ def first_seen(app, component, spec)
 
   if %w[config directory].include?(spec["kind"])
     files.each do |file|
-      out = `git -C #{app.dir.shellescape} log --diff-filter=A --format='%aI %H' -1 -- #{file.shellescape} 2>/dev/null`.strip
+      out = `git -C #{app.dir.shellescape} log --diff-filter=A --format='%aI %H' -1 -- #{app.repo_path(file).shellescape} 2>/dev/null`.strip
       next if out.empty?
 
       date, sha = out.split(" ", 2)
@@ -1155,10 +1158,10 @@ def first_seen(app, component, spec)
   needles = [component, *Array(spec["aliases"])]
 
   files.each do |file|
-    next unless File.file?(File.join(app.dir, file))
+    next unless File.file?(File.join(app.root_dir, file))
 
     needles.each do |needle|
-      line = `git -C #{app.dir.shellescape} log -S#{needle.shellescape} --format='%aI %H' --reverse -- #{file.shellescape} 2>/dev/null`.lines.first
+      line = `git -C #{app.dir.shellescape} log -S#{needle.shellescape} --format='%aI %H' --reverse -- #{app.repo_path(file).shellescape} 2>/dev/null`.lines.first
       next unless line
 
       date, sha = line.strip.split(" ", 2)
@@ -1191,7 +1194,7 @@ def adoption_report(refresh_history: true, jobs: 12)
         when "gem" then gem_version_for(app, component, spec)
         when "npm" then npm_version_for(app, component)
         when "config" then (found = config_file_for(app, spec)) && (config_version_for(app, found) || "present")
-        when "directory" then Dir.exist?(File.join(app.dir, ".herb")) ? "present" : nil
+        when "directory" then Dir.exist?(File.join(app.root_dir, ".herb")) ? "present" : nil
         end
 
       next unless version
@@ -1593,15 +1596,15 @@ end
 PRIOR_ART_COMPONENTS = prior_art_components.freeze
 
 def prior_art_config_for(app, tool)
-  PRIOR_ART_TOOLS.fetch(tool)["configs"].find { |name| File.file?(File.join(app.dir, name)) }
+  PRIOR_ART_TOOLS.fetch(tool)["configs"].find { |name| File.file?(File.join(app.root_dir, name)) }
 end
 
 def prior_art_scope(app, tool)
   pattern = PRIOR_ART_TOOLS.fetch(tool)["pattern"]
 
-  return "explicit" if read_if_present(app.dir, "Gemfile").match?(/^\s*gem\s+["']#{pattern}["']/)
+  return "explicit" if read_if_present(app.root_dir, "Gemfile").match?(/^\s*gem\s+["']#{pattern}["']/)
 
-  declared = read_if_present(app.dir, "Gemfile.lock")[/^DEPENDENCIES\n(.*?)(?:\n\n|\z)/m, 1].to_s
+  declared = read_if_present(app.root_dir, "Gemfile.lock")[/^DEPENDENCIES\n(.*?)(?:\n\n|\z)/m, 1].to_s
 
   declared.match?(/^\s+#{pattern}[\s!(]*$/) ? "explicit" : "transitive"
 end
@@ -1616,8 +1619,8 @@ def prior_art_current(app, component, spec)
   end
 
   pattern = PRIOR_ART_TOOLS.fetch(tool)["pattern"]
-  version = read_if_present(app.dir, "Gemfile.lock")[/^\s{4}#{pattern} \(([^)]+)\)/, 1]
-  explicit = read_if_present(app.dir, "Gemfile").match?(/^\s*gem\s+["']#{pattern}["']/)
+  version = read_if_present(app.root_dir, "Gemfile.lock")[/^\s{4}#{pattern} \(([^)]+)\)/, 1]
+  explicit = read_if_present(app.root_dir, "Gemfile").match?(/^\s*gem\s+["']#{pattern}["']/)
 
   return { "adopted" => false } unless version || explicit
 
@@ -1625,7 +1628,7 @@ def prior_art_current(app, component, spec)
 end
 
 def prior_art_config_history(app, tool)
-  out = git_capture(app.dir, "log", "--diff-filter=AD", "--format=commit %aI %H", "--name-status", "--reverse", "--", *PRIOR_ART_TOOLS.fetch(tool)["configs"])
+  out = git_capture(app.dir, "log", "--diff-filter=AD", "--format=commit %aI %H", "--name-status", "--reverse", "--", *PRIOR_ART_TOOLS.fetch(tool)["configs"].map { |name| app.repo_path(name) })
 
   return { "searched" => false } if out.nil?
 
@@ -1658,7 +1661,7 @@ end
 
 def prior_art_gem_history(app, tool, adopted)
   pattern = PRIOR_ART_TOOLS.fetch(tool)["pattern"]
-  out = git_capture(app.dir, "log", "--pickaxe-regex", "-S#{pattern}", "--format=%aI %H", "--reverse", "--", "Gemfile")
+  out = git_capture(app.dir, "log", "--pickaxe-regex", "-S#{pattern}", "--format=%aI %H", "--reverse", "--", app.repo_path("Gemfile"))
 
   return { "searched" => false } if out.nil?
 
