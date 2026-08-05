@@ -1,61 +1,61 @@
-<% if @date %>
-  <turbo-frame
-    id="monthlylog_date"
-    class="monthlylog--date-section"
-    data-pops-on="<%= @date.iso8601 %>"
-  >
-    <header class="monthlylog--date-section-header layout--flex layout--justify-center layout--gapped">
-      <%= link_to daylog_path(date: @date.iso8601),
-            class: "monthlylog--date-section-name",
-            data: { turbo_frame: "_top" } do %>
-        <time datetime="<%= @date.iso8601 %>"><%= @date.strftime("%B %-d") %></time>
-      <% end %>
-    </header>
+<% date_composer_id = "date_#{@date&.iso8601}_bullets_composer"
+    unplanned_composer_id = "monthlylog_bullets_unplanned_composer" 
+    variants = @date.present? ? %w[Task Event] : %w[Task Note]
+%>
 
+<turbo-frame
+  id="monthlylog_bullets"
+  data-pops-on="<%= @date&.iso8601 %>"
+>
+
+<% if @date.present? %>
+    <div class="layout--flex layout--justify-center layout--padded">
+      <%= link_to daylog_path(date: @date&.iso8601),
+            class: "button--secondary button--sm",
+            data: { turbo_frame: "_top" } do %>
+        <time datetime="<%= @date&.iso8601 %>"><%= @date&.strftime("%B %-d") %></time>
+      <% end %>
+    </div>
+    <% else %>
+    <br>
+
+    <% end %>
+  <div
+    class="chat--wrap layout--surface-sunken"
+    data-controller="chat-scroll"
+    data-chat-scroll-path-value="<%= monthlylog_bullets_path(@monthlylog, date: @date&.iso8601) %>"
+  >
     <div
-      class="chat--scroller monthlylog--date-entries"
+      id="<%= "date_#{@date&.iso8601}_bullets_container" %>"
+      class="chat--scroller"
       data-controller="pops-drop drop-postpone-optimistic"
+      data-chat-scroll-target="scroller"
+      data-bulk-menu-target="list"
+      data-monthlylog-date-list
       data-pops-drop-pops-url-value="<%= postpone_path %>"
       data-pops-drop-bucket-id-value="<%= @monthlylog.bucket.id %>"
-      data-pops-drop-pops-on-value="<%= @date.iso8601 %>"
+      data-pops-drop-pops-on-value="<%= @date&.iso8601 %>"
       data-pops-drop-requested-with-value="pops-drop"
       data-pops-drop-optimistic-value="drop-postpone-optimistic"
-      data-drop-zone-value="<%= @date.iso8601 %>"
+      data-drop-zone-value="<%= @date&.iso8601 %>"
       data-action="dragover->pops-drop#dragover dragleave->pops-drop#dragleave drop->pops-drop#drop"
     >
-      <div
-        id="<%= "date_#{@date.iso8601}_bullets_container" %>"
-        class="monthlylog--bullets-list layout--list chat--compact-list-pinned"
-        data-monthlylog-date-list
-        data-bulk-menu-target="list"
-      >
-        <% @bullets.each do |bullet| %>
-          <%= render "monthlylogs/bullets/bullet", bullet: bullet %>
-        <% end %>
-      </div>
+      <% if @more_bullets %>
+        <div class="chat--load-more-trigger" data-chat-scroll-target="trigger">
+          <%= icon_tag("spinner", class: "icon icon--spin") %>
+          <span class="utilities--sr-only">Loading more bullets</span>
+        </div>
+      <% end %>
+
+      <% @bullets.each do |bullet| %>
+        <%= render "monthlylogs/bullets/bullet", bullet: bullet %>
+      <% end %>
+
+      <%= render "bullets/composer",
+          bucket_id: @monthlylog.bucket.id,
+          pops_on: @date&.iso8601,
+          variants: variants,
+          composer_id: date_composer_id %>
     </div>
-  </turbo-frame>
-<% else %>
-  <turbo-frame id="monthlylog_unplanned" class="monthlylog--unplanned-entries">
-    <div
-      class="chat--scroller monthlylog--unplanned-drop"
-      data-controller="pops-drop drop-postpone-optimistic"
-      data-pops-drop-pops-url-value="<%= postpone_path %>"
-      data-pops-drop-bucket-id-value="<%= @monthlylog.bucket.id %>"
-      data-pops-drop-requested-with-value="pops-drop"
-      data-pops-drop-optimistic-value="drop-postpone-optimistic"
-      data-drop-zone-value=""
-      data-action="dragover->pops-drop#dragover dragleave->pops-drop#dragleave drop->pops-drop#drop"
-    >
-      <div
-        id="monthlylog_bullets_unplanned_container"
-        class="monthlylog--bullets-list layout--list chat--compact-list-pinned"
-        data-bulk-menu-target="list"
-      >
-        <% @bullets.each do |bullet| %>
-          <%= render "monthlylogs/bullets/bullet", bullet: bullet %>
-        <% end %>
-      </div>
-    </div>
-  </turbo-frame>
-<% end %>
+  </div>
+</turbo-frame>
