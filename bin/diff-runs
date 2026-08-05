@@ -68,6 +68,12 @@ def delta(before, after)
   change.positive? ? Color.red("+#{change}") : Color.green(change.to_s)
 end
 
+def neutral_delta(before, after)
+  change = after - before
+
+  Color.yellow(change.positive? ? "+#{change}" : change.to_s)
+end
+
 def describe(run)
   run["label"] || run["herb_ref"] || "herb #{run["herb_version"]}"
 end
@@ -123,8 +129,21 @@ def changes(before, after, key)
   }
 end
 
+def diagnostic_changes(before, after)
+  old = before["diagnostic_counts"]
+  new = after["diagnostic_counts"]
+
+  return [] unless old.is_a?(Hash) && new.is_a?(Hash)
+
+  (Set.new(old.keys) | Set.new(new.keys))
+    .map { |name| [name, old[name].to_i, new[name].to_i] }
+    .reject { |_, from, to| from == to }
+    .sort_by { |name, from, to| [-(to - from).abs, name] }
+end
+
 parse = changes(before, after, "parse_failing")
 compile = changes(before, after, "compile_failing")
+diagnostics = diagnostic_changes(before, after)
 
 left = describe(before)
 right = describe(after)
@@ -146,6 +165,20 @@ table(
   ],
   ["", left, right, "DELTA"]
 )
+
+unless diagnostics.empty?
+  puts
+  puts Color.bold("Diagnostics")
+  puts Color.dim("Counts move without a file changing verdict when a diagnostic is added or dropped.")
+  puts
+
+  table(
+    diagnostics.first(20).map { |name, from, to| [name, from.to_s, to.to_s, neutral_delta(from, to)] },
+    ["", left, right, "DELTA"]
+  )
+
+  puts Color.dim("  ... and #{diagnostics.size - 20} more") if diagnostics.size > 20
+end
 
 worse = (parse["changed"] + compile["changed"]).select { |_, from, to| worsened?(from, to) }
 better = (parse["changed"] + compile["changed"]).reject { |_, from, to| worsened?(from, to) }
@@ -169,13 +202,22 @@ sections.each do |entries, title, color|
   puts Color.dim("  ... and #{entries.size - 20} more") if entries.size > 20
 end
 
-puts "\n#{Color.green("No change in outcomes.")}" if sections.all? { |entries, _, _| entries.empty? }
+if sections.all? { |entries, _, _| entries.empty? }
+  puts(
+    if diagnostics.empty?
+      "\n#{Color.green("No change in outcomes.")}"
+    else
+      "\n#{Color.yellow("No file changed verdict, but diagnostic counts moved (see above).")}"
+    end
+  )
+end
 
 regressions = parse["gained"] + compile["gained"] + worse.map(&:first)
 
-def markdown_report(before, after, parse, compile, regressions, worse, better)
+def markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics)
   fixed = parse["lost"] + compile["lost"]
-  no_changes = regressions.empty? && fixed.empty? && better.empty?
+  verdicts_unchanged = regressions.empty? && fixed.empty? && better.empty?
+  no_changes = verdicts_unchanged && diagnostics.empty?
 
   out = []
 
@@ -203,6 +245,29 @@ def markdown_report(before, after, parse, compile, regressions, worse, better)
   if no_changes
     out << ""
     out << "No file changed outcome."
+  elsif verdicts_unchanged
+    out << ""
+    out << "No file changed outcome, but the diagnostics they report did."
+  end
+
+  unless diagnostics.empty?
+    out << ""
+    out << "<details#{verdicts_unchanged ? " open" : ""}>" \
+           "<summary><b>#{pluralize(diagnostics.size, "diagnostic")} changed count</b></summary>"
+    out << ""
+    out << "| Diagnostic | #{describe(before)} | #{describe(after)} | |"
+    out << "| --- | ---: | ---: | ---: |"
+
+    diagnostics.first(40).each do |name, from, to|
+      change = to - from
+      out << "| `#{name}` | #{from} | #{to} | **#{change.positive? ? "+" : ""}#{change}** |"
+    end
+
+    out << ""
+    out << "_… and #{diagnostics.size - 40} more._" << "" if diagnostics.size > 40
+    out << "A count can drop because a false positive was fixed, or because a diagnostic is no " \
+           "longer reported when it should be. Worth confirming which."
+    out << "</details>"
   end
 
   render = lambda do |title, files, source, key, limit|
@@ -282,7 +347,7 @@ def markdown_report(before, after, parse, compile, regressions, worse, better)
 end
 
 if markdown_path
-  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better))
+  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics))
   warn "Wrote #{markdown_path}"
 end
 
