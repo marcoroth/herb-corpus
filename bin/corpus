@@ -1182,8 +1182,23 @@ rescue JSON::ParserError
   {}
 end
 
-def adoption_report(refresh_history: true, jobs: 12)
-  apps = load_apps.select(&:cloned?)
+def checked_out_apps(report_name, allow_partial)
+  all = load_apps
+  cloned = all.select(&:cloned?)
+  missing = all.size - cloned.size
+
+  if missing.positive? && !allow_partial
+    raise CommandError,
+          "#{pluralize(missing, "app")} of #{all.size} #{verb_for(missing, "is", "are")} not checked out, so the #{report_name} report " \
+          "would undercount every tool.\nRun `bin/corpus clone` first, or pass --allow-partial to report " \
+          "on the #{cloned.size} apps that are present."
+  end
+
+  cloned
+end
+
+def adoption_report(refresh_history: true, allow_partial: false, jobs: 12)
+  apps = checked_out_apps("adoption", allow_partial)
   cache = load_adoption_cache
   pending = []
 
@@ -1478,16 +1493,18 @@ def command_adoption(argv)
   write = false
   as_json = false
   refresh_history = true
+  allow_partial = false
 
   OptionParser.new do |parser|
     parser.banner = "usage: corpus adoption [options]"
     parser.on("--write", "Update the generated block in README.md") { write = true }
     parser.on("--json", "Emit the structured report instead of Markdown") { as_json = true }
     parser.on("--no-history", "Use only cached adoption dates; do not search git history") { refresh_history = false }
+    parser.on("--allow-partial", "Report on the apps that are checked out instead of refusing") { allow_partial = true }
   end.parse!(argv)
 
   total = load_apps.size
-  report = adoption_report(refresh_history: refresh_history)
+  report = adoption_report(refresh_history: refresh_history, allow_partial: allow_partial)
 
   if as_json
     puts JSON.pretty_generate({ "total" => total, "components" => COMPONENTS.keys, "apps" => report })
@@ -1695,8 +1712,8 @@ def load_prior_art_cache
   {}
 end
 
-def prior_art_report(refresh_history: true, rescan: false, jobs: 12)
-  apps = load_apps.select(&:cloned?)
+def prior_art_report(refresh_history: true, rescan: false, allow_partial: false, jobs: 12)
+  apps = checked_out_apps("prior art", allow_partial)
   cache = load_prior_art_cache
   pending = []
 
@@ -1894,6 +1911,7 @@ def command_prior_art(argv)
   as_json = false
   refresh_history = true
   rescan = false
+  allow_partial = false
   write = false
 
   OptionParser.new do |parser|
@@ -1902,9 +1920,10 @@ def command_prior_art(argv)
     parser.on("--write", "Update the generated block in README.md") { write = true }
     parser.on("--no-history", "Use only cached history; do not search git history") { refresh_history = false }
     parser.on("--rescan", "Retry entries whose history search previously failed") { rescan = true }
+    parser.on("--allow-partial", "Report on the apps that are checked out instead of refusing") { allow_partial = true }
   end.parse!(argv)
 
-  report = prior_art_report(refresh_history: refresh_history, rescan: rescan)
+  report = prior_art_report(refresh_history: refresh_history, rescan: rescan, allow_partial: allow_partial)
 
   return (puts JSON.pretty_generate(report)) || 0 if as_json
 
