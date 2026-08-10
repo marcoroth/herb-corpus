@@ -7,6 +7,7 @@
   default_type = picker_variants.first
   default_config = bullet_type_config(default_type)
   bullet = Current.user.bullets.new(bulletable_type: default_type, bucket_id: bucket_id, pops_on: pops_on)
+  composer_variants_dropdown_id = "composer_variants_dropdown_#{composer_id}"
 %>
 
 <turbo-frame
@@ -20,11 +21,11 @@
   data-action="voice-recorder:change->chat-composer#refresh voice-recorder:denied->chat-composer#reinitializeComposer"
 >
   <%= form_with model: bullet,
-        class: "composer--form",
+        class: "composer--form animations--popout",
         multipart: true,
         data: {
           chat_composer_target: "form",
-          action: "turbo:submit-end->chat-composer#submitFinished turbo:submit-end->voice-recorder#clearOnSubmit"
+          action: "turbo:submit-end->chat-composer#submitFinished turbo:submit-end->voice-recorder#clearOnSubmit",
         } do |fr| %>
     <%= fr.hidden_field :bucket_id, value: bucket_id, data: { chat_composer_target: "bucketId" } %>
     <%= fr.hidden_field :pops_on, value: pops_on, data: { chat_composer_target: "popsOn" } %>
@@ -83,10 +84,11 @@
 
       <div class="composer--chrome">
         <div class="composer--lead">
-          <div class="composer--type dropdown--dock" style="anchor-name: --composer_variants" data-chat-composer-target="typePicker">
+          <div class="composer--type dropdown--dock" style="anchor-name: --composer_variants_<%= composer_id %>" data-chat-composer-target="typePicker">
             <button type="button"
                     class="button--secondary button--icon button--circle composer--type-button"
-                    popovertarget="composer_variants"
+                    popovertarget="composer_variants_<%= composer_id %>"
+                    data-action="mousedown->chat-composer#preventBlur"
                     aria-haspopup="menu"
                     aria-label="Change bullet type"
                     aria-keyshortcuts="Shift+Tab">
@@ -101,9 +103,9 @@
               <% end %>
             </button>
 
-            <div id="composer_variants"
+            <div id="composer_variants_<%= composer_id %>"
                  class="dropdown dropdown--element animations--side-in"
-                 style="position-anchor: --composer_variants"
+                 style="position-anchor: --composer_variants_<%= composer_id %>"
                  popover
                  data-controller="grid-navigation"
                  data-grid-navigation-columns-value="1"
@@ -121,7 +123,7 @@
                             data-composer-type="<%= type_name %>"
                             data-composer-placeholder="<%= config[:placeholder] %>"
                             data-action="chat-composer#selectType focus->grid-navigation#syncPosition"
-                            popovertarget="composer_variants"
+                            popovertarget="composer_variants_<%= composer_id %>"
                             popovertargetaction="hide"
                             <%= "hidden" unless picker_variants.include?(type_name) %>>
                       <span class="composer--type-copy">
@@ -233,9 +235,7 @@
       <div class="composer--actions">
         <button type="submit"
                 class="button--primary button--icon button--circle composer--submit"
-                data-chat-composer-target="submitFinished"
-                aria-label="Save voice memo"
-                disabled>
+                data-chat-composer-target="submitFinished">
           <%= icon_tag("arrow-up", class: "button--icon") %>
         </button>
       </div>

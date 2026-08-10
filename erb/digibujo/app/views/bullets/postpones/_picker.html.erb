@@ -1,5 +1,4 @@
-<%# locals: (bullet_ids: "", asap:, tomorrow:, next_monday:, next_weekends:, daylog_bucket:, daylog_buckets: {}, future:, monthlylog: nil) %>
-<% daylog_buckets = daylog_buckets.presence || { asap: daylog_bucket, tomorrow: daylog_bucket, next_monday: daylog_bucket, next_weekends: daylog_bucket } %>
+<%# locals: (bullet_ids: "", postpone_options: [], manual_bucket:) %>
 <div class="dropdown--element-body">
   <div class="dropdown--header">
     <h2>Schedule</h2>
@@ -15,74 +14,11 @@
   </div>
 
   <nav class="dropdown--menu" aria-label="Schedule">
-    <%= form_with url: postpone_path, method: :post, class: "dropdown--menu-form", data: { turbo_stream: true } do %>
-      <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-      <%= hidden_field_tag :bucket_id, daylog_buckets[:asap].id %>
-      <%= hidden_field_tag :pops_on, asap %>
-
-      <%= button_tag type: :submit,
-            class: "dropdown-item",
-            data: {
-              grid_navigation_target: "item",
-              action: "focus->grid-navigation#syncPosition"
-            } do %>
-        <%= icon_tag("arrow-up") %>
-        ASAP · <%= asap.strftime("%a, %b %-d") %>
-      <% end %>
-    <% end %>
-
-    <%= form_with url: postpone_path, method: :post, class: "dropdown--menu-form", data: { turbo_stream: true } do %>
-      <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-      <%= hidden_field_tag :bucket_id, daylog_buckets[:tomorrow].id %>
-      <%= hidden_field_tag :pops_on, tomorrow %>
-
-      <%= button_tag type: :submit,
-            class: "dropdown-item",
-            data: {
-              grid_navigation_target: "item",
-              action: "focus->grid-navigation#syncPosition"
-            } do %>
-        <%= icon_tag("arrow-right") %>
-        Tomorrow · <%= tomorrow.strftime("%a, %b %-d") %>
-      <% end %>
-    <% end %>
-
-    <%= form_with url: postpone_path, method: :post, class: "dropdown--menu-form", data: { turbo_stream: true } do %>
-      <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-      <%= hidden_field_tag :bucket_id, daylog_buckets[:next_monday].id %>
-      <%= hidden_field_tag :pops_on, next_monday %>
-
-      <%= button_tag type: :submit,
-            class: "dropdown-item",
-            data: {
-              grid_navigation_target: "item",
-              action: "focus->grid-navigation#syncPosition"
-            } do %>
-        <%= icon_tag("calendar-repeat") %>
-        Next week · <%= next_monday.strftime("%a, %b %-d") %>
-      <% end %>
-    <% end %>
-
-    <%= form_with url: postpone_path, method: :post, class: "dropdown--menu-form", data: { turbo_stream: true } do %>
-      <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-      <%= hidden_field_tag :bucket_id, daylog_buckets[:next_weekends].id %>
-      <%= hidden_field_tag :pops_on, next_weekends %>
-
-      <%= button_tag type: :submit,
-            class: "dropdown-item",
-            data: {
-              grid_navigation_target: "item",
-              action: "focus->grid-navigation#syncPosition"
-            } do %>
-        <%= icon_tag("calendar-repeat") %>
-        Next weekend · <%= next_weekends.strftime("%a, %b %-d") %>
-      <% end %>
-    <% end %>
-
-    <% if monthlylog&.bucket %>
+    <% postpone_options.each do |option| %>
       <%= form_with url: postpone_path, method: :post, class: "dropdown--menu-form", data: { turbo_stream: true } do %>
         <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-        <%= hidden_field_tag :bucket_id, monthlylog.bucket.id %>
+        <%= hidden_field_tag :bucket_id, option[:bucket_id] %>
+        <%= hidden_field_tag :pops_on, option[:pops_on] %>
 
         <%= button_tag type: :submit,
               class: "dropdown-item",
@@ -90,25 +26,8 @@
                 grid_navigation_target: "item",
                 action: "focus->grid-navigation#syncPosition"
               } do %>
-          <%= icon_tag("calendar") %>
-          This month
-        <% end %>
-      <% end %>
-    <% end %>
-
-    <% if future&.bucket %>
-      <%= form_with url: postpone_path, method: :post, class: "dropdown--menu-form", data: { turbo_stream: true } do %>
-        <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-        <%= hidden_field_tag :bucket_id, future.bucket.id %>
-
-        <%= button_tag type: :submit,
-              class: "dropdown-item",
-              data: {
-                grid_navigation_target: "item",
-                action: "focus->grid-navigation#syncPosition"
-              } do %>
-          <%= icon_tag("calendar") %>
-          Sometime
+          <%= icon_tag(option[:icon]) %>
+          <%= option[:name] %><% if option[:pops_on] %> · <%= option[:pops_on].strftime("%a, %b %-d") %><% end %>
         <% end %>
       <% end %>
     <% end %>
@@ -134,8 +53,8 @@
 
       <%= form_with url: postpone_path, method: :post, class: "bulk-menu--picker-date-form", data: { turbo_stream: true } do %>
         <%= hidden_field_tag :bullet_ids, bullet_ids, data: { bulk_menu_target: "idList" } %>
-        <%= hidden_field_tag :bucket_id, daylog_bucket.id %>
-        <%= date_field_tag :pops_on, asap, class: "form-input" %>
+        <%= hidden_field_tag :bucket_id, manual_bucket.id %>
+        <%= date_field_tag :pops_on, Date.current, class: "form-input" %>
 
         <%= button_tag type: :submit, class: "button--primary" do %>
           Confirm
