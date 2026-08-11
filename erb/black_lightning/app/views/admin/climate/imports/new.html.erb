@@ -1,0 +1,81 @@
+<p class="mb-3">
+  <%= link_to "← Back to the charts", admin_climate_dashboard_path, class: "text-sm text-primary underline" %>
+</p>
+
+<%= render CardComponent.new(title: "Import a Govee export") do %>
+  <% if @sensors.empty? %>
+    <%= render AlertComponent.new(type: :info) do %>
+      There are no sensors to import against yet.
+      <%= link_to "Add one first", new_admin_climate_sensor_path, class: "text-primary underline" %>.
+    <% end %>
+  <% else %>
+    <p class="text-gray-600 mb-3">
+      The crypt is out of Wi-Fi range, so the sensors hand their readings over by Bluetooth. Stand
+      in the dressing room with the Govee Home app open and wait for it to connect, then open the
+      sensor and choose <strong>Export Data</strong>.
+    </p>
+
+    <p class="text-gray-600 mb-4">
+      <% if Climate::Settings.mailbox.present? %>
+        A daily report already goes to <code><%= Climate::Settings.mailbox %></code> and imports
+        itself, so you only need this page to backfill a gap or to pull something in sooner. Either
+        way, importing
+      <% else %>
+        Importing
+      <% end %>
+      the same file twice is harmless: readings are keyed by sensor and timestamp, so an overlap
+      overwrites rather than duplicates.
+    </p>
+
+    <%= form_with url: admin_climate_import_path, method: :post, multipart: true,
+                  data: { turbo: false }, class: "flex flex-col gap-4" do %>
+      <div>
+        <%= label_tag :sensor_id, "Which sensor is this file from?", class: "block font-semibold mb-1" %>
+        <p class="text-sm text-gray-600 mb-1">
+          The export doesn't say which device it came from, so this is worth double-checking.
+          Readings land against whichever sensor is picked here.
+        </p>
+        <%= select_tag :sensor_id,
+                       options_from_collection_for_select(@sensors, :id, :to_label, params[:sensor_id]),
+                       include_blank: "Choose a sensor…", class: "form-control" %>
+      </div>
+
+      <div>
+        <%= label_tag :file, "CSV file", class: "block font-semibold mb-1" %>
+        <%= file_field_tag :file, accept: ".csv,text/csv", class: "text-sm" %>
+      </div>
+
+      <div>
+        <%= label_tag :pasted_text, "…or paste the contents", class: "block font-semibold mb-1" %>
+        <%= text_area_tag :pasted_text, params[:pasted_text], rows: 8, class: "form-control font-mono text-xs",
+                          placeholder: "Timestamp,Temperature_Celsius,Relative_Humidity" %>
+      </div>
+
+      <div>
+        <%= submit_tag "Import", class: btn_classes(:primary) %>
+        <%= link_to "Cancel", admin_climate_dashboard_path, class: btn_classes(:secondary) %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%= render CollapsibleSectionComponent.new(title: "What the importer expects", html_class: "mt-4") do %>
+  <ul class="list-disc pl-5 space-y-2 text-gray-700">
+    <li>
+      A header row naming a <strong>timestamp</strong>, a <strong>temperature</strong> and a
+      <strong>humidity</strong> column, then one row per reading. Comma or tab separated.
+    </li>
+    <li>
+      <strong>The temperature column must say its unit.</strong> Govee exports
+      <code>Temperature_Celsius</code> or <code>Temperature_Fahrenheit</code> depending on what the
+      app displays. A file that doesn't say is refused.
+    </li>
+    <li>
+      Timestamps are read as Edinburgh local time, matching what the app exports.
+    </li>
+    <li>
+      Readings outside <%= Climate::ReadingIngest::PLAUSIBLE_CELSIUS %> °C or
+      <%= Climate::ReadingIngest::PLAUSIBLE_HUMIDITY %> % are skipped and reported.
+    </li>
+  </ul>
+<% end %>

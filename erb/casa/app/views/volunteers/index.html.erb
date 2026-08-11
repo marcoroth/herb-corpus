@@ -13,8 +13,22 @@
 <% checkbox_class = "h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" %>
 
 <div class="px-4 py-6 sm:px-6 lg:px-8">
+  <%# `from` marks a drill-through (today: the supervisors roster's volunteer counts). Volunteers is a
+      top-level nav destination, so it only gets a back link when it was actually reached *from*
+      somewhere -- a permanent one would be wrong. %>
+  <% drilled_in = params[:from] == "supervisors" %>
+  <%# Carried onto the per-volunteer links so the edit page can return to this filtered list rather
+      than dumping the user on the unfiltered roster with no route back. %>
+  <% origin = drilled_in ? {from: "supervisors", supervisor: params[:supervisor].presence}.compact : {} %>
   <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-    <h1 class="text-2xl font-bold tracking-tight text-slate-900">Volunteers</h1>
+    <div>
+      <% if drilled_in %>
+        <%= link_to supervisors_path, class: "inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700" do %>
+          <i class="bi bi-chevron-left text-xs" aria-hidden="true"></i> Back to supervisors
+        <% end %>
+      <% end %>
+      <h1 class="<%= "mt-2 " if drilled_in %>text-2xl font-bold tracking-tight text-slate-900">Volunteers</h1>
+    </div>
     <% if policy(current_organization.volunteers.new).new? %>
       <%= link_to new_volunteer_path, class: button_classes(:primary) do %><i class="bi bi-plus-lg" aria-hidden="true"></i> New volunteer<% end %>
     <% end %>
@@ -36,7 +50,7 @@
       <i class="bi bi-people" aria-hidden="true"></i> <span data-select-all-target="buttonLabel"></span>
     </button>
 
-    <%= form_with url: bulk_assignment_supervisor_volunteers_path, method: :post, id: "form-bulk-assignment", data: {controller: "disable-form", action: "submit->disable-form#guard", "disable-form-unallowed-value": ["unselected"].to_json} do |form| %>
+    <%= form_with url: bulk_assignment_supervisor_volunteers_path, method: :post, id: "form-bulk-assignment", data: {controller: "disable-form", action: "submit->disable-form#guard", "disable-form-unallowed-value": [""].to_json} do |form| %>
 
       <%# Desktop table (md+). #volunteers lives on the wrapper (not the <table>) so the legacy
           dashboard.js `$('table#volunteers').DataTable(...)` no longer matches and no jQuery
@@ -70,7 +84,7 @@
                 <% @volunteers.each do |volunteer| %>
                   <tr class="hover:bg-slate-50/70">
                     <td class="px-3 py-3 align-top"><input type="checkbox" name="supervisor_volunteer[volunteer_ids][]" id="supervisor_volunteer_volunteer_ids_<%= volunteer.id %>" value="<%= volunteer.id %>" aria-label="Select <%= formatted_name(volunteer.display_name) %>" class="<%= checkbox_class %> mt-0.5" data-select-all-target="checkbox" data-action="select-all#toggleSingle"></td>
-                    <td class="<%= td %>"><%= link_to formatted_name(volunteer.display_name).presence || volunteer.email, edit_volunteer_path(volunteer), class: "font-medium #{name_link_class}" %></td>
+                    <td class="<%= td %>"><%= link_to formatted_name(volunteer.display_name).presence || volunteer.email, edit_volunteer_path(volunteer, **origin), class: "font-medium #{name_link_class}" %></td>
                     <td class="<%= td %> text-slate-600"><%= volunteer.email %></td>
                     <td class="supervisor-column <%= td %>"><% if volunteer.supervisor_name.present? %><span class="font-medium text-slate-800"><%= formatted_name(volunteer.supervisor_name) %></span><% end %></td>
                     <td class="<%= td %>"><%= volunteer.active? ? "Active" : "Inactive" %></td>
@@ -94,7 +108,7 @@
                     <td class="<%= td %>"><% langs = volunteer.languages.map(&:name) %><%= langs.any? ? langs.join(", ") : tag.span("\u2014", class: "text-slate-500") %></td>
                     <td class="px-3 py-3 text-right whitespace-nowrap align-top">
                       <div class="flex items-center justify-end gap-1">
-                        <%= link_to edit_volunteer_path(volunteer), class: ghost_class, "aria-label": "Edit #{formatted_name(volunteer.display_name)}" do %><i class="bi bi-pencil" aria-hidden="true"></i> Edit<% end %>
+                        <%= link_to edit_volunteer_path(volunteer, **origin), class: ghost_class, "aria-label": "Edit #{formatted_name(volunteer.display_name)}" do %><i class="bi bi-pencil" aria-hidden="true"></i> Edit<% end %>
                         <% if policy(volunteer).impersonate? %>
                           <%= link_to impersonate_volunteer_path(volunteer), class: ghost_class, "aria-label": "Impersonate #{formatted_name(volunteer.display_name)}" do %><i class="bi bi-person-badge" aria-hidden="true"></i> Impersonate<% end %>
                         <% end %>
@@ -123,7 +137,7 @@
           <% @volunteers.each do |volunteer| %>
             <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div class="flex items-start justify-between gap-3">
-                <%= link_to formatted_name(volunteer.display_name).presence || volunteer.email, edit_volunteer_path(volunteer), class: "text-base font-semibold #{name_link_class}" %>
+                <%= link_to formatted_name(volunteer.display_name).presence || volunteer.email, edit_volunteer_path(volunteer, **origin), class: "text-base font-semibold #{name_link_class}" %>
                 <span class="<%= pill %> <%= volunteer.active? ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600" %>"><%= volunteer.active? ? "Active" : "Inactive" %></span>
               </div>
               <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
@@ -133,7 +147,7 @@
                 <div><dt class="text-xs text-slate-500">Cases</dt><dd class="mt-0.5 text-sm text-slate-700"><%= safe_join(volunteer.casa_cases.map { |cc| link_to cc.case_number, casa_case_path(cc), class: "text-brand-600 hover:text-brand-700" }, ", ").presence || tag.span("\u2014", class: "text-slate-500") %></dd></div>
               </dl>
               <div class="mt-3 flex flex-wrap items-center gap-1">
-                <%= link_to edit_volunteer_path(volunteer), class: ghost_class do %><i class="bi bi-pencil" aria-hidden="true"></i> Edit<% end %>
+                <%= link_to edit_volunteer_path(volunteer, **origin), class: ghost_class do %><i class="bi bi-pencil" aria-hidden="true"></i> Edit<% end %>
                 <% if policy(volunteer).impersonate? %>
                   <%= link_to impersonate_volunteer_path(volunteer), class: ghost_class do %><i class="bi bi-person-badge" aria-hidden="true"></i> Impersonate<% end %>
                 <% end %>
@@ -157,16 +171,25 @@
         </div>
         <div class="px-5 py-4">
           <label for="supervisor_volunteer_supervisor_id" class="mb-1.5 block text-sm font-medium text-slate-700">Choose a supervisor to reassign the selected volunteers.</label>
-          <div class="relative">
-            <select name="supervisor_volunteer[supervisor_id]" id="supervisor_volunteer_supervisor_id" required data-disable-form-target="input" data-action="disable-form#clearError" class="block w-full appearance-none rounded-lg border border-slate-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 focus:outline-none">
-              <option value="unselected">Choose a supervisor</option>
-              <option value="">None</option>
-              <% @supervisors.each do |supervisor| %>
-                <option value="<%= supervisor.id %>"><%= formatted_name(supervisor.display_name) %></option>
-              <% end %>
-            </select>
-            <i class="bi bi-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500" aria-hidden="true"></i>
-          </div>
+          <%# Searchable, like every other person picker (design.md "Searchable single-select"). The
+              sentinels had to be swapped to get here: "nothing chosen" is now the blank option -- which
+              a placeholder picker turns into neither an item nor a menu row -- and **None** carries the
+              explicit value "none", because the theme hides empty-valued options in a menu and the
+              user would have lost the row that unassigns. That also closes a hazard: blank used to MEAN
+              unassign, so a blank submit slipping past the JS guard quietly unassigned everyone
+              selected. Blank is now a no-op server-side. NOT dropdownParent: body -- this lives inside a
+              native <dialog>, whose top layer would paint over a body-parented menu. %>
+          <select name="supervisor_volunteer[supervisor_id]" id="supervisor_volunteer_supervisor_id" required
+                  data-controller="searchable-select"
+                  data-searchable-select-placeholder-value="Search supervisors"
+                  data-disable-form-target="input" data-action="disable-form#clearError"
+                  class="block w-full">
+            <option value=""></option>
+            <option value="none">None</option>
+            <% @supervisors.each do |supervisor| %>
+              <option value="<%= supervisor.id %>"><%= formatted_name(supervisor.display_name) %></option>
+            <% end %>
+          </select>
           <p data-disable-form-target="error" role="alert" class="mt-1.5 hidden text-sm text-slate-500"><i class="bi bi-exclamation-circle text-rose-600" aria-hidden="true"></i> Please choose a supervisor (or None) to continue.</p>
         </div>
         <div class="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
