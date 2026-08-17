@@ -1,150 +1,56 @@
-
-<div class="chat--window">
-<header
-id="daylog_header_<%= @selected_date.iso8601 %>"
-class="chat--header"
+<div
+  class="chat--window layout--container"
+  data-size="md"
 >
-<div class="layout--flex layout--gapped layout--justify-between">
-  <div>
-  <% if @bullets.any? %>
-  <div class="header--controls">
-    <%= link_to daylog_path(date: (@selected_date - 1.day).iso8601),
-        data: {
-          turbo_action: "advance",
-          controller: "hotkey",
-          hotkey: "←",
-          action: "keydown.shift+left@document->hotkey#click"
-        },
-        class: "button--tertiary button--circle hotkey-hint",
-        aria: { label: "Show previous day", keyshortcuts: "Shift+ArrowLeft" } do %>
-      <%= icon_tag("arrow-left") %>
-    <% end %>
-
-    <span class="typography--mono typography--paragraph-sm">
-      <%= @selected_date.strftime("%a, %b %-d") %>
-    </span>
+  <div class="chat--surface layout--surface" data-elevation="1">
+    <header class="chat--header">
+      <turbo-frame id="daylog_header_<%= @selected_date.iso8601 %>">
+        <% if @selected_date == Date.current %>
+          <turbo-frame id="daylog_triage_preview">
+            <%= render @bullets.empty? ? "daylogs/triage/expanded" : "daylogs/triage/header",
+                  triage: @triage,
+                  selected_date: @selected_date %>
+          </turbo-frame>
+        <% else %>
+          <div class="layout--flex" data-justify="center">
+            <span class="typography--mono typography--paragraph-sm">
+              <%= @selected_date.strftime("%a, %b %-d") %>
+            </span>
+          </div>
+        <% end %>
+      </turbo-frame>
+    </header>
 
     <div
-    id="triage_chip"
-    class="daylog--triage-chip"
-    data-controller="triage-chip"
-    data-turbo-temporary="true"
-    data-triage-chip-number-url-value="<%= triage_number_path %>"
->
-    <%= link_to triage_path,
-          id: "triage_chip_button",
-          class: "triage--chip animations--popout",
-          aria: { label: "Triage" },
-          hidden: true do %>
-      <%= icon_tag("mail", class: "daylog--triage-chip-icon") %>
-      <span id="triage_chip_number" class="daylog--triage-number"></span>
-    <% end %>
-  </div>
-
-
-    <%= link_to daylog_path(date: (@selected_date + 1.day).iso8601),
-        data: {
-          turbo_action: "advance",
-          controller: "hotkey",
-          hotkey: "→",
-          action: "keydown.shift+right@document->hotkey#click"
-        },
-        class: "button--tertiary button--circle hotkey-hint",
-        aria: { label: "Show next day", keyshortcuts: "Shift+ArrowRight" } do %>
-      <%= icon_tag("arrow-right") %>
-    <% end %>
-  </div>
-  <% end %>
-  </div>
-
-  <div class="header--controls">
-    <div class="dropdown--dock">
-      <button
-        type="button"
-        class="button--tertiary button--circle"
-        popovertarget="daylog_metadata_<%= @selected_date.iso8601 %>"
-        aria-label="Metadata"
-        aria-haspopup="dialog"
-      >
-        <%= icon_tag("arrow-left") %>
-      </button>
-      <turbo-frame
-        id="daylog_metadata_<%= @selected_date.iso8601 %>"
-        class="dropdown dropdown--element dropdown--element-up animations--side-in"
-        src="<%= daylog_metadata_path(date: @selected_date.iso8601) %>"
-        loading="lazy"
-        popover
-      ></turbo-frame>
-    </div>
-  </div>
-</div>
-</header>
-
-  <div
-    class="chat--wrap"
-    data-controller="chat-scroll"
-    data-chat-scroll-path-value="<%= daylog_bullets_path %>">
-    <div
-      id="daylog_bullets_container"
+      id="<%= dom_id(@daylog.bucket, @selected_date) %>"
       class="chat--scroller"
+      data-controller="chat-scroll"
+      data-chat-scroll-path-value="<%= daylog_bullets_path %>"
       data-bulk-menu-target="list"
-      data-chat-scroll-target="scroller"
     >
       <% if @more_bullets %>
-        <div
-          class="chat--load-more-trigger"
-          data-chat-scroll-target="trigger"
-        >
+        <div class="chat--load-more-trigger" data-chat-scroll-target="trigger">
           <%= icon_tag("spinner", class: "icon icon--spin") %>
           <span class="utilities--sr-only">Loading more bullets</span>
         </div>
       <% end %>
-<!-- <div class="chat--padder"></div> -->
-      <% @bullets.each do |bullet| %>
-        <%= render partial: bullet.to_partial_path, locals: { bullet: bullet } %>
+
+      <% if @bullets.present? %>
+        <% @bullets.each do |bullet| %>
+          <%= render partial: bullet.to_partial_path, locals: { bullet: bullet } %>
+        <% end %>
       <% end %>
-      <% if @bullets.empty? %>
-      <div id="no_bullets_container" style="position: sticky; bottom: var(--chat-composer-clearance);" class="layout--container layout--container-sm layout--grid layout--surface layout--padded layout--mx-auto">
-        <div class="layout--grid-item typography--bold typography--center typography--h2">
-          <%= @daylog.bucket.name %>
-        </div>
-        <div class="layout--grid-item typography--center typography--paragraph-sm">
-          <%= @selected_date.strftime("%a, %b %-d") %>
-        </div>
-        <p
-        class="
-        typography--paragraph-md typography--center layout--padded
-        layout--mx-auto
-        "
-        >
-        No bullets yet. Start a
-        braindumping session. Or checkout the backlog.
-      </p>
-
-<div class="layout--container layout--container-sm layout--grid layout--surface layout--padded layout--mx-auto">
-<% @monthlylog_bullets.each do |bullet| %>
-<div class="layout--flex layout--gapped">
-  <%= icon_tag("circle", style: "color: #{colour(bullet.colour)};")%>
-  <%= bullet.name %>
-</div>
-<br>
-
-<% end %>
-<div class="layout--flex layout--gapped layout--mx-auto">
-  <%= link_to "Triage", triage_path, class: "button--secondary button--sm" %>
-  </div>
-</div>
 
     </div>
-    <% end %>
-      <%= render "bullets/composer",
+    <div id="daylog_composer" class="chat--composer composer--dock" data-controller="chat-composer">
+      <%= render "bullets/composer_v2",
+        bullet: Bullet.new,
         bucket_id: @daylog.bucket.id,
         pops_on: @selected_date,
-        variants: %w[Task Note Event Voice],
+        allowed_bulletable_variants: ["Task", "Note", "Event", "Voice"],
+        preset: "default",
+        autofocus: false,
         composer_id: "daylog_bullets_composer" %>
-
     </div>
   </div>
-
-
 </div>

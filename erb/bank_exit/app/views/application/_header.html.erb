@@ -4,23 +4,31 @@
 business_guide_tutorial = tutorials.find(&:cryptopayment_for_business?)
 accounting_tutorial = tutorials.find(&:accounting?)
 
+active_projects = controller_name == "projects"
+active_blogs = controller_name == "blogs"
+active_tutorials = controller_name == "tutorials"
 active_map = controller_path.in?(%w[maps merchants merchants/itineraries])
 active_directories = controller_name == "directories"
 active_merchants = active_map || active_directories
 active_guides = controller_name.in?(%w[blogs tutorials ecosystems]) && params[:id] != 'flyer'
 active_about = controller_name.in?(%w[local_groups collectives media])
-active_projects = controller_name == "projects" || (controller_name == "blogs" && params[:id] == "flyer")
 
-megamenu_popover_class = "flex max-lg:flex-col lg:items-center justify-center text-base-content gap-6 lg:py-3"
-root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
+megamenu_popover_class = "flex max-lg:flex-col lg:items-center gap-6 lg:py-3"
+root_menu_active_class = "lg:bg-base-300 lg:rounded-md"
+
+background_header = "bg-base-100/90 shadow-sm backdrop-blur" %>
 
 <header
   class="
-    sticky top-0 bg-base-100/90 z-50 border-b border-base-content/10
-    backdrop-blur print:hidden
+    <%= class_names(
+    "fixed inset-x-0 z-50 print:hidden transition-colors duration-300",
+    background_header => !current_page?(root_path)
+    ) %>
   "
+  data-controller="<%= 'header' if current_page?(root_path) %>"
+  data-header-background-class="<%= background_header %>"
 >
-  <div class="navbar shadow-sm">
+  <div class="navbar">
     <div class="navbar-start max-sm:w-full">
       <%= link_to root_path,
             class: "flex items-center gap-3",
@@ -42,12 +50,9 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
       <% end %>
     </div>
 
-    <div class="navbar-center text-base-content">
+    <div class="navbar-center">
       <div
-        class="
-          megamenu max-lg:megamenu-vertical megamenu-full text-base-content
-          lg:gap-2
-        "
+        class="megamenu max-lg:megamenu-vertical lg:gap-2"
         id="main_menu"
         popover
       >
@@ -60,13 +65,14 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
           <%= t(".merchants") %>
         </button>
 
-        <div id="d1" class="bg-base-100/98" popover>
+        <div id="d1" class="megamenu-popover-item" popover>
           <div class="<%= megamenu_popover_class %>">
             <ul class="menu menu-horizontal items-start gap-6">
               <li>
                 <%= raw_link_to maps_path,
                       class: class_names("menu-active": active_map),
-                      hotkey: 'shift+1' do %>
+                      hotkey: 'shift+1',
+                      size: 'xs' do %>
                   <%= t('.map') %>
                 <% end %>
 
@@ -92,7 +98,7 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
                       <% locale = :gb if locale == :en %>
 
                       <%= link_to maps_path(country: locale.upcase) do %>
-                        <%= pretty_country_html(locale) %>
+                        <%= formatted_country(locale) %>
                       <% end %>
                     </li>
                   <% end %>
@@ -110,7 +116,8 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
               <li>
                 <%= raw_link_to directories_path,
                         class: class_names("menu-active": active_directories),
-                        hotkey: 'shift+2' do %>
+                        hotkey: 'shift+2',
+                        size: 'xs' do %>
                   <%= t('.directories') %>
                 <% end %>
 
@@ -132,7 +139,7 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
               </li>
             </ul>
 
-            <%= link_to maps_path, class: "md:max-w-sm max-lg:hidden" do %>
+            <%= link_to maps_path, class: "md:max-w-sm max-lg:hidden mr-5" do %>
               <%= image_tag "map_light.jpg", class: "rounded-lg map-light", alt: "Map light preview", loading: :lazy %>
               <%= image_tag "map_dark.jpg", class: "rounded-lg map-dark", alt: "Map dark preview", loading: :lazy %>
             <% end %>
@@ -146,11 +153,15 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
           <%= t('.projects') %>
         </button>
 
-        <div id="d2" class="bg-base-100/98" popover>
+        <div id="d2" class="megamenu-popover-item" popover>
           <div class="<%= megamenu_popover_class %>">
             <ul class="menu">
               <li>
-                <%= link_to t('.projects'), projects_path %>
+                <%= raw_link_to projects_path,
+                                hotkey: 'shift+3',
+                                size: 'xs' do %>
+                  <%= t('.projects') %>
+                <% end %>
 
                 <ul>
                   <% projects.each do |project| %>
@@ -178,7 +189,7 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
           <%= t(".guides") %>
         </button>
 
-        <div id="d3" class="bg-base-100/98" popover>
+        <div id="d3" class="megamenu-popover-item" popover>
           <div class="<%= megamenu_popover_class %>">
             <ul class="menu menu-horizontal items-start">
               <li>
@@ -188,15 +199,18 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
 
                 <ul>
                   <li>
-                    <%= link_to blogs_path,
-                        class: ('menu-active' if params[:controller] == 'blogs' && params[:id] != 'flyer') do %>
+                    <%= raw_link_to blogs_path,
+                                    class: class_names("menu-active": active_blogs),
+                                    hotkey: 'shift+4',
+                                    size: 'xs' do %>
                       <%= t('.blogs') %>
                     <% end %>
                   </li>
 
                   <li>
-                    <%= link_to tutorials_path,
-                          class: ('menu-active' if current_page?(tutorials_path)) do %>
+                    <%= raw_link_to tutorials_path,
+                                    hotkey: 'shift+5',
+                                    size: 'xs' do %>
                       <%= t('.tutorials') %>
                     <% end %>
 
@@ -251,26 +265,6 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
                 </ul>
               </li>
             </ul>
-
-            <div class="avatar-group -space-x-6 md:max-w-sm max-lg:hidden">
-              <div class="avatar">
-                <div class="w-16">
-                  <%= image_tag "coins/logo-monero.svg", alt: "Monero logo", loading: :lazy %>
-                </div>
-              </div>
-
-              <div class="avatar">
-                <div class="w-16">
-                  <%= image_tag "coins/logo-bitcoin.svg", alt: "Bitcoin logo", loading: :lazy %>
-                </div>
-              </div>
-
-              <div class="avatar">
-                <div class="w-16">
-                  <%= image_tag "coins/logo-june.svg", alt: "June logo", loading: :lazy %>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -281,7 +275,7 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
           <%= t('about') %>
         </button>
 
-        <div id="d4" class="bg-base-100/98" popover>
+        <div id="d4" class="megamenu-popover-item" popover>
           <div class="<%= megamenu_popover_class %>">
             <ul class="menu md:menu-horizontal items-start">
               <li>
@@ -313,7 +307,7 @@ root_menu_active_class = "lg:bg-base-300 lg:rounded-md" %>
                   </li>
 
                   <li>
-                    <%= link_to '#contact', data: { turbo: false }, onclick: "main_menu.hidePopover();" do %>
+                    <%= link_to '#contact', data: { turbo: false }, onclick: "main_menu.hidePopover(); this.closest('[popover]').hidePopover();" do %>
                       <%= t('.contact') %>
                       <%= lucide_icon "anchor", class: "w-4" %>
                     <% end %>

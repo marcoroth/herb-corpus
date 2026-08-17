@@ -1,24 +1,25 @@
 <% content_for :content do %>
-  <% form_id = dom_id(@work_form, 'tabbed_form') %>
-  <% discard_draft_form_id = dom_id(@work_form, 'discard_form') %>
-  <%= render Edit::DiscardDraftFormComponent.new(presenter: @work_presenter, id: discard_draft_form_id) if @work_presenter %>
-  <% active_tab_name = params[:tab]&.to_sym || @active_tab_name || :files %>
-  <%= render Edit::TabForm::TabListComponent.new(model: @work_form, form_id:, hidden_fields: %i[lock version collection_druid content_id creation_date deposit_publication_date apo copyright form_id]) do |component| %>
-    <% component.with_tab(label: t('work_form.panes.files.tab_label'), tab_name: :files, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('work_form.panes.title.tab_label'), tab_name: :title, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('work_form.panes.contributors.tab_label'), tab_name: :contributors, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('work_form.panes.abstract.tab_label'), tab_name: :abstract, active_tab_name:) %>
-    <% component.with_tab(label: t('work_form.panes.types.tab_label'), tab_name: :types, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('work_form.panes.license.tab_label'), tab_name: :license, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('work_form.panes.dates.tab_label'), tab_name: :dates, active_tab_name:) %>
-    <% component.with_tab(label: t('work_form.panes.related_content.tab_label'), tab_name: :related_content, active_tab_name:) %>
-    <% component.with_tab(label: t('work_form.panes.citation.tab_label'), tab_name: :citation, active_tab_name:) %>
-    <% component.with_tab(label: t('work_form.panes.deposit.tab_label'), tab_name: :deposit, active_tab_name:, mark_required: true) %>
-    <%# The panes below need a form in order to render their contents. This provides a "fake" form to use for that purpose. %>
-    <%# TabListComponent will render the actual form. %>
-    <% form_with(model: @work_form) do |form| %>
-      <%# This pane is outside the work form because it contains its own forms for files. %>
-      <% component.with_before_form_pane(tab_name: :files, label: t('work_form.panes.files.label'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, previous_tab_btn: false, mark_required: true) do %>
+  <%= render Edit::DiscardDraftFormComponent.new(presenter: @work_presenter, id: @tab_form_presenter.discard_draft_form_id) if @work_presenter %>
+  <%# The real form is rendered outside the TabListComponent, but will be referenced by input fields inside of it. %>
+  <%= render SdrViewComponents::TabForm::HiddenFieldsFormComponent.new(model: @work_form, id: @tab_form_presenter.form_id, hidden_fields: %i[lock version collection_druid content_id creation_date deposit_publication_date apo copyright form_id]) %>
+  <%= render SdrViewComponents::TabForm::TabListComponent.new(id: @tab_form_presenter.form_id, active_tab_name: @tab_form_presenter.active_tab_name, data: { action: 'change->ahoy-form-changes#changed change->unsaved-changes#changed change->sdr-tab-error#changed' }) do |component| %>
+    <% component.with_tab(label: t('work_form.panes.files.tab_label'), tab_name: :files, mark_required: true) %>
+    <% component.with_tab(label: t('work_form.panes.title.tab_label'), tab_name: :title, mark_required: true) %>
+    <% component.with_tab(label: t('work_form.panes.contributors.tab_label'), tab_name: :contributors, mark_required: true) %>
+    <% component.with_tab(label: t('work_form.panes.abstract.tab_label'), tab_name: :abstract) %>
+    <% component.with_tab(label: t('work_form.panes.types.tab_label'), tab_name: :types, mark_required: true) %>
+    <% component.with_tab(label: t('work_form.panes.license.tab_label'), tab_name: :license, mark_required: true) %>
+    <% component.with_tab(label: t('work_form.panes.dates.tab_label'), tab_name: :dates) %>
+    <% component.with_tab(label: t('work_form.panes.related_content.tab_label'), tab_name: :related_content) %>
+    <% component.with_tab(label: t('work_form.panes.citation.tab_label'), tab_name: :citation) %>
+    <% component.with_tab(label: t('work_form.panes.deposit.tab_label'), tab_name: :deposit, mark_required: true) %>
+
+    <%# This builder is used only to render pane content; TabListComponent will not render this as a form. %>
+    <%# TabbedFormBuilder sets the `form` attribute on the fields it builds to the real form's id, so they %>
+    <%# submit correctly even though they aren't necessarily nested inside it. %>
+    <% form_with(model: @work_form, html: { id: @tab_form_presenter.form_id }, builder: SdrViewComponents::TabForm::TabbedFormBuilder) do |form| %>
+      <%# This pane contains its own form for files. %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :files, label: t('work_form.panes.files.label'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, previous_tab_btn: false, mark_required: true)) do %>
         <%= render Elements::Forms::InvalidFeedbackComponent.new(form:, field_name: :content) %>
 
         <%= render 'contents/edit', content: @content, form_id: @work_form.form_id %>
@@ -30,44 +31,44 @@
         </div>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :title, label: t('work_form.panes.title.label'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, mark_required: true) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :title, label: t('work_form.panes.title.label'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, mark_required: true)) do %>
         <%= render Works::Edit::TitleComponent.new(form:, work_form: @work_form, mark_contact_emails_required: false) %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :contributors, label: t('work_form.panes.contributors.label'), help_text: t('work_form.panes.contributors.help_text'), tooltip: t('work_form.panes.contributors.tooltip_html'),
-                                  form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, mark_required: true, pane_header_class: nil) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :contributors, label: t('work_form.panes.contributors.label'), help_text: t('work_form.panes.contributors.help_text'), tooltip: t('work_form.panes.contributors.tooltip_html'),
+                                                            form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, mark_required: true, pane_header_class: nil)) do %>
         <%= render Works::Edit::ContributorsComponent.new(form:) %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :abstract, label: t('work_form.panes.abstract.label'), help_text: t('work_form.panes.abstract.help_text'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :abstract, label: t('work_form.panes.abstract.label'), help_text: t('work_form.panes.abstract.help_text'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter)) do %>
         <%= render Works::Edit::AbstractComponent.new(form:, mark_abstract_required: false, mark_keywords_required: false) %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :types, label: t('work_form.panes.types.label'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, mark_required: true) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :types, label: t('work_form.panes.types.label'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, mark_required: true)) do %>
         <%= render Works::Edit::WorkTypeComponent.new(form:, collection: @collection) %>
         <%= render Works::Edit::VersionIdentificationComponent.new(form:) %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :license, label: t('work_form.panes.license.label'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, mark_required: true) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :license, label: t('work_form.panes.license.label'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, mark_required: true)) do %>
         <%= render Works::Edit::LicenseComponent.new(form:, license_presenter: @license_presenter, license_help_url: Settings.article_license_url) %>
         <% unless @collection.no_custom_rights_statement_option? %>
           <%= render Works::Edit::TermsOfUseComponent.new(form:, collection: @collection) %>
         <% end %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :dates, label: t('work_form.panes.dates.label'), tooltip: t('work_form.panes.dates.tooltip_html'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :dates, label: t('work_form.panes.dates.label'), tooltip: t('work_form.panes.dates.tooltip_html'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter)) do %>
         <%= render Works::Edit::DatesComponent.new(form:) %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :related_content, label: t('work_form.panes.related_content.label'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, pane_header_class: nil) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :related_content, label: t('work_form.panes.related_content.label'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, pane_header_class: nil)) do %>
         <%= render NestedComponentPresenter.for(form:, field_name: :related_works, model_class: RelatedWorkForm, form_component: RelatedWorks::EditComponent, fieldset_classes: 'pane-section') %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :citation, label: t('work_form.panes.citation.label'), tooltip: t('work_form.panes.citation.tooltip_html'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, help_text: t('work_form.panes.citation.help_text'), active_tab_name:) do %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :citation, label: t('work_form.panes.citation.label'), tooltip: t('work_form.panes.citation.tooltip_html'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, help_text: t('work_form.panes.citation.help_text'))) do %>
         <%= render Works::Edit::CitationComponent.new(form:) %>
       <% end %>
 
-      <% component.with_work_pane(tab_name: :deposit, label: t('work_form.panes.deposit.label'), form_id:, discard_draft_form_id:, work_presenter: @work_presenter, active_tab_name:, next_tab_btn: false, mark_required: true) do |pane_component| %>
+      <% component.with_pane(Works::Edit::PaneComponent.new(tab_name: :deposit, label: t('work_form.panes.deposit.label'), form:, discard_draft_form_id: @tab_form_presenter.discard_draft_form_id, work_presenter: @work_presenter, next_tab_btn: false, mark_required: true)) do |pane_component| %>
         <% pane_component.with_help do %>
           <ul class="mb-0">
             <li>Be sure you have completed all the required sections.</li>
@@ -82,10 +83,10 @@
             <%#
               When what's changing textarea is invalid and the user provides a value and then clicks Deposit / Save as draft,
               the change event is triggered first. The changes made to the DOM cause the form submit to be blocked.
-              By calling tab-error#changed on the input event, the DOM is updated sooner than the change event,
+              By calling sdr-tab-error#changed on the input event, the DOM is updated sooner than the change event,
               allowing the form to be submitted without blocking.
             %>
-            <%= render Elements::Forms::TextareaFieldComponent.new(form:, field_name: :whats_changing, label: t('work_form.fields.whats_changing.label'), tooltip: t('work_form.fields.whats_changing.tooltip_html'), maxlength: 100, data: { action: 'input->tab-error#changed' }) %>
+            <%= render Elements::Forms::TextareaFieldComponent.new(form:, field_name: :whats_changing, label: t('work_form.fields.whats_changing.label'), tooltip: t('work_form.fields.whats_changing.tooltip_html'), maxlength: 100, data: { action: 'input->sdr-tab-error#changed' }) %>
           </div>
         <% else %>
           <%# This is a dummy value that is needed for validation, but won't be used for the version description. %>
@@ -93,7 +94,7 @@
         <% end %>
         <%= render Works::Edit::TermsOfDepositComponent.new(form:) %>
         <% pane_component.with_deposit_button do %>
-          <%= render Works::Edit::SubmitComponent.new(work: @work, collection: @collection, data: { action: 'unsaved-changes#allowFormSubmission' }) %>
+          <%= render Works::Edit::SubmitComponent.new(work: @work, collection: @collection, form:, data: { action: 'unsaved-changes#allowFormSubmission' }) %>
         <% end %>
       <% end %>
     <% end %>
