@@ -1,33 +1,99 @@
+<% content_for(:title, "Home") %>
 
-<main class="layout--page">
-<p class="utilities--mx-auto typography--paragraph-sm">Press ⌘+K to open the menu</p>
-<div class="layout--container layout--container-lg layout--gapped layout--flex-grid-container" style="--grid-cols-number: 3;">
-  <aside class="home--side layout--grid-item">
-    <%= render "home_actions" %>
-    <%= render "appearance_picker", appearance: @appearance %>
-  </aside>
+<main class="home--page layout--container" data-size="sm" data-padding="true">
+  <%= render "home/header" %>
 
-  <div class="layout--surface layout--grid-item span-2 home--section-list layout--padded">
-    <div class="layout--flex layout--justify-between layout--surface layout--surface-sunken layout--padded">
-      <div>
-    <h2 class="typography--h2">Hi there, <%= current_user.email_address.split("@").first %> 😉 </h2>
-    <p class="typography--paragraph-sm">Welcome to your home page</p>
-    </div>
 
-    </div>
-    <% @sections.each do |section| %>
-      <%= render "home_section", section: section %>
+  <div class="layout--flex" data-direction="column">
+    <% if mobile_variant? %>
+      <section class="layout--surface layout--flex" data-home-section="pins" data-elevation="1" data-padding="true" data-direction="column">
+        <%= link_to pinned_index_path, class: "home--section-link", data: { turbo_frame: "_top" } do %>
+<h2>Pins</h2><%= icon_tag("arrow-right") %>
+        <% end %>
+        <% @pinned_entities.each do |entity| %>
+          <%= render "home/preview_link", path: polymorphic_path(entity.pinnable), icon: entity.pinnable.icon,
+                colour: colour(entity.pinnable.colour), name: entity.pinnable.name %>
+        <% end %>
+        <% if @pinned_entities.empty? %><p>Nothing pinned yet.</p><% end %>
+      </section>
     <% end %>
-  </div>
 
-  <aside class="layout--grid-item home--side home--activity">
-    <turbo-frame
-      id="home_activities"
-      src="<%= home_activities_path %>"
-      loading="lazy"
-    >
-    <%= icon_tag("spinner", class: "animations--spin", style: "margin-top: var(--spacing-vertical-triple); layout--mx-auto;") %>
-  </turbo-frame>
-</aside>
-</div>
+    <section class="layout--surface layout--flex" data-home-section="logs" data-elevation="1" data-padding="true" data-direction="column">
+      <div class="home--section-label"><h2>Logs</h2></div>
+      <%= render "home/preview_link", path: current_monthlylog_navigation_path, icon: "calendar", name: "Monthly log" %>
+      <%= render "home/preview_link", path: current_future_path, icon: "calendar-repeat", name: "Future log" %>
+    </section>
+
+    <section class="layout--surface layout--flex" data-home-section="collections" data-elevation="1" data-padding="true" data-direction="column">
+      <%= link_to collections_path, class: "home--section-link", data: { turbo_frame: "_top" } do %>
+         <h2>Collections</h2><%= icon_tag("arrow-right") %>
+      <% end %>
+      <% @collections.each do |collection| %>
+        <%= render "home/preview_link", path: collection_path(collection), icon: collection.icon,
+              colour: colour(collection.colour), name: collection.name %>
+      <% end %>
+      <% if @collections.empty? %><p>Collections are like folders in a traditional notebook — group related bullets and keep them organised for as long as you need.</p><% end %>
+      <%= link_to new_collection_path, class: "button",
+            data: { turbo_frame: "_top", intent: "secondary", radius: "base", size: "sm" } do %>
+        <%= icon_tag("plus") %><p>Add collection</p>
+      <% end %>
+    </section>
+
+    <section class="layout--surface layout--flex" data-home-section="attachments" data-elevation="1" data-padding="true" data-direction="column">
+      <%= link_to attachments_path, class: "home--section-link", data: { turbo_frame: "_top" } do %>
+        <h2>Attachments</h2><%= icon_tag("arrow-right") %>
+      <% end %>
+      <% if @attachments.any? %>
+        <div class="home--attachment-previews">
+          <%= render partial: "home/attachment_preview", collection: @attachments, as: :attachment %>
+        </div>
+      <% else %>
+        <p>Upload files to your journal to keep track of your documents.</p>
+      <% end %>
+    </section>
+
+    <section class="layout--surface layout--flex" data-home-section="projects" data-elevation="1" data-padding="true" data-direction="column">
+      <%= link_to projects_path, class: "home--section-link", data: { turbo_frame: "_top" } do %>
+        <h2>Projects</h2><%= icon_tag("arrow-right") %>
+      <% end %>
+      <% @projects.each do |project| %>
+        <%= render "home/preview_link", path: project_path(project), icon: project.icon,
+              colour: colour(project.colour), name: project.name %>
+      <% end %>
+      <% if @projects.empty? %><p>Put a # in your note or task to create a thread to make a connection between bullets.</p><% end %>
+    </section>
+
+    <section class="layout--surface layout--flex" data-home-section="trackers" data-elevation="1" data-padding="true" data-direction="column">
+      <%= link_to trackers_path, class: "home--section-link", data: { turbo_frame: "_top" } do %>
+        <h2>Trackers</h2><%= icon_tag("arrow-right") %>
+      <% end %>
+      <% @trackers.each do |tracker| %>
+        <%= render "home/preview_link", path: tracker_path(tracker), icon: tracker.icon,
+              colour: colour(tracker.colour), name: tracker.name %>
+      <% end %>
+      <% if @trackers.empty? %><p>Create trackers to track your progress.</p><% end %>
+      <%= link_to new_tracker_path, class: "button",
+            data: { turbo_frame: "_top", intent: "secondary", radius: "base", size: "sm" } do %>
+        <%= icon_tag("plus") %><p>Add tracker</p>
+      <% end %>
+    </section>
+
+    <section class="layout--surface layout--flex" data-home-section="recently-shared" data-elevation="1" data-padding="true" data-direction="column">
+      <%= link_to published_index_path, class: "home--section-link", data: { turbo_frame: "_top" } do %>
+        <h2>Recently shared</h2><%= icon_tag("arrow-right") %>
+      <% end %>
+      <% @published_bullets.each do |bullet| %>
+        <%= render "home/preview_link", path: bullet_path(bullet), icon: bullet.marker_icon.to_s.dasherize,
+              colour: colour(bullet.colour), name: bullet.name %>
+      <% end %>
+      <% if @published_bullets.empty? %><p>Share your bullets with others to collaborate on projects.</p><% end %>
+    </section>
+
+    <div class="layout--flex" data-justify="center">
+    <%= link_to archived_index_path, class: "button",
+            data: { intent: "secondary", radius: "full", size: "lg", turbo_frame: "_top" } do %>
+        <%= icon_tag("archive") %> <p>Archive</p>
+      <% end %>
+    </div>
+  </div>
 </main>

@@ -1,4 +1,4 @@
-<%# locals: (article:) %>
+<%# locals: (article:, previous_article:, next_article:) %>
 
 <article>
   <header
@@ -13,7 +13,7 @@
   >
     <div class="hero-overlay"></div>
 
-    <div class="hero-content hero-content-main text-center">
+    <div class="hero-content">
       <div class="max-w-5xl space-y-8">
         <div class="space-y-4">
           <h1 class="text-3xl font-bold lg:text-4xl">
@@ -92,7 +92,91 @@
     <%= render "breadcrumb" %>
     <%= yield :coins %>
 
-    <%= highlight(article.render_template, params[:q], sanitize: false) %>
+    <%= highlight(article.render_template, sanitize(params[:q]), sanitize: false) %>
+
+    <p class="text-xs italic text-right">
+      <% icon = article.human? ? "bot-off" : "bot" %>
+      <%= lucide_icon icon, class: 'inline w-3.5' %>
+
+      <%= t(".#{article.content_origin}") %>
+    </p>
+
+    <% navigation_justify =
+      if previous_article && next_article
+        "justify-between"
+      elsif previous_article
+        "justify-start"
+      else
+        "justify-end"
+      end %>
+
+    <div class="flex max-md:flex-col <%= navigation_justify %> gap-3">
+      <% if previous_article %>
+        <%= link_to polymorphic_path(previous_article),
+                    class: "group card card-side items-start md:w-1/2 lg:w-2/5 min-w-0 gap-0 bg-base-200 hover:text-primary",
+                    data: {
+                      controller: 'hotkey',
+                      action: "keydown.ctrl+left@document->hotkey#click",
+                      hotkey_prevent_focus_scroll_value: "true"
+                    } do %>
+          <% if previous_article.logo? %>
+            <figure class="shrink-0 overflow-hidden">
+              <%= image_tag previous_article.logo,
+                alt: previous_article.title,
+                class: "size-20 object-cover motion-safe:transition-transform motion-safe:group-hover:scale-115 motion-safe:group-focus-visible:scale-115" %>
+            </figure>
+          <% end %>
+
+          <div class="card-body py-2 px-3 min-w-0 gap-0">
+            <p class="text-xs uppercase text-base-content/50 mb-1">
+              <%= lucide_icon "arrow-left", class: "inline-flex w-4" %> <%= t('.prev_article') %>
+              <%= hotkey_label(['Ctrl', '◀︎'], size: 'xs') %>
+            </p>
+
+            <p class="font-semibold truncate">
+              <%= previous_article.title %>
+            </p>
+
+            <% if previous_article.created_at %>
+              <time class="text-xs opacity-40"><%= l(previous_article.created_at) %></time>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+
+      <% if next_article %>
+        <%= link_to polymorphic_path(next_article),
+                    class: "group card card-side items-start md:w-1/2 lg:w-2/5 min-w-0 gap-0 text-right bg-base-200 hover:text-primary",
+                    data: {
+                      controller: 'hotkey',
+                      action: "keydown.ctrl+right@document->hotkey#click",
+                      hotkey_prevent_focus_scroll_value: "true"
+                    } do %>
+          <div class="card-body py-2 px-3 min-w-0 gap-0">
+            <p class="text-xs uppercase text-base-content/50 mb-1">
+              <%= hotkey_label(['Ctrl', '▶︎'], size: 'xs') %> <%= t('.next_article') %>
+              <%= lucide_icon "arrow-right", class: "inline-flex w-4" %>
+            </p>
+
+            <p class="font-semibold truncate">
+              <%= next_article.title %>
+            </p>
+
+            <% if next_article.created_at %>
+              <time class="text-xs opacity-40"><%= l(next_article.created_at) %></time>
+            <% end %>
+          </div>
+
+          <% if next_article.logo? %>
+            <figure class="shrink-0">
+              <%= image_tag next_article.logo,
+                alt: next_article.title,
+                class: "size-20 object-cover motion-safe:transition-transform motion-safe:group-hover:scale-115 motion-safe:group-focus-visible:scale-115" %>
+            </figure>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
   </section>
 
   <%= yield :footer_actions %>

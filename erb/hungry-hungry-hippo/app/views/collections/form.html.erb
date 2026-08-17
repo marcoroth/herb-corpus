@@ -15,85 +15,86 @@
   <% end %>
   <%= render SdrViewComponents::Elements::HeadingComponent.new(level: :h1, text: @collection_form.title || 'Untitled collection', classes: 'mb-3') %>
   <%= render SdrViewComponents::Elements::AlertComponent.new(variant: :danger, text: t('messages.validation')) if defined?(@valid) && !@valid %>
-  <% discard_draft_form_id = dom_id(@collection_form, 'discard_form') %>
-  <%= render Edit::DiscardDraftFormComponent.new(presenter: @collection_presenter, id: discard_draft_form_id) if @collection_presenter %>
-  <% active_tab_name = params[:tab]&.to_sym || :details %>
-  <%= render Edit::TabForm::TabListComponent.new(model: @collection_form, hidden_fields: %i[lock version apo]) do |component| %>
-    <% component.with_tab(label: t('collection_form.panes.details.tab_label'), tab_name: :details, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('collection_form.panes.related_links.tab_label'), tab_name: :related_links, active_tab_name:) %>
-    <% component.with_tab(label: t('form.panes.access.tab_label'), tab_name: :access, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('collection_form.panes.license.tab_label'), tab_name: :license, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('collection_form.panes.terms_of_use.label'), tab_name: :terms_of_use, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('collection_form.panes.participants.tab_label'), tab_name: :participants, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('collection_form.panes.workflow.tab_label'), tab_name: :workflow, active_tab_name:, mark_required: true) %>
-    <% component.with_tab(label: t('collection_form.panes.types.tab_label'), tab_name: :types, active_tab_name:) %>
-    <% component.with_tab(label: t('collection_form.panes.works_contact_email.tab_label'), tab_name: :works_contact_email, active_tab_name:) %>
-    <% component.with_tab(label: t('collection_form.panes.contributors.tab_label'), tab_name: :contributors, active_tab_name:) %>
-    <% component.with_tab(label: t('collection_form.panes.deposit.tab_label'), tab_name: :deposit, active_tab_name:, mark_required: true) %>
-    <%# The panes below need a form in order to render their contents. This provides a "fake" form to use for that purpose. %>
-    <%# TabListComponent will render the actual form. %>
-    <% form_with(model: @collection_form) do |form| %>
-      <% component.with_collection_pane(tab_name: :details, label: t('collection_form.panes.details.label'), active_tab_name:, collection_presenter: @collection_presenter, previous_tab_btn: false, mark_required: true) do %>
-        <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :title, label: t('collection_form.fields.title.label'), tooltip: t('collection_form.fields.title.tooltip_html'), container_classes: 'pane-section', mark_required: true, label_classes: 'fw-bold') %>
-        <%= render Elements::Forms::TextareaFieldComponent.new(form:, field_name: :description, label: t('collection_form.fields.description.label'), tooltip: t('collection_form.fields.description.tooltip_html'), container_classes: 'pane-section', mark_required: true, label_classes: 'fw-bold') %>
-        <%= render NestedComponentPresenter.for(form:, field_name: :contact_emails, model_class: ContactEmailForm, form_component: Collections::Edit::ContactEmailsComponent, bordered: false, single_field: true, fieldset_classes: 'pane-section', mark_required: true) %>
-      <% end %>
+  <%= render Edit::DiscardDraftFormComponent.new(presenter: @collection_presenter, id: @tab_form_presenter.discard_draft_form_id) if @collection_presenter %>
+  <%= render SdrViewComponents::TabForm::HiddenFieldsFormComponent.new(model: @collection_form, id: @tab_form_presenter.form_id, hidden_fields: %i[lock version apo]) %>
+  <%= render SdrViewComponents::TabForm::TabListComponent.new(id: @tab_form_presenter.form_id, active_tab_name: @tab_form_presenter.active_tab_name, data: { action: 'change->ahoy-form-changes#changed change->unsaved-changes#changed change->sdr-tab-error#changed' }) do |component| %>
+    <% component.with_tab(label: t('collection_form.panes.details.tab_label'), tab_name: :details, mark_required: true) %>
+    <% component.with_tab(label: t('collection_form.panes.related_links.tab_label'), tab_name: :related_links) %>
+    <% component.with_tab(label: t('form.panes.access.tab_label'), tab_name: :access, mark_required: true) %>
+    <% component.with_tab(label: t('collection_form.panes.license.tab_label'), tab_name: :license, mark_required: true) %>
+    <% component.with_tab(label: t('collection_form.panes.terms_of_use.label'), tab_name: :terms_of_use, mark_required: true) %>
+    <% component.with_tab(label: t('collection_form.panes.participants.tab_label'), tab_name: :participants, mark_required: true) %>
+    <% component.with_tab(label: t('collection_form.panes.workflow.tab_label'), tab_name: :workflow, mark_required: true) %>
+    <% component.with_tab(label: t('collection_form.panes.types.tab_label'), tab_name: :types) %>
+    <% component.with_tab(label: t('collection_form.panes.works_contact_email.tab_label'), tab_name: :works_contact_email) %>
+    <% component.with_tab(label: t('collection_form.panes.contributors.tab_label'), tab_name: :contributors) %>
+    <% component.with_tab(label: t('collection_form.panes.deposit.tab_label'), tab_name: :deposit, mark_required: true) %>
 
-      <% component.with_collection_pane(tab_name: :related_links, label: t('collection_form.panes.related_links.label'), tooltip: t('collection_form.panes.related_links.tooltip_html'), help_text: t('collection_form.panes.related_links.help_text'), active_tab_name:, collection_presenter: @collection_presenter) do %>
-        <%= render NestedComponentPresenter.for(form:, field_name: :related_links, model_class: RelatedLinkForm, form_component: RelatedLinks::EditComponent, fieldset_classes: 'pane-section', skip_tooltip: true) %>
-      <% end %>
+    <%# This builder is used only to render pane content; TabListComponent will not render this as a form. %>
+    <%# TabbedFormBuilder sets the `form` attribute on the fields it builds to the real form's id, so they %>
+    <%# submit correctly even though they aren't necessarily nested inside it. %>
+    <% form_with(model: @collection_form, html: { id: @tab_form_presenter.form_id }, builder: SdrViewComponents::TabForm::TabbedFormBuilder) do |form| %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :details, label: t('collection_form.panes.details.label'), collection_presenter: @collection_presenter, previous_tab_btn: false, mark_required: true)) do %>
+      <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :title, label: t('collection_form.fields.title.label'), tooltip: t('collection_form.fields.title.tooltip_html'), container_classes: 'pane-section', mark_required: true, label_classes: 'fw-bold') %>
+      <%= render Elements::Forms::TextareaFieldComponent.new(form:, field_name: :description, label: t('collection_form.fields.description.label'), tooltip: t('collection_form.fields.description.tooltip_html'), container_classes: 'pane-section', mark_required: true, label_classes: 'fw-bold') %>
+      <%= render NestedComponentPresenter.for(form:, field_name: :contact_emails, model_class: ContactEmailForm, form_component: Collections::Edit::ContactEmailsComponent, bordered: false, single_field: true, fieldset_classes: 'pane-section', mark_required: true) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :access, label: t('collection_form.panes.access.label'), active_tab_name:, collection_presenter: @collection_presenter, mark_required: true) do %>
-        <%= render Collections::Edit::AccessSettingsComponent.new(form:) %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :related_links, label: t('collection_form.panes.related_links.label'), tooltip: t('collection_form.panes.related_links.tooltip_html'), help_text: t('collection_form.panes.related_links.help_text'), collection_presenter: @collection_presenter)) do %>
+      <%= render NestedComponentPresenter.for(form:, field_name: :related_links, model_class: RelatedLinkForm, form_component: RelatedLinks::EditComponent, fieldset_classes: 'pane-section', skip_tooltip: true) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :license, label: t('collection_form.panes.license.label'), help_text: t('collection_form.panes.license.help_text'), tooltip: t('collection_form.panes.license.tooltip_html'), active_tab_name:, collection_presenter: @collection_presenter, mark_required: true) do %>
-        <%= render Collections::Edit::LicenseComponent.new(form:) %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :access, label: t('collection_form.panes.access.label'), collection_presenter: @collection_presenter, mark_required: true)) do %>
+      <%= render Collections::Edit::AccessSettingsComponent.new(form:) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :terms_of_use, label: I18n.t('collection_form.panes.terms_of_use.label'), tooltip: t('collection_form.panes.terms_of_use.tooltip_html'), active_tab_name:, collection_presenter: @collection_presenter, mark_required: true) do |pane_component| %>
-        <% pane_component.with_help do %>
-          <p class="fw-bold mt-4"><%= t('form.license_terms_of_use') %></p>
-          <p class="my-4 ms-3 fst-italic"><%= t('terms_of_use') %></p>
-          <p class="fw-bold">The option below will allow you either to:</p>
-          <ol class="my-4">
-            <li>Provide a custom use statement that will appear on every deposit in this collection or</li>
-            <li>Allow Depositors to enter a custom use statement, typically one required by a publisher in order to deposit an Open Access version of an article. You will also be able to provide custom instructions for this field if you wish.</li>
-          </ol>
-        <% end %>
-        <%= render Collections::Edit::TermsOfUseComponent.new(form:) %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :license, label: t('collection_form.panes.license.label'), help_text: t('collection_form.panes.license.help_text'), tooltip: t('collection_form.panes.license.tooltip_html'), collection_presenter: @collection_presenter, mark_required: true)) do %>
+      <%= render Collections::Edit::LicenseComponent.new(form:) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :participants, label: t('collection_form.panes.participants.label'), help_text: t('collection_form.panes.participants.help_text'), active_tab_name:, collection_presenter: @collection_presenter, mark_required: true) do %>
-        <%= render Collections::Edit::ParticipantNotificationsComponent.new(form:) %>
-        <%= render Edit::BulkParticipantsComponent.new(form:, field_name: :managers, model_class: ManagerForm, form_component: Collections::Edit::ParticipantComponent,
-                                                       help_text: 'Managers will receive an email when a work is deposited.', mark_required: true) %>
-        <%= render Edit::BulkParticipantsComponent.new(form:, field_name: :depositors, model_class: DepositorForm, form_component: Collections::Edit::ParticipantComponent) %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :terms_of_use, label: I18n.t('collection_form.panes.terms_of_use.label'), tooltip: t('collection_form.panes.terms_of_use.tooltip_html'), collection_presenter: @collection_presenter, mark_required: true)) do |pane_component| %>
+      <% pane_component.with_help do %>
+        <p class="fw-bold mt-4"><%= t('form.license_terms_of_use') %></p>
+        <p class="my-4 ms-3 fst-italic"><%= t('terms_of_use') %></p>
+        <p class="fw-bold">The option below will allow you either to:</p>
+        <ol class="my-4">
+          <li>Provide a custom use statement that will appear on every deposit in this collection or</li>
+          <li>Allow Depositors to enter a custom use statement, typically one required by a publisher in order to deposit an Open Access version of an article. You will also be able to provide custom instructions for this field if you wish.</li>
+        </ol>
       <% end %>
+      <%= render Collections::Edit::TermsOfUseComponent.new(form:) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :workflow, label: t('collection_form.panes.workflow.label'), active_tab_name:, collection_presenter: @collection_presenter, mark_required: true) do %>
-        <%= render Collections::Edit::WorkflowComponent.new(form:) %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :participants, label: t('collection_form.panes.participants.label'), help_text: t('collection_form.panes.participants.help_text'), collection_presenter: @collection_presenter, mark_required: true)) do %>
+      <%= render Collections::Edit::ParticipantNotificationsComponent.new(form:) %>
+      <%= render Edit::BulkParticipantsComponent.new(form:, field_name: :managers, model_class: ManagerForm, form_component: Collections::Edit::ParticipantComponent,
+                                                     help_text: 'Managers will receive an email when a work is deposited.', mark_required: true) %>
+      <%= render Edit::BulkParticipantsComponent.new(form:, field_name: :depositors, model_class: DepositorForm, form_component: Collections::Edit::ParticipantComponent) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :types, label: t('collection_form.panes.types.label'), active_tab_name:, collection_presenter: @collection_presenter) do %>
-        <%= render Collections::Edit::WorkTypeComponent.new(form:) %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :workflow, label: t('collection_form.panes.workflow.label'), collection_presenter: @collection_presenter, mark_required: true)) do %>
+      <%= render Collections::Edit::WorkflowComponent.new(form:) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :works_contact_email, label: t('collection_form.panes.works_contact_email.label'), help_text: t('collection_form.panes.works_contact_email.help_text'), active_tab_name:, collection_presenter: @collection_presenter) do %>
-        <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :works_contact_email, label: t('collection_form.fields.works_contact_email.label'), tooltip: t('collection_form.fields.works_contact_email.tooltip_html'), container_classes: 'pane-section', label_classes: 'fw-bold') %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :types, label: t('collection_form.panes.types.label'), collection_presenter: @collection_presenter)) do %>
+      <%= render Collections::Edit::WorkTypeComponent.new(form:) %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :contributors, label: t('collection_form.panes.contributors.label'), help_text: t('collection_form.panes.contributors.help_text'), active_tab_name:, collection_presenter: @collection_presenter) do %>
-        <%= render NestedComponentPresenter.for(form:, field_name: :contributors, model_class: ContributorForm, form_component: Edit::ContributorComponent, hidden_label: true, fieldset_classes: 'pane-section') %>
-      <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :works_contact_email, label: t('collection_form.panes.works_contact_email.label'), help_text: t('collection_form.panes.works_contact_email.help_text'), collection_presenter: @collection_presenter)) do %>
+      <%= render Elements::Forms::TextFieldComponent.new(form:, field_name: :works_contact_email, label: t('collection_form.fields.works_contact_email.label'), tooltip: t('collection_form.fields.works_contact_email.tooltip_html'), container_classes: 'pane-section', label_classes: 'fw-bold') %>
+    <% end %>
 
-      <% component.with_collection_pane(tab_name: :deposit, label: t('collection_form.panes.deposit.label'), help_text: t('collection_form.panes.deposit.help_text_html'), active_tab_name:, collection_presenter: @collection_presente, next_tab_btn: false, mark_required: true) do |pane_component| %>
-        <%# For spacing %>
-        <div class="pane-section"></div>
-        <% pane_component.with_deposit_button do %>
-          <%= render Elements::Forms::SubmitComponent.new(label: 'Save', data: { action: 'unsaved-changes#allowFormSubmission' }) %>
-        <% end %>
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :contributors, label: t('collection_form.panes.contributors.label'), help_text: t('collection_form.panes.contributors.help_text'), collection_presenter: @collection_presenter)) do %>
+      <%= render NestedComponentPresenter.for(form:, field_name: :contributors, model_class: ContributorForm, form_component: Edit::ContributorComponent, hidden_label: true, fieldset_classes: 'pane-section') %>
+    <% end %>
+
+    <% component.with_pane(Collections::Edit::PaneComponent.new(tab_name: :deposit, label: t('collection_form.panes.deposit.label'), help_text: t('collection_form.panes.deposit.help_text_html'), collection_presenter: @collection_presente, next_tab_btn: false, mark_required: true)) do |pane_component| %>
+      <%# For spacing %>
+      <div class="pane-section"></div>
+      <% pane_component.with_deposit_button do %>
+        <%= render Elements::Forms::SubmitComponent.new(form_id: form.id, label: 'Save', data: { action: 'unsaved-changes#allowFormSubmission' }) %>
       <% end %>
+    <% end %>
     <% end %>
   <% end %>
 </div>

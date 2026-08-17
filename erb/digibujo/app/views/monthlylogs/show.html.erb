@@ -1,54 +1,88 @@
 <% content_for(:title) { @monthlylog.name } %>
 
-<% date_composer_id = "date_#{@date.iso8601}_bullets_composer"
-    unplanned_composer_id = "monthlylog_bullets_unplanned_composer" %>
-
-<div class="layout--page">
-  <main
-    class="
-      layout--container layout--container-xl layout--surface
-      layout--snap-grid-container
-    "
-    style="--grid-cols-number: 2; height: 90vh;"
-  >
+<main
+  class="monthlylog--container layout--container"
+  data-size="xl"
+>
+  <div class="monthlylog--surface layout--surface layout--grid" data-cols="2">
     <section
-      class="layout--padded layout--grid-item layout--flex"
-      data-column="true"
-      style="--grid-column: span 1;"
+      class="monthlylog--section divided--vertical"
       aria-label="Planned by date"
     >
-    <div class="layout--grid layout--gapped">
-      <h3>Planned by date</h3>
+    <div class="monthlylog--section-header">
+      <%= back_link_to daylog_path,
+        class: "button",
+        data: { content: "text", turbo_frame: "_top" },
+        aria: { label: "Back to Daylog" } do %>
+    <%= icon_tag("arrow-left") %>
+    <span>Back</span>
+    <% end %>
+      </div>
+      <div
+        class="monthlylog--section-content"
+        data-bulk-menu-target="list"
+      >
+        <% @days_with_bullets.each do |day, bullets| %>
+          <% date = day.to_date %>
+          <% current_day = date == Date.current %>
+          <div
+            class="<%= class_names("monthlylog--date-category", "monthlylog--date-category-no-bullets": bullets.empty?) %>"
+            data-controller="pops-drop monthlylog-calendar-drop-optimistic"
+            data-pops-drop-pops-url-value="<%= postpone_path %>"
+            data-pops-drop-bucket-id-value="<%= @monthlylog.bucket.id %>"
+            data-pops-drop-pops-on-value="<%= date.iso8601 %>"
+            data-pops-drop-requested-with-value="pops-drop"
+            data-pops-drop-optimistic-value="monthlylog-calendar-drop-optimistic"
+            data-drop-zone-value="<%= date.iso8601 %>"
+            data-monthlylog-calendar-drop-optimistic-count-value="<%= bullets.size %>"
+            data-action="dragover->pops-drop#dragover dragleave->pops-drop#dragleave drop->pops-drop#drop"
+          >
+            <%= link_to monthlylog_bullets_path(@monthlylog, date: date),
+                  class: "monthlylog--date-category-name monthlylog--date-link",
+                  style: "--highlight-colour: #{current_day ? 'var(--color-accent-1)' : 'var(--model-color-4)'};",
+                  data: { turbo_frame: "_top" },
+                  aria: { current: current_day ? "date" : nil } do %>
+              <span class="typography--bold">
+                <%= day.strftime('%-d %a') %>
+              </span>
+            <% end %>
 
-      <p>
-        View your planned bullets by date.
-      </p>
-    </div>
-    <br>
-      <%= render "monthlylogs/calendar",
-                monthlylog: @monthlylog,
-                days: @days,
-                date: @date,
-                bullet_counts_by_date: @bullet_counts_by_date,
-                pictures_by_date: @pictures_by_date %>
+            <div
+              id="<%= dom_id(@monthlylog.bucket, date) %>"
+              class="monthlylog--date-bullets"
+              data-monthlylog-drop-list
+            >
+              <% bullets.each do |bullet| %>
+                <%= render "monthlylogs/bullets/bullet", bullet: bullet %>
+              <% end %>
+            </div>
 
-      <div class="layout--flex layout--flex-auto" data-column="true">
-        <turbo-frame
-          id="monthlylog_bullets"
-          src="<%= monthlylog_bullets_path(@monthlylog, date: @date&.iso8601) %>"
-          class="utilities--contents"
-          data-pops-on="<%= @date&.iso8601 %>"
-        ></turbo-frame>
+            <% composer_id = dom_id(@monthlylog.bucket, "composer_#{date}")
+               composer_frame_id = "#{composer_id}_frame" %>
+            <turbo-frame id="<%= composer_frame_id %>">
+              <%= link_to new_composer_path(
+                    composer_id: composer_id,
+                    bucket_id: @monthlylog.bucket.id,
+                    pops_on: date.iso8601,
+                    allowed_bulletable_variants: ["Task", "Event"],
+                    return_to: monthlylog_path(@monthlylog, date: date.iso8601)
+                  ),
+                    class: "button",
+                    data: { intent: "secondary", radius: "full", size: "lg", content: "text" } do %>
+                <%= icon_tag("plus") %>
+                <span>Add bullet</span>
+              <% end %>
+            </turbo-frame>
+          </div>
+        <% end %>
       </div>
     </section>
 
     <section
-      class="layout--padded layout--grid-item layout--flex"
-      data-column="true"
-      style="--grid-column: span 1;"
+      class="monthlylog--section"
       aria-label="Unplanned"
     >
-      <div class="layout--grid layout--gapped">
+      <div class="monthlylog--section-header">
         <h3>Unplanned</h3>
 
         <p>
@@ -57,13 +91,39 @@
         </p>
       </div>
 
-      <div class="layout--flex layout--flex-auto" data-column="true">
-        <turbo-frame
-          id="monthlylog_bullets"
-          src="<%= monthlylog_bullets_path(@monthlylog) %>"
-          class="utilities--contents"
-        ></turbo-frame>
+      <div
+        class="monthlylog--section-content monthlylog--unplanned-category"
+        data-controller="pops-drop monthlylog-calendar-drop-optimistic"
+        data-pops-drop-pops-url-value="<%= postpone_path %>"
+        data-pops-drop-bucket-id-value="<%= @monthlylog.bucket.id %>"
+        data-pops-drop-pops-on-value=""
+        data-pops-drop-requested-with-value="pops-drop"
+        data-pops-drop-optimistic-value="monthlylog-calendar-drop-optimistic"
+        data-drop-zone-value=""
+        data-monthlylog-calendar-drop-optimistic-count-value="<%= @unplanned_bullets.size %>"
+        data-action="dragover->pops-drop#dragover dragleave->pops-drop#dragleave drop->pops-drop#drop"
+      >
+        <div
+          id="<%= dom_id(@monthlylog.bucket, nil) %>"
+          class="monthlylog--date-bullets"
+          data-monthlylog-drop-list
+        >
+          <% @unplanned_bullets.each do |bullet| %>
+            <%= render "monthlylogs/bullets/bullet", bullet: bullet %>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="monthlylog--unplanned-composer composer--dock">
+        <%= render "bullets/composer_v2",
+            bullet: Bullet.new,
+            bucket_id: @monthlylog.bucket.id,
+            pops_on: nil,
+            allowed_bulletable_variants: ["Note", "Task"],
+            preset: "default",
+            autofocus: false,
+            composer_id: dom_id(@monthlylog.bucket, :composer) %>
       </div>
     </section>
-  </main>
-</div>
+  </div>
+</main>
