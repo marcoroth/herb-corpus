@@ -31,6 +31,7 @@ TEMPLATE_EXTENSIONS = %w[erb rhtml herb].freeze
 TEMPLATE_GLOB = "**/*.{#{TEMPLATE_EXTENSIONS.join(",")}}"
 LICENSE_FILENAMES = %w[LICENSE LICENCE MIT-LICENSE COPYING UNLICENSE].freeze
 PRIOR_ART_CACHE = File.join(ROOT, "prior-art.json")
+ERB_DIR = File.join(ROOT, "erb")
 
 CASED_PATTERNS = (LICENSE_FILENAMES + %w[README])
                  .flat_map { |name| [name, name.downcase, name.capitalize] }
@@ -112,8 +113,11 @@ def in_parallel(items, jobs)
 end
 
 App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
-  def dir = File.join(ROOT, path)
-  def cloned? = Dir.exist?(File.join(dir, ".git")) || File.exist?(File.join(dir, ".git"))
+  def frozen? = !meta["frozen"].nil?
+  def frozen_sha = meta["frozen"].to_s
+
+  def dir = frozen? ? File.join(ERB_DIR, name) : File.join(ROOT, path)
+  def cloned? = frozen? ? Dir.exist?(dir) : (Dir.exist?(File.join(dir, ".git")) || File.exist?(File.join(dir, ".git")))
   def repo = meta["repo"] || url.to_s.sub(%r{\Ahttps://github\.com/}, "").sub(/\.git\z/, "")
   def upstream = meta["upstream"]
   def fork? = meta["fork"] == true
@@ -123,6 +127,8 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
   def redistributable? = meta["redistributable"] != false
 
   def pinned_sha
+    return frozen_sha if frozen?
+
     if git?("rev-parse", "--verify", "--quiet", "HEAD")
       entry = git("ls-tree", "HEAD", path)
 
@@ -134,9 +140,15 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
     entry.empty? ? nil : entry.split(/\s+/)[1]
   end
 
-  def head_sha = cloned? ? git("rev-parse", "HEAD", chdir: dir) : nil
+  def head_sha
+    return frozen_sha if frozen?
+
+    cloned? ? git("rev-parse", "HEAD", chdir: dir) : nil
+  end
 
   def dirty?
+    return false if frozen?
+
     cloned? && !git("status", "--porcelain", chdir: dir).empty?
   end
 
@@ -206,6 +218,20 @@ def load_apps(filter = [])
     )
   end
 
+  seen = apps.map(&:name).to_set
+
+  manifest.each do |name, meta|
+    next if seen.include?(name) || meta["frozen"].nil?
+
+    apps << App.new(
+      name: name,
+      path: File.join("apps", name),
+      url: "https://github.com/#{meta["repo"]}",
+      branch: nil,
+      meta: meta
+    )
+  end
+
   apps.sort_by! { |app| app.name.downcase }
 
   return apps if filter.empty?
@@ -248,7 +274,7 @@ def command_clone(argv)
     parser.on("--refresh", "Re-apply sparse patterns to apps already cloned") { refresh = true }
   end.parse!(argv)
 
-  apps = load_apps(argv)
+  apps = load_apps(argv).reject(&:frozen?)
 
   if refresh
     already = apps.select(&:cloned?)
@@ -316,7 +342,7 @@ def command_drift(argv)
     parser.on("--jobs N", Integer, "Parallel ref queries (default: #{jobs})") { |value| jobs = value }
   end.parse!(argv)
 
-  apps = load_apps(argv)
+  apps = load_apps(argv).reject(&:frozen?)
 
   probed = in_parallel(apps, jobs) do |app|
     output = begin
@@ -392,6 +418,12 @@ def command_update(argv)
   report = { "moved" => [], "skipped" => [], "failed" => [], "unchanged" => 0 }
 
   apps.each do |app|
+    if app.frozen?
+      puts "#{Color.dim("frozen")} #{app.name} #{Color.dim("(#{short(app.frozen_sha)}, upstream gone)")}"
+      report["skipped"] << { "name" => app.name, "reason" => "frozen" }
+      next
+    end
+
     if app.dirty?
       puts "#{Color.yellow("skip")} #{app.name} #{Color.dim("(uncommitted local changes)")}"
       report["skipped"] << { "name" => app.name, "reason" => "uncommitted local changes" }
@@ -469,6 +501,10 @@ def command_status(argv)
   apps = load_apps(argv)
 
   rows = apps.map do |app|
+    if app.frozen?
+      next [app.name, Color.dim("frozen"), short(app.frozen_sha), Color.dim("-"), Color.dim("-")]
+    end
+
     unless app.cloned?
       next [app.name, Color.yellow("not cloned"), short(app.pinned_sha), app.branch, "-"]
     end
@@ -796,6 +832,13 @@ def command_remove(argv)
   0
 end
 
+def copy_file(source, target)
+  return if File.expand_path(source) == File.expand_path(target)
+
+  FileUtils.mkdir_p(File.dirname(target))
+  FileUtils.cp(source, target)
+end
+
 def command_extract(argv)
   out = File.join(ROOT, "erb")
   allow_partial = false
@@ -825,15 +868,28 @@ def command_extract(argv)
 
   manifest_path = File.join(out, "MANIFEST.json")
   previous = (JSON.parse(File.read(manifest_path)) if incremental && File.exist?(manifest_path))
+  keep = apps.select(&:frozen?).map { |app| File.join(out, app.name) }.to_set
 
   if previous
     entries = previous["apps"] || {}
     prior_excluded = previous["excluded"] || []
 
-    apps.each { |app| FileUtils.rm_rf(File.join(out, app.name)) }
+    apps.each do |app|
+      target = File.join(out, app.name)
+
+      FileUtils.rm_rf(target) unless keep.include?(target)
+    end
+
     excluded.each { |app| entries.delete(app.name) }
   else
-    FileUtils.rm_rf(out)
+    if Dir.exist?(out)
+      Dir.children(out).each do |child|
+        path = File.join(out, child)
+
+        FileUtils.rm_rf(path) unless keep.include?(path)
+      end
+    end
+
     FileUtils.mkdir_p(out)
 
     entries = {}
@@ -850,25 +906,29 @@ def command_extract(argv)
       source = File.join(app.dir, file)
       target = File.join(out, app.name, file)
 
-      FileUtils.mkdir_p(File.dirname(target))
-      FileUtils.cp(source, target)
+      copy_file(source, target)
     end
 
     if app.license_file && File.file?(File.join(app.dir, app.license_file))
-      FileUtils.cp(File.join(app.dir, app.license_file), File.join(out, app.name, File.basename(app.license_file)))
+      copy_file(File.join(app.dir, app.license_file), File.join(out, app.name, File.basename(app.license_file)))
     end
 
     if (config = app.herb_config)
-      FileUtils.cp(File.join(app.root_dir, config), File.join(out, app.name, config))
+      copy_file(File.join(app.root_dir, config), File.join(out, app.name, config))
     end
 
     herb_directory = Dir.exist?(File.join(app.root_dir, ".herb")) ? ".herb" : nil
 
-    FileUtils.cp_r(File.join(app.root_dir, ".herb"), File.join(out, app.name, ".herb")) if herb_directory
+    if herb_directory
+      source = File.join(app.root_dir, ".herb")
+      target = File.join(out, app.name, ".herb")
+
+      FileUtils.cp_r(source, target) unless File.expand_path(source) == File.expand_path(target)
+    end
 
     prior_art_configs = PRIOR_ART_CONFIGS.select { |name| File.file?(File.join(app.root_dir, name)) }
 
-    prior_art_configs.each { |name| FileUtils.cp(File.join(app.root_dir, name), File.join(out, app.name, name)) }
+    prior_art_configs.each { |name| copy_file(File.join(app.root_dir, name), File.join(out, app.name, name)) }
 
     entries[app.name] = {
       "repo" => app.repo,
@@ -882,6 +942,8 @@ def command_extract(argv)
       "prior_art_configs" => prior_art_configs,
       "files" => files.size
     }
+
+    entries[app.name]["frozen"] = true if app.frozen?
 
     total += files.size
     puts "#{Color.green("extract")} #{app.name} #{Color.dim(pluralize(files.size, "file"))}"

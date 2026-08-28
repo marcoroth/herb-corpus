@@ -124,6 +124,15 @@ Optional fields: `upstream` and `fork` when tracking a fork, `note` for anything
 explaining, and `exclude_paths` (comma-separated) for apps that license some directories
 differently and whose ERB in those directories must not be extracted.
 
+`frozen` records the last pinned SHA of an app whose upstream has disappeared — deleted, made
+private, or replaced by an unrelated history. Such an app has no submodule, and nothing can be
+fetched to rebuild it: what is already in `erb/<name>` is all that survives, so `extract` keeps
+that directory instead of regenerating it, and it is the one part of `erb/` that must not be
+deleted by hand. `clone`, `update` and `drift` skip the app, and `status` reports it as `frozen`,
+so no command chases a remote that is not coming back. Freezing only preserves templates that were
+already extracted under a license permitting redistribution; it is not a way to keep an app whose
+license does not.
+
 Formatting is maintained by [Yerba](https://github.com/marcoroth/yerba), configured in the
 `Yerbafile`: entries stay alphabetical by `name`, fields stay in a fixed order, and one blank line
 separates entries. `bin/corpus add` shovels new entries into the parsed document and saves with
