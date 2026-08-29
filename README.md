@@ -54,8 +54,17 @@ If you need the full applications:
 ```sh
 git clone https://github.com/marcoroth/herb-corpus
 cd herb-corpus
+bin/corpus setup
 bin/corpus clone
 ```
+
+`bin/corpus setup` writes a handful of git settings into `.git/config`. They cannot be committed, so
+each fresh checkout needs it once. The one that matters is `diff.ignoreSubmodules=dirty`: without
+it, every `git status` walks all of the submodule work trees looking for edits, which takes seconds
+rather than a tenth of one. It still reports a submodule whose HEAD has moved off its pin — the
+state that actually matters here — and only stops reporting uncommitted edits inside an app, which
+`bin/corpus status` shows per app anyway. Settings already set to something else are left alone
+unless you pass `--force`.
 
 ### Checkouts are ERB-only by default
 
@@ -71,6 +80,7 @@ are not at the tip of their branch, and a shallow fetch cannot reach them.
 ## The CLI
 
 ```
+bin/corpus setup     Apply the local git settings a fresh checkout wants
 bin/corpus clone     Clone the apps that are not checked out yet (ERB-only by default)
 bin/corpus update    Move each pin to the tip of its tracked branch
 bin/corpus status    Show each app's pin, checkout state, and drift

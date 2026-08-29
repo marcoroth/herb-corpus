@@ -835,6 +835,82 @@ def command_remove(argv)
   0
 end
 
+SETUP_CONFIG = [
+  {
+    "key" => "diff.ignoreSubmodules",
+    "value" => "dirty",
+    "why" => "keep `git status` fast across the submodules; pin changes are still reported",
+    "platforms" => nil
+  },
+  {
+    "key" => "core.untrackedCache",
+    "value" => "true",
+    "why" => "cache untracked-file scans of the working tree",
+    "platforms" => nil
+  },
+  {
+    "key" => "core.fsmonitor",
+    "value" => "true",
+    "why" => "use git's builtin filesystem monitor",
+    "platforms" => %w[darwin mingw mswin]
+  }
+].freeze
+
+def setting_applies?(setting)
+  platforms = setting["platforms"]
+
+  platforms.nil? || platforms.any? { |platform| RbConfig::CONFIG["host_os"].include?(platform) }
+end
+
+def command_setup(argv)
+  force = false
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus setup [options]"
+    parser.on("--force", "Overwrite settings that are already set to something else") { force = true }
+  end.parse!(argv)
+
+  changed = 0
+
+  SETUP_CONFIG.each do |setting|
+    key = setting["key"]
+    want = setting["value"]
+
+    unless setting_applies?(setting)
+      puts "#{Color.dim("skip")} #{key} #{Color.dim("(not supported on this platform)")}"
+      next
+    end
+
+    current = begin
+      git("config", "--local", "--get", key)
+    rescue CommandError
+      nil
+    end
+
+    if current == want
+      puts "#{Color.dim("same")} #{key}=#{want}"
+      next
+    end
+
+    if current && !current.empty? && !force
+      puts "#{Color.yellow("keep")} #{key}=#{current} #{Color.dim("(want #{want}; re-run with --force to change)")}"
+      next
+    end
+
+    if git?("config", "--local", key, want)
+      changed += 1
+      puts "#{Color.green("set")} #{key}=#{want} #{Color.dim(setting["why"])}"
+    else
+      puts "#{Color.red("fail")} #{key} #{Color.dim("(could not write the local git config)")}"
+    end
+  end
+
+  puts "\n#{changed.zero? ? "Nothing to change." : "#{pluralize(changed, "setting")} written to .git/config."}"
+  puts Color.dim("These are local to this clone, so every fresh checkout needs `corpus setup` once.")
+
+  0
+end
+
 def copy_file(source, target)
   return if File.expand_path(source) == File.expand_path(target)
 
@@ -2002,6 +2078,7 @@ def command_prior_art(argv)
 end
 
 COMMANDS = {
+  "setup" => method(:command_setup),
   "clone" => method(:command_clone),
   "prior-art" => method(:command_prior_art),
   "update" => method(:command_update),
@@ -2020,6 +2097,7 @@ USAGE = <<~TEXT
   usage: corpus <command> [options] [APP...]
 
   Commands:
+    setup     Apply the local git settings a fresh checkout wants
     clone     Clone the apps that are not checked out yet (ERB-only by default)
     update    Move each pin to the tip of its tracked branch
     status    Show each app's pin, checkout state, and drift
