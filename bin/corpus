@@ -116,7 +116,10 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
   def frozen? = !meta["frozen"].nil?
   def frozen_sha = meta["frozen"].to_s
 
-  def dir = frozen? ? File.join(ERB_DIR, name) : File.join(ROOT, path)
+  def frozen_source_dir = Dir.exist?(File.join(ROOT, path)) ? File.join(ROOT, path) : File.join(ERB_DIR, name)
+  def frozen_from_erb? = frozen? && frozen_source_dir == File.join(ERB_DIR, name)
+
+  def dir = frozen? ? frozen_source_dir : File.join(ROOT, path)
   def cloned? = frozen? ? Dir.exist?(dir) : (Dir.exist?(File.join(dir, ".git")) || File.exist?(File.join(dir, ".git")))
   def repo = meta["repo"] || url.to_s.sub(%r{\Ahttps://github\.com/}, "").sub(/\.git\z/, "")
   def upstream = meta["upstream"]
@@ -852,12 +855,12 @@ def command_extract(argv)
   incremental = argv.any?
 
   all = load_apps(argv)
-  apps = all.select(&:cloned?)
+  apps = all.select { |app| app.cloned? || app.frozen? }
   included, excluded = apps.partition(&:redistributable?)
 
   raise CommandError, "no cloned, redistributable apps to extract" if included.empty?
 
-  missing = all.reject(&:cloned?)
+  missing = all.reject { |app| app.cloned? || app.frozen? }
 
   if !incremental && missing.any? && !allow_partial
     raise CommandError,
@@ -868,7 +871,7 @@ def command_extract(argv)
 
   manifest_path = File.join(out, "MANIFEST.json")
   previous = (JSON.parse(File.read(manifest_path)) if incremental && File.exist?(manifest_path))
-  keep = apps.select(&:frozen?).map { |app| File.join(out, app.name) }.to_set
+  keep = apps.select(&:frozen_from_erb?).map { |app| File.join(out, app.name) }.to_set
 
   if previous
     entries = previous["apps"] || {}

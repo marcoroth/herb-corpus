@@ -125,13 +125,17 @@ explaining, and `exclude_paths` (comma-separated) for apps that license some dir
 differently and whose ERB in those directories must not be extracted.
 
 `frozen` records the last pinned SHA of an app whose upstream has disappeared — deleted, made
-private, or replaced by an unrelated history. Such an app has no submodule, and nothing can be
-fetched to rebuild it: what is already in `erb/<name>` is all that survives, so `extract` keeps
-that directory instead of regenerating it, and it is the one part of `erb/` that must not be
-deleted by hand. `clone`, `update` and `drift` skip the app, and `status` reports it as `frozen`,
-so no command chases a remote that is not coming back. Freezing only preserves templates that were
-already extracted under a license permitting redistribution; it is not a way to keep an app whose
-license does not.
+private, or replaced by an unrelated history. Nothing can be fetched for it any more, so `clone`,
+`update` and `drift` skip it, `status` reports it as `frozen`, and it never counts as missing when
+`extract` checks that a full run will not shrink `erb/`. It simply contributes whatever it still
+has, or nothing at all.
+
+What survives depends on the app. A redistributable one whose templates were already vendored keeps
+them: `extract` reads `erb/<name>` once the checkout is gone and stops regenerating that directory,
+making it the one part of `erb/` that must not be deleted by hand. An app that was never
+redistributable has nothing in `erb/` to keep — freezing only records that the upstream is gone and
+stops every command from chasing it. Freezing never vendors templates that the license did not
+already permit.
 
 Formatting is maintained by [Yerba](https://github.com/marcoroth/yerba), configured in the
 `Yerbafile`: entries stay alphabetical by `name`, fields stay in a fixed order, and one blank line
