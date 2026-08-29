@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="<%= get_language %>" data-theme="<%= theme_cookie_value %>" class="<%= theme_html_class %>">
+<head>
+  <meta charset="utf-8">
+  <%= display_meta_tags site: "#{ENV.fetch("BRAND_NAME").upcase} (ORG)",
+                        title: page_title,
+                        separator: "—",
+                        reverse: true %>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="turbo-refresh-method" content="morph">
+  <meta name="turbo-refresh-scroll" content="preserve">
+  <%= csrf_meta_tags %>
+  <%= csp_meta_tag %>
+  <%# Vite injects dev-mode styles and Inertia injects its progress bar as <style> elements
+      built at runtime. Both read the nonce from this tag, which is how they satisfy
+      style-src-elem without the policy having to allow unsafe-inline. %>
+  <meta property="csp-nonce" nonce="<%= content_security_policy_nonce %>">
+  <%= vite_client_tag nonce: true %>
+  <%= vite_react_refresh_tag nonce: true %>
+  <%= vite_stylesheet_tag "~/styles/surfaces/auth_org.css", nonce: true %>
+  <%= vite_typescript_tag "entrypoints/sign/org", nonce: content_security_policy_nonce, "data-turbo-eval": "false" %>
+  <%= inertia_ssr_head %>
+  <%= render "layouts/shared/cloudflare_turnstile_api" %>
+</head>
+<body>
+  <header>
+    <%= render "layouts/shared/flash_messages" %>
+    <%= render "layouts/shared/current_banner", tld: :org, domain: :sign, region: :global %>
+    <% unless @hide_auth_navigation %>
+      <nav aria-label="Primary">
+        <ul>
+          <% if logged_in? %>
+            <li><%= link_to t("sign.org.layout.nav.logout"), new_auth_org_sign_out_path %></li>
+          <% else %>
+            <li><%= link_to t("sign.org.layout.nav.sign_up"), auth_org_sign_up_url %></li>
+            <li><%= link_to t("sign.org.layout.nav.log_in"), auth_org_sign_in_url %></li>
+          <% end %>
+        </ul>
+      </nav>
+    <% end %>
+    <p><strong><%= link_to ENV.fetch("BRAND_NAME"), auth_org_root_path %></strong> (org)</p>
+  </header>
+
+  <main id="main">
+    <%= yield %>
+  </main>
+
+  <footer>
+    <nav aria-label="Footer">
+      <ul>
+        <% if logged_in? %>
+          <li><%= link_to t("sign.org.preferences.footer.dashboard"), base_org_dashboard_url(ri: current_region_identifier, host: base_authority_host) %></li>
+        <% else %>
+          <li><%= link_to t("sign.org.preferences.footer.home"), auth_org_root_url %></li>
+        <% end %>
+        <li><%= link_to t("sign.org.preferences.footer.preference"), base_org_preference_url(ri: current_region_identifier, host: base_authority_host) %></li>
+        <li><%= link_to t("sign.org.preferences.footer.settings"), base_org_identity_url(ri: current_region_identifier, host: base_authority_host) %></li>
+      </ul>
+    </nav>
+    <aside aria-label="Preferences">
+      <%= render "layouts/shared/footer_cookie_controls", scope: :org, base_host: base_authority_host %>
+      <%= render "layouts/shared/footer_theme_controls", scope: :org %>
+    </aside>
+    <div>
+      <%= render "layouts/shared/copyright" %>
+    </div>
+  </footer>
+</body>
+</html>
