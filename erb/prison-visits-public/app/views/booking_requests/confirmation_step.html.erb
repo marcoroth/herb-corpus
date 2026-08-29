@@ -1,0 +1,155 @@
+<% content_for :header, t('.title') %>
+
+<%= render('shared/timeout_prompt') %>
+
+<%
+  prisoner_step = @steps.fetch(:prisoner_step)
+  visitors_step = @steps.fetch(:visitors_step)
+  slots_step = @steps.fetch(:slots_step)
+  confirmation_step = @steps.fetch(:confirmation_step)
+%>
+
+<div class="grid-row">
+  <div class="column-full">
+    <p><%= t('.check_your_answers_intro_html') %></p>
+  </div>
+</div>
+
+<table class="responsive check-your-answers">
+  <thead>
+    <tr>
+      <th><%= t('.prisoner_details') %></th>
+      <th class="change-answer text-right">
+        <%= form_for(confirmation_step,
+             url: booking_requests_path,
+             html: { id: 'change_prisoner_details', class: 'js-SubmitOnce' }) do |f| %>
+          <%= render('hidden_prisoner_step') %>
+          <%= render('hidden_visitors_step') %>
+          <%= render('hidden_slots_step') %>
+          <%= hidden_field_tag('review_step', 'prisoner_step') %>
+          <%= f.submit(t('.change_prisoner_details'), class: 'button-link', role: 'link') %>
+        <% end %>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><%= t('.prisoner_name') %></td>
+      <td aria-label="Prisoner name"><%= prisoner_step.full_name %></td>
+    <tr>
+      <td><%= t('.date_of_birth') %></td>
+      <td aria-label="<%= t('.date_of_birth') %>"><%= format_date_of_birth(prisoner_step.date_of_birth) %></td>
+    </tr>
+    <tr>
+      <td><%= t('.prisoner_number') %></td>
+      <td aria-label="<%= t('.prisoner_number') %>"><%= prisoner_step.number %></td>
+    </tr>
+    <tr>
+      <td><%= t('.prison') %></td>
+      <td aria-label="<%= t('.prison') %>"><%= prisoner_step.prison_name %></td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="check-your-answers">
+  <thead>
+    <tr>
+      <th><%= I18n.t('booking_requests.confirmation_step.visit_details') %></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <% slots_step.slots.each.with_index do |slot,i| %>
+          <%= form_for(confirmation_step,
+                       url: booking_requests_path,
+                       html: { id: "change_slot_#{i}_details", class: 'js-SubmitOnce slot-confirmation' }) do |f| %>
+                       <%= render('hidden_prisoner_step') %>
+                       <%= render('hidden_visitors_step') %>
+                       <%= render('hidden_slots_step', review_slot: i.to_s) %>
+                       <%= hidden_field_tag('review_step', 'slots_step') %>
+                       <div class="date-box date-box-<%= i + 1 %>">
+                         <span class="date-box__number"><%= i + 1 %></span>
+                         <span class="date-box__day"><%= format_date_without_year(slots_step.slots[i]) %></span>
+                         <br>
+                         <span class="date-box__slot"><%= format_time_12hr(slots_step.slots[i].begin_at) %> (<%= format_duration(slots_step.slots[i].duration) %>)</span>
+                         <br/>
+                         <%= f.submit(t('.change_visit_details', number: text_ordinalize(i+1)), class: 'button-link', role: 'link') %>
+                       </div>
+                     <% end %>
+                   <% end %>
+
+        <% if slots_step.available_bookable_slots? && slots_step.options.length < 3 %>
+          <p><%= t('.options_available_html') %></p>
+          <%= form_for(confirmation_step,
+                 url: booking_requests_path,
+                 html: { id: "add_slot", class: 'js-SubmitOnce' }) do |f| %>
+              <%= render('hidden_prisoner_step') %>
+              <%= render('hidden_visitors_step') %>
+              <%= render('hidden_slots_step') %>
+              <%= hidden_field_tag('review_step', 'slots_step') %>
+              <%= f.submit(t('.add_another_choice'), class: 'button-link', role: 'link') %>
+          <% end %>
+        <% end %>
+
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="responsive check-your-answers">
+  <thead>
+    <tr>
+      <th>
+        <%= t('.visitor_details') %>
+      </th>
+      <th class="change-answer text-right">
+        <%= form_for(confirmation_step,
+             url: booking_requests_path,
+             html: { id: "change_visitor_details", class: 'js-SubmitOnce' }) do |f| %>
+          <%= render('hidden_prisoner_step') %>
+          <%= render('hidden_visitors_step') %>
+          <%= render('hidden_slots_step') %>
+          <%= hidden_field_tag('review_step', 'visitors_step') %>
+          <%= f.submit(t('.change_visitor_details'), class: 'button-link', role: 'link') %>
+        <% end %>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><%= t('.confirmation_email_address') %></td>
+      <td aria-label="<%= t('.confirmation_email_address') %>"><%= visitors_step.email_address %></td>
+    </tr>
+    <% visitors_step.visitors.each_with_index do |visitor, index| %>
+      <tr>
+        <td>
+          <%= t('.visitor_n', n: index + 1) %>
+        </td>
+        <td aria-label="<%= t('.visitor_n', n: index + 1) %>">
+          <%= visitor.full_name %> – <%= format_date_of_birth(visitor.date_of_birth) %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<div class="divider">
+  <%= form_for(confirmation_step,
+               url: booking_requests_path,
+               html: { class: 'js-SubmitOnce' }) do |f| %>
+    <%= render('hidden_prisoner_step') %>
+    <%= render('hidden_visitors_step') %>
+    <%= render('hidden_slots_step') %>
+    <%= hidden_field_tag('confirmation_step[confirmed]', true) %>
+
+    <div class="grid-row push-top">
+      <div class="column-one-half">
+        <p><%= f.submit(t('.next_step'), class: 'button button-primary') %></p>
+      </div>
+      <div class="column-one-half text-right">
+        <%= render('cancel') %>
+      </div>
+    </div>
+  <% end %>
+</div>
