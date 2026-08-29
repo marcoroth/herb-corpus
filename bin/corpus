@@ -649,12 +649,40 @@ rescue CommandError
   nil
 end
 
+def refresh_after_add(added, reports:)
+  names = added.map(&:name)
+
+  puts "\nRefreshing the generated files..."
+
+  command_extract(names.dup)
+  command_stats(["--write"])
+
+  return unless reports
+
+  pending = load_apps.count { |app| !app.cloned? && !app.frozen? }
+
+  if pending.positive?
+    puts Color.yellow(
+      "Skipped the adoption and prior art reports: #{pluralize(pending, "app")} not checked out, " \
+      "so both would undercount.\nRun `bin/corpus clone`, then `bin/corpus adoption --write` and " \
+      "`bin/corpus prior-art --write`."
+    )
+
+    return
+  end
+
+  command_adoption(["--write"])
+  command_prior_art(["--write"])
+end
+
 def command_add(argv)
   from = nil
   branch = nil
   name = nil
   full = false
   jobs = 8
+  refresh = true
+  reports = true
 
   OptionParser.new do |parser|
     parser.banner = "usage: corpus add URL [options]\n       corpus add --from FILE [options]"
@@ -663,6 +691,8 @@ def command_add(argv)
     parser.on("--name N", "Directory name under apps/ (default: derived from the URL)") { |value| name = value }
     parser.on("--full", "Check out the whole app instead of an ERB-only sparse checkout") { full = true }
     parser.on("--jobs N", Integer, "Parallel clone jobs for --from (default: #{jobs})") { |value| jobs = value }
+    parser.on("--no-reports", "Skip the adoption and prior art refresh, which reads every app's history") { reports = false }
+    parser.on("--no-refresh", "Do not regenerate erb/, the README blocks or the reports") { refresh = false }
   end.parse!(argv)
 
   candidates =
@@ -735,6 +765,8 @@ def command_add(argv)
 
   unknown = added.select { |candidate| candidate.license == "unknown" }
   puts Color.yellow("Set a license for: #{unknown.map(&:name).join(", ")}") if unknown.any?
+
+  refresh_after_add(added, reports: reports) if refresh && added.any?
 
   0
 end
@@ -934,7 +966,9 @@ def command_extract(argv)
   apps = all.select { |app| app.cloned? || app.frozen? }
   included, excluded = apps.partition(&:redistributable?)
 
-  raise CommandError, "no cloned, redistributable apps to extract" if included.empty?
+  if included.empty? && (!incremental || excluded.empty?)
+    raise CommandError, "no cloned, redistributable apps to extract"
+  end
 
   missing = all.reject { |app| app.cloned? || app.frozen? }
 
@@ -1326,7 +1360,7 @@ end
 def checked_out_apps(report_name, allow_partial)
   all = load_apps
   cloned = all.select(&:cloned?)
-  missing = all.size - cloned.size
+  missing = all.count { |app| !app.cloned? && !app.frozen? }
 
   if missing.positive? && !allow_partial
     raise CommandError,
