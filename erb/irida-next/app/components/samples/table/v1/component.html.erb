@@ -1,13 +1,31 @@
 <% if @has_samples %>
   <% if @show_metadata_fields_size_warning %>
     <div class="mb-4" role="status" aria-live="polite">
-      <%= viral_alert do %>
+      <%= render Viral::AlertComponent.new do %>
         <span class="inline"><%= @metadata_fields_size_warning_message %></span>
       <% end %>
     </div>
   <% end %>
   <%= render Viral::BaseComponent.new(**wrapper_arguments) do %>
     <%= render Viral::BaseComponent.new(**system_arguments) do %>
+      <% if @abilities[:select_samples] %>
+        <div id="selection-limit-alert" class="mb-4 hidden" data-selection-target="limitAlert">
+          <%= render Viral::AlertComponent.new(type: :warning, dismissible: false) do %>
+            <span data-selection-target="limitAlertMessage">
+              <%= t(
+                "components.selection.limit.selection_limit_reached",
+                max: Irida::SelectionLimits::MAX_COUNT,
+              ) %>
+            </span>
+          <% end %>
+        </div>
+        <%= render LiveRegionComponent.new(
+          controller: "selection",
+          target: "limitAlertStatus",
+          politeness: :assertive,
+        ) %>
+      <% end %>
+
       <%= render LiveRegionComponent.new(controller: "selection") %>
 
       <table
@@ -209,37 +227,37 @@
       </template>
       <div id="editable-cell-form-container" class="invisible" data-editable-cell-target="formContainer"></div>
       <template data-editable-cell-target="confirmDialogTemplate">
-        <%= viral_dialog(open: false) do |dialog| %>
+        <%= render Viral::DialogComponent.new(open: false) do |dialog| %>
           <% dialog.with_header(
             title: t("shared.samples.metadata.editing_field_cell.dialog.title"),
           ) %>
 
           <p class="text-base leading-8 text-wrap text-slate-900 dark:text-white">
             <span data-message-type="wov" class="hidden">
-              <%= raw t(
+              <%= sanitize(t(
                 "shared.samples.metadata.editing_field_cell.dialog.description_with_new_value.with_original_value",
-              ) %>
+              ), tags: %w[kbd span], attributes: %w[class]) %>
             </span>
 
             <span data-message-type="woov" class="hidden">
-              <%= raw t(
+              <%= sanitize(t(
                 "shared.samples.metadata.editing_field_cell.dialog.description_with_new_value.without_original_value",
-              ) %>
+              ), tags: %w[kbd span], attributes: %w[class]) %>
             </span>
 
             <span data-message-type="wonv" class="hidden">
-              <%= raw t(
+              <%= sanitize(t(
                 "shared.samples.metadata.editing_field_cell.dialog.description_without_new_value",
-              ) %>
+              ), tags: %w[kbd span], attributes: %w[class]) %>
             </span>
           </p>
 
           <% dialog.with_secondary_action do %>
-            <%= viral_button(value: "confirm", state: :primary) do
+            <%= render Viral::ButtonComponent.new(value: "confirm", state: :primary) do
               t("shared.samples.metadata.editing_field_cell.dialog.confirm_button")
             end %>
 
-            <%= viral_button(value: "cancel", state: :default) do
+            <%= render Viral::ButtonComponent.new(value: "cancel", state: :default) do
               t("shared.samples.metadata.editing_field_cell.dialog.discard_button")
             end %>
           <% end %>
@@ -250,7 +268,7 @@
   <% end %>
 <% else %>
   <div class="empty_state_message">
-    <%= viral_empty(
+    <%= render Viral::EmptyStateComponent.new(
       title: @empty[:title],
       description: @empty[:description],
       icon_name: Sample.icon,

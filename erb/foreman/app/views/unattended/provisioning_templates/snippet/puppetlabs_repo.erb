@@ -18,6 +18,13 @@ os_family = @host.operatingsystem.family
 os_major  = @host.operatingsystem.major.to_i
 os_name   = @host.operatingsystem.name
 
+puppetlabs_repo_enabled = host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-official-puppet8-repo') || host_param_true?('enable-official-puppet7-repo') || host_param_true?('enable-puppetlabs-puppet6-repo')
+voxpupuli_repo_enabled = host_param_true?('enable-openvox9-repo') || host_param_true?('enable-openvox8-repo')
+
+if puppetlabs_repo_enabled && voxpupuli_repo_enabled
+  raise "Both Puppet and OpenVox repositories are enabled"
+end
+
 if os_family == 'Redhat'
   repo_host = 'yum.puppet.com'
   if os_name == 'Fedora'
@@ -34,6 +41,13 @@ elsif os_family == 'Debian'
 elsif os_family == 'Windows'
   repo_host = 'downloads.puppet.com'
   repo_os = 'windows'
+  puppet_architecture = @host.architecture.to_s
+  case puppet_architecture
+  when 'x86_64', 'x86-64', 'amd64'
+    puppet_architecture = 'x64'
+  when 'i386', 'i486', 'i586', 'i686'
+    puppet_architecture = 'x86'
+  end
 end
 
 if host_param_true?('enable-puppetlabs-repo')
@@ -44,8 +58,6 @@ elsif host_param_true?('enable-official-puppet7-repo')
   repo_name = 'puppet7-release'
 elsif host_param_true?('enable-puppetlabs-puppet6-repo')
   repo_name = 'puppet6-release'
-elsif host_param_true?('enable-puppetlabs-puppet5-repo')
-  repo_name = 'puppet5-release'
 end
 -%>
 <% if repo_name -%>
@@ -57,8 +69,8 @@ apt-get -y install ca-certificates
 wget -O /tmp/<%= repo_name %>-<%= repo_os %>.deb<%= proxy_string %> https://<%= repo_host %>/<%= repo_name %>-<%= repo_os %>.deb
 dpkg -i /tmp/<%= repo_name %>-<%= repo_os %>.deb
 <% elsif os_family == 'Windows' -%>
-$puppet_agent_source = 'https://<%= repo_host %>/<%= repo_os %>/puppet-agent-<%= @host.architecture %>-latest.msi'
-$puppet_agent_msi = "${env:TEMP}\puppet-agent-<%= @host.architecture %>.msi"
+$puppet_agent_source = 'https://<%= repo_host %>/<%= repo_os %>/<%= repo_name.split('-').first %>/puppet-agent-<%= puppet_architecture %>-latest.msi'
+$puppet_agent_msi = "${env:TEMP}\puppet-agent-<%= puppet_architecture %>.msi"
 Write-Host "Downloading puppet-agent from ${$puppet_agent_source} to ${puppet_agent_msi}"
 Start-BitsTransfer -Source "${puppet_agent_source}" -Destination "${puppet_agent_msi}"<%= proxy_string_bits %>
 <% end -%>
