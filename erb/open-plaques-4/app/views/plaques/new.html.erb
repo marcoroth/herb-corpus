@@ -1,0 +1,170 @@
+<% content_for(:page_title) {t(".page_title")} %>
+
+<!-- Page Title -->
+<div class="page-title">
+  <div class="container d-lg-flex justify-content-between align-items-center">
+    <h1 class="mb-2 mb-lg-0"><%= t(".page_heading") %></h1>
+    <nav class="breadcrumbs">
+      <ol>
+        <li><%= link_to "Home", root_path %></li>
+        <li>Plaques</li>
+        <li class="current">New</li>
+      </ol>
+    </nav>
+  </div>
+</div><!-- End Page Title -->
+
+<section class="section">
+  <div class="container" data-aos="fade-up" data-aos-delay="100">
+    <div class="row">
+      <div class="col-xl-9">
+
+        <script>
+          $(function() {
+            $("#plaque_other_colour_id").prop("disabled", "disabled");
+            $("input[name="plaque[colour_id]"]").change(function() {
+                var val = $("input[name="plaque[colour_id]"]:radio:checked").val();
+                if (val == "other") {
+                  $("#plaque_other_colour_id").prop("disabled", false);
+                } else {
+                  $("#plaque_other_colour_id").prop("disabled", "disabled");
+                }
+            });
+          });
+
+          $(function() {
+            $("#plaque_country").on("change",function() {
+              var country = this.value;
+              if (country == "1" || country == "13") {
+                $("#plaque_language_id").val("1");
+              }
+              if (country == "5") {
+                $("#plaque_language_id").val("5");
+              }
+              if (country == "28") {
+                $("#plaque_language_id").val("16");
+              }
+              if (country == "26") {
+                $("#plaque_language_id").val("9");
+              }
+              if (country == "72") {
+                $("#plaque_language_id").val("35");
+              }
+              if (country == "85") {
+                $("#plaque_language_id").val("55");
+              }
+            });
+          });
+        </script>
+
+        <% if params[:checked] && params[:checked] == "true" %>
+          <% if @plaque.errors.any? %>
+            <div class="alert alert-danger"><%= t(".error") %></div>
+          <% end %>
+          <div class="alert alert-warning"><%= t(".you_agree_to_open_licence") %></div>
+
+          <%= form_for @plaque, html: { class: "row g-3 mb-9" } do |f| %>
+            <h3>Inscription</h3>
+            <div class="col-sm-6 col-md-12">
+              <div class="form-floating">
+                <%= f.text_area :inscription, { value: params[:phrase], autofocus: true, style: "height: 100px" } %>
+                <%= f.label :inscription, t(".inscription_heading") %>
+              </div>
+            </div>
+            <div class="col-sm-6 col-md-4">
+              <div class="form-floating">
+                <%= f.collection_select(:language_id, @languages, :id, :name) %>
+                <%= f.label :language_id, t(".language_heading") %>
+              </div>
+            </div>
+            <div class="col-sm-6 col-md-8">
+              <div class="col-sm-10">
+                <div class="form-check">
+                  <label class="form-check-label">
+                    <%= f.radio_button :inscription_is_stub, false, class: "form-check-input" %>
+                    <%= t(".inscription_full") %>
+                  </label>
+                </div>
+                <div class="form-check">
+                  <label class="form-check-label">
+                    <%= f.radio_button :inscription_is_stub, true, class: "form-check-input" %>
+                    <%= t(".inscription_partial") %>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <h3>Location</h3>
+            <div class="col-sm-6 col-md-4">
+              <div class="form-floating">
+                <%= f.collection_select :country, @countries, :id, :name, { include_blank: true, selected: 1 } %>
+                <%= f.label :country %>
+              </div>
+            </div>
+            <div class="col-sm-6 col-md-4" data-controller="autocomplete" data-autocomplete-url-value="/places/autocomplete" role="combobox">
+              <div class="form-floating">
+                <%= text_field_tag :area, "", { class: "form-control", "data-autocomplete-target": "input" } %>
+                <%= f.label :area, "City/Town" %>
+                <small id="areaHelp" class="form-text text-muted"><%= t(".area_help") %></small>
+                <%= hidden_field_tag :area_id, "", { "data-autocomplete-target": "hidden" } %>
+                <ul class="list-group" data-autocomplete-target="results"></ul>
+              </div>
+            </div>
+            <div class="col-sm-6 col-md-4">
+              <div class="form-floating">
+                <%= f.text_field :address %>
+                <%= f.label :address, "Street and number" %>
+              </div>
+            </div>
+            <h3>Creator</h3>
+            <%= f.fields_for :organisation do |g| %>
+              <div class="col-sm-6 col-md-8" data-controller="autocomplete" data-autocomplete-url-value="/organisations/autocomplete" role="combobox">
+                <div class="form-floating">
+                  <%= text_field_tag :organisation_name, "", { class: "form-control", "data-autocomplete-target": "input" } %>
+                  <%= f.label :organisation_id, "Who put the plaque up?" %>
+                  <%= hidden_field_tag :organisation_id, "", { "data-autocomplete-target": "hidden" } %>
+                  <ul class="list-group" data-autocomplete-target="results"></ul>
+                </div>
+              </div>
+              <div class="col-sm-6 col-md-4">
+                <%= f.label :erected_at, "when?" %>
+                <%= f.date_select(:erected_at, include_blank: true, start_year: Time.now.year + 1, end_year: 1800, field_name: :plaque_erected_at_year, order: [:year, :day, :month]) %>
+              </div>
+            <% end %>
+            <h3>Attributes</h3>
+            <div class="mb-3">
+              <%= f.label :colour, t(".what_colour") %>
+              <% @common_colours.each do |colour| %>
+                <div class="form-check">
+                  <%= f.radio_button(:colour_id, colour.id) %>
+                  <%= f.label("colour_id_#{colour.id.to_s}", colour.name, class: colour.name.downcase) %>
+                </div>
+              <% end %>
+              <div class="form-check other">
+                <%= f.radio_button(:colour_id, "other") %>
+                <%= f.label(:colour_id_other, t(".other_colour")) %>
+                <%= f.collection_select(:other_colour_id, @other_colours, :id, :name, include_blank: true) %>
+              </div>
+              <div class="form-check unknown">
+                <%= f.radio_button(:colour_id, "nil", checked: true) %>
+                <%= f.label(:colour_id_nil, "unknown") %>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex">
+                <%= f.submit t("buttons.save") %>
+              </div>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="row">
+            <p><%= t(".lets_check") %></p>
+          </div>
+          <div class="row">
+            <%= render partial: "search/search_form", locals: { phrase: @phrase } %>
+          </div>
+        <% end %>
+
+      </div>
+    </div>
+  </div>
+</section>

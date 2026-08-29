@@ -1,0 +1,110 @@
+<% if @display != "unphotographed" %>
+  <% content_for(:page_title) { t(".page_title", area: "#{@area.name}, #{@area.country.name}") } %>
+<% else %>
+  <% content_for(:page_title) { t(".page_title_unphotographed", area: "#{@area.name}, #{@area.country.name}") } %>
+<% end %>
+<% content_for(:admin_menu) { navbar_link_to t("buttons.edit"), edit_area_path(@area) } %>
+
+<!-- Page Title -->
+<div class="page-title">
+  <div class="container d-lg-flex justify-content-between align-items-center">
+    <h1 class="mb-2 mb-lg-0"><span class="flag-icon flag-icon-<%= @area.alpha2 %>"></span> <%= @area.name %></h1>
+    <nav class="breadcrumbs">
+      <ol>
+        <li><%= link_to "Home", root_path %></li>
+        <li><%= link_to "Places", countries_path %></li>
+        <li><%= link_to @country %></li>
+        <li class="current"><%= @area.name %></li>
+      </ol>
+    </nav>
+  </div>
+</div><!-- End Page Title -->
+
+<div class="container" data-aos="fade-up" data-aos-delay="100">
+  <div class="row">
+
+    <div class="col-lg-8">
+
+      <section class="section">
+        <div class="jumbotron">
+          <% if @display != "all" %>
+            <%= link_to t("buttons.all"), area_path(@area) %>
+          <% else %>
+            <strong><%= t("buttons.all") %></strong>
+          <% end %>
+          <%= t("buttons.or") %>
+          <% if @display != "unphotographed" %>
+            <%= link_to t("buttons.unphotographed"), area_unphotographed_path(@area) %>
+          <% else %>
+            <strong><%= t("buttons.unphotographed") %></strong>
+          <% end %>
+          <% if current_user&.is_admin? %>
+            <%= t("buttons.or") %>
+            <% if @display!='ungeolocated' %>
+              <%= link_to t("buttons.ungeolocated"), area_ungeolocated_path(@area) %>
+            <% else %>
+              <strong><%= t("buttons.ungeolocated") %></strong>
+            <% end %>
+            <%= t("buttons.or") %>
+            <% if @display != "unconnected" %>
+              <%= link_to t("buttons.unconnected"), area_unconnected_path(@area) %>
+            <% else %>
+              <strong><%= t("buttons.unconnected") %></strong>
+            <% end %>
+          <% end %>
+          <br/><span class="badge bg-secondary pull-right"><%= pluralize_with_no(@plaques_count, t("activerecord.models.plaque").downcase) %></span>
+          <small><%= @percentage_curated %>% have been curated</small>
+          <br/><span class="badge bg-secondary pull-right"><%= pluralize_with_no(@subject_count, "subject") %></span>
+        </div>
+        <%= render partial: "people/top10" %>
+        <% if @display!='ungeolocated' %>
+          <% if @area.geolocated? %>
+            <section id="area_map" data-controller="maplibre" data-maplibre-style="<%= JSON[
+              @area.bbox_array ? 
+              {
+                bounds: @area.bbox_array,
+                fitBoundsOptions: {
+                  padding: 50
+                }
+              }
+              :
+              { centroid: @area.center_point_array }
+            ] %>" style="height: 400px; width: 100%; margin-top: 15px;">
+              <template data-controller="geojson" data-url="<%= area_plaques_path(@area, format: :geojson) %>" data-map-id="area_map">
+                when this is displayed it sends a message to the map to display popups then autodestructs
+              </template>
+            </section>
+          <% else %>
+            <%= form_for @area, url: country_area_path(@area.country, @area) do |f| %>
+              <div class="edit_lat_long panel clearfix">
+                <h2>Area is not geolocated yet</h2>
+                <p>Open Plaques is quite smart. When a few plaques have been geolocated it will use the average to define where this area is.</p>
+                <p>If you would like to see the map a bit sooner then you could help us.</p>
+                <p>Just find '<%= @area.full_name %>' <a href="https://maps.google.com/maps?q=<%= @area.full_name %>&z=18" target="_new">on Google Maps</a> and tell us the <%= label_tag(:streetview_url, "web url:") %> <%= text_field_tag(:streetview_url, ' ', size: 100) %>.</p>
+                <p>We will extract the geolocation. Probably.</p>
+                <%= f.hidden_field :name %>
+                <p><%= f.submit t("buttons.update") %></p>
+              </div>
+            <% end %>
+          <% end %>
+        <% end %>
+      </section>
+
+      <section class="section">
+        <%= render "section_title", title: "Plaques" %>
+        <%= render partial: "plaques/tabbed" %>
+      </section>
+
+    </div>
+
+    <div class="col-lg-4 sidebar">
+      <div class="widgets-container">
+
+        <%= render "search" %>
+        <%= render "people/diversity" %>
+
+      </div>
+    </div>
+
+  </div>
+</div>

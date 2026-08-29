@@ -1,0 +1,111 @@
+<% content_for(:page_title) { t(".page_title", organisation: @organisation.name) } %>
+<% content_for(:admin_menu) { navbar_link_to t("buttons.edit"), edit_organisation_path(@organisation) } %>
+<% content_for(:admin_menu) { navbar_link_to t("buttons.add"), new_organisation_path } %>
+
+<!-- Page Title -->
+<div class="page-title">
+  <div class="container d-lg-flex justify-content-between align-items-center">
+    <h1 class="mb-2 mb-lg-0">
+      <% if @organisation.language == nil || @organisation.language.alpha2 == "en-GB" || @organisation.language.alpha2 == "en" %>
+        <%= @organisation.name %>
+      <% else %>
+        <span class="flag-icon <%= @organisation.language&.flag_icon %>"></span>
+        <%= content_tag 'span', @organisation.name, lang: @organisation.language&.alpha2 %>
+      <% end %>
+    </h1>
+    <nav class="breadcrumbs">
+      <ol>
+        <li><%= link_to "Home", root_path %></li>
+        <li><%= link_to "Organisations", organisations_path %></li>
+        <li class="current">#<%= @organisation.id %></li>
+      </ol>
+    </nav>
+  </div>
+</div><!-- End Page Title -->
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-8">
+
+      <section class="section">
+        <% unless @organisation.website.blank? %>
+          <p rel="foaf:homepage vcard:url">
+            <small class="text-muted">
+              <%= link_to h(@organisation.website), @organisation.website %>
+            </small>
+          </p>
+        <% end %>
+        <%= markdown @organisation.description if @organisation.description.present? %>
+        <%= link_to "Wikidata <i class=\"bi bi-box-arrow-up-right\"></i>".html_safe, @organisation.wikidata_url, target: :_blank unless @organisation.wikidata_url.blank? %>
+        <p>
+          <%= @curated_count %> out of <%= @plaques_count %>
+          (<%= @percentage_curated %>%)
+          plaques have been curated
+        </p>
+        <div>
+          <% if @display!='all' %>
+            <%= link_to t("buttons.all"), organisation_path(@organisation) %>
+          <% else %>
+            <strong><%= t("buttons.all") %></strong>
+          <% end %>
+          <%= t("buttons.or") %>
+          <% if @display!='unphotographed' %>
+            <%= link_to t("buttons.unphotographed"), organisation_unphotographed_path(@organisation) %>
+          <% else %>
+            <strong><%= t("buttons.unphotographed") %></strong>
+          <% end %>
+          <% if current_user&.is_admin? %>
+            <%= t("buttons.or") %>
+            <% if @display!='ungeolocated' %>
+              <%= link_to t("buttons.ungeolocated"), organisation_ungeolocated_path(@organisation) %>
+            <% else %>
+              <strong><%= t("buttons.ungeolocated") %></strong>
+            <% end %>
+            <%= t("buttons.or") %>
+            <% if @display!='unconnected' %>
+              <%= link_to t("buttons.unconnected"), organisation_unconnected_path(@organisation) %>
+            <% else %>
+              <strong><%= t("buttons.unconnected") %></strong>
+            <% end %>
+          <% end %>
+        </div>
+      </section>
+      <% if @organisation.geolocated? && @display != "ungeolocated" %>
+        <section id="plaque-map" data-controller="maplibre" data-maplibre-style="<%= JSON[
+          @organisation.bbox_array ? 
+          {
+            bounds: @organisation.bbox_array,
+            fitBoundsOptions: {
+              padding: 50
+            }
+          }
+          :
+          { centroid: @organisation.center_point_array }
+        ] %>" style="height: 400px; width: 100%; margin-top: 15px;">
+          <template data-controller="geojson" data-url="<%= organisation_plaques_path @organisation, format: :geojson %>" data-map-id="plaque-map">
+            when this is displayed it sends a message to the map to display geojson then autodestructs
+          </template>
+        </section>
+      <% end %>
+
+      <section class="section">
+        <%= render "section_title", title: "Plaques" %>
+        <%= render partial: "plaques/tabbed" %>
+      </section>
+
+      <section class="section">
+        <%= render "section_title", title: "Subjects" %>
+        <%= render partial: "people/tabbed" %>
+      </section>
+    </div>
+
+    <div class="col-lg-4 sidebar">
+
+      <div class="widgets-container">
+        <%= render "search" %>
+        <%= render partial: "people/diversity" %>
+      </div>
+
+    </div>
+  </div>
+</div>

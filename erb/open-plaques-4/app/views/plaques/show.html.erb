@@ -1,0 +1,228 @@
+<% content_for :page_title, t(".page_title", plaque: @plaque.to_s) %>
+<%= render "plaques/edit_bar", plaque: @plaque %>
+
+<!-- Page Title -->
+<div class="page-title">
+  <div class="container d-lg-flex justify-content-between align-items-center">
+    <h1 class="mb-2 mb-lg-0"><%= t(".page_heading", plaque: @plaque.to_s) %></h1>
+    <nav class="breadcrumbs">
+      <ol>
+        <li><%= link_to "Home", root_path %></li>
+        <li class="current">Plaque #<%= @plaque.id %></li>
+      </ol>
+    </nav>
+  </div>
+</div><!-- End Page Title -->
+
+<div class="container">
+  <div class="row">
+
+    <div class="col-lg-8">
+
+      <!-- Plaque Details Section -->
+      <section class="section">
+        <div class="container">
+
+          <article class="article">
+
+            <div class="post-img">
+              <% if @plaque.main_photo %>
+                <%= render @plaque.main_photo, large: true, class: "img-fluid" %>
+              <% else %>
+                <%= link_to plaque_photos_path(@plaque) do %>
+                  <%= image_tag "NoPhotoSqr.png", alt: @plaque.title, class: "img-fluid" %>
+                  <p class="card-text">
+                    <%= t(".how_to_add_yours") %>
+                  </p>
+                <% end %>
+              <% end %>
+            </div>
+            <%= content_tag :div, t(".does_not_exist"), class: "alert alert-danger" unless @plaque.is_current %>
+            <%= content_tag :div, t(".not_erected"), class: "alert alert-warning" unless @plaque.erected? %>
+
+            <h2 class="title">
+              <% if @plaque.foreign? %>
+                <span class="flag-icon <%= @plaque.language.flag_icon %>"></span>
+              <% end %>
+              <%= linked_inscription @plaque %>
+            </h2>
+            <% if @plaque.foreign? && @plaque.inscription_in_english.present? %>
+              <div class="row">
+                <h7><%= t(".english_translation") %>: "<%= @plaque.inscription_in_english %>"</h7>
+              </div>
+            <% end %>
+            <div class="meta-top">
+              <ul>
+
+                <% if @plaque.erected_at? %>
+                  <li class="d-flex align-items-center">
+                    <i class="bi bi-clock"></i> <time datetime="<%= @plaque.erected_at.strftime('%Y-%m-%d') %>"><%= @plaque.erected_at.strftime('%-d %b %Y') %></time>
+                  </li>
+                <% end %>
+                <% unless erected_information(@plaque).blank? %>
+                  <li class="d-flex align-items-center">
+                    <i class="bi bi-clipboard2"></i> <%= erected_information @plaque %>
+                  </li>
+                <% end %>
+              </ul>
+            </div><!-- End meta top -->
+
+            <div class="content">
+              <%= markdown @plaque.description %>
+              <div id="details">
+                <p>
+                  <% if @plaque.series %>
+                    <% if @plaque.series_ref? %>
+                      #<span><%= @plaque.series_ref %></span>
+                    <% else %>
+                      Part
+                    <% end %>
+                    of the <%= link_to @plaque.series.name, @plaque.series %> series
+                  <% end %>
+                </p>
+                <p>
+                  <% if @plaque.colour %>
+                    Colour: <%= @plaque.colour.name %>
+                  <% else %>
+                    <% @colours = Colour.all %>
+                    <%= form_for @plaque, html: { class: "row g-3 mb-9" } do |f| %>
+                      <div class="col-sm-6 col-md-4">
+                        <div class="form-floating">
+                          <%= f.collection_select :colour_id, @colours, :id, :name, { include_blank: true } %>
+                          <%= f.label :colour_id, t(".colour_label") %>
+                        </div>
+                      </div>
+                      <%= f.submit t("buttons.save"), class: :button %>
+                    <% end %>
+                  <% end %>
+                </p>
+              </div>
+
+              <section class="section">
+                <%= render "section_title", title: "Other photos" %>
+                <div class="row">
+                  <div class="col-xs-6 col-sm-4">
+                    <div class="card">
+                      <%= link_to plaque_photos_path(@plaque) do %>
+                        <%= image_tag "NoPhotoSqr.png", class: "card-img img-rounded w-100" %>
+                        <p class="card-text">
+                          <%= t(".how_to_add_yours") %>
+                        </p>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <% @plaque.other_photos[0..1]&.each do |photo| %>
+                    <div class="col-xs-6 col-sm-4">
+                      <%= render photo %>
+                    </div>
+                  <% end %>
+ 
+                  <% @plaque.other_photos[3..]&.each do |photo| %>
+                    <div class="col-xs-6 col-sm-2">
+                      <%= render photo %>
+                    </div>
+                  <% end %>
+                </div>
+              </section>
+
+
+              <% if @plaque.see_also.present? %>
+                <section class="section" id="see-also">
+                  <%= render "section_title", title: "See also..." %>
+                  <div class="row" data-masonry='{"percentPosition": true }'>
+                    <%= render partial: "plaques/tile", collection: @plaque.see_also, as: :plaque %>
+                  </div>
+                </section>
+              <% end %>
+            </div><!-- End post content -->
+
+            <div class="meta-bottom">
+              <i class="bi bi-folder"></i>
+              <ul class="cats">
+                <% @plaque.category_list.each do |name| %>
+                  <li><a href="#"><%= name %></a></li>
+                <% end %>
+              </ul>
+
+              <i class="bi bi-tags"></i>
+              <ul class="tags">
+                <% @plaque.tag_list.each do |name| %>
+                  <li><a href="#"><%= name %></a></li>
+                <% end %>
+              </ul>
+            </div><!-- End meta bottom -->
+
+          </article>
+
+        </div>
+      </section><!-- /Plaque Details Section -->
+
+    </div>
+
+    <div class="col-lg-4 sidebar">
+      <div class="widgets-container">
+
+        <!-- %= render "author", author: @page.author % -->
+
+        <%= render "search" %>
+
+        <%= render "subjects", plaque: @plaque %>
+
+        <div class="widget-item">
+          <h3 class="widget-title">Location</h3>
+          <div>
+            <%= @plaque.address %>,&nbsp;<%= link_to @plaque.area.name, @plaque.area if @plaque.area %>
+          </div>
+          <% if @plaque.geolocated? %>
+            <section id="plaque-map" data-controller="maplibre" data-maplibre-style="<%= JSON[
+              {
+                centroid: @plaque.center_point_array,
+              }
+            ] %>"  style="height: 400px; width: 100%; margin-top: 15px;">
+              <template data-controller="geojson" data-url="<%= plaque_path(@plaque, format: :geojson) %>" data-map-id="plaque-map">
+                when this is displayed it sends a message to the map to display popups then autodestructs
+              </template>
+            </section>
+          <% end %>
+          <%= content_tag(:div, t(".approximate_position"), class: "bg-warning") unless @plaque.is_accurate_geolocation %>
+                      <div>
+              <% if @plaque.roughly_geolocated? %>
+                &nbsp;[<%= link_to "geolocate this address", edit_plaque_geolocation_path(@plaque), { class: :edit, title: "Geolocate" } %>]
+              <% end %>
+              <% if @plaque.geolocated? %>
+                &nbsp;
+                <%= external_link "Google Streetview", "https://maps.google.com/maps?q=&layer=c&cbll=#{@plaque.latitude},#{@plaque.longitude}&cbp=11,0,0,0,0" %>
+                &nbsp;
+                <%= external_link "OpenStreetMap", @plaque.openstreetmap_url %>
+              <% end %>
+            </div>
+        </div>
+
+        <div class="widget-item">
+          <h3 class="widget-title">External site tags</h3>
+          <p>
+            Wikimedia:
+            <div class="input-group" data-controller="clipboard" data-clipboard-success-content-value="Copied!">
+              <input class="form-control" name="wikimedia_tag" type="text" readonly value="<%= @plaque.wikimedia_tag %>" data-clipboard-target="source" />
+              <button class="btn btn-secondary" type="button" data-action="clipboard#copy" data-clipboard-target="button">Copy to clipboard</button>
+            </div>
+          </p>
+          <p>
+            Flickr:
+            <div class="input-group" data-controller="clipboard" data-clipboard-success-content-value="Copied!">
+              <input class="form-control" name="machine_tag" type="text" readonly value="<%= @plaque.machine_tag %>" data-clipboard-target="source" />
+              <button class="btn btn-secondary" type="button" data-action="clipboard#copy" data-clipboard-target="button">Copy to clipboard</button>
+            </div>
+          </p>
+        </div>
+
+        <%= render "tags" %>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div<%= ' class=\"' + @plaque.colour.name + 'plaque\"' if @plaque.colour %>
+ about="#this" typeof="op:Plaque"></div>

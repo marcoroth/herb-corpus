@@ -1,0 +1,55 @@
+<% begin %>
+  <% if plaque&.inscription %><% end %>
+<% rescue %>
+  <% plaque = plaque.plaque %>
+<% end %>
+
+<% photo = plaque.main_photo %>
+<div class="row">
+  <div class="col-xs-12 col-sm-4">
+    <%= link_to plaque_path(plaque) do %>
+      <% if photo&.thumbnail_url %>
+        <%= image_tag(photo.thumbnail_url, { class: 'card-img-top img-thumbnail w-100' }) %>
+      <% else %>
+        <%= image_tag("NoPhotoSqr.png", { class: 'card-img-top img-thumbnail w-100' }) %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="col-xs-12 col-sm-8">
+    <h5 class="card-title">
+      <% if !plaque.series_ref.to_s.empty? %>
+        <%= plaque.series&.name  %>
+        <span class="tag tag-success">#<%= plaque.series_ref %></span>
+      <% end %>
+    </h5>
+    <p>
+      <% if plaque.foreign? %>
+        <span class="flag-icon <%= plaque.language.flag_icon %>"></span>
+      <% end %>
+      <%= simple_inscription(plaque) %>
+    </p>
+    <% if plaque.foreign? && plaque.inscription_in_english %>
+      <p id="inscription-in-english" class="card-text"><small>English translation: <%= plaque.inscription_in_english %></small></p>
+    <% end %>
+    <p class="card-text">
+      <small>
+        <%= plaque.address %>, <%= link_to(plaque.area.name, area_path(plaque.area)) if plaque.area %>, <%= plaque.area.country.name if plaque.area %>
+        <%= icon(:far, :compass) if plaque.geolocated? %>
+        <% if @person %> where <%= @person.personal_pronoun %> <%= verbs(@person,plaque).to_sentence.html_safe %><% end %>
+        <% '. As far as we know, it is not currently on display.' if !plaque.is_current %>
+      </small>
+    </p>
+    <% if !controller.controller_name.eql?('people') && plaque.people.count > 0 %>
+      <h5>Subjects</h5>
+      <div class="container">
+        <% @people = plaque.people %>
+        <%= will_paginate @people if @people.respond_to?(:total_pages) %>
+        <div id="person-tiles" class="row" data-masonry='{"percentPosition": true }'>
+          <%= render partial: 'people/tile', collection: @people, as: :person %>
+        </div>
+        <%= will_paginate @people if @people.respond_to?(:total_pages) %>
+      </div>
+    <% end %>
+  </div>
+</div>

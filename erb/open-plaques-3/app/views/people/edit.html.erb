@@ -1,0 +1,275 @@
+<% content_for(:page_title) {t '.page_title', person: @person.full_name} %>
+<% content_for(:title) do %>
+<div class="vcard person" typeof="<%= if (@person.person?) then " foaf:Person" else " foaf:Agent" end %> vcard:VCard" about="#person">
+  <div class="card hovercard">
+    <% if @person.main_photo %>
+    <div class="card-background">
+      <%= image_tag(@person.main_photo.thumbnail_url != nil ? @person.main_photo.thumbnail_url : @person.main_photo.file_url, class: 'card-bkimg') %>
+    </div>
+    <div class="useravatar">
+      <%= image_tag(@person.main_photo.thumbnail_url != nil ? @person.main_photo.thumbnail_url : @person.main_photo.file_url, class: 'card-bkimg') %>
+    </div>
+  <% else %>
+    <div class="card-background-no-photo"></div>
+    <% end %>
+    <div class="card-info">
+      <%= link_to @person do %>
+      <span class="card-title fn">
+        <%= @person.full_name %><br/>
+        <small><%= @person.dates %></small>
+      </span>
+      <% end %>
+    </div>
+  </div>
+  <% end %>
+  <% content_for(:admin_menu) {navbar_link_to t('depiction'), '#depiction'} %>
+  <% content_for(:admin_menu) {navbar_link_to t('name'), '#name'} %>
+  <% content_for(:admin_menu) {navbar_link_to t('details'), '#details'} %>
+  <% content_for(:admin_menu) {navbar_link_to t('description'), '#description'} %>
+  <% content_for(:admin_menu) {navbar_link_to t('links'), '#links'} %>
+  <% content_for(:admin_menu) {navbar_link_to t('role'), '#roles'} %>
+  <% content_for(:admin_menu) {navbar_link_to t('family tree'), '#family-tree'} if @person.person? && @person.family? %>
+
+  <h2 id="depiction">Depiction</h2>
+  <div class="row">
+    <div class="col-sm-2">
+      <% if @person.main_photo %>
+      <%= link_to render(@person.main_photo), @person.main_photo %>
+    <% else %>
+      <%= link_to image_tag('https://upload.wikimedia.org/wikipedia/commons/7/79/Wiki-commons.png'), 'https://commons.wikimedia.org/w/index.php?title=Special:Search&limit=20&offset=40&profile=default&search="' + @person.name + '"', target: '_blank' %>
+      <% end %>
+    </div>
+    <% if !@person.main_photo %>
+    <div class="col-xs-10">
+      <p>We use images from Wikimedia Commons to depict subjects as they are open licenced and free to use.</p>
+      <p>
+        Find a depiction image on
+        <%= link_to(icon(:fas, :link) + 'Wikipedia', @person.wikipedia_url, target: '_blank')  unless @person.wikipedia_url.blank? %>
+        <%= 'or' unless @person.wikipedia_url.blank? %>
+        <%= link_to(icon(:fas, :link) + 'Wikimedia Commons', 'https://commons.wikimedia.org/w/index.php?title=Special:Search&limit=20&offset=40&profile=default&search="' + @person.name + '"', target: '_blank') %>
+      </p>
+      <p>
+        <% @photo = Photo.new %>
+        <%= form_for @photo do |f| %>
+        <%= f.label(:url, "The Wikimedia photo page url is") %>
+        <%= f.text_field :url %>
+        <%= f.hidden_field :person_id, value: @person.id %>
+        <%= f.hidden_field :of_a_plaque, value: false %>
+        <%= submit_tag(t('buttons.save'), :class=> 'btn btn-primary') %>
+        <% end %>
+      </p>
+    </div>
+    <% else %>
+    <div class="col-sm-10">
+      <p>We use images from Wikimedia Commons to depict subjects as they are open licenced and free to use.</p>
+      <p>If this image is wrong, click on it, edit and delete it</p>
+      <p>
+        <%= link_to(icon(:fas, :link) + 'Wikipedia', @person.wikipedia_url, target: '_blank')  unless @person.wikipedia_url.blank? %>
+      </p>
+    </div>
+    <% end %>
+  </div>
+
+  <h2 id="name">Name</h2>
+  <%= form_for @person do |f| %>
+  <div class="mb-3">
+    <%= f.label :name, "#{@person.possessive} name was", class: 'col-form-label' %>
+    <div class="col-sm-10">
+      <%= f.text_field :name %>
+      <% if @person.name != @person.full_name %>
+      <%= t '.display_name' %>
+      <strong>"<%= @person.full_name %>"</strong>
+      <% end %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <%= f.label :aka, class: 'col-form-label' %>
+    <div class="col-sm-10">
+      <%= f.text_area :aka %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <%= f.label :surname_starts_with, "#{@person.possessive} lastname '#{@person.surname}' starts with", class: 'col-form-label' %>
+    <div class="col-sm-1">
+      <%= f.text_field :surname_starts_with, maxlength: 1 %>
+    </div>
+  </div>
+  <%= f.submit t('buttons.update') %>
+
+  <h2 id="details">Details</h2>
+  <% if @person.dbpedia_abstract %>
+    <div class="row">
+      <blockquote class="quote-card blue-card">
+        <p><%= @person.dbpedia_abstract %></p>
+        <cite><%= link_to(icon(:fas, :link) + "DbPedia", @person.dbpedia_uri, target: '_blank') unless @person.dbpedia_uri.blank? %></cite>
+      </blockquote>
+    </div>
+  <% end %>
+  <div class="mb-3">
+    <%= f.label :gender, class: 'col-form-label' %>
+    <div class="col-sm-10">
+      <%= f.radio_button :gender, 'm' %>
+      <%= f.label :gender, 'Male', value: 'm' %>
+      <%= f.radio_button :gender, 'f' %>
+      <%= f.label :gender, 'Female', value: 'f' %>
+      <%= f.radio_button :gender, 'u' %>
+      <%= f.label :gender, 'Unknown', value: 'u' %>
+      <%= f.radio_button :gender, 'n' %>
+      <%= f.label :gender, 'None', value: 'n' %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <%= f.label :ethnicity, class: 'col-form-label' %>
+    <div class="col-sm-10">
+      <%= f.text_field :ethnicity %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <%= f.label :born_on, "#{@person.personal_pronoun} were #{@person.creation_word}", class: 'col-form-label' %>
+    <div class="col-sm-2">
+      <%= f.text_field :born_on, {class: 'form-control', maxlength: 10}  %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <%= f.label :died_on, 'and ' + @person.destruction_word, class: 'col-form-label' %>
+    <div class="col-sm-2">
+      <%= f.text_field :died_on, {class: 'form-control', maxlength: "10"} %>
+    </div>
+  </div>
+  <% if @person.age %>
+  <div class="mb-3">
+    <div class="col-form-label">
+      <%= "Died aged" if (@person.person? || @person.thing? || @person.animal?) && @person.dead? %><%= "Closed aged" if @person.place? && @person.dead? %><%= "Aged" if @person.alive?%>
+    </div>
+    <div class="form-control-static col-form-label">
+      <%= @person.age.to_s %>
+    </div>
+  </div>
+  <% end %>
+  <%= f.submit t('buttons.update') %>
+
+  <h2 id="description">Description</h2>
+  <div class="mb-3">
+    <%= f.label :introduction, class: 'col-form-label' %>
+    <%= f.text_area :introduction, rows: 6 %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :citation, class: 'col-form-label' %>
+    <%= f.text_field :citation %>
+  </div>
+  <%= f.submit t('buttons.update') %>
+
+  <h2 id="links">Links</h2>
+  <div class="mb-3">
+    <div class="col-sm-2">
+      <%= f.label :wikidata_id, class: 'col-form-label' %>
+      <%= link_to(icon(:fas, :link), @person.wikidata_url, target: '_blank') unless @person.wikidata_id.blank?%>
+    </div>
+    <div class="col-sm-10">
+      <%= f.text_field :wikidata_id %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <div class="col-sm-2">
+      <%= f.label :wikipedia_url, class: 'col-form-label' %>
+      <%= link_to(icon(:fas, :link), @person.wikipedia_url, target: '_blank')  unless @person.wikipedia_url.blank? %>
+      <%= f.label :dbpedia_uri, class: 'col-form-label' %>
+      <%= link_to(icon(:fas, :link), @person.dbpedia_uri, target: '_blank') %>
+    </div>
+    <div class="col-sm-10">
+      <%= t '.wikipedia_comment' %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <div class="col-sm-2">
+      <%= f.label :find_a_grave_id, class: 'col-form-label' %>
+      <%= link_to(icon(:fas, :link), "https://www.findagrave.com/famous-memorial/global-search?globalsearch=#{@person.name}", target: '_blank') if @person.find_a_grave_id.blank?%>
+      <%= link_to(icon(:fas, :link), @person.find_a_grave_url, target: '_blank') unless @person.find_a_grave_id.blank?%>
+    </div>
+    <div class="col-sm-10">
+      <%= f.text_field :find_a_grave_id %>
+    </div>
+  </div>
+  <div class="mb-3">
+    <div class="col-sm-2">
+      <%= f.label :ancestry_id, class: 'col-form-label' %>
+      <%= link_to(icon(:fas, :link), @person.ancestry_url, target: '_blank') unless @person.ancestry_id.blank?%>
+    </div>
+    <div class="col-sm-10">
+      <%= f.text_field :ancestry_id %>
+    </div>
+  </div>
+  <%= f.submit t('buttons.update') %>
+  <% end %>
+
+  <h2 id="roles">Roles</h2>
+  <div class="row">
+    <h4 class="col-xs-12"><%= icon(:fas, :user) if @person.person?%>
+      <%= icon(:fas, :paw) if @person.animal? %>
+      <%= icon(:fas, :users) if @person.group? %>
+      <%= icon(:fas, :building) if @person.place? %>
+      <%= icon(:fas, :'map-marker') if @person.thing? %>
+      <%= @person.personal_pronoun %>
+      <%= @person.existence_word %>
+      a
+      <%= roles_list(@person) %></h4>
+  </div>
+
+  <% if @person.plaques.size > 0 %>
+    <div class="row">
+      <p><%= t '.features_on' %></p>
+    </div>
+    <%= render partial: 'plaques/row', collection: @person.plaques.uniq, as: :plaque %>
+    <div class="row">
+      <p><%= t '.from_which_we_can_establish' %></p>
+    </div>
+  <% end %>
+
+  <%= render partial: 'family_tree' %>
+  <% if @person.person? %>
+    <p>Family: people are related to each other via their mother and father where possible. Use brother/sister
+      <strong>very</strong>
+      sparingly</p>
+  <% end %>
+
+  <% @person.personal_roles.each_with_index do |personal_role, index| %>
+    <div class="row">
+      <span class="col-sm-1">
+        <%= link_to t('buttons.edit'), edit_personal_role_path(personal_role) %>
+      </span>
+      <span class="col-sm-11">
+        <% if index == 0 %>
+          <%= @person.personal_pronoun %> <%= @person.existence_word %>
+        <% end %>
+        <% if index == @person.personal_roles.size - 1 %>
+          and
+        <% end %>
+        <%= "best known as " if personal_role.primary %><%= a_or_an(personal_role.name, false) %>
+        <%= dated_role(personal_role).html_safe %>
+        <%= t('.conferring_the_letters') + ' ' + personal_role.role.suffix if personal_role.role.used_as_a_suffix? %><%= t('.conferring_the_title') + ' ' + personal_role.role.prefix if personal_role.role.used_as_a_prefix? %>
+        <%= link_to t('buttons.delete'), personal_role, method: :delete, class: 'btn btn-danger' %>
+      </span>
+    </div>
+  <% end %>
+
+  <div class="row">
+    <span class="col-sm-1">
+    </span>
+    <span class="col-sm-11">
+      <%= form_for @personal_role do |f| %>
+        <% if @person.personal_roles.size == 0 %>
+          <%= @person.name %> was a
+        <% else %>
+          and a
+        <% end %>
+        <%= f.collection_select :role, @roles, :id, :full_name, {}, {class: 'form-select', style: 'width:400px'} %>
+        from <%= f.text_field :started_at %>
+        to <%= f.text_field :ended_at %>
+        <%= f.hidden_field :person_id, value: @person.id %>
+        <%= f.submit t('buttons.add') %>
+      <% end %>
+    </span>
+    <span class="col-sm-12">
+      <%= link_to(t('.add_a_role'), new_role_path) %>
+    </span>
+  </div>

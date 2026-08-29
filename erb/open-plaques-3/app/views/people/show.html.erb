@@ -1,0 +1,112 @@
+<% content_for(:page_title) {t '.page_title', person: @person.name_and_dates } %>
+<% content_for(:title) { } %>
+<% content_for(:admin_menu) {navbar_link_to t('buttons.edit'), edit_person_path(@person)} %>
+<% content_for(:admin_menu) {navbar_link_to t('buttons.add'), new_person_path} %>
+
+<div class="vcard person" typeof="<%= if (@person.person?) then "foaf:Person" else "foaf:Agent" end %> vcard:VCard" about="#person">
+  <div class="card hovercard">
+    <% if @person.main_photo %>
+      <div class="card-background">
+        <%= image_tag(@person.main_photo.thumbnail_url != nil ? @person.main_photo.thumbnail_url : @person.main_photo.file_url, class: 'card-bkimg') %>
+      </div>
+      <div class="useravatar">
+        <%= image_tag(@person.main_photo.thumbnail_url != nil ? @person.main_photo.thumbnail_url : @person.main_photo.file_url, class: 'card-bkimg') %>
+      </div>
+    <% else %>
+      <div class="card-background-no-photo">
+      </div>
+    <% end %>
+    <div class="card-info">
+      <h1 class="card-title fn"><%= @person.full_name %><br/>
+        <small><%= @person.dates %></small>
+        <% if @person.gender == 'm' %>
+          <small><%= icon(:fas, :mars) %></small>
+        <% elsif @person.gender == 'f' %>
+          <small><%= icon(:fas, :venus) %></small>
+        <% elsif @person.gender == 'u' %>
+          <small><%= @person.gender %></small>
+        <% end %>
+      </h1>
+    </div>
+  </div>
+
+  <div class="row">
+    <h4 class="col-xs-12"><%= icon(:fas, :user) if @person.person?%>
+    <%= icon(:fas, :paw) if @person.animal? %>
+    <%= icon(:fas, :users) if @person.group? %>
+    <%= icon(:fas, :building) if @person.place? %>
+    <%= icon(:fas, :'map-marker') if @person.thing? %>
+    <%= roles_list(@person) %></h4>
+  </div>
+
+  <div class="row">
+    <div class="col-xs-12">
+      <p><%= "Died aged" if (@person.person? || @person.thing? || @person.animal?) && @person.dead? %><%= "Closed aged" if @person.place? && @person.dead? %><%= "Aged" if @person.alive? && @person.age%> <%= @person.age.to_s if @person.age%></p>
+      <% unless !@person.introduction || @person.introduction.empty? || @person.introduction.blank? %>
+        <blockquote class="quote-card blue-card">
+          <p><%= markdown(@person.introduction) %></p>
+          <cite><%= markdown(@person.citation_html) %></cite>
+        </blockquote>
+      <% end %>
+      <% unless !@person.dbpedia_abstract || @person.dbpedia_abstract.empty? %>
+        <blockquote class="quote-card blue-card">
+          <p><%= @person.dbpedia_abstract %></p>
+          <cite><%= link_to(icon(:fas, :link) + 'DbPedia', @person.dbpedia_uri, target: '_blank') unless @person.dbpedia_uri.blank? %></cite>
+        </blockquote>
+      <% end %>
+      <%= link_to(icon(:fas, :link) + "Wikidata", @person.wikidata_url, target: '_blank') unless @person.wikidata_url.blank? %>
+      <%= link_to(icon(:fas, :link) + "Wikipedia", @person.wikipedia_url, target: '_blank') unless @person.wikipedia_url.blank? %>
+      <%= link_to(icon(:fas, :link) + "Find A Grave", @person.find_a_grave_url, target: '_blank') unless @person.find_a_grave_id.blank? %>
+  </div>
+  </div>
+
+  <%= render partial: 'family_tree' %>
+
+  <% if @person.group? && @person.non_family_relationships.count > 0 %>
+    <% if @person.non_family_relationships.count < 3 %>
+      <div class="row">
+        <% @person.non_family_relationships.each do |relationship| %>
+          <div class="col-xs-6 col-sm-4 col-md-3">
+            <%= render relationship.related_person %>
+          </div>
+        <% end %>
+      </div>
+    <% elsif @person.non_family_relationships.count < 11 %>
+      <div class="row">
+        <% cols = (12 / @person.non_family_relationships.count).ceil %>
+        <% cols = [cols,2].max %>
+        <% @person.non_family_relationships.each do |relationship| %>
+          <div class="col-xs-6 col-sm-<%= cols %>">
+            <%= render relationship.related_person %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="row" data-masonry='{"percentPosition": true }'>
+        <% @person.non_family_relationships.each do |relationship| %>
+          <%= render relationship.related_person %>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <% if @person.person? && @person.non_family_relationships.size > 0 %>
+    <div class="row">
+      <p>
+        <% @person.non_family_relationships.each_with_index do |relationship, index| %>
+          <%= relationship.role.name %> of <%= link_to relationship.related_person, relationship.related_person %> <%= relationship.year_range %><% if index == @person.non_family_relationships.size - 2 %> and<% elsif index != @person.non_family_relationships.size - 1 %>,<% end %>
+        <% end %>
+      </p>
+    </div>
+  <% end %>
+
+</div>
+
+<% if @person.plaques.size > 0 %>
+  <h2><%= t '.commemorated_on', count: @person.plaques.size %></h2>
+<% else %>
+  <h2><%= t '.not_commemorated'%></h2>
+<% end %>
+
+<% @plaques = @person.plaques %>
+<%= render partial: 'plaques/tabbed' %>

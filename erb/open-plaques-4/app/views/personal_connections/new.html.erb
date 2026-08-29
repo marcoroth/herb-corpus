@@ -1,0 +1,166 @@
+<% content_for(:page_title) { t(".page_title", plaque: @plaque.to_s) } %>
+<%= render "plaques/edit_bar", plaque: @plaque %>
+
+<!-- Page Title -->
+<div class="page-title">
+  <div class="container d-lg-flex justify-content-between align-items-center">
+    <h1 class="mb-2 mb-lg-0"><%= t(".page_heading", plaque: @plaque.to_s) %></h1>
+    <nav class="breadcrumbs">
+      <ol>
+        <li><%= link_to "Home", root_path %></li>
+        <li><%= link_to @plaque %></li>
+        <li class="current">Connection</li>
+      </ol>
+    </nav>
+  </div>
+</div><!-- End Page Title -->
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-8">
+
+      <% if @plaque.personal_connections.count > 0 %>
+        <section class="section" id="current">
+          <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+            <h2>Current connections</h2>
+
+            <% if @plaque.personal_connections.count < 11 %>
+              <div class="row">
+                <% @plaque.personal_connections.all.each do |connection| %>
+                  <div class="xcol-xs-4 xcol-sm-4 col-md-4">
+                    <%= render connection.person %>
+                    <p>
+                      <%= connection.verb.name %>
+                      here
+                      <% if connection.single_year? %>
+                        <%= "in #{connection.from}" unless connection.from.blank? %>
+                      <% else %>
+                        <%= "from #{connection.from}" unless connection.from.blank? %><%= " to #{connection.to}" unless connection.to.blank? %>
+                      <% end %>
+                    </p>
+                    <%= button_to t("buttons.unlink"), plaque_connection_path(@plaque, connection), method: :delete, class: "btn btn-danger" %>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="row" data-masonry='{"percentPosition": true }'>
+                <% @plaque.personal_connections.all.each do |connection| %>
+                  <div class="card">
+                    <%= render connection.person %>
+                    <p class="card-text">
+                      <%= connection.verb.name %>
+                      here
+                      <% if connection.single_year? %>
+                        <%= "in #{connection.from}" unless connection.from.blank? %>
+                      <% else %>
+                        <%= "from #{connection.from}" unless connection.from.blank? %><%= " to #{connection.to}" unless connection.to.blank? %>
+                      <% end %>
+                    </p>
+                    <%= button_to t("buttons.unlink"), plaque_connection_path(@plaque, connection), method: :delete, class: "btn btn-danger" %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+
+          </div>
+        </section>
+      <% end %>
+
+      <section class="section">
+        <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+          <%= render "section_title", title: t(".from_which_we_can_establish") %>
+          <%= form_for @personal_connection, url: plaque_connections_path(@plaque) do |f| %>
+            <div class="form-group" data-controller="autocomplete" data-autocomplete-url-value="/people/autocomplete" role="combobox">
+              <%= text_field_tag :person_name, @person&.name, { "data-autocomplete-target": "input", placeholder: "John Smith" } %>
+              <%= f.hidden_field :person_id, value: @person&.id, "data-autocomplete-target": "hidden" %>
+              <ul class="list-group" data-autocomplete-target="results"></ul>
+            </div>
+            <% if @common_verbs %>
+              <div>
+                <% @common_verbs.each do |verb| %>
+                  <div class="row radio">
+                    <%= f.radio_button :verb_id, verb.id %>
+                    <%= f.label "verb_id_#{verb.id.to_s}", verb.name, class: verb.name.downcase %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+            <div class="form-group">
+              <%= f.collection_select :verb_id, @verbs, :id, :name, { class: "form-select", style: "width:400px" } %>
+            </div>
+            <% if @personal_connection.full_address %>
+              <div class="form-group">
+                <%= "#{t(".at")} #{@personal_connection.full_address}" %>
+              </div>
+            <% end %>
+            <div class="input-group">
+              <span class="input-group-text"><%= f.label :started_at %></span>
+              <%= f.text_field :started_at %>
+              <span class="input-group-text"><%= f.label :ended_at %></span>
+              <%= f.text_field :ended_at %>
+            </div>
+            <div class="form-group">
+              <%= t(".reminder") %>
+            </div>
+            <%= f.submit t("buttons.add") %>
+          <% end %>
+
+        </div>
+      </section>
+
+      <section class="section" id="aws_suggests">
+        <div class="container" data-aos="fade-up" data-aos-delay="100">
+          <% if @entities && @entities != [] %>
+            <%= render "section_title", title: "AWS suggests..." %>
+            <ul class="list-group">
+              <% @entities.each.with_index do |entity, i| %>
+                <% icon = { "DATE": "bi-calendar-date", "EVENT": "bi-calendar-event", "PERSON": "bi-person", "LOCATION": "bi-house", "ORGANIZATION": "bi-people" }[entity.type.to_sym] %>
+                <% icon_add = { "DATE": "bi-calendar-date", "PERSON": "bi-person-add", "LOCATION": "bi-house-add", "ORGANIZATION": "bi-people" }[entity.type.to_sym] %>
+                <% started_at = @entities[i + 1].text.match(/(\d*)[-—–\s]*(\d*)/)[1] if @entities[i + 1] %>
+                <% ended_at = @entities[i + 1].text.match(/(\d*)[-—–\s]*(\d*)/)[2] if @entities[i + 1] %>
+                <% ended_at = @entities[i + 2].text.match(/(\d*)/)[1] if ended_at.blank? && @entities[i + 2] %>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <div class="ms-2 me-auto">
+                    <%= "<i class=\"bi #{icon}\"></i>".html_safe if icon %>
+                    <%= entity.text %>
+                    <% if started_at.present? || ended_at.present? %>
+                      + <i class="bi bi-calendar-date"></i><%= started_at %><%= "-#{ended_at}" unless ended_at.blank? %>
+                    <% end %>
+                  </div>
+                  <% if %w[PERSON LOCATION ORGANIZATION].include? entity.type %>
+                    <% label = { "PERSON": "new person", "LOCATION": "new place/thing", "ORGANIZATION": "new group" }[entity.type.to_sym] %>
+                    <%= link_to("<i class=\"bi #{icon_add}\"></i>&nbsp;#{label}".html_safe, new_person_path(ended_at: ended_at, name: entity.text, plaque_id: @plaque, started_at: started_at), class: "btn btn-warning") %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        </div>
+      </section>
+
+      <section class="section" id="op_suggests">
+        <div class="container" data-aos="fade-up" data-aos-delay="100">
+          <%= render "section_title", title: "OpenPlaques suggests..." %>
+          <%= link_to("<i class=\"bi bi-person-add\"></i>&nbsp;#{t(".new_person")}".html_safe, new_person_path(plaque_id: @plaque), class: "btn btn-warning") %>
+          <%= link_to t(".new_verb"), new_verb_path, class: "btn btn-warning", target: :_blank %>
+          <% if @suggested_people && @suggested_people.size > 0 %>
+            <div id="person-tiles" class="row" data-masonry='{"percentPosition": true }'>
+              <% for person in @suggested_people %>
+                <%= render partial: "people/tile", object: person, as: :person %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-lg-4 sidebar">
+      <div class="widgets-container">
+        <%= render "search" %>
+        <%= render @plaque, show_subjects: false %>
+      </div>
+    </div>
+  </div>
+</div>

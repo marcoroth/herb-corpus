@@ -1,0 +1,97 @@
+<% content_for(:page_title) {t '.page_title', organisation: @organisation.name} %>
+<% content_for(:title) {t '.page_heading', organisation: @organisation.name } %>
+
+<%= form_for(@organisation) do |f| %>
+  <div class="mb-3">
+    <%= f.label :name %>
+    <%= f.text_field :name %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :language_id, t('.language') %>
+    <%= f.collection_select :language_id, @languages, :id, :name, { include_blank: "Select a language" }, class: 'form-select' %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :slug %>
+    <%= f.text_field :slug %>
+  </div>
+  <div class="mb-3">
+    <%= label_tag(nil, t('.geolocation')) %>
+    <%= f.label :latitude %> <%= f.text_field :latitude %>
+    <%= f.label :longitude %> <%= f.text_field :longitude %>
+  </div>
+  <div class="mb-3">
+    <%= label_tag(:streetview_url, t('.google_streetview_url')) %>
+    <%= text_field_tag(:streetview_url, nil) %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :website %>
+    <%= f.text_field :website %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :description %>
+    <%= f.text_area :description %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :notes %>
+    <%= f.text_area :notes %>
+  </div>
+  <%= f.submit t('buttons.save')  %>
+<% end %>
+
+<div id="map" style="height: 400px; width: 100%; margin-top: 15px;"></div>
+
+<script>
+  var map = null;
+  var lat_element = null;
+  var lon_element = null;
+  var geolocation = new L.LatLng(52, 0);
+  var view = 5;
+
+  document.addEventListener("DOMContentLoaded", function()
+  {
+    lat_element = document.getElementById('organisation_latitude');
+    lon_element = document.getElementById('organisation_longitude');
+
+    lat_element.addEventListener('blur', update_map);
+    lon_element.addEventListener('blur', update_map);
+
+    update_geolocation_from_text_fields();
+
+    var plaque_icon = new L.DivIcon({ className: 'plaque-marker', html: '', iconSize : 16 });
+
+    map = L.map('map').setView(geolocation, view);
+    map.scrollWheelZoom.disable();
+//    var basemap = new L.StamenTileLayer("toner"); // toner, terrain, or watercolor
+    var basemap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    	maxZoom: 19,
+    	attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    });
+    map.addLayer(basemap);
+    marker = L.marker(geolocation, {draggable: true, icon: plaque_icon});
+    marker.on('dragend', update_text_fields_from_marker);
+    marker.addTo(map);
+
+    function update_geolocation_from_text_fields()
+    {
+      if (lat_element && lat_element.value != '' && lon_element && lon_element.value != '')
+      {
+        geolocation.lat = lat_element.value;
+        geolocation.lng = lon_element.value;
+        view = 18;
+      }
+    }
+
+    function update_map()
+    {
+      update_geolocation_from_text_fields();
+      marker.setLatLng(geolocation);
+      map.setView(geolocation, view);
+    }
+
+    function update_text_fields_from_marker()
+    {
+      lat_element.value = marker.getLatLng().lat;
+      lon_element.value = marker.getLatLng().lng;
+    }
+  });
+</script>

@@ -1,0 +1,153 @@
+<% content_for(:page_title) { t(".page_title", photo: @photo.title) } %>
+<% content_for(:admin_menu) { navbar_link_to t("buttons.new"), new_photo_path } %>
+
+<!-- Page Title -->
+<div class="page-title">
+  <div class="container d-lg-flex justify-content-between align-items-center">
+    <h1 class="mb-2 mb-lg-0"><%= t(".page_heading", photo: @photo.title) %></h1>
+    <nav class="breadcrumbs">
+      <ol>
+        <li><%= link_to "Home", root_path %></li>
+        <li>Photos</li>
+        <li><%= link_to @photo %></li>
+        <li class="current">Edit</li>
+      </ol>
+    </nav>
+  </div>
+</div><!-- End Page Title -->
+
+<section class="section">
+  <div class="container" data-aos="fade-up" data-aos-delay="100">
+
+    <% if @plaques && @plaques.size > 0 %>
+      <p>This image is unlinked. Nearest plaque is <%= @plaques.first.distance_to(@photo) %> metres away</p>
+    <% elsif !@photo.linked? %>
+      <p>This image is unlinked. There are no plaques nearby. Set the subject and shot.</p>
+    <% end %>
+
+    <%= form_for @photo do |f| %>
+      <div class="row">
+        <div class="col-xs-12 col-sm-6">
+          <div class="mb-3">
+            <%= f.label :of_a_plaque %>
+            <%= f.check_box :of_a_plaque %>
+          </div>
+          <div class="mb-3">
+            <%= f.label :plaque_id %>
+            <%= f.number_field :plaque_id, maxlength: "5" %>
+            <% if @photo.plaque %>
+              <%= render partial: "plaques/tile", object: @photo.plaque, as: :plaque %>
+            <% end %>
+          </div>
+          <div class="mb-3">
+            <%= f.label :clone_id %>
+            <%= f.number_field :clone_id, maxlength: "5" %>
+          </div>
+          <div class="mb-3">
+            <%= label_tag(nil, t(".geolocation")) %>
+            <%= link_to(fa_icon(:link), "https://www.google.co.uk/maps/?q=#{@photo.latitude},#{@photo.longitude}", target: :_blank) %>
+            POINT(<%= @photo.longitude %>, <%= @photo.latitude %>)
+          </div>
+          <div class="mb-3">
+            <%= f.label :subject %>
+            <%= f.text_field :subject %>
+          </div>
+          <% if /\[\[/ =~ @photo.description %>
+            <div class="row">
+              <%= link_to(fa_icon(:link) + "Geograph image mentioned", "http://www.geograph.org.uk/photo/#{@photo.description.match(/\[\[(\d*)\]\]/i).try(:captures)[0]}", target: :_blank) %>
+            </div>
+          <% end %>
+          <div class="mb-3">
+            <%= f.label :description %>
+            <%= f.text_area :description, rows: 12 %>
+          </div>
+          <div class="mb-3">
+            <%= f.label :shot %>
+            <%= f.collection_select :shot, Photo.shots, :to_s, :to_s, {include_blank: true, class: "form-select"} %> shot
+          </div>
+        </div>
+        <div class="col-xs-12 col-sm-6">
+          <%= link_to(@photo.file_url) do %>
+            <%= render @photo, large: true %>
+          <% end %>
+        </div>
+      </div>
+      <%= f.submit t("buttons.save") %>
+      <% if @plaques && @plaques.size > 0 %>
+        <h2>Nearby plaques</h2>
+        <div class="mb-3">
+          <div class="col-xs-6 col-sm-2">
+          </div>
+          <div class="col-xs-6 col-sm-10">
+            <%= f.radio_button :plaque_id, nil %>
+            None of these
+          </div>
+        </div>
+        <% @plaques.each do |plaque| %>
+          <div class="row">
+            <%= render partial: "plaques/tile", object: plaque, as: :plaque %>
+            <div class="col-xs-6 col-sm-10">
+              <%= f.radio_button :plaque_id, plaque.id %>
+              plaque #<%= plaque.id %> at <%= plaque.distance_to(@photo) %> metres
+              <br/><br/>
+              "<%= plaque.inscription %>"
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+
+      <div class="mb-3">
+        <%= label_tag(:streetview_url, t(".google_streetview_url")) %>
+        <%= text_field_tag(:streetview_url, nil) %>
+      </div>
+
+      <div class="mb-3">
+        <%= f.label :person_id %>
+        <%= f.text_field :person_id, maxlength: 5 %>
+        <%= link_to(@photo.person, @photo.person) if @photo.person %>
+      </div>
+      <%= f.submit t("buttons.save")%>
+      <h2>URLs</h2>
+      <div class="mb-3">
+        <%= f.label :url %>
+        <%= link_to(fa_icon(:link), @photo.url, target: :_blank) %>
+        <%= f.text_field :url, maxlength: 100 %>
+      </div>
+      <div class="mb-3">
+        <%= f.label :file_url %>
+        <%= link_to(fa_icon(:link), @photo.file_url, target: :_blank) %>
+        <%= f.text_field :file_url, maxlength: 100 %>
+      </div>
+      <div class="mb-3">
+        <%= f.label :thumbnail %>
+        <%= link_to(fa_icon(:link), @photo.thumbnail, target: :_blank) %>
+        <%= f.text_field :thumbnail, maxlength: 100 %>
+      </div>
+      <div class="mb-3">
+        <%= f.label :thumbnail_url %>
+        <%= link_to(fa_icon(:link), @photo.thumbnail_url, target: :_blank) %>
+        <span class="form-control-static"><%= @photo.thumbnail_url %></span>
+      </div>
+      <div class="mb-3">
+        <%= f.label :photographer %>
+        <%= f.text_field :photographer %>
+      </div>
+      <div class="mb-3">
+        <%= f.label :photographer_url %>
+        <%= link_to(fa_icon(:link), @photo.photographer_url, target: :_blank) %>
+        <%= f.text_field :photographer_url, size: 80 %>
+      </div>
+      <div class="mb-3">
+        <%= f.label :licence_id %>
+        <%= f.collection_select :licence_id, @licences, :id, :name, { include_blank: true } %>
+      </div>
+      <%= f.submit t("buttons.save") %>
+    <% end %>
+
+    <br/>
+    <div class="row">
+      <%= button_to t("buttons.delete"), photos_path(@photo), { method: :delete, class: "btn btn-danger" } if current_user.try(:is_admin?) %>
+    </div>
+
+  </div>
+</section>

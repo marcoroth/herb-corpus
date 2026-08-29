@@ -1,0 +1,73 @@
+<% content_for(:page_title) {t '.page_title'} %>
+<% content_for(:title) {t '.page_heading'} %>
+<% content_for(:page_subhead) {'Open Plaques credit every organisation listed on the plaque as well as monetary sponsors.'} %>
+<%= render 'plaques/edit_bar', plaque: @plaque %>
+
+<script>
+  $(function() {
+    $( '#organisation_name' ).autocomplete({
+      autofocus: true,
+      source: function(request, response) {
+        $.ajax({
+          url: '/organisations/autocomplete',
+          dataType: 'json',
+          data: {
+            contains: request.term,
+            limit: 10
+          },
+          success: function(data) {
+            response($.map(data, function(item) {
+              return {
+                label: item.name,
+                id: item.id
+              }
+            }));
+          }
+        });
+      },
+      select: function(event, ui) {
+        $('#sponsorship_organisation_id').val(ui.item.id);
+      }
+    });
+  });
+</script>
+
+<div class="row">
+  <div class="col-xs-12 col-sm-6" id="organisation-chooser">
+    <div class="col-md-12">
+      <% @plaque.sponsorships.all.each do |sponsorship| %>
+        <% if sponsorship.organisation %>
+          <div class="row">
+            <div class="col-xs-10"><%= render sponsorship.organisation %></div>
+            <div class="col-xs-2"><%= button_to t('buttons.unlink'), plaque_sponsorship_path(@plaque, sponsorship.id), method: :delete, class: 'btn btn-danger' %></div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%= form_for @sponsorship, url: plaque_sponsorships_path(@plaque) do |f| %>
+      <%= f.hidden_field :plaque_id, value: @plaque.id %>
+      <div class="row mb-6">
+        <div class="col-md-12">
+          <div class="form-group">
+            <%= f.label(:organisation_id) %>
+            <%= text_field_tag :organisation_name, '', { class: 'form-control', placeholder: 'English Heritage' } %>
+            <%= f.collection_select :organisation_id, @organisations, :id, :name, { include_blank: 'enter an organisation name or use dropdown' } %>
+          </div>
+        </div>
+      </div>
+      <%= f.submit t('buttons.link') %>
+    <% end %>
+    <% if current_user %>
+      <br/>
+      <div>
+        <%= link_to('Add new organisation', new_organisation_path) %>
+      </div>
+    <% end %>
+  </div>
+  <% if @plaque.main_photo %>
+    <div class="col-xs-12 col-sm-6" id="photo-display">
+      <%= render @plaque.main_photo, large: true %>
+    </div>
+  <% end %>
+</div>
