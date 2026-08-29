@@ -10,7 +10,7 @@ Every application is pinned to an exact commit, so results are reproducible acro
 | Corpus | |
 | --- | --- |
 | Applications and engines | **342** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **37,491** from 276 apps |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **37,802** from 276 apps |
 | Size of `erb/` | ~58 MB |
 | Excluded pending license review | 66 apps |
 
@@ -213,7 +213,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 
 ### Herb
 
-**132 of 342** applications use Herb: `herb` 79, `@herb-tools/linter` 57, `@herb-tools/formatter` 33, `.herb.yml` 105, `.herb/` 1.
+**130 of 342** applications use Herb: `herb` 78, `@herb-tools/linter` 57, `@herb-tools/formatter` 35, `.herb.yml` 104, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -243,7 +243,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  | .herb.yml | present | – | [2026-05-23](https://github.com/Bank-Exit/bank_exit/commit/f8b718d6cf6888bfdd24d3a4684249fa89303591 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [bento-manager](https://github.com/kazu-2020/bento-manager/tree/7d1faadad6f8eba666634655ec615a2c1b3a1a03) | linter | ^0.10.3 | explicit | [2026-01-03](https://github.com/kazu-2020/bento-manager/commit/80d9008988acab9cd754cdc70cac2c53d9005643 "first seen in package.json") |
-|  | .herb.yml | 0.8.6 | – | [2026-01-03](https://github.com/kazu-2020/bento-manager/commit/80d9008988acab9cd754cdc70cac2c53d9005643 "first seen in .herb.yml") |
+|  | .herb.yml | 0.10.3 | – | [2026-01-03](https://github.com/kazu-2020/bento-manager/commit/80d9008988acab9cd754cdc70cac2c53d9005643 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [bike_index](https://github.com/bikeindex/bike_index/tree/73a26cf4ec9b164079c4603152cb60d004978a7f) | herb | 0.10.3 | explicit | [2025-10-21](https://github.com/bikeindex/bike_index/commit/3001826a1f7b7ba754d664f7a245c58b81bf6201 "first seen in Gemfile") |
 |  | linter | ^0.10.3 | explicit | [2025-11-20](https://github.com/bikeindex/bike_index/commit/d71b1d23b570f5a27b70b77b9d265c5f86b4a1f3 "first seen in package.json") |
@@ -264,7 +264,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  | formatter | ^0.10.1 | explicit | [2026-05-11](https://github.com/Kiryuanzu/cal_memo/commit/41bf5054cfd9a35a7cb53d7a847bd58bf8158fac "first seen in package.json") |
 |  | .herb.yml | present | – | [2026-05-11](https://github.com/Kiryuanzu/cal_memo/commit/41bf5054cfd9a35a7cb53d7a847bd58bf8158fac "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [canivete](https://github.com/fbatista/canivete/tree/00f6cd76bb2ecaf1c63b6d931b57038cb14a72bb) | herb | 0.7.3 | explicit | [2025-09-23](https://github.com/fbatista/canivete/commit/644e28a81357b656d2a504fb9981387b8054f2bb "first seen in Gemfile") |
+| [canivete](https://github.com/fbatista/canivete/tree/00f6cd76bb2ecaf1c63b6d931b57038cb14a72bb) | herb | 0.10.3 | explicit | [2025-09-23](https://github.com/fbatista/canivete/commit/644e28a81357b656d2a504fb9981387b8054f2bb "first seen in Gemfile") |
 |  | .herb.yml | 0.10.1 | – | [2026-05-06](https://github.com/fbatista/canivete/commit/196460c1f6b79ee0c27ade1c6e3e16ccdf4ac4d9 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [chorbasel-app](https://github.com/nerdinand/chorbasel-app/tree/3a78e50eee03485879d9464a23a7a82369750109) | .herb.yml | 0.9.7 | – | [2026-02-23](https://github.com/nerdinand/chorbasel-app/commit/bc0cfcd7b660032dabc355f59c2e8bae21608ad6 "first seen in .herb.yml") |
@@ -279,17 +279,12 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  | formatter | ^0.10.1 | explicit | [2026-06-18](https://github.com/yokomaru/citytori-proto/commit/6234603149667a7600df716ffc5f4f4fd0967509 "first seen in package.json") |
 |  | .herb.yml | 0.10.1 | – | [2026-06-18](https://github.com/yokomaru/citytori-proto/commit/6234603149667a7600df716ffc5f4f4fd0967509 "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [claim-additional-payments-for-teaching](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/tree/c910abeba5f58719a3c7366582253d4b8ea3c0cb) | herb | 0.7.4 | explicit | [2025-11-13](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/commit/034c02c18bcab559335fbdaee8e0d475b6559dd6 "first seen in Gemfile") |
+| [claim-additional-payments-for-teaching](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/tree/c910abeba5f58719a3c7366582253d4b8ea3c0cb) | herb | 0.10.3 | explicit | [2025-11-13](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/commit/034c02c18bcab559335fbdaee8e0d475b6559dd6 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [clinical_exchange](https://github.com/bowdena/monorail/tree/437878f61522f7b28e90bb15df59c08c11438a72) | herb | 0.10.2 | explicit | [2026-08-01](https://github.com/bowdena/monorail/commit/0ef57a65fe519e4a32e32b0e833064ab45b2cb42 "first seen in Gemfile") |
-|  | linter | ^0.10.2 | explicit | [2026-08-01](https://github.com/bowdena/monorail/commit/0ef57a65fe519e4a32e32b0e833064ab45b2cb42 "first seen in package.json") |
-|  | formatter | ^0.10.2 | explicit | [2026-08-01](https://github.com/bowdena/monorail/commit/0ef57a65fe519e4a32e32b0e833064ab45b2cb42 "first seen in package.json") |
-|  | .herb.yml | present | – | [2026-08-01](https://github.com/bowdena/monorail/commit/0ef57a65fe519e4a32e32b0e833064ab45b2cb42 "first seen in .herb.yml") |
-|  |  |  |  |  |
-| [community_foundation](https://github.com/rubyforgood/community_foundation/tree/1a52f12b841da76dc0e14c1c8095980e7949d5be) | herb | 0.10.1 | transitive | [2026-06-22](https://github.com/rubyforgood/community_foundation/commit/34ef5b93f3bf3e753a295b9fa37a57a05799b818 "first seen in Gemfile.lock") |
+| [community_foundation](https://github.com/rubyforgood/community_foundation/tree/1a52f12b841da76dc0e14c1c8095980e7949d5be) | herb | 0.10.3 | transitive | [2026-06-22](https://github.com/rubyforgood/community_foundation/commit/34ef5b93f3bf3e753a295b9fa37a57a05799b818 "first seen in Gemfile.lock") |
 |  | .herb.yml | 0.10.1 | – | [2026-06-24](https://github.com/rubyforgood/community_foundation/commit/539131cdd2aeedd873e7a233da74764efe6cc50f "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [conference-app](https://github.com/kaigionrails/conference-app/tree/306a9c7a8764c0e268870075c7d0944cfe21f060) | herb | 0.10.2 | explicit | [2025-10-02](https://github.com/kaigionrails/conference-app/commit/ef7ff517d6676a169f21fa3ac8d822cd974ed3c0 "first seen in Gemfile") |
+| [conference-app](https://github.com/kaigionrails/conference-app/tree/306a9c7a8764c0e268870075c7d0944cfe21f060) | herb | 0.10.3 | explicit | [2025-10-02](https://github.com/kaigionrails/conference-app/commit/ef7ff517d6676a169f21fa3ac8d822cd974ed3c0 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [Contribute-On-Rails](https://github.com/Nandosts/Contribute-On-Rails/tree/46c741759a1ed25a17c02b5a21374c9d97e7fb95) | herb | 0.10.1 | explicit | [2026-05-17](https://github.com/Nandosts/Contribute-On-Rails/commit/04a1942ad02462922c89f12ee92cfdca51ca300a "first seen in Gemfile") |
 |  | .herb.yml | 0.10.1 | – | [2026-05-17](https://github.com/Nandosts/Contribute-On-Rails/commit/04a1942ad02462922c89f12ee92cfdca51ca300a "first seen in .herb.yml") |
@@ -343,7 +338,8 @@ both and silently compare a branch against itself, so the measurement scripts ru
 | [experiment-client-side-scopes](https://github.com/irinanazarova/experiment-client-side-scopes/tree/b6a1af20c744cb4740d6a75fe4ba5791ed5380d3) | herb | 0.10.1 | transitive | [2026-06-11](https://github.com/irinanazarova/experiment-client-side-scopes/commit/a11385d766001caab2c83f5ecf0ff6cbaac80e92 "first seen in Gemfile.lock") |
 |  | .herb.yml | 0.10.1 | – | [2026-06-23](https://github.com/irinanazarova/experiment-client-side-scopes/commit/42cd612148e5896aada25770cb8f3523ae8f783d "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [f2](https://github.com/dreikanter/f2/tree/ca9732e3ef3bb87f34e8e547dd9a68a9d36d048e) | .herb.yml | 0.10.1 | – | [2026-06-20](https://github.com/dreikanter/f2/commit/51cce61ee4f8ef388aa2c3c2cdfbd038d14b3769 "first seen in .herb.yml") |
+| [f2](https://github.com/dreikanter/f2/tree/ca9732e3ef3bb87f34e8e547dd9a68a9d36d048e) | herb | 0.10.3 | transitive | [2026-08-26](https://github.com/dreikanter/f2/commit/5f1bfb8d37fd10a38af1f71672c1465530e970c1 "first seen in Gemfile.lock") |
+|  | .herb.yml | 0.10.1 | – | [2026-06-20](https://github.com/dreikanter/f2/commit/51cce61ee4f8ef388aa2c3c2cdfbd038d14b3769 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [feedyour.email](https://github.com/indirect/feedyour.email/tree/4b7e14fbf7b1cd8a3e53f37cadce9d6210886933) | herb | 0.10.3 | explicit | [2026-07-18](https://github.com/indirect/feedyour.email/commit/fb5cd53648d5cc645a413009e0414b9600383edd "first seen in Gemfile") |
 |  |  |  |  |  |
@@ -353,10 +349,11 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  |  |  |  |  |
 | [flowbite-components](https://github.com/substancelab/flowbite-components/tree/bdff45afcb2a49d9fc49bb68821e7e8a97df0f3f) | herb | present | explicit | [2025-08-01](https://github.com/substancelab/flowbite-components/commit/4bdffa41e59cb4f41f8bf236b77a801307b3121d "first seen in Gemfile") |
 |  | linter | ^0.10.1 | explicit | [2026-06-30](https://github.com/substancelab/flowbite-components/commit/462bd1497e4104f6c5a0a8ca45aa1afa5fe87af6 "first seen in package.json") |
+|  | formatter | ^0.10.3 | explicit | [2026-08-21](https://github.com/substancelab/flowbite-components/commit/a6a98777db75fdce602da88faaeb732211af5e2e "first seen in package.json") |
 |  | .herb.yml | 0.10.1 | – | [2026-06-30](https://github.com/substancelab/flowbite-components/commit/fec24a01249397a82b40f250156ac7a9e0d33308 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [fundamento-cloud](https://github.com/Ikigai-Systems/fundamento-cloud/tree/89a005da2da58848375496dc886b677d67839dcb) | herb | 0.10.1 | transitive | [2026-03-23](https://github.com/Ikigai-Systems/fundamento-cloud/commit/06de68eee82088e4d5e0bac68e4cf0f663e8c7fc "first seen in Gemfile.lock") |
-|  | linter | ^0.10.2 | explicit | [2026-04-24](https://github.com/Ikigai-Systems/fundamento-cloud/commit/a49d21f9c9f146cde97c04ca37991d4c75d7d227 "first seen in package.json") |
+|  | linter | ^0.10.3 | explicit | [2026-04-24](https://github.com/Ikigai-Systems/fundamento-cloud/commit/a49d21f9c9f146cde97c04ca37991d4c75d7d227 "first seen in package.json") |
 |  | .herb.yml | 0.9.7 | – | [2026-04-23](https://github.com/Ikigai-Systems/fundamento-cloud/commit/9d001db4f427619f8a6bdc73868f5d3cc63fbb7f "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [gatherpack](https://github.com/GatherPack/gatherpack/tree/6f3047dd6befb54c774a60ef07e134a94eb92e55) | herb | 0.10.3 | explicit | [2026-07-05](https://github.com/GatherPack/gatherpack/commit/a40f87ff1a9ff5c10536c3ec670038818d78fd4c "first seen in Gemfile") |
@@ -365,9 +362,6 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  |  |  |  |  |
 | [gem.sh](https://github.com/marcoroth/gem.sh/tree/8a4a44bdd857ea79114017608d73c5cd03c21dba) | herb | 0.7.5 | explicit | [2025-10-23](https://github.com/marcoroth/gem.sh/commit/cbe064be220bfdd2c670c037ba04ef0d91cfe719 "first seen in Gemfile") |
 |  | linter | ^0.7.5 | explicit | [2025-10-23](https://github.com/marcoroth/gem.sh/commit/eb78399e8354ae190c61411ddbcfa16843c761a6 "first seen in package.json") |
-|  |  |  |  |  |
-| [gesso](https://github.com/bowdena/monorail/tree/437878f61522f7b28e90bb15df59c08c11438a72) | herb | 0.10.2 | explicit | [2026-08-01](https://github.com/bowdena/monorail/commit/acf70785061fed97b1234a6bdb8ef7b6bed804be "first seen in Gemfile") |
-|  | .herb.yml | present | – | [2026-08-01](https://github.com/bowdena/monorail/commit/acf70785061fed97b1234a6bdb8ef7b6bed804be "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [good_job](https://github.com/bensheldon/good_job/tree/5fcde48f8765e69901ffa9c5a06122b19c73875f) | herb | 0.9.5 | explicit | [2026-04-08](https://github.com/bensheldon/good_job/commit/0e0405e679c52fae80748db60727eee5336eefe3 "first seen in Gemfile") |
 |  |  |  |  |  |
@@ -391,7 +385,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 | [hookshot](https://github.com/mensfeld/hookshot/tree/2588ea9f8a22889f300cc9c6603b62eb01efa042) | linter | ^0.10.0 | explicit | [2025-12-23](https://github.com/mensfeld/hookshot/commit/291ec4a330f0d93371f9b7803ae2acad8d807895 "first seen in package.json") |
 |  | .herb.yml | 0.9.0 | – | [2025-12-23](https://github.com/mensfeld/hookshot/commit/291ec4a330f0d93371f9b7803ae2acad8d807895 "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [hungry-hungry-hippo](https://github.com/sul-dlss/hungry-hungry-hippo/tree/9db6c2d3442f1e1462cbaec2de6cf89295c9607c) | herb | 0.10.2 | explicit | [2026-03-05](https://github.com/sul-dlss/hungry-hungry-hippo/commit/6b8a5cc209eb08d53b8a1bdece57d88b8b22d148 "first seen in Gemfile") |
+| [hungry-hungry-hippo](https://github.com/sul-dlss/hungry-hungry-hippo/tree/9db6c2d3442f1e1462cbaec2de6cf89295c9607c) | herb | 0.10.3 | explicit | [2026-03-05](https://github.com/sul-dlss/hungry-hungry-hippo/commit/6b8a5cc209eb08d53b8a1bdece57d88b8b22d148 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [hyperloop](https://github.com/anthony-robin/hyperloop/tree/94f5fc6b554a743edee8f12f59af418a2c5804ba) | .herb.yml | present | – | [2026-05-09](https://github.com/anthony-robin/hyperloop/commit/c1fdfa131933fd962de1660b1862613dd2315345 "first seen in .herb.yml") |
 |  |  |  |  |  |
@@ -400,10 +394,10 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  |  |  |  |  |
 | [ilv-store](https://github.com/lesm/ilv-store/tree/d6ca8428d11642620a4e8b2866a4b570d824695e) | .herb.yml | present | – | [2025-12-11](https://github.com/lesm/ilv-store/commit/071caeb4e38171f76b1b1fc0ccea4ea1652c1fad "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [irida-next](https://github.com/phac-nml/irida-next/tree/6ab4bd44b4844c19824d815fac2c793ce88c4664) | herb | 0.9.2 | transitive | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in Gemfile.lock") |
+| [irida-next](https://github.com/phac-nml/irida-next/tree/6ab4bd44b4844c19824d815fac2c793ce88c4664) | herb | 0.10.3 | transitive | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in Gemfile.lock") |
 |  | linter | ^0.10.3 | explicit | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in package.json") |
 |  | formatter | ^0.10.3 | explicit | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in package.json") |
-|  | .herb.yml | 0.10.2 | – | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in .herb.yml") |
+|  | .herb.yml | 0.10.3 | – | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [javierjulio.github.io](https://github.com/javierjulio/javierjulio.github.io/tree/dd44b4c3a4e65ca0c716f007c49ecbf4c733fefa) | herb | 0.10.3 | explicit | [2026-04-11](https://github.com/javierjulio/javierjulio.github.io/commit/37bb4c7e3044d62af49e0aff53d8c557f0379b1b "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2026-04-11](https://github.com/javierjulio/javierjulio.github.io/commit/37bb4c7e3044d62af49e0aff53d8c557f0379b1b "first seen in .herb.yml") |
@@ -440,7 +434,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 | [maintenance_tasks](https://github.com/Shopify/maintenance_tasks/tree/2b1ee13c4748750feef5973684b9aa611f987a77) | herb | 0.10.3 | explicit | [2026-05-15](https://github.com/Shopify/maintenance_tasks/commit/1a96d637506eb28c8eb5af69738f243f9fa1261f "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2026-05-15](https://github.com/Shopify/maintenance_tasks/commit/1a96d637506eb28c8eb5af69738f243f9fa1261f "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [mallard](https://github.com/t27duck/mallard/tree/771495ccd3abd037cca8ce4ec7b1dfe4f3a7b1b2) | herb | 0.9.2 | transitive | [2025-11-12](https://github.com/t27duck/mallard/commit/2becf36706a07cb4d0ce870c3d90cd8964991ddb "first seen in Gemfile.lock") |
+| [mallard](https://github.com/t27duck/mallard/tree/771495ccd3abd037cca8ce4ec7b1dfe4f3a7b1b2) | herb | 0.10.3 | transitive | [2025-11-12](https://github.com/t27duck/mallard/commit/2becf36706a07cb4d0ce870c3d90cd8964991ddb "first seen in Gemfile.lock") |
 |  | .herb.yml | 0.9.2 | – | [2025-11-12](https://github.com/t27duck/mallard/commit/0c56196b73a61e2b7690e9a6fe4f7973e46abfab "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [mampf](https://github.com/MaMpf-HD/mampf/tree/9f2d4cb9b25138f0343a843127852df9df6a2a38) | linter | ^0.9.5 | explicit | [2026-02-17](https://github.com/MaMpf-HD/mampf/commit/6914f4c1fa7161eb00b78fff640a1c3f8ab331ff "first seen in package.json") |
@@ -467,7 +461,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  |  |  |  |  |
 | [moj-components](https://github.com/ministryofjustice/moj-components/tree/3cc9596d7dc31b980b9e98754751978431c8bc7c) | herb | 0.10.3 | explicit | [2026-05-19](https://github.com/ministryofjustice/moj-components/commit/fd53e0acb24f76cc32d220b54e95a7ef2e71e16c "first seen in Gemfile") |
 |  | linter | 0.10.3 | explicit | [2026-05-20](https://github.com/ministryofjustice/moj-components/commit/08031f67c8011ba3e9236ed71ed525217c61beea "first seen in package.json") |
-|  | .herb.yml | 0.10.1 | – | [2026-05-19](https://github.com/ministryofjustice/moj-components/commit/fd53e0acb24f76cc32d220b54e95a7ef2e71e16c "first seen in .herb.yml") |
+|  | .herb.yml | 0.10.3 | – | [2026-05-19](https://github.com/ministryofjustice/moj-components/commit/fd53e0acb24f76cc32d220b54e95a7ef2e71e16c "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [ninetynine-staples-mono](https://github.com/denvermullets/ninetynine-staples-mono/tree/e0b0342fba893778a3fec7179d2ede29ec703218) | linter | ^0.10.2 | explicit | [2026-01-29](https://github.com/denvermullets/ninetynine-staples-mono/commit/d976541de2c678a1e576f13db86b798542e93252 "first seen in package.json") |
 |  | formatter | ^0.10.2 | explicit | [2026-01-29](https://github.com/denvermullets/ninetynine-staples-mono/commit/d976541de2c678a1e576f13db86b798542e93252 "first seen in package.json") |
@@ -572,8 +566,8 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  |  |  |  |  |
 | [sinatra-playground](https://github.com/travisbell/sinatra-playground/tree/74cc5e825a9380946a2f0b83e8fa1d58787bc290) | .herb.yml | 0.8.0 | – | [2025-11-17](https://github.com/travisbell/sinatra-playground/commit/e97970895543aea99ce9e106331d435dd0d87ca9 "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [skateparks](https://github.com/dimitristrechas/skateparks/tree/52346faef1fe7d90b16119289b4d39985b877b77) | linter | ^0.8.6 | explicit | [2025-12-26](https://github.com/dimitristrechas/skateparks/commit/58d74c8ee759895748194631db8eb56dd6dbb3f5 "first seen in package.json") |
-|  | formatter | ^0.8.6 | explicit | [2025-12-26](https://github.com/dimitristrechas/skateparks/commit/58d74c8ee759895748194631db8eb56dd6dbb3f5 "first seen in package.json") |
+| [skateparks](https://github.com/dimitristrechas/skateparks/tree/52346faef1fe7d90b16119289b4d39985b877b77) | linter | ^0.10.0 | explicit | [2025-12-26](https://github.com/dimitristrechas/skateparks/commit/58d74c8ee759895748194631db8eb56dd6dbb3f5 "first seen in package.json") |
+|  | formatter | ^0.10.0 | explicit | [2025-12-26](https://github.com/dimitristrechas/skateparks/commit/58d74c8ee759895748194631db8eb56dd6dbb3f5 "first seen in package.json") |
 |  | .herb.yml | 0.8.10 | – | [2025-12-26](https://github.com/dimitristrechas/skateparks/commit/58d74c8ee759895748194631db8eb56dd6dbb3f5 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [solid_litequeen](https://github.com/kivS/solid_litequeen/tree/b47dda8701f4a83025cd7520f549eeaca578ad61) | .herb.yml | 0.8.3 | – | [2025-12-09](https://github.com/kivS/solid_litequeen/commit/05918675e04d887de1666ba912844dd2a6413125 "first seen in .herb.yml") |
@@ -581,7 +575,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 | [sul-requests](https://github.com/sul-dlss/sul-requests/tree/cc42c91a877bf373da97ce1de16ce1ba7d013b00) | herb | 0.10.3 | explicit | [2026-02-10](https://github.com/sul-dlss/sul-requests/commit/09471f0a37184412ca29675b4e2cea17b19bfbba "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2026-04-28](https://github.com/sul-dlss/sul-requests/commit/7d3e6eb0d1745383f9e32f707815b5506330f209 "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [t27ducksite](https://github.com/t27duck/t27ducksite/tree/f8ba03068b4b04ee2d8ae75102d46d7091b084cd) | herb | 0.9.2 | transitive | [2025-11-12](https://github.com/t27duck/t27ducksite/commit/1456b7668aa75c5dc1a655cc0778526c6e74e83e "first seen in Gemfile.lock") |
+| [t27ducksite](https://github.com/t27duck/t27ducksite/tree/f8ba03068b4b04ee2d8ae75102d46d7091b084cd) | herb | 0.10.3 | transitive | [2025-11-12](https://github.com/t27duck/t27ducksite/commit/1456b7668aa75c5dc1a655cc0778526c6e74e83e "first seen in Gemfile.lock") |
 |  | .herb.yml | 0.9.0 | – | [2025-11-12](https://github.com/t27duck/t27ducksite/commit/d7fe23d57f3b0f6725900cda9e3add863b5920da "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [templatus-hotwire](https://github.com/templatus/templatus-hotwire/tree/aebe90e12419c2f8eb3aef6dea317075a0d57ef3) | herb | 0.10.3 | explicit | [2026-07-19](https://github.com/templatus/templatus-hotwire/commit/b504744d57b50e4aeb83c3b746320c147bcf568b "first seen in Gemfile") |
@@ -593,9 +587,13 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  | .herb.yml | 0.9.2 | – | [2026-03-20](https://github.com/siklodi-mariusz/test-dashboard/commit/fde9632e190815e1113a470bc8b3bf1eef306ad5 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [ubicloud](https://github.com/ubicloud/ubicloud/tree/da4a6cbfba8f503e45a06c25cf43a430671f656b) | herb | 0.10.3 | transitive | [2025-10-15](https://github.com/ubicloud/ubicloud/commit/8bc40afb406017ee9568efb383f941fe6595fdc5 "first seen in Gemfile.lock") |
+|  | linter | ^0.10.3 | explicit | [2026-08-14](https://github.com/ubicloud/ubicloud/commit/a90a0de953e6343a475e583ea83fc0c436bdb89e "first seen in package.json") |
+|  | formatter | ^0.10.3 | explicit | [2026-08-14](https://github.com/ubicloud/ubicloud/commit/a90a0de953e6343a475e583ea83fc0c436bdb89e "first seen in package.json") |
+|  | .herb.yml | 0.10.3 | – | [2026-08-14](https://github.com/ubicloud/ubicloud/commit/95a7da47c6348a885b4add6ef040a9840957c973 "first seen in .herb.yml") |
 |  |  |  |  |  |
-| [uchi](https://github.com/substancelab/uchi/tree/00de072caa5a452425629e62c59efa779125833d) | linter | ^0.10.1 | explicit | [2025-10-03](https://github.com/substancelab/uchi/commit/09e517580327977e998c36f04f6c5a1c1680da72 "first seen in package.json") |
-|  | .herb.yml | 0.10.1 | – | [2026-01-16](https://github.com/substancelab/uchi/commit/a3ab0a2816ce59dadf2e2c9c3c3624f90831d1a5 "first seen in .herb.yml") |
+| [uchi](https://github.com/substancelab/uchi/tree/00de072caa5a452425629e62c59efa779125833d) | linter | ^0.10.3 | explicit | [2025-10-03](https://github.com/substancelab/uchi/commit/09e517580327977e998c36f04f6c5a1c1680da72 "first seen in package.json") |
+|  | formatter | ^0.10.3 | explicit | [2026-08-21](https://github.com/substancelab/uchi/commit/bf1748727b99339eaa24553ef4031d30112da396 "first seen in package.json") |
+|  | .herb.yml | 0.10.3 | – | [2026-01-16](https://github.com/substancelab/uchi/commit/a3ab0a2816ce59dadf2e2c9c3c3624f90831d1a5 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [umaxica-apps-jit-global](https://github.com/seahal/umaxica-apps-jit-global/tree/ee25e6233adfcf63a3b9585d94e9740f3c0bfa7a) | herb | 0.10.3 | transitive | [2026-08-27](https://github.com/seahal/umaxica-apps-jit-global/commit/78c230958653fcea0d60628f4a13b09941abe011 "first seen in Gemfile.lock") |
 |  |  |  |  |  |
@@ -632,17 +630,17 @@ both and silently compare a branch against itself, so the measurement scripts ru
 | --- | --- | --- | --- | --- |
 | [bike_index](https://github.com/bikeindex/bike_index/tree/73a26cf4ec9b164079c4603152cb60d004978a7f) | reactionview | 0.3.0 | explicit | [2025-10-21](https://github.com/bikeindex/bike_index/commit/3001826a1f7b7ba754d664f7a245c58b81bf6201 "first seen in Gemfile.lock") |
 |  |  |  |  |  |
-| [canivete](https://github.com/fbatista/canivete/tree/00f6cd76bb2ecaf1c63b6d931b57038cb14a72bb) | reactionview | 0.1.2 | explicit | [2025-09-24](https://github.com/fbatista/canivete/commit/420be9605781a6fed76c25197253912bab0b0928 "first seen in Gemfile") |
+| [canivete](https://github.com/fbatista/canivete/tree/00f6cd76bb2ecaf1c63b6d931b57038cb14a72bb) | reactionview | 0.4.0 | explicit | [2025-09-24](https://github.com/fbatista/canivete/commit/420be9605781a6fed76c25197253912bab0b0928 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [claim-additional-payments-for-teaching](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/tree/c910abeba5f58719a3c7366582253d4b8ea3c0cb) | reactionview | 0.1.2 | explicit | [2025-10-03](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/commit/d2c7a2041a5600ad8f58494a5c2574421151ce71 "first seen in Gemfile") |
+| [claim-additional-payments-for-teaching](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/tree/c910abeba5f58719a3c7366582253d4b8ea3c0cb) | reactionview | 0.3.0 | explicit | [2025-10-03](https://github.com/DFE-Digital/claim-additional-payments-for-teaching/commit/d2c7a2041a5600ad8f58494a5c2574421151ce71 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [community_foundation](https://github.com/rubyforgood/community_foundation/tree/1a52f12b841da76dc0e14c1c8095980e7949d5be) | reactionview | 0.3.0 | explicit | [2026-06-22](https://github.com/rubyforgood/community_foundation/commit/34ef5b93f3bf3e753a295b9fa37a57a05799b818 "first seen in Gemfile") |
+| [community_foundation](https://github.com/rubyforgood/community_foundation/tree/1a52f12b841da76dc0e14c1c8095980e7949d5be) | reactionview | 0.4.0 | explicit | [2026-06-22](https://github.com/rubyforgood/community_foundation/commit/34ef5b93f3bf3e753a295b9fa37a57a05799b818 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [conference-app](https://github.com/kaigionrails/conference-app/tree/306a9c7a8764c0e268870075c7d0944cfe21f060) | reactionview | 0.3.0 | explicit | [2025-10-02](https://github.com/kaigionrails/conference-app/commit/ef7ff517d6676a169f21fa3ac8d822cd974ed3c0 "first seen in Gemfile") |
+| [conference-app](https://github.com/kaigionrails/conference-app/tree/306a9c7a8764c0e268870075c7d0944cfe21f060) | reactionview | 0.4.0 | explicit | [2025-10-02](https://github.com/kaigionrails/conference-app/commit/ef7ff517d6676a169f21fa3ac8d822cd974ed3c0 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [crooz](https://github.com/fcatuhe/crooz/tree/58da3940e43d8619a787c4b1d895a779e5920ef6) | reactionview | 0.3.0 | explicit | [2026-01-26](https://github.com/fcatuhe/crooz/commit/6007b6204a572ba5d6e95247aa8f3b429c2084e8 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [csa-admin](https://github.com/csa-admin-org/csa-admin/tree/a1919eb3dcaaa9c1b7123861ba9949559a45ffcc) | reactionview | 0.3.0 | explicit | [2025-11-15](https://github.com/csa-admin-org/csa-admin/commit/644a95b60735ebea30065578b16d057b0a47f6e8 "first seen in Gemfile") |
+| [csa-admin](https://github.com/csa-admin-org/csa-admin/tree/a1919eb3dcaaa9c1b7123861ba9949559a45ffcc) | reactionview | 0.4.0 | explicit | [2025-11-15](https://github.com/csa-admin-org/csa-admin/commit/644a95b60735ebea30065578b16d057b0a47f6e8 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [demarche.numerique.gouv.fr](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/tree/bd1d02509e5beecf7e9f45fbf797812fcf181499) | reactionview | 0.3.0 | explicit | [2025-09-29](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/commit/1b1ecc02df08bd37be216465d597abdec3a20a01 "first seen in Gemfile") |
 |  |  |  |  |  |
@@ -650,37 +648,37 @@ both and silently compare a branch against itself, so the measurement scripts ru
 |  |  |  |  |  |
 | [experiment-client-side-scopes](https://github.com/irinanazarova/experiment-client-side-scopes/tree/b6a1af20c744cb4740d6a75fe4ba5791ed5380d3) | reactionview | 0.3.0 | explicit | [2026-06-11](https://github.com/irinanazarova/experiment-client-side-scopes/commit/a11385d766001caab2c83f5ecf0ff6cbaac80e92 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [feedyour.email](https://github.com/indirect/feedyour.email/tree/4b7e14fbf7b1cd8a3e53f37cadce9d6210886933) | reactionview | 0.3.0 | explicit | [2026-07-18](https://github.com/indirect/feedyour.email/commit/7e9c15bdc6cff13eaefb8605d1332c5746f3f309 "first seen in Gemfile") |
+| [feedyour.email](https://github.com/indirect/feedyour.email/tree/4b7e14fbf7b1cd8a3e53f37cadce9d6210886933) | reactionview | 0.4.0 | explicit | [2026-07-18](https://github.com/indirect/feedyour.email/commit/7e9c15bdc6cff13eaefb8605d1332c5746f3f309 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [fundamento-cloud](https://github.com/Ikigai-Systems/fundamento-cloud/tree/89a005da2da58848375496dc886b677d67839dcb) | reactionview | 0.3.0 | explicit | [2026-03-23](https://github.com/Ikigai-Systems/fundamento-cloud/commit/06de68eee82088e4d5e0bac68e4cf0f663e8c7fc "first seen in Gemfile") |
 |  |  |  |  |  |
 | [gem.sh](https://github.com/marcoroth/gem.sh/tree/8a4a44bdd857ea79114017608d73c5cd03c21dba) | reactionview | 0.1.5 | explicit | [2025-10-23](https://github.com/marcoroth/gem.sh/commit/cbe064be220bfdd2c670c037ba04ef0d91cfe719 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [irida-next](https://github.com/phac-nml/irida-next/tree/6ab4bd44b4844c19824d815fac2c793ce88c4664) | reactionview | 0.3.0 | explicit | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in Gemfile") |
+| [irida-next](https://github.com/phac-nml/irida-next/tree/6ab4bd44b4844c19824d815fac2c793ce88c4664) | reactionview | 0.4.0 | explicit | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in Gemfile") |
 |  |  |  |  |  |
 | [jira-project-estimator](https://github.com/sebaherrera07/jira-project-estimator/tree/1697c4c059e0af967b796d2e94cab7afc395dc9f) | reactionview | 0.3.0 | explicit | [2026-03-30](https://github.com/sebaherrera07/jira-project-estimator/commit/28dd823458428b399f813539bce872eba3cfe489 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [Libreverse-Legacy](https://github.com/Libreverse/Libreverse-Legacy/tree/fd016da3c3f6e0143d0983bbcc256485feb9d914) | reactionview | 0.3.0 | explicit | [2025-09-21](https://github.com/Libreverse/Libreverse-Legacy/commit/e9b546610c5f75201d879183714f7163f62e33c5 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [mallard](https://github.com/t27duck/mallard/tree/771495ccd3abd037cca8ce4ec7b1dfe4f3a7b1b2) | reactionview | 0.3.0 | explicit | [2025-11-12](https://github.com/t27duck/mallard/commit/2becf36706a07cb4d0ce870c3d90cd8964991ddb "first seen in Gemfile") |
+| [mallard](https://github.com/t27duck/mallard/tree/771495ccd3abd037cca8ce4ec7b1dfe4f3a7b1b2) | reactionview | 0.4.0 | explicit | [2025-11-12](https://github.com/t27duck/mallard/commit/2becf36706a07cb4d0ce870c3d90cd8964991ddb "first seen in Gemfile") |
 |  |  |  |  |  |
 | [may_store](https://github.com/JuanVqz/may_store/tree/5f91e129a611c737f3acb20cc31d0a90499fbb2e) | reactionview | 0.3.0 | explicit | [2026-08-07](https://github.com/JuanVqz/may_store/commit/f5915f86c6e0bca4002faab477161cd589833eda "first seen in Gemfile") |
 |  |  |  |  |  |
 | [MeetAnotherDay](https://github.com/ChaelCodes/MeetAnotherDay/tree/fd239212e04048bbea6a3490b040f8651d4adda5) | reactionview | 0.1.2 | explicit | [2025-09-09](https://github.com/ChaelCodes/MeetAnotherDay/commit/85b828b836b61e90184d91db6b56a026d453f10f "first seen in Gemfile") |
 |  |  |  |  |  |
-| [ruby-news](https://github.com/stadia/ruby-news/tree/f4398de8177276843b78a900f1799c4590cc0d79) | reactionview | 0.3.0 | explicit | [2026-04-26](https://github.com/stadia/ruby-news/commit/6212c33a97644275382c3249e3c3d5c14d48d295 "first seen in Gemfile") |
+| [ruby-news](https://github.com/stadia/ruby-news/tree/f4398de8177276843b78a900f1799c4590cc0d79) | reactionview | 0.4.0 | explicit | [2026-04-26](https://github.com/stadia/ruby-news/commit/6212c33a97644275382c3249e3c3d5c14d48d295 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [rubyapi](https://github.com/rubyapi/rubyapi/tree/9d95ee1dc79513a16371eb5b9fa52eb7503ab99b) | reactionview | 0.3.0 | explicit | [2025-11-21](https://github.com/rubyapi/rubyapi/commit/e91333c4fad2001511f425d1ac4e3156d3bf3f0e "first seen in Gemfile") |
 |  |  |  |  |  |
-| [rubyevents](https://github.com/rubyevents/rubyevents/tree/da51a91f316fb407b04c270aa195f329fbf46293) | reactionview | 0.3.0 | explicit | [2025-11-25](https://github.com/rubyevents/rubyevents/commit/7843113db8dafa9da6fed63d3cbdc7e8f307c26b "first seen in Gemfile") |
+| [rubyevents](https://github.com/rubyevents/rubyevents/tree/da51a91f316fb407b04c270aa195f329fbf46293) | reactionview | 0.4.0 | explicit | [2025-11-25](https://github.com/rubyevents/rubyevents/commit/7843113db8dafa9da6fed63d3cbdc7e8f307c26b "first seen in Gemfile") |
 |  |  |  |  |  |
 | [shipyrd](https://github.com/Shipyrd/shipyrd/tree/f6dd32a980eebddc4ea7c353497924f451c2f4b7) | reactionview | 0.3.0 | explicit | [2025-11-22](https://github.com/Shipyrd/shipyrd/commit/fbf7bddd46fe68a2ad0bf66381f921407305cc75 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [t27ducksite](https://github.com/t27duck/t27ducksite/tree/f8ba03068b4b04ee2d8ae75102d46d7091b084cd) | reactionview | 0.3.0 | explicit | [2025-11-12](https://github.com/t27duck/t27ducksite/commit/1456b7668aa75c5dc1a655cc0778526c6e74e83e "first seen in Gemfile") |
+| [t27ducksite](https://github.com/t27duck/t27ducksite/tree/f8ba03068b4b04ee2d8ae75102d46d7091b084cd) | reactionview | 0.4.0 | explicit | [2025-11-12](https://github.com/t27duck/t27ducksite/commit/1456b7668aa75c5dc1a655cc0778526c6e74e83e "first seen in Gemfile") |
 |  |  |  |  |  |
 | [view_component](https://github.com/ViewComponent/view_component/tree/2ef8406732ca9bc359e8a11348575b47ab2ecda0) | reactionview | 0.3.0 | explicit | [2025-11-19](https://github.com/ViewComponent/view_component/commit/0fcd943f88a19616e0a6bd04951a5667c5bfed93 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [visualizer](https://github.com/miharekar/visualizer/tree/ac6f8898087bf7378e91a2b8ae9833cae5571cbc) | reactionview | 0.3.0 | explicit | [2025-09-26](https://github.com/miharekar/visualizer/commit/126a8f8a96d9d54848ff3e535a257d27f099a9d7 "first seen in Gemfile") |
+| [visualizer](https://github.com/miharekar/visualizer/tree/ac6f8898087bf7378e91a2b8ae9833cae5571cbc) | reactionview | 0.4.0 | explicit | [2025-09-26](https://github.com/miharekar/visualizer/commit/126a8f8a96d9d54848ff3e535a257d27f099a9d7 "first seen in Gemfile") |
 
 ### Adoption over time
 
@@ -688,56 +686,53 @@ both and silently compare a branch against itself, so the measurement scripts ru
 xychart
   title "Cumulative adoption, by project"
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]
-  y-axis "Apps" 0 --> 133
-  line [3, 8, 15, 22, 34, 47, 55, 66, 82, 92, 104, 112, 124, 132]
+  y-axis "Apps" 0 --> 131
+  line [3, 8, 15, 22, 34, 47, 55, 66, 82, 92, 104, 112, 124, 130]
   line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26]
 ```
 
-Herb 132 · ReActionView 26
+Herb 130 · ReActionView 26
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 75 apps
-  "0.10.3" : 39
-  "0.10.2" : 9
-  "0.10.1" : 15
+  title Herb releases across 74 apps
+  "0.10.3" : 48
+  "0.10.2" : 5
+  "0.10.1" : 14
   "0.9.5" : 1
   "0.9.3" : 1
-  "0.9.2" : 3
   "0.8.9" : 1
   "0.8.6" : 1
   "0.8.0" : 1
   "0.7.5" : 1
-  "0.7.4" : 1
-  "0.7.3" : 1
   "0.7.0" : 1
 ```
 
 ### How the config is used
 
-Of the 103 Herb configs, the sections people set are `linter` (98), `formatter` (92), `version` (79), `files` (36), `framework` (9), `template_engine` (6), `engine` (5), `include` (1), `exclude` (1), `rules` (1).
+Of the 104 Herb configs, the sections people set are `linter` (99), `formatter` (93), `version` (80), `files` (37), `framework` (9), `template_engine` (6), `engine` (5), `include` (1), `exclude` (1), `rules` (1).
 
-`formatter.maxLineLength`: **80** (62), **120** (19), **100** (2), **400** (1)
-`formatter.indentWidth`: **2** (84)
+`formatter.maxLineLength`: **80** (62), **120** (20), **100** (2), **400** (1)
+`formatter.indentWidth`: **2** (85)
 
-Rewriters: `pre: tailwind-class-sorter` (18)
+Rewriters: `pre: tailwind-class-sorter` (17)
 
 The linter rules most often adjusted:
 
 | Rule | Disabled | Tuned |
 | --- | ---: | ---: |
-| `erb-no-instance-variables-in-partials` | 14 | 3 |
-| `html-require-script-nonce` | 14 | 3 |
+| `html-require-script-nonce` | 15 | 3 |
+| `erb-no-instance-variables-in-partials` | 14 | 4 |
 | `actionview-no-silent-helper` | 10 | 2 |
-| `erb-no-interpolated-class-names` | 8 | 2 |
-| `html-anchor-require-href` | 7 | 3 |
-| `erb-no-unsafe-raw` | 7 | 3 |
-| `erb-no-unused-expressions` | 5 | 4 |
-| `erb-prefer-image-tag-helper` | 6 | 3 |
+| `erb-no-unsafe-raw` | 7 | 4 |
+| `erb-no-interpolated-class-names` | 9 | 2 |
+| `html-anchor-require-href` | 6 | 4 |
+| `erb-prefer-image-tag-helper` | 7 | 3 |
+| `erb-no-unused-expressions` | 7 | 3 |
+| `erb-no-duplicate-branch-elements` | 8 | 1 |
 | `erb-strict-locals-required` | 0 | 8 |
-| `erb-no-duplicate-branch-elements` | 8 | 0 |
 
 <!-- corpus:adoption:end -->
 
@@ -893,12 +888,14 @@ the commit that removed it.
 
 ### erb-formatter
 
-**6 of 342** applications use `erb-formatter` directly. 5 dropped it and now use Herb, and 5 run both.
+**5 of 342** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 92 repositories, so the dropped and migrated counts are lower bounds.
 
-**Migrated to Herb** (5)
+**Migrated to Herb** (6)
 
+- [ubicloud](https://github.com/ubicloud/ubicloud/tree/da4a6cbfba8f503e45a06c25cf43a430671f656b): Adopted `erb-formatter` in 2023, still using it 3 years later, started Herb in 2025.
+  [2023-03-21](https://github.com/ubicloud/ubicloud/commit/dc81cb9b704ad89b21e234c98e4de8f755d7bab2 "added Gemfile") · [herb 2025-10-15](https://github.com/ubicloud/ubicloud/commit/8bc40afb406017ee9568efb383f941fe6595fdc5 "first seen in Gemfile.lock")
 - [irida-next](https://github.com/phac-nml/irida-next/tree/6ab4bd44b4844c19824d815fac2c793ce88c4664): Adopted `erb-formatter` in 2023, used it for 2 years, dropped it in 2026, started Herb in 2026.
   [2023-03-23](https://github.com/phac-nml/irida-next/commit/78a43c8f9b6b201d36fdf843938a634c990dcae9 "added Gemfile") · [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "removed Gemfile") · [herb 2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in package.json")
 - [nitro_kit](https://github.com/mikker/nitro_kit/tree/228e1d186a948618fcdf712735cf66b8f03a989a): Adopted `erb-formatter` in 2024, used it for 3 months, dropped it in 2025, started Herb in 2025.
@@ -910,12 +907,10 @@ the commit that removed it.
 - [andrewm.codes](https://github.com/andrewmcodes/andrewm.codes/tree/57d63377aad615b2f87809a7789497b22b5989ce): Adopted `erb-formatter` in 2026, used it for 1 month, dropped it in 2026, started Herb in 2026.
   [2026-06-09](https://github.com/andrewmcodes/andrewm.codes/commit/d3e28fd18d6052783a54656b9ee18927b2fb6415 "added Gemfile") · [2026-07-16](https://github.com/andrewmcodes/andrewm.codes/commit/92ae0ef2e6fad4003f1b3be59a7c6b769178c406 "removed Gemfile") · [herb 2026-07-16](https://github.com/andrewmcodes/andrewm.codes/commit/92ae0ef2e6fad4003f1b3be59a7c6b769178c406 "first seen in package.json")
 
-**Running both** (5)
+**Running both** (4)
 
 - [avo](https://github.com/avo-hq/avo/tree/70a2a2fad1464e15ebabb19f85318d66aeff9f92): Adopted `erb-formatter` in 2022, still using it 4 years later, started Herb in 2025.
   [2022-06-08](https://github.com/avo-hq/avo/commit/5f28048b5129f74c26c5a828a7ab3c8553e29111 "added Gemfile") · gem `0.7.3` · [herb 2025-11-27](https://github.com/avo-hq/avo/commit/7fb6bef2c937fb5ded3a3b3fdf3dc108aba092f6 "first seen in .herb.yml")
-- [ubicloud](https://github.com/ubicloud/ubicloud/tree/da4a6cbfba8f503e45a06c25cf43a430671f656b): Adopted `erb-formatter` in 2023, still using it 3 years later, started Herb in 2025.
-  [2023-03-21](https://github.com/ubicloud/ubicloud/commit/dc81cb9b704ad89b21e234c98e4de8f755d7bab2 "added Gemfile") · gem `0.7.3` · [herb 2025-10-15](https://github.com/ubicloud/ubicloud/commit/8bc40afb406017ee9568efb383f941fe6595fdc5 "first seen in Gemfile.lock")
 - [Libreverse-Legacy](https://github.com/Libreverse/Libreverse-Legacy/tree/fd016da3c3f6e0143d0983bbcc256485feb9d914): Adopted `erb-formatter` in 2024, still using it 20 months later, started Herb in 2025.
   [2024-12-16](https://github.com/Libreverse/Libreverse-Legacy/commit/00b7c25d2c8adda2961bcd4d5aac486766c069dd "added Gemfile") · gem `0.7.3` · [herb 2025-09-21](https://github.com/Libreverse/Libreverse-Legacy/commit/e9b546610c5f75201d879183714f7163f62e33c5 "first seen in Gemfile.lock")
 - [skateparks](https://github.com/dimitristrechas/skateparks/tree/52346faef1fe7d90b16119289b4d39985b877b77): Adopted `erb-formatter` in 2025, still using it 13 months later, started Herb in 2025.

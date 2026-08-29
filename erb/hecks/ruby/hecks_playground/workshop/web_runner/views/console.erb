@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html class="h-full">
+<head>
+  <meta charset="utf-8">
+  <title>HecksPlayground Workshop</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gh: { bg: '#0d1117', panel: '#161b22', border: '#30363d', muted: '#484f58', text: '#c9d1d9',
+                  blue: '#58a6ff', green: '#7ee787', orange: '#f0883e', purple: '#d2a8ff',
+                  red: '#f85149', yellow: '#d29922', cyan: '#79c0ff', badge: '#238636', playBadge: '#8957e5' }
+          },
+          fontFamily: { mono: ['"SF Mono"', '"Fira Code"', 'monospace'] }
+        }
+      }
+    }
+  </script>
+  <script type="module" src="/hecks_playground_web_workbench/js/components.js"></script>
+  <style>
+    #terminal.sketch-grid { background-color: #0a1628; background-image: linear-gradient(rgba(65,130,234,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(65,130,234,0.15) 1px, transparent 1px); background-size: 24px 24px; }
+    .hint-fade { opacity: 0 !important; }
+    #cmd-input::placeholder { color: #2ea04370; font-size: 11px; transition: color 0.3s; }
+    #autocomplete .ac-item { padding: 4px 10px; font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; color: #c9d1d9; cursor: pointer; }
+    #autocomplete .ac-item.active, #autocomplete .ac-item:hover { background: #30363d; color: #7ee787; }
+    #autocomplete .ac-type { color: #484f58; margin-left: 8px; }
+    #tab-bar { display: flex; align-items: stretch; min-height: 30px; overflow-x: auto; }
+    #tab-bar .tab { padding: 4px 12px; font-size: 11px; font-family: "SF Mono","Fira Code",monospace; color: #484f58; cursor: pointer; border-right: 1px solid #30363d; white-space: nowrap; display: flex; align-items: center; gap: 5px; user-select: none; }
+    #tab-bar .tab:hover { color: #c9d1d9; background: #0d1117; }
+    #tab-bar .tab.active { color: #c9d1d9; background: #0d1117; border-bottom: 2px solid #58a6ff; }
+    #tab-bar .tab-close { color: #484f58; font-size: 14px; line-height: 1; }
+    #tab-bar .tab-close:hover { color: #f85149; }
+  </style>
+</head>
+<body class="flex h-screen bg-gh-bg text-gh-text font-sans m-0 p-0">
+
+  <!-- Left Sidebar -->
+  <div id="domain-tree" class="w-56 bg-gh-panel border-r border-gh-border p-3 overflow-y-auto text-[13px]">
+    <h3 class="text-gh-blue text-[11px] uppercase tracking-wider mb-2">Domain</h3>
+  </div>
+
+  <!-- Center -->
+  <div class="flex-1 flex flex-col">
+    <div class="bg-gh-panel border-b border-gh-border px-4 py-2 flex items-center justify-between">
+      <span id="domain-title" class="text-gh-blue font-semibold text-sm">HecksPlayground Workshop</span>
+      <span id="mode-badge" class="bg-gh-badge text-white text-[11px] px-3 py-1 rounded-full cursor-pointer hover:opacity-80 transition-opacity select-none">sketch</span>
+    </div>
+    <div id="error-banner-slot"></div>
+    <div id="tab-bar" class="border-b border-gh-border bg-gh-panel"></div>
+    <div id="terminal" class="flex-1 overflow-y-auto px-4 py-3 font-mono text-[13px] leading-relaxed transition-all duration-500"></div>
+    <bluebook-editor id="editor-pane" style="display:none;flex:1;overflow:auto;"></bluebook-editor>
+    <div id="cmd-input-row" class="flex border-t border-gh-border bg-gh-bg relative">
+      <div id="autocomplete" class="absolute bottom-full left-8 bg-[#1e1e1e] border border-gh-border rounded max-h-44 overflow-y-auto hidden z-10 min-w-[200px]"></div>
+      <div id="stop-hint" class="hidden absolute bottom-full right-3 bg-[#1e1e1e] border border-gh-border rounded px-2.5 py-1 font-mono text-[11px] text-gh-muted whitespace-nowrap"></div>
+      <span class="text-gh-muted py-2.5 pl-4 font-mono text-[13px]">&gt;&nbsp;</span>
+      <input type="text" id="cmd-input" autofocus autocomplete="off" spellcheck="false" placeholder=""
+             class="flex-1 bg-transparent border-none text-gh-green font-mono text-[13px] py-2.5 px-2 outline-none transition-opacity duration-300">
+    </div>
+  </div>
+
+  <!-- Right Sidebar -->
+  <div id="events-panel" class="w-64 bg-gh-panel border-l border-gh-border p-3 overflow-y-auto text-xs">
+    <div id="explorer-section">
+      <agg-explorer id="explorer"></agg-explorer>
+    </div>
+    <div id="events-section" style="display:none">
+      <h3 class="text-gh-purple text-[11px] uppercase tracking-wider mb-2">Events</h3>
+      <div class="text-gh-muted italic" id="events-empty">No events yet</div>
+      <div id="events-list"></div>
+    </div>
+  </div>
+
+  <script>
+    // ─── State ───
+    var lastState = null, activeAggName = null;
+    var openAggs = {};
+    var cmdHistory = JSON.parse(localStorage.getItem('hecks_playground_cmdHistory') || '[]');
+    var histIdx = -1;
+    var terminal = document.getElementById('terminal');
+    var input = document.getElementById('cmd-input');
+
+    // ─── Bluebook editor tabs ───
+    var openTabs = [{ id: 'terminal', label: 'Terminal' }], activeTab = 'terminal';
+
+    function renderTabs() {
+      var bar = document.getElementById('tab-bar');
+      bar.innerHTML = openTabs.map(function(t) {
+        var cls = 'tab' + (t.id === activeTab ? ' active' : '');
+        var close = t.id !== 'terminal' ? ' <span class="tab-close" onclick="event.stopPropagation();closeTab(\'' + esc(t.id) + '\')">&times;</span>' : '';
+        return '<div class="' + cls + '" onclick="switchTab(\'' + esc(t.id) + '\')">' + esc(t.label) + close + '</div>';
+      }).join('');
+    }
+
+    function switchTab(id) {
+      activeTab = id;
+      renderTabs();
+      var isTerminal = id === 'terminal';
+      terminal.style.display = isTerminal ? '' : 'none';
+      document.getElementById('cmd-input-row').style.display = isTerminal ? '' : 'none';
+      var pane = document.getElementById('editor-pane');
+      pane.style.display = isTerminal ? 'none' : '';
+      if (!isTerminal) {
+        var t = openTabs.find(function(x) { return x.id === id; });
+        pane.content = t ? t.content : '';
+      }
+    }
+
+    function closeTab(id) {
+      openTabs = openTabs.filter(function(t) { return t.id !== id; });
+      if (activeTab === id) switchTab('terminal'); else renderTabs();
+    }
+
+    function openBluebook(name) {
+      var existing = openTabs.find(function(t) { return t.id === name; });
+      if (existing) { switchTab(name); return; }
+      fetch('/hecks_playground_web_workbench/bluebook?domain=' + encodeURIComponent(name))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.content) { openTabs.push({ id: name, label: name, content: d.content }); switchTab(name); }
+        });
+    }
+
+    renderTabs();
+    var lastCmd = null, undoRemoves = {};
+
+    function saveCmdHistory() { localStorage.setItem('hecks_playground_cmdHistory', JSON.stringify(cmdHistory.slice(0, 100))); }
+    function esc(s) { var d = document.createElement('span'); d.textContent = s; return d.innerHTML; }
+
+    // ─── Global keyboard focus + zoom hotkeys ───
+    document.addEventListener('keydown', function(e) {
+      if (e.target === input) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '0') { window._zoomReset && window._zoomReset(); return; }
+      if (e.key.length === 1) { input.focus(); }
+    });
+
+    // ─── Dismiss autocomplete on outside click ───
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#autocomplete') && e.target !== input) { hideAc(); }
+    });
+
+    // ─── Mode toggle ───
+    document.getElementById('mode-badge').addEventListener('click', function() {
+      var cmd = lastState && lastState.mode === 'play' ? 'sketch!' : 'play!';
+      runCommand(cmd);
+    });
+
+    // ─── Input handling ───
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        var cmd = input.value.trim();
+        if (!cmd) { nextHint(); return; }
+        cmdHistory.unshift(cmd); histIdx = -1; saveCmdHistory(); hideStopHint(); tabStops = [];
+        if (cmd.charAt(0) === '/') cmd = cmd.substring(1);
+        if (cmd === 'play') cmd = 'play!';
+        if (cmd === 'sketch') cmd = 'sketch!';
+        if (cmd === 'reset') cmd = 'reset!';
+        input.value = '';
+        runCommand(cmd);
+      } else if (e.key === 'Tab' && tabStops.length > 0 && acItems.length === 0) {
+        e.preventDefault(); selectNextStop();
+      } else if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault(); terminal.innerHTML = '';
+        if (lastState) renderDomainOverview();
+      } else if (e.key === 'ArrowUp' && acItems.length === 0) {
+        e.preventDefault();
+        if (histIdx < cmdHistory.length - 1) { histIdx++; input.value = cmdHistory[histIdx]; input.setSelectionRange(input.value.length, input.value.length); }
+      } else if (e.key === 'ArrowDown' && acItems.length === 0) {
+        e.preventDefault();
+        if (histIdx > 0) { histIdx--; input.value = cmdHistory[histIdx]; input.setSelectionRange(input.value.length, input.value.length); }
+        else { histIdx = -1; input.value = ''; }
+      }
+    });
+
+    // ─── Command execution ───
+    function runCommand(cmd) {
+      lastCmd = cmd;
+      appendCmd(cmd);
+      fetch('/hecks_playground_web_workbench/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: cmd })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.output && data.output.trim() === '%%DIAGRAM%%') {
+          if (data.state) { lastState = data.state; updateState(data.state); buildCompletions(data.state); }
+          renderDomainOverview();
+        } else {
+          if (data.output) appendOutput(data.output, cmd);
+          if (data.error) { appendError(data.error); showBanner(data.error); }
+          if (data.state) { lastState = data.state; updateState(data.state); buildCompletions(data.state); }
+        }
+        detectActiveAgg(cmd);
+        renderExplorer();
+        terminal.scrollTop = terminal.scrollHeight;
+        hideAc(); nextHint();
+      })
+      .catch(function(err) { appendError('Network error: ' + err.message); });
+    }
+
+    function appendCmd(cmd) {
+      var d = document.createElement('div');
+      d.className = 'text-gh-green';
+      d.innerHTML = '<span class="text-gh-muted">&gt; </span>' + esc(cmd);
+      terminal.appendChild(d);
+    }
+
+    function appendOutput(text, cmd) {
+      if (!text) return;
+      var isDescribe = cmd && (cmd.match(/\.?describe$/) || cmd === 'status' || cmd.match(/^[A-Z]\w*$/));
+      if (isDescribe && lastState) {
+        var m = cmd.match(/^(\w+)\.describe$/) || cmd.match(/^([A-Z]\w*)$/);
+        var target = m ? m[1] : null;
+        if (target) {
+          var agg = lastState.aggregates.find(function(a) { return a.name === target; });
+          if (agg) { renderAggInTerminal(agg); return; }
+        }
+      }
+      text.split('\n').forEach(function(line) {
+        var d = document.createElement('div');
+        d.className = line.match(/WARNING|!!/) ? 'text-gh-yellow whitespace-pre-wrap' : 'text-gh-text whitespace-pre-wrap';
+        d.textContent = line;
+        terminal.appendChild(d);
+      });
+    }
+
+    function appendError(text) {
+      if (!text) return;
+      var d = document.createElement('div');
+      d.className = 'text-gh-red whitespace-pre-wrap';
+      d.textContent = text;
+      terminal.appendChild(d);
+    }
+
+    function renderAggInTerminal(agg) {
+      var card = document.createElement('agg-card');
+      card.data = agg;
+      terminal.appendChild(card);
+    }
+
+    // ─── Banner ───
+    function showBanner(msg) {
+      var old = document.getElementById('error-banner');
+      if (old) old.remove();
+      var banner = document.createElement('div');
+      banner.id = 'error-banner';
+      banner.className = 'bg-gh-red/90 text-white text-xs px-4 py-2 text-center';
+      banner.style.transition = 'opacity 0.8s';
+      banner.textContent = msg.length > 120 ? msg.substring(0, 120) + '...' : msg;
+      document.getElementById('error-banner-slot').appendChild(banner);
+      setTimeout(function() { banner.style.opacity = '0'; }, 3000);
+      setTimeout(function() { banner.remove(); }, 3800);
+    }
+
+    // ─── Active aggregate / Inspector ───
+    function detectActiveAgg(cmd) {
+      if (!cmd || !lastState) return;
+      var m = cmd.match(/^(\w+)\./) || cmd.match(/^([A-Z]\w*)$/);
+      if (m) {
+        var found = lastState.aggregates.find(function(a) { return a.name === m[1]; });
+        if (found) activeAggName = m[1];
+      }
+    }
+
+    function renderExplorer() {
+      var inspector = document.getElementById('explorer');
+      if (!activeAggName || !lastState) { inspector.data = null; return; }
+      var agg = lastState.aggregates.find(function(a) { return a.name === activeAggName; });
+      inspector.data = agg || null;
+    }
+
+    // ─── Domain overview diagram ───
+    function renderDomainOverview() {
+      if (!lastState || !lastState.aggregates.length) return;
+
+      var diagram = document.createElement('domain-diagram');
+      diagram.state = lastState;
+      diagram.style.minHeight = Math.max(400, terminal.offsetHeight - 80) + 'px';
+
+      diagram.addEventListener('card-hover', function(e) {
+        activeAggName = e.detail.name;
+        renderExplorer();
+      });
+      diagram.addEventListener('item-navigate', function(e) {
+        activeAggName = e.detail.target;
+        renderExplorer();
+      });
+
+      terminal.appendChild(diagram);
+
+      // Show first aggregate in explorer
+      if (lastState.aggregates.length && !activeAggName) {
+        activeAggName = lastState.aggregates[0].name;
+        renderExplorer();
+      }
+    }
+
+    // ─── Left sidebar ───
+    function updateState(state) {
+      var badge = document.getElementById('mode-badge');
+      badge.textContent = state.mode;
+      badge.className = state.mode === 'play'
+        ? 'bg-gh-playBadge text-white text-[11px] px-3 py-1 rounded-full cursor-pointer hover:opacity-80 transition-opacity select-none'
+        : 'bg-gh-badge text-white text-[11px] px-3 py-1 rounded-full cursor-pointer hover:opacity-80 transition-opacity select-none';
+
+      document.getElementById('domain-title').textContent = (state.domain_name || 'HecksPlayground') + ' Workshop';
+      if (state.mode === 'sketch') terminal.classList.add('sketch-grid'); else terminal.classList.remove('sketch-grid');
+
+      // Right sidebar: inspector in sketch, events in play
+      document.getElementById('explorer-section').style.display = state.mode === 'play' ? 'none' : '';
+      document.getElementById('events-section').style.display = state.mode === 'play' ? '' : 'none';
+
+      // Sidebar
+      var tree = document.getElementById('domain-tree');
+      tree.innerHTML = '';
+      if (!state.aggregates.length) {
+        tree.innerHTML = '<div class="text-gh-muted italic">No aggregates yet</div>';
+        return;
+      }
+
+      // Group aggregates by domain
+      var groups = {};
+      state.aggregates.forEach(function(agg) {
+        var d = agg.domain || state.domain_name || 'Domain';
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(agg);
+      });
+
+      Object.keys(groups).forEach(function(domainName) {
+        var hasBluebook = state.domain_files && state.domain_files.indexOf(domainName) > -1;
+        var header = document.createElement('h3');
+        header.className = 'text-gh-blue text-[11px] uppercase tracking-wider mb-1 mt-2';
+        if (hasBluebook) {
+          header.style.cursor = 'pointer';
+          header.title = 'Open bluebook source';
+          header.innerHTML = '<span style="opacity:0.7;margin-right:3px;">&#128216;</span>' + esc(domainName);
+          header.addEventListener('click', function() { openBluebook(domainName); });
+        } else {
+          header.textContent = domainName;
+        }
+        tree.appendChild(header);
+
+        groups[domainName].forEach(function(agg) {
+          var block = document.createElement('div');
+          block.style.marginBottom = '4px';
+          block.style.marginLeft = '6px';
+
+          var sectionsDiv = document.createElement('div');
+          sectionsDiv.style.display = 'none';
+          var collapsed = true;
+
+          var title = document.createElement('div');
+          title.style.cssText = 'color:#f0883e;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:3px 0;cursor:pointer;user-select:none;';
+          title.textContent = agg.name;
+          title.addEventListener('click', function() {
+            collapsed = !collapsed;
+            sectionsDiv.style.display = collapsed ? 'none' : 'block';
+            activeAggName = agg.name;
+            renderExplorer();
+          });
+          block.appendChild(title);
+
+          var sections = window.buildSections(agg);
+          sections.forEach(function(sec) {
+            var panel = document.createElement('section-panel');
+            panel.setAttribute('label', sec.key);
+            panel.setAttribute('color', sec.color);
+            panel.setAttribute('collapsed', '');
+            sec.items.forEach(function(item) {
+              var el = document.createElement('agg-item');
+              var isRef = sec.key === 'references';
+              if (isRef) {
+                var m = item.type && item.type.match(/(?:reference_to|list_of)\((\w+)\)/);
+                el.setAttribute('name', item.name || item);
+                if (m) el.setAttribute('nav-target', m[1]);
+              } else {
+                el.setAttribute('name', typeof item === 'string' ? item : item.name);
+                if (item.type && sec.key === 'attributes') el.setAttribute('type', item.type);
+              }
+              panel.appendChild(el);
+            });
+            sectionsDiv.appendChild(panel);
+          });
+          block.appendChild(sectionsDiv);
+
+          block.addEventListener('item-navigate', function(e) { activeAggName = e.detail.target; renderExplorer(); runCommand(e.detail.target); });
+          tree.appendChild(block);
+        });
+      });
+
+      // Events
+      var list = document.getElementById('events-list');
+      var empty = document.getElementById('events-empty');
+      if (state.events.length === 0) { empty.style.display = ''; list.innerHTML = ''; }
+      else {
+        empty.style.display = 'none';
+        list.innerHTML = '';
+        state.events.slice().reverse().forEach(function(ev) {
+          var card = document.createElement('div');
+          card.className = 'bg-gh-bg border border-gh-border rounded p-1.5 mb-1.5 cursor-pointer';
+          card.innerHTML = '<div class="text-gh-purple font-semibold">' + esc(ev.type) +
+            '</div><div class="text-gh-blue text-[10px]">' + esc(ev.command || '') +
+            '</div><div class="text-gh-muted text-[11px]">' + esc(ev.occurred_at || '') + '</div>';
+          var details = document.createElement('div');
+          details.style.display = 'none';
+          details.className = 'mt-1 pt-1 border-t border-gh-border';
+          if (ev.data) {
+            Object.keys(ev.data).forEach(function(k) {
+              details.innerHTML += '<div class="text-[11px]"><span class="text-gh-green">' + esc(k) + '</span> <span class="text-gh-muted">' + esc(ev.data[k]) + '</span></div>';
+            });
+          }
+          card.appendChild(details);
+          card.addEventListener('click', function() {
+            details.style.display = details.style.display === 'none' ? '' : 'none';
+          });
+          list.appendChild(card);
+        });
+      }
+    }
+
+    // ─── Global event listeners for web components ───
+    document.addEventListener('item-navigate', function(e) {
+      activeAggName = e.detail.target;
+      renderExplorer();
+      runCommand(e.detail.target);
+    });
+
+    document.addEventListener('item-remove', function(e) {
+      var cmd = activeAggName + '.remove :' + e.detail.name;
+      runCommand(cmd);
+    });
+
+    document.addEventListener('item-undo', function(e) {
+      var restoreCmd = undoRemoves[activeAggName + '.remove :' + e.detail.name];
+      if (restoreCmd) runCommand(restoreCmd);
+    });
+
+    // ─── Autocomplete ───
+    var acBox = document.getElementById('autocomplete');
+    var acItems = [], acIdx = -1, acWordStart = 0;
+    var completions = [];
+    var typeOptions = ['String','Integer','Float','TrueClass','Date','DateTime','JSON','list_of("")','reference_to("")'];
+    var typeHints = { 'String': typeOptions.join(' | ') };
+    var stopHints = { ':name': 'field name', ':status': 'field name', 'draft': 'default value' };
+    var tabStops = [], tabStopIdx = -1;
+
+    function buildCompletions(state) {
+      completions = [];
+      if (state.mode === 'play') {
+        completions.push({text:'sketch!',type:'mode'});
+        completions.push({text:'events',type:'play'});
+        completions.push({text:'history',type:'play'});
+        completions.push({text:'reset!',type:'play'});
+        completions.push({text:'diagram',type:'workshop'});
+        state.aggregates.forEach(function(a) {
+          completions.push({text:a.name,type:'aggregate'});
+          completions.push({text:a.name+'.all',type:'query'});
+          completions.push({text:a.name+'.find(id)',type:'query',stops:['id']});
+          completions.push({text:a.name+'.count',type:'query'});
+          a.commands.forEach(function(c) {
+            function defaultFor(t) {
+              if (t === 'Integer') return '0';
+              if (t === 'Float') return '0.0';
+              if (t === 'TrueClass' || t === 'Boolean') return 'true';
+              return '""';
+            }
+            var params = c.attributes.map(function(p) { return p.name + ': ' + defaultFor(p.type); }).join(', ');
+            var stops = c.attributes.map(function(p) { return defaultFor(p.type); });
+            completions.push({text:a.name+'.create(' + params + ')',type:'command',stops:stops});
+          });
+        });
+      } else {
+        typeOptions.forEach(function(t) { if (t !== 'reference_to("")') completions.push({ text: t, type: 'type' }); });
+        completions = completions.concat([
+          {text:'describe',type:'workshop'},{text:'diagram',type:'workshop'},{text:'browse',type:'workshop'},
+          {text:'validate',type:'workshop'},{text:'preview',type:'workshop'},{text:'play!',type:'mode'},
+          {text:'save',type:'workshop'}
+        ]);
+        state.aggregates.forEach(function(a) {
+          completions.push({text:'reference_to("'+a.name+'")',type:'reference'});
+          completions.push({text:'list_of("'+a.name+'")',type:'collection'});
+          completions.push({text:a.name,type:'aggregate'});
+          completions.push({text:a.name+'.describe',type:'method'});
+          completions.push({text:a.name+'.preview',type:'method'});
+          completions.push({text:a.name+'.attributes',type:'method'});
+          completions.push({text:a.name+'.commands',type:'method'});
+          completions.push({text:a.name+'.remove :name',type:'remove',stops:[':name']});
+          a.commands.forEach(function(c) { completions.push({text:c.name,type:'command'}); });
+          completions.push({text:a.name+'.attr :name, String',type:'add attribute',stops:[':name','String']});
+          completions.push({text:a.name+'.command :name',type:'add command',stops:[':name']});
+          completions.push({text:a.name+'.lifecycle :status, default: "draft"',type:'add lifecycle',stops:[':status','draft']});
+          completions.push({text:a.name+'.validation :name, presence: true',type:'add validation',stops:[':name']});
+        });
+      }
+    }
+
+    input.addEventListener('input', function() {
+      var val = input.value;
+      if (!val) { hideAc(); return; }
+      var pos = input.selectionStart, before = val.substring(0, pos);
+      var wm = before.match(/[\s,]([^\s,]*)$/);
+      var word = wm ? wm[1] : before;
+      if (!word) { hideAc(); return; }
+      var lower = word.toLowerCase();
+      acItems = completions.filter(function(c) { var cl = c.text.toLowerCase(); return (cl.indexOf(lower) === 0 || cl.indexOf(lower) > 0) && cl !== lower; });
+      acItems.sort(function(a,b) { var al=a.text.toLowerCase(),bl=b.text.toLowerCase(); return (al.indexOf(lower)===0?0:1)-(bl.indexOf(lower)===0?0:1)||al.localeCompare(bl); });
+      acItems = acItems.slice(0,10);
+      if (!acItems.length) { hideAc(); return; }
+      acIdx = -1; acWordStart = pos - word.length; renderAc();
+    });
+
+    function renderAc() {
+      acBox.innerHTML = acItems.map(function(c,i) {
+        var cls = i===acIdx ? 'ac-item active' : 'ac-item';
+        return '<div class="'+cls+'" data-idx="'+i+'">'+esc(c.text)+'<span class="ac-type">'+c.type+'</span></div>';
+      }).join('');
+      acBox.style.display = 'block';
+      acBox.querySelectorAll('[data-idx]').forEach(function(el) {
+        el.addEventListener('mousedown', function(e) { e.preventDefault(); applyAc(parseInt(el.dataset.idx)); });
+      });
+    }
+    function hideAc() { acBox.style.display = 'none'; acItems = []; acIdx = -1; }
+
+    function applyAc(idx) {
+      var item = acItems[idx];
+      var before = input.value.substring(0, acWordStart), after = input.value.substring(input.selectionStart);
+      input.value = before + item.text + after;
+      input.setSelectionRange(before.length+item.text.length, before.length+item.text.length);
+      hideAc(); input.focus();
+      if (item.stops && item.stops.length) { tabStops = item.stops; tabStopIdx = -1; selectNextStop(); }
+      else { tabStops = []; tabStopIdx = -1; }
+    }
+
+    function selectNextStop() {
+      tabStopIdx++;
+      if (tabStopIdx >= tabStops.length) { tabStops = []; tabStopIdx = -1; hideStopHint(); return; }
+      var stop = tabStops[tabStopIdx];
+      var pos = input.value.indexOf(stop, tabStopIdx === 0 ? 0 : input.selectionStart);
+      if (pos > -1) {
+        if (stop === '""') {
+          input.setSelectionRange(pos+1, pos+1);
+        } else {
+          var s = stop.charAt(0) === ':' ? pos+1 : pos;
+          input.setSelectionRange(s, pos+stop.length);
+        }
+        showStopHint(stop);
+      }
+    }
+    function showStopHint(stop) {
+      var hint = typeHints[stop] || stopHints[stop] || '';
+      if (!hint) { hideStopHint(); return; }
+      var el = document.getElementById('stop-hint');
+      el.textContent = hint; el.classList.remove('hidden'); el.style.display = 'block';
+    }
+    function hideStopHint() { var el = document.getElementById('stop-hint'); el.classList.add('hidden'); el.style.display = 'none'; }
+
+    input.addEventListener('keydown', function(e) {
+      if (acItems.length > 0) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); acIdx = Math.min(acIdx+1, acItems.length-1); renderAc(); return; }
+        if (e.key === 'ArrowUp' && acIdx >= 0) { e.preventDefault(); acIdx--; renderAc(); return; }
+        if (e.key === 'Tab' && input.value.indexOf('""') === -1) { e.preventDefault(); e.stopImmediatePropagation(); applyAc(acIdx >= 0 ? acIdx : 0); return; }
+        if (e.key === 'Enter' && acIdx >= 0 && input.value.indexOf('""') === -1) { e.preventDefault(); e.stopImmediatePropagation(); applyAc(acIdx); return; }
+        if (e.key === 'Escape') { e.preventDefault(); hideAc(); return; }
+      }
+    }, true);
+
+    // ─── Hints ───
+    var hints = ['describe', 'browse', 'validate', 'play!'];
+    var hintIdx = 0, currentHintCmd = '';
+
+    function buildHints(state) {
+      var aggs = state.aggregates;
+      if (aggs.length > 0) {
+        hints = [aggs[0].name+'.describe  # inspect','browse  # domain tree','play!  # enter play mode','describe  # full summary','validate  # check rules'];
+        aggs.forEach(function(a) {
+          a.commands.forEach(function(cmd) {
+            var attrs = a.attributes.map(function(at) { return at.name+': ""'; }).join(', ');
+            hints.push(a.name+'.'+cmd.name.toLowerCase().replace(a.name.toLowerCase(),'')+' ('+attrs+')  # command');
+          });
+          hints.push(a.name+'.describe  # aggregate');
+        });
+      }
+      nextHint();
+    }
+
+    function nextHint() {
+      input.classList.add('hint-fade');
+      setTimeout(function() {
+        var raw = hints[hintIdx % hints.length];
+        currentHintCmd = raw.split('  #')[0].trim();
+        input.placeholder = raw + '   (try it)';
+        hintIdx++;
+        input.classList.remove('hint-fade');
+      }, 300);
+    }
+
+    // ─── Init ───
+    // Wait for ES modules to register custom elements before rendering
+    customElements.whenDefined('agg-card').then(function() {
+      fetch('/hecks_playground_web_workbench/state').then(function(r) { return r.json(); }).then(function(state) {
+        lastState = state;
+        updateState(state);
+        buildCompletions(state);
+        buildHints(state);
+        renderDomainOverview();
+      });
+    });
+  </script>
+</body>
+</html>
