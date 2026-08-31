@@ -156,6 +156,69 @@ elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
 
 relative = ->(path) { path.to_s.sub("#{options[:root]}/", "") }
 
+LINE_DRIFT_SUPPORTED = begin
+  require "herb/engine"
+  Herb::Engine::Helpers.respond_to?(:strip_trailing_comment)
+rescue StandardError, LoadError
+  false
+end
+
+warn "herb #{Herb::VERSION} cannot be measured for line drift" unless LINE_DRIFT_SUPPORTED
+
+OUTPUT_TRIM = /<%=.*-%>[ \t]*\z/
+
+def erb_content_nodes(node, found = [])
+  found << node if node.is_a?(Herb::AST::ERBContentNode)
+  node.compact_child_nodes.each { |child| erb_content_nodes(child, found) } if node.respond_to?(:compact_child_nodes)
+
+  found
+end
+
+def tags_off_their_line(source, compiled)
+  lines = compiled.lines
+  source_lines = source.lines
+
+  erb_content_nodes(Herb.parse(source).value).count do |node|
+    opening = node.tag_opening&.value.to_s
+
+    next false if opening.empty? || opening.start_with?("<%#")
+
+    raw = node.content&.value.to_s
+    code = Herb::Engine::Helpers.strip_trailing_comment(raw.strip)
+
+    next false if code.empty?
+
+    line = node.tag_opening.location.start.line + raw[0, raw.length - raw.lstrip.length].to_s.count("\n")
+    first = code.lines.first.to_s.strip
+
+    next false if lines[line - 1].to_s.include?(first)
+    next false unless compiled.include?(first)
+
+    source_lines[0, line - 1].none? { |above| above.chomp.match?(OUTPUT_TRIM) }
+  end
+end
+
+line_drift = {}
+
+if LINE_DRIFT_SUPPORTED
+  files.each do |file|
+    source = File.read(file)
+    compiled = begin
+      Herb::Engine.new(source).src
+    rescue StandardError, SyntaxError
+      next
+    end
+
+    count = begin
+      tags_off_their_line(source, compiled)
+    rescue StandardError
+      next
+    end
+
+    line_drift[relative.call(file)] = count if count.positive?
+  end
+end
+
 diagnostics = (results.file_diagnostics || {}).to_h { |path, list| [relative.call(path), list] }
 
 by_status = {}
@@ -204,13 +267,16 @@ report = {
   "files_failing_parse" => parse_failing.size,
   "files_failing_compile" => compile_failing.size,
   "files_malformed" => malformed.size,
+  "files_with_line_drift" => (LINE_DRIFT_SUPPORTED ? line_drift.size : nil),
+  "tags_off_their_line" => (LINE_DRIFT_SUPPORTED ? line_drift.values.sum : nil),
   "status_counts" => by_status.transform_values(&:size).reject { |_, count| count.zero? },
   "diagnostic_counts" => diagnostics.values.flatten.filter_map { |d| d[:name] || d["name"] }.tally.sort_by { |_, c| -c }.to_h,
   "seconds" => elapsed.round(1),
   "file_timeout" => (FILE_TIMEOUT_SUPPORTED ? options[:file_timeout] : nil),
   "timeout_rechecks" => timeout_rechecks.transform_keys(&relative).sort.to_h,
   "parse_failing" => parse_failing.sort.to_h,
-  "compile_failing" => compile_failing.sort.to_h
+  "compile_failing" => compile_failing.sort.to_h,
+  "line_drift" => line_drift.sort.to_h
 }
 
 json = JSON.pretty_generate(report)

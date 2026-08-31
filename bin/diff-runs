@@ -152,6 +152,12 @@ puts "#{Color.bold(left)}  ->  #{Color.bold(right)}"
 puts Color.dim("herb #{before["herb_version"]} vs #{after["herb_version"]}, #{before["files"]} files")
 puts
 
+comparable = lambda do |key|
+  return "" if before[key].nil? || after[key].nil?
+
+  delta(before[key].to_i, after[key].to_i)
+end
+
 table(
   [
     ["malformed templates", before["files_malformed"].to_s, after["files_malformed"].to_s,
@@ -160,6 +166,10 @@ table(
      delta(before["files_failing_parse"].to_i, after["files_failing_parse"].to_i)],
     ["compile issues", before["files_failing_compile"].to_s, after["files_failing_compile"].to_s,
      delta(before["files_failing_compile"].to_i, after["files_failing_compile"].to_i)],
+    ["files with line drift", before["files_with_line_drift"].to_s, after["files_with_line_drift"].to_s,
+     comparable.call("files_with_line_drift")],
+    ["tags off their line", before["tags_off_their_line"].to_s, after["tags_off_their_line"].to_s,
+     comparable.call("tags_off_their_line")],
     ["clean files", before["files_clean"].to_s, after["files_clean"].to_s,
      delta(before["files_clean"].to_i, after["files_clean"].to_i)]
   ],
@@ -214,6 +224,21 @@ end
 
 regressions = parse["gained"] + compile["gained"] + worse.map(&:first)
 
+# a template that starts drifting is a regression even when its parse and compile verdicts hold
+drifted = (after["line_drift"] || {}).reject { |file, count| count <= (before["line_drift"] || {})[file].to_i }
+
+unless drifted.empty?
+  puts
+  puts Color.bold("#{pluralize(drifted.size, "template")} started compiling a tag onto the wrong line")
+  drifted.sort.first(10).each do |file, count|
+    was = (before["line_drift"] || {})[file].to_i
+    puts "  #{file} (#{was} -> #{count})"
+  end
+  puts "  ... and #{drifted.size - 10} more" if drifted.size > 10
+end
+
+regressions += drifted.keys
+
 def markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics)
   fixed = parse["lost"] + compile["lost"]
   verdicts_unchanged = regressions.empty? && fixed.empty? && better.empty?
@@ -232,8 +257,17 @@ def markdown_report(before, after, parse, compile, regressions, worse, better, d
     ["Malformed templates", "files_malformed"],
     ["Parse issues (all)", "files_failing_parse"],
     ["Compile issues", "files_failing_compile"],
+    ["Files with line drift", "files_with_line_drift"],
+    ["Tags off their line", "tags_off_their_line"],
     ["Clean files", "files_clean"]
   ].each do |label, key|
+    next if before[key].nil? && after[key].nil?
+
+    if before[key].nil? || after[key].nil?
+      out << "| #{label} | #{before[key] || "–"} | #{after[key] || "–"} | – |"
+      next
+    end
+
     change = after[key].to_i - before[key].to_i
     arrow = change.zero? ? "–" : (change.positive? ? "**+#{change}**" : "#{change}")
     out << "| #{label} | #{before[key]} | #{after[key]} | #{arrow} |"
