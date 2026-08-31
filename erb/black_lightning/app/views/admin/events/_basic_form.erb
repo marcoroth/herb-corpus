@@ -18,10 +18,41 @@
 
 <%= f.input :end_date, start_year: Rails.configuration.start_year, end_year: max_end_year %>
 
-<%= f.input :performance_wdays_list,
-      as: :check_boxes,
-      collection: Date::DAYNAMES.each_with_index.map { |name, wday| [ name, wday ] },
-      hint: 'Leave every box unticked if the event plays every day between the start and end dates — that is the normal case. Only tick days for something that runs a long time but plays intermittently, like the Improverts.' %>
+<div class="flex flex-wrap gap-4">
+  <div class="w-64">
+    <%= f.input :duration_minutes, label: 'Running time (minutes)',
+          hint: 'Including the interval. Gives each performance an end time.' %>
+  </div>
+  <div class="w-64">
+    <%= f.input :doors_open_minutes_before, label: 'Doors open (minutes before)' %>
+  </div>
+  <div class="w-64">
+    <%= f.input :age_guidance, label: 'Age guidance', placeholder: 'e.g. 14+' %>
+  </div>
+</div>
+
+<div id="event-occurrences">
+  <h3><%= f.object.occurrence_label.pluralize %></h3>
+
+  <p class="mb-2 text-sm text-muted">
+    Leave this empty if the event runs every day between the start and end dates — that is the
+    normal case. Add <%= f.object.occurrence_label.downcase.pluralize %> to give the box office
+    screen and the event page real times, and to mark a relaxed or captioned night.
+  </p>
+
+  <% if f.object.pretix_sync_performances? %>
+    <p class="mb-2 text-sm text-muted">
+      Dates marked <em>From pretix</em> are kept in step with the ticket shop — change those in
+      pretix, not here. Anything you add below is yours and is never touched by the sync.
+    </p>
+  <% end %>
+
+  <%= render 'shared/form/sections/nested_fields',
+        f: f,
+        association_name: :event_occurrences,
+        partial_name: 'event_occurrence_fields',
+        add_object_name: f.object.occurrence_label %>
+</div>
 
 <%= f.association :venue, collection: Venue.all, label_method: :name, required: true %>
 
@@ -30,7 +61,38 @@
 <%= f.input :company_name, collection: Company.internal_first.pluck(:name), allow_custom_input: true,
       hint: 'Society or company that put on this event. Type to select an existing entry or enter a new name. New societies will be flagged for admin review.' %>
 
-<%= f.input :price %>
+<div id="ticket-prices">
+  <h3>Ticket prices</h3>
+
+  <p class="mb-2 text-sm text-muted">
+    Add a row per band. The price line shown on the website and the box office screen is written
+    from these, so you only need to type into "Price shown" if the bands cannot express it
+    (&ldquo;Pay what you can&rdquo;).
+  </p>
+
+  <%# template_object: ticket_prices is a JSON column, not an association, so
+      there is no reflection for _nested_fields to build its blank row from. %>
+  <%# Removing a band deletes its row from the DOM, so removing the LAST one posts
+      no ticket_prices_attributes key at all, ticket_prices_attributes= never
+      runs, and the bands survive a save that reported success. This sentinel
+      always posts, so an emptied collection is an empty collection. It is the
+      same trick check_boxes uses with its leading "". %>
+  <%= hidden_field_tag "#{f.object_name}[ticket_prices_attributes][sentinel][amount]", "" %>
+
+  <%= render 'shared/form/sections/nested_fields',
+        f: f,
+        association_name: :ticket_prices,
+        partial_name: 'ticket_price_fields',
+        add_object_name: 'Price band',
+        template_object: Event::TicketPrice.new %>
+
+  <%= f.input :booking_fee, hint: 'Surcharge on top of every band, if there is one.' %>
+</div>
+
+<%= f.input :price, label: 'Price shown', hint: 'Written from the bands above whenever you change them.' %>
+
+<%= f.input :digital_programme_url,
+      hint: 'Full link to the online programme for this show, including https://. It is shown on the event page and as a QR code on the box office screen — leave blank and the screen falls back to a QR for this event page.' %>
 
 <% unless f.object.is_a? Season %>
   <% if f.object.persisted? %>
@@ -64,4 +126,7 @@
     <%= f.input :pretix_shown, hint: 'Display the Pretix widget for this event.' %>
     <%= f.input :pretix_slug_override, hint: ' Leave blank to use the slug for this event as the Pretix slug' %>
     <%= f.input :pretix_view, collection: ['list','week','month'], default: 'list', hint: "See Pretix's documentation for examples" %>
+    <%= f.input :pretix_sync_performances,
+          label: "Sync #{f.object.occurrence_label.downcase.pluralize} from pretix",
+          hint: 'Keeps the dates, times and sold-out state below in step with the ticket shop, every 15 minutes. Access flags, notes and cancellations stay yours.' %>
 <% end %>
