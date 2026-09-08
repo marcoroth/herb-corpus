@@ -1,0 +1,49 @@
+<header>
+  <h1><%= @receipt.shop.name %> — <%= l @receipt.issued_on, format: :short %></h1>
+</header>
+
+<article>
+  <dl>
+    <dt><%= t(".invoice_total") %></dt>
+    <dd><%= number_to_currency(@receipt.total_amount) %></dd>
+
+    <dt><%= t(".basket_total") %></dt>
+    <dd><%= number_to_currency(@receipt.basket_total) %></dd>
+  </dl>
+
+  <%= render "receipts/basket", receipt: @receipt %>
+
+  <section>
+    <h2><%= t(".payment") %></h2>
+    <p>
+      <% if @receipt.payment %>
+        <%= link_to t(".settled_by"), transaction_path(@receipt.payment) %>
+        <%= number_to_currency(@receipt.payment.amount) %>
+        <%= l @receipt.payment.booked_at.to_date, format: :short %>
+        <%= button_to t(".unsettle"), receipt_payment_link_path(@receipt), method: :delete,
+                      data: { turbo_confirm: t(".unsettle_confirm") } %>
+      <% else %>
+        <%= t(".not_settled") %>
+      <% end %>
+    </p>
+
+    <% if @candidate_payments.any? %>
+      <%= form_with url: receipt_payment_link_path(@receipt), id: "payment-picker" do |form| %>
+        <fieldset>
+          <legend><%= t(".candidates") %></legend>
+          <% @candidate_payments.each do |candidate| %>
+            <label>
+              <%= radio_button_tag "receipt[payment_id]", candidate.id, false, required: true %>
+              <%= l candidate.booked_at.to_date, format: :short %>
+              <%= number_to_currency(candidate.amount) %>
+              <%= candidate.debitor %>
+            </label>
+          <% end %>
+        </fieldset>
+        <%= form.submit t(".settle") %>
+      <% end %>
+    <% elsif @receipt.payment.blank? %>
+      <p><%= t(".no_candidates") %></p>
+    <% end %>
+  </section>
+</article>

@@ -11,10 +11,10 @@
     <%= form_with url: admin_reimbursements_actuals_path, method: :get, class: "flex flex-wrap items-end gap-3" do %>
       <% if @periods.any? %>
         <div>
-          <%= label_tag :period, "EUSA period", class: "block text-sm font-medium mb-1" %>
+          <%= label_tag :period, "EUSA period", class: FormStyles::LABEL %>
           <%= select_tag :period,
                          options_for_select([ [ "All periods", "" ] ] + @periods.map { |p| [ p, p ] }, @period),
-                         class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
+                         class: input_classes(width: "w-44") %>
         </div>
       <% end %>
       <div class="flex items-center gap-2 pb-1">
@@ -74,9 +74,17 @@
            (reimbursements_money(actual.credit) if actual.credit&.positive?),
            linked,
            (if actual.convertible_to_expense?
-              link_to("Create expense",
-                      new_expense_admin_reimbursements_actual_path(actual.record_id),
-                      class: btn_classes(:secondary, :sm))
+              # Two ways a stray debit row gets resolved: it paid a claim
+              # somebody filed (link it), or it is a cost EUSA levied directly
+              # and nobody claimed (convert it).
+              safe_join([
+                link_to("Link to claim",
+                        link_expense_admin_reimbursements_actual_path(actual.record_id),
+                        class: btn_classes(:secondary, :sm)),
+                link_to("Create expense",
+                        new_expense_admin_reimbursements_actual_path(actual.record_id),
+                        class: btn_classes(:secondary, :sm))
+              ], " ")
             elsif actual.offset?
               # The pairing heuristic can be wrong, and a wrong pair hides real
               # spend from every rollup, so the operator can always undo one.

@@ -5,7 +5,9 @@
   - duplicates: array of possible-duplicate expenses, or nil
   - selectable: whether to show the bulk-select checkbox (Pending only; default false)
 %>
-<% modulus = modulus_checker.check(expense.effective_sort_code, expense.effective_account_number) %>
+<%# UK-only: the modulus algorithm takes a sort code and account number, which
+    an international payee has neither of. %>
+<% modulus = expense.international? ? nil : modulus_checker.check(expense.effective_sort_code, expense.effective_account_number) %>
 <% selectable = local_assigns.fetch(:selectable, false) %>
 <% attention = ::Reimbursements::ReviewSupport.attention_summary(expense, @budget_by_id, modulus_checker) %>
 <%# The owner-endorsement gate is a distinct, overridable blocking reason (see
@@ -55,13 +57,22 @@
       #<%= expense.auto_number %>: <%= expense.person&.name.presence || "(no payee)" %>
       <span class="text-gray-500">(<%= expense.person&.email.presence || "no email" %>)</span>
     </span>
-    <span>Amount: <strong><%= reimbursements_money(expense.amount) %></strong></span>
-    <% if expense.amount_excl_vat.nil? %>
-      <%= render BadgeComponent.new(type: :warning, pill: true).with_content("Excl. VAT not set") %>
+    <% if expense.international? %>
+      <%# The invoice figure comes first: it is what the submitter entered and
+          what EUSA's form will say. The GBP amount beside it is finance's own
+          estimate, and is blank until they enter it. %>
+      <span>Invoice: <strong><%= reimbursements_payment_amount(expense) %></strong></span>
+      <span>Amount: <strong><%= reimbursements_money(expense.amount) %></strong> GBP</span>
+      <%= render BadgeComponent.new(type: :info, pill: true).with_content("International") %>
     <% else %>
-      <span>Excl. VAT: <strong><%= reimbursements_money(expense.amount_excl_vat) %></strong></span>
+      <span>Amount: <strong><%= reimbursements_money(expense.amount) %></strong></span>
+      <% if expense.amount_excl_vat.nil? %>
+        <%= render BadgeComponent.new(type: :warning, pill: true).with_content("Excl. VAT not set") %>
+      <% else %>
+        <span>Excl. VAT: <strong><%= reimbursements_money(expense.amount_excl_vat) %></strong></span>
+      <% end %>
+      <span class="flex items-center gap-1">Bank: <%= reimbursements_effective_modulus_badge(expense, checker: modulus_checker) %></span>
     <% end %>
-    <span class="flex items-center gap-1">Bank: <%= reimbursements_effective_modulus_badge(expense, checker: modulus_checker) %></span>
     <span>Receipts: <%= expense.receipt_count %></span>
     <%# How long the producer has been waiting: the first thing asked of a claim
         in the queue, and what the nightly stale-Pending reminder chases on. %>
@@ -120,10 +131,15 @@
     <div class="mt-2"><%= render AlertComponent.new(type: :warning) do %>
       Direct payment to <strong><%= expense.effective_payee_name %></strong>
       (not the submitter <%= expense.person&.name %>), paying
-      <%= render Admin::Reimbursements::BankDetailsComponent.new(
-            sort_code: expense.effective_sort_code,
-            account_number: expense.effective_account_number,
-            payee: expense.effective_payee_name) %>.
+      <% if expense.international? %>
+        IBAN <strong><%= Reimbursements::BankDetails.format_iban(expense.effective_iban) %></strong>
+        (BIC <strong><%= expense.effective_bic %></strong>)
+      <% else %>
+        <%= render Admin::Reimbursements::BankDetailsComponent.new(
+              sort_code: expense.effective_sort_code,
+              account_number: expense.effective_account_number,
+              payee: expense.effective_payee_name) %>
+      <% end %>.
       Confirm these match the invoice before approving.
     <% end %></div>
   <% end %>
@@ -137,7 +153,12 @@
 
   <% unless expense.effective_has_bank_details? %>
     <div class="mt-2"><%= render AlertComponent.new(type: :danger) do %>
-      No bank details on file for this payee. Fix the override or the People record.
+      <% if expense.international? %>
+        No IBAN and BIC on file for this payee, so there is nothing to put on EUSA's
+        international payment form. Fix the override or the People record.
+      <% else %>
+        No bank details on file for this payee. Fix the override or the People record.
+      <% end %>
     <% end %></div>
   <% end %>
 
@@ -160,28 +181,38 @@
                 method: :patch, class: "mt-3 grid gap-3 sm:grid-cols-2",
                 data: { review_decision_target: "editForm" } do %>
     <div>
-      <%= label_tag "amount_#{expense.record_id}", "Amount (GBP)", class: "block text-sm font-medium" %>
-      <%= number_field_tag :amount, expense.amount, step: 0.01, min: 0, id: "amount_#{expense.record_id}",
-                           class: "w-full border border-gray-300 rounded px-2 py-1 text-sm" %>
+      <%= label_tag "amount_#{expense.record_id}", "Amount (GBP)", class: FormStyles::LABEL %>
+      <% if expense.international? %>
+        <p class="mb-1 text-sm text-gray-600">
+          What <%= reimbursements_payment_amount(expense) %> is expected to cost in pounds.
+          The budget counts this figure, and reconciliation later corrects it to the rate the
+          bank actually charged. It has to be filled in before the claim can be approved.
+        </p>
+      <% end %>
+      <%= number_field_tag :amount, reimbursements_amount_value(expense.amount), step: 0.01, min: 0, id: "amount_#{expense.record_id}",
+                           class: input_classes %>
     </div>
     <div>
-      <%= label_tag "amount_excl_vat_#{expense.record_id}", "Amount excl. VAT (GBP)", class: "block text-sm font-medium" %>
-      <%= number_field_tag :amount_excl_vat, expense.amount_excl_vat, step: 0.01, min: 0, id: "amount_excl_vat_#{expense.record_id}",
-                           class: "w-full border border-gray-300 rounded px-2 py-1 text-sm" %>
+      <%# A foreign invoice carries no reclaimable UK VAT, so ex-VAT follows the
+          gross automatically and asking for it would invite a deduction nobody
+          can claim. %>
+      <%= label_tag "amount_excl_vat_#{expense.record_id}", "Amount excl. VAT (GBP)", class: FormStyles::LABEL %>
+      <%= number_field_tag :amount_excl_vat, reimbursements_amount_value(expense.amount_excl_vat), step: 0.01, min: 0, id: "amount_excl_vat_#{expense.record_id}",
+                           class: input_classes %>
     </div>
     <div class="sm:col-span-2">
-      <%= label_tag "description_#{expense.record_id}", "Description", class: "block text-sm font-medium" %>
+      <%= label_tag "description_#{expense.record_id}", "Description", class: FormStyles::LABEL %>
       <%= text_area_tag :description, expense.description, id: "description_#{expense.record_id}", rows: 2,
-                        class: "w-full border border-gray-300 rounded px-2 py-1 text-sm" %>
+                        class: input_classes %>
     </div>
     <div>
-      <%= label_tag "payment_reference_#{expense.record_id}", "Payment reference", class: "block text-sm font-medium" %>
+      <%= label_tag "payment_reference_#{expense.record_id}", "Payment reference", class: FormStyles::LABEL %>
       <%= text_field_tag :payment_reference, expense.payment_reference, id: "payment_reference_#{expense.record_id}",
                          maxlength: Reimbursements::ExpenseForm::REFERENCE_LIMIT,
-                         class: "w-full border border-gray-300 rounded px-2 py-1 text-sm" %>
+                         class: input_classes %>
     </div>
     <div>
-      <%= label_tag "budget_record_id_#{expense.record_id}", "Budget", class: "block text-sm font-medium" %>
+      <%= label_tag "budget_record_id_#{expense.record_id}", "Budget", class: FormStyles::LABEL %>
       <% budget_options = @budgets.map { |b| [ b.name, b.record_id ] } %>
       <% if expense.budget && expense.budget.record_id.present? && budget_options.none? { |_, id| id == expense.budget.record_id } %>
         <% budget_options.unshift([ expense.budget.name, expense.budget.record_id ]) %>
@@ -190,14 +221,14 @@
                      options_for_select(budget_options, expense.budget&.record_id),
                      include_blank: expense.budget&.record_id.blank?,
                      id: "budget_record_id_#{expense.record_id}",
-                     class: "w-full border border-gray-300 rounded px-2 py-1 text-sm" %>
+                     class: input_classes %>
     </div>
     <div>
-      <%= label_tag "nominal_code_override_#{expense.record_id}", "Nominal code override", class: "block text-sm font-medium" %>
+      <%= label_tag "nominal_code_override_#{expense.record_id}", "Nominal code override", class: FormStyles::LABEL %>
       <%= text_field_tag :nominal_code_override, expense.nominal_code_override, id: "nominal_code_override_#{expense.record_id}",
                          placeholder: "blank = use budget default",
-                         class: "w-full border border-gray-300 rounded px-2 py-1 text-sm" %>
-      <p class="mt-1 text-xs text-gray-500">Effective nominal: <%= expense.effective_nominal_code.presence || "-" %></p>
+                         class: input_classes %>
+      <p class="<%= FormStyles::HINT %>">Effective nominal: <%= expense.effective_nominal_code.presence || "-" %></p>
     </div>
     <div class="sm:col-span-2">
       <%= submit_tag "Save changes", "aria-label": "Save changes to ##{expense.auto_number}",
@@ -229,7 +260,7 @@
                       data: { turbo_confirm: override_confirm } do %>
           <%= text_field_tag :override_note, nil, placeholder: "Reason for override (optional)",
                              "aria-label": "Reason for overriding the owner sign-off on ##{expense.auto_number}",
-                             class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
+                             class: input_classes(width: nil) %>
           <%= submit_tag "Approve (override sign-off)",
                          "aria-label": "Approve ##{expense.auto_number}, overriding the owner sign-off",
                          data: { action: "review-decision#guard", decision_verb: "approving" },
@@ -255,7 +286,7 @@
                   data: { turbo_confirm: "Reject ##{expense.auto_number} and email the producer? This can't be undone." } do %>
       <%= text_field_tag :rejection_reason, nil, placeholder: "Reason for rejection",
                          "aria-label": "Reason for rejecting expense ##{expense.auto_number}",
-                         class: "border border-gray-300 rounded px-2 py-1 text-sm" %>
+                         class: input_classes(width: nil) %>
       <%= submit_tag "Reject", "aria-label": "Reject ##{expense.auto_number}",
                      data: { action: "review-decision#guard", decision_verb: "rejecting" },
                      class: btn_classes(:danger, :sm) %>
@@ -292,7 +323,8 @@
     <%= form_with url: admin_reimbursements_review_receipts_path(expense.record_id, tab: @tab),
                   method: :post, multipart: true, class: "mt-2 flex items-center gap-2" do %>
       <%= file_field_tag "receipts[]", multiple: true, accept: "application/pdf,image/*",
-                         "aria-label": "Attach receipts to expense ##{expense.auto_number}", class: "text-sm" %>
+                         "aria-label": "Attach receipts to expense ##{expense.auto_number}",
+                         class: file_input_classes %>
       <%= submit_tag "Attach", class: btn_classes(:secondary, :sm) %>
     <% end %>
   </div>
