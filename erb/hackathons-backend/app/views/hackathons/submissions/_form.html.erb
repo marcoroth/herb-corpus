@@ -1,0 +1,93 @@
+<%= simple_form_for(@hackathon, url: hackathons_submissions_path, defaults: {required: true}) do |f| %>
+  <%= f.error_notification %>
+  <%= f.error_notification message: f.object.errors[:base].to_sentence if f.object.errors[:base].present? %>
+
+  <div class="form__inputs">
+    <%= f.simple_fields_for :applicant do |a| %>
+      <%= a.input :name, label: "Your name", hint: "Let's start by getting to know you!" %>
+      <%= a.input :email_address, hint: "If we have any questions about your event, we'll get in touch through this email." %>
+    <% end %>
+    <%= f.input :high_school_led, label: "Are you a high schooler?",
+      hint: "Your hackathon must be high school student-led to be listed on our site.",
+      as: :select, selected: nil %>
+  </div>
+
+  <hr class="my-8"/>
+
+  <div class="form__inputs">
+    <%= f.input :name, label: "Name of the hackathon", hint: "Make sure this matches what's on its website." %>
+
+    <%= f.input :starts_at, label: "Start date", hint: "Please enter this in UTC time", html5: true %>
+    <%= f.input :ends_at, label: "End date", hint: "and this too!", html5: true %>
+
+    <% website_hint = capture do %>
+      <p class="mt-0">
+        Your hackathon website must on a custom domain and include a registration
+        page or link to be listed in the hackathon directory—no Devpost links here
+        please!
+      </p>
+      <p class="m-0">
+        If you're running a high school hackathon on HCB, we can
+        purchase a custom domain for your event.
+      </p>
+    <% end %>
+    <%= f.input :website, as: :url, hint: website_hint %>
+
+    <%= f.input :logo, hint: "This image is placed right above your event's name and description. The logo shouldn't include your event's name.", input_html: {accept: (accept = ActiveStorage.variable_content_types.join(","))} %>
+    <%= f.input :banner, hint: "This image is used as the background for your listing card, and shouldn't include the logo you used above. We strongly recommend not including any text on the background, or it might be clipped off and covered by the logo you uploaded above.", input_html: {accept:} %>
+
+    <div class="form__inputs" data-controller="form--visibility" data-form--visibility-on-value='["in_person","hybrid"]'>
+
+      <%= f.input :modality, label: "Where is the hackathon taking place?", collection: Hackathon.modalities.keys.map { |c| [c.titleize, c] },
+        input_html: {data: {"form--visibility-target": "switch", "action": "change->form--visibility#toggle"}} %>
+
+      <div data-form--visibility-target="element">
+        <div class="form__inputs--nested gap-y-4">
+          <p class="m-0 lead">What's the address of the venue?</p>
+          <%= f.input :street, label: "Street", required: false %>
+          <%= f.input :city, required: false %>
+          <%= f.input :province, label: "State/Province", required: false %>
+          <%= f.input :postal_code, label: "ZIP/Postal Code", required: false %>
+          <%= f.input :country_code, label: "Country", as: :country, priority_countries: ["US"], required: false %>
+        </div>
+      </div>
+    </div>
+
+    <%= f.input :expected_attendees, label: "How many attendees are you expecting at the hackathon?", min_max: true %>
+    <%= f.input :offers_financial_assistance?,
+      label: "Does your hackathon offer travel stipends or scholarships?",
+      hint: "eg. scholarship program for those who can't otherwise afford to attend.",
+      as: :select, selected: nil %>
+  </div>
+
+  <div class="form__inputs mt-8" data-controller="form--visibility" data-form--visibility-on-value='["1"]'>
+    <div class="input">
+      <%= label_tag :requested_swag, "Would you like a small envelope of Hack Club stickers mailed to you?" %>
+      <%= select_tag :requested_swag, options_for_select([["Yes", 1], ["No", 0]]), include_blank: true, required: true,
+        data: {"form--visibility-target": "switch", "action": "change->form--visibility#toggle"} %>
+    </div>
+
+    <div class="hidden" data-form--visibility-target="element">
+      <div class="form__inputs--nested gap-x-4">
+        <%= f.simple_fields_for :swag_request do |swag| %>
+          <%= swag.simple_fields_for :mailing_address do |address| %>
+            <p class="m-0 lead">
+              What's a good mailing address for those stickers?
+              We will mail them out when your hackathon is approved for listing.
+            </p>
+            <%= address.input :line1, label: "Street", required: false %>
+            <%= address.input :line2, label: "Apartment, Suite, etc.", required: false %>
+            <%= address.input :city, required: false %>
+            <%= address.input :province, label: "State/Province", required: false %>
+            <%= address.input :postal_code, label: "ZIP/Postal Code", required: false %>
+            <%= address.input :country_code, label: "Country", as: :country, required: false %>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="form__actions">
+    <%= f.button :button, "Submit for Review" %>
+  </div>
+<% end %>
