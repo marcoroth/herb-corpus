@@ -268,7 +268,7 @@ unless stale.empty?
   stale.each { |file| puts "  #{file}" }
 end
 
-def markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics, accepted, expected_by_file)
+def markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics, accepted, expected_by_file, stale, expected_path)
   fixed = parse["lost"] + compile["lost"]
   verdicts_unchanged = regressions.empty? && fixed.empty? && better.empty?
   no_changes = verdicts_unchanged && diagnostics.empty?
@@ -304,6 +304,13 @@ def markdown_report(before, after, parse, compile, regressions, worse, better, d
 
   out << ""
   out << "Measured over #{pluralize(after["files"], "template")} from [`herb-corpus`](https://github.com/marcoroth/herb-corpus)."
+
+  unless stale.empty?
+    out << ""
+    out << "> [!WARNING]"
+    out << "> #{pluralize(stale.size, "entry")} in `#{expected_path}` no longer #{verb_for(stale.size, "matches", "match")} anything and can be removed:"
+    stale.each { |file| out << "> - `#{file}`" }
+  end
 
   unless accepted.empty?
     out << ""
@@ -420,7 +427,7 @@ def markdown_report(before, after, parse, compile, regressions, worse, better, d
 end
 
 if markdown_path
-  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics, accepted, expected_by_file))
+  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics, accepted, expected_by_file, stale, expected_path))
   warn "Wrote #{markdown_path}"
 end
 
