@@ -8,6 +8,7 @@
 require "json"
 require "optparse"
 require "set"
+require "yaml"
 
 require_relative "../lib/pluralize"
 
@@ -15,11 +16,13 @@ include Pluralize
 
 fail_on_regression = false
 markdown_path = nil
+expected_path = nil
 
 OptionParser.new do |parser|
   parser.banner = "usage: diff-runs BEFORE.json AFTER.json [options]"
   parser.on("--fail-on-regression", "Exit non-zero if any file regressed or started crashing") { fail_on_regression = true }
   parser.on("--markdown FILE", "Also write a Markdown report, for a pull request comment") { |value| markdown_path = value }
+  parser.on("--expected FILE", "YAML file listing outcome changes this branch intends") { |value| expected_path = value }
 end.parse!
 
 before_path, after_path = ARGV
@@ -245,7 +248,27 @@ end
 
 regressions += drifted.keys
 
-def markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics)
+expected = expected_path && File.exist?(expected_path) ? Array(YAML.load_file(expected_path)["expected"]) : []
+expected_by_file = expected.each_with_object({}) { |entry, all| all[entry["file"]] = entry }
+
+accepted = regressions.select { |file| expected_by_file.key?(file) }.uniq.sort
+stale = (expected_by_file.keys - accepted).sort
+
+regressions -= accepted
+
+unless accepted.empty?
+  puts
+  puts Color.dim("#{pluralize(accepted.size, "change")} listed as intended in #{expected_path}")
+  accepted.each { |file| puts Color.dim("  #{file}  #{expected_by_file[file]["reason"]}") }
+end
+
+unless stale.empty?
+  puts
+  puts Color.yellow("#{pluralize(stale.size, "entry")} in #{expected_path} matched nothing and can be removed")
+  stale.each { |file| puts "  #{file}" }
+end
+
+def markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics, accepted, expected_by_file)
   fixed = parse["lost"] + compile["lost"]
   verdicts_unchanged = regressions.empty? && fixed.empty? && better.empty?
   no_changes = verdicts_unchanged && diagnostics.empty?
@@ -281,6 +304,16 @@ def markdown_report(before, after, parse, compile, regressions, worse, better, d
 
   out << ""
   out << "Measured over #{pluralize(after["files"], "template")} from [`herb-corpus`](https://github.com/marcoroth/herb-corpus)."
+
+  unless accepted.empty?
+    out << ""
+    out << "<details><summary><b>#{pluralize(accepted.size, "change")} listed as intended</b></summary>"
+    out << ""
+    out << "| File | Reason |"
+    out << "| --- | --- |"
+    accepted.each { |file| out << "| `#{file}` | #{expected_by_file[file]["reason"]} |" }
+    out << "</details>"
+  end
 
   if no_changes
     out << ""
@@ -387,7 +420,7 @@ def markdown_report(before, after, parse, compile, regressions, worse, better, d
 end
 
 if markdown_path
-  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics))
+  File.write(markdown_path, markdown_report(before, after, parse, compile, regressions, worse, better, diagnostics, accepted, expected_by_file))
   warn "Wrote #{markdown_path}"
 end
 
