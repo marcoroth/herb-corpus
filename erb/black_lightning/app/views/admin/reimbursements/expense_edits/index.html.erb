@@ -20,7 +20,7 @@
     <div>
       <%= label_tag :budget, "Budget", class: FormStyles::LABEL %>
       <%= select_tag :budget,
-                     options_for_select([ [ "All budgets", "" ] ] + @budgets.map { |b| [ b.name, b.record_id ] }, @budget_filter),
+                     options_for_select([ [ "All budgets", "" ] ] + @budgets.map { |b| [ b.display_name, b.record_id ] }, @budget_filter),
                      class: input_classes(width: "w-44") %>
     </div>
     <div>
@@ -41,9 +41,17 @@
 
 <div class="mb-2 flex items-center justify-between gap-3">
   <p class="text-sm text-gray-600"><%= pluralize(@expenses.total_count, "expense") %></p>
-  <%= link_to "Download CSV",
-              admin_reimbursements_expense_edits_path(request.query_parameters.merge(format: :csv)),
-              class: btn_classes(:secondary, :sm) %>
+  <span class="flex flex-wrap gap-2">
+    <%# Carries the selected centre through, so the import lands in the pot
+        whose claims are on screen rather than the first in the list. The year
+        is the import's own selector and this list isn't year-scoped. %>
+    <%= link_to "Import expenses",
+                admin_reimbursements_expense_import_path(cost_centre: selected_cost_centre&.key),
+                class: btn_classes(:secondary, :sm) %>
+    <%= link_to "Download CSV",
+                admin_reimbursements_expense_edits_path(request.query_parameters.merge(format: :csv)),
+                class: btn_classes(:secondary, :sm) %>
+  </span>
 </div>
 
 <% if @expenses.total_count.zero? %>
@@ -88,7 +96,7 @@
          fields: [
            expense, number, status,
            expense.effective_payee_name.presence || "-",
-           expense.budget&.name.presence || "-",
+           expense.budget&.display_name.presence || "-",
            amount,
            truncate(expense.description.to_s, length: 60),
            content_tag(:span, reimbursements_date(expense.submitted_at), class: "whitespace-nowrap"),
