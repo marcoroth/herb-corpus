@@ -15,6 +15,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
 
+    <%#
+      Tells Turbo to wrap its body swap in a same-document view transition.
+      The CSS @view-transition rule separately covers browser-managed visits.
+    %>
+    <meta name="view-transition" content="same-origin">
+
     <meta
       name="theme-color"
       content="<%= site.metadata.theme_color_light %>"
@@ -27,14 +33,27 @@
       media="(prefers-color-scheme: dark)"
     >
 
+    <%#
+      noindex pages still get `follow`: a thin tag page or the 404 is worth
+      crawling through to the posts it links, just not worth indexing itself.
+      Indexable pages opt into full-length snippets and large image previews.
+    %>
+
     <% if data.noindex %>
-      <meta name="robots" content="noindex,nofollow">
+      <meta name="robots" content="noindex,follow">
     <% else %>
-      <meta name="robots" content="max-image-preview:large">
+      <meta
+        name="robots"
+        content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+      >
     <% end %>
 
     <%= render Util::Seo.new(resource: resource) %>
     <%= render Util::StructuredData.new(resource: resource) %>
+
+    <% if (markdown_path = markdown_source_path(resource)) %>
+      <link rel="alternate" type="text/markdown" href="<%= markdown_path %>">
+    <% end %>
 
     <link
       rel="alternate"
@@ -90,29 +109,33 @@
 
     <link rel="me" href="https://bsky.app/profile/andrewm.codes">
     <link rel="me" href="https://github.com/andrewmcodes">
-    <link rel="me" href="https://www.linkedin.com/in/andrew-mason">
+    <link rel="me" href="https://www.linkedin.com/in/andrewmcodes/">
     <link rel="me" href="https://x.com/andrewmcodes">
 
     <link rel="stylesheet" href="<%= asset_path :css %>">
 
-    <script src="<%= asset_path :js %>" defer></script>
+    <link
+      rel="stylesheet"
+      href="<%= Bridgetown.env.production? ? asset_path("styles/tailwind.css") : "/_bridgetown/static/tailwind.css" %>"
+    >
+
+    <script type="module" src="<%= asset_path :js %>"></script>
   </head>
 
-  <body
-    class="
-      bg-sage-1 text-sage-12 font-sans text-[15px] leading-relaxed
-      min-h-screen flex flex-col
-    "
-  >
+  <body class="bg-chrome text-mauve-12 font-sans text-body min-h-screen">
+    <% if markdown_path %>
+      <div class="sr-only" aria-hidden="true">
+        A Markdown version of this page is available at
+        <%= absolute_url(markdown_path) %>.
+      </div>
+    <% end %>
+
     <%= render SkipLink.new %>
 
-    <%= render Topbar.new(resource: resource) %>
-
-    <%= render MainContent.new(kind: data.kind) do %>
+    <%= render AppShell.new(resource: resource, kind: data.kind) do %>
       <%= yield %>
     <% end %>
 
-    <%= render SiteFooter.new %>
     <%= render Cmdk.new %>
   </body>
 </html>

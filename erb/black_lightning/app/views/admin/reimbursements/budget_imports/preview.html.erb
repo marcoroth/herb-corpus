@@ -39,6 +39,7 @@
       <table class="min-w-full text-sm">
         <thead>
           <tr class="text-left text-gray-600">
+            <th class="py-1 pr-4">Area</th>
             <th class="py-1 pr-4">Budget</th>
             <th class="py-1 pr-4">Nominal code</th>
             <th class="py-1 pr-4">Type</th>
@@ -50,7 +51,32 @@
         <tbody>
           <% entries.each do |entry| %>
             <tr class="border-t border-gray-200">
-              <td class="py-1 pr-4"><%= entry.row[:name] %></td>
+              <td class="py-1 pr-4">
+                <%# The area the line LANDS in, not only the cell the sheet
+                    typed: a row whose area was read off its own name shows an
+                    empty cell otherwise, for a line that will land in a show. %>
+                <% area_name = @import.area_name_for(entry) %>
+                <% if area_name.present? %>
+                  <%= area_name %>
+                  <% if @import.area_adopted?(entry) %>
+                    <span class="text-gray-600">(from its name)</span>
+                  <% end %>
+                  <% if bucket == :create && @import.area_creates.any? { |a| a[:name] == area_name } %>
+                    <span class="text-amber-700">(new)</span>
+                  <% end %>
+                <% end %>
+                <%# Two lines of one name are legitimate, so the cell the sheet
+                    typed no longer says which line this figure is going to. %>
+                <% if entry.matched_area_label %>
+                  <span class="text-gray-600">matched: <%= entry.matched_area_label %></span>
+                <% end %>
+              </td>
+              <td class="py-1 pr-4">
+                <%= entry.row[:name] %>
+                <% if entry.matched_note %>
+                  <div class="text-amber-700"><%= entry.matched_note %></div>
+                <% end %>
+              </td>
               <td class="py-1 pr-4 font-mono">
                 <%= entry.row[:nominal_code].presence || content_tag(:span, "(none)", class: "text-amber-700") %>
               </td>
@@ -75,6 +101,39 @@
     </div>
   <% end %>
 
+  <%# The area-level twin of "Changed figures": the sheet is the committee's
+      route for revising a show's agreed total, so a revised Area total has to
+      be visible before it is applied. initial_budget stays write-once — this
+      lands as a forecast under the same budget update as the line revisions. %>
+  <% area_revisions = @import.area_revisions %>
+  <% if area_revisions.any? %>
+    <h3 class="mt-4 mb-2 font-medium">Changed area totals (<%= area_revisions.size %>)</h3>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-600">
+            <th class="py-1 pr-4">Area</th>
+            <th class="py-1 pr-4 text-right">Now</th>
+            <th class="py-1 pr-4 text-right">Becomes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% area_revisions.each do |revision| %>
+            <tr class="border-t border-gray-200">
+              <td class="py-1 pr-4"><%= revision[:area_name] %></td>
+              <td class="py-1 pr-4 text-right">
+                <%= revision[:from] ? number_to_currency(revision[:from], unit: "£") : "—" %>
+              </td>
+              <td class="py-1 pr-4 text-right font-medium">
+                <%= number_to_currency(revision[:amount], unit: "£") %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
   <% if @import.absent_budgets.any? %>
     <div class="mt-4 rounded border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
       <p class="font-medium">
@@ -84,8 +143,21 @@
       <p class="text-gray-600">
         Nothing will happen to <%= @import.absent_budgets.one? ? "it" : "them" %> — importing never
         deletes a budget, because its claims and history hang off it.
-        <%= @import.absent_budgets.map(&:name).to_sentence %>.
+        <%# The one panel whose names NECESSARILY span areas, with nowhere to
+            put a heading: bare, two shows each missing a Marketing and an
+            Other read "Marketing, Marketing, Other and Other". %>
+        <%= @import.absent_budgets.map(&:display_name).to_sentence %>.
       </p>
+      <%# A create in the panel above and an absence here, with nothing linking
+          them, is the one state the operator cannot resolve from the screen. %>
+      <% if @import.superseded_absent_budgets.any? %>
+        <p class="mt-1 text-amber-800">
+          <%= @import.superseded_absent_budgets.map(&:display_name).to_sentence %>
+          <%= @import.superseded_absent_budgets.one? ? "carries" : "carry" %> an area's name as a
+          prefix, and this sheet creates the same line inside that area. Nothing is merged —
+          check whether the older line should be retired.
+        </p>
+      <% end %>
     </div>
   <% end %>
 
@@ -97,8 +169,47 @@
       </p>
       <p>
         The import will go ahead without <%= @import.unknown_owner_emails.one? ? "that owner" : "those owners" %>.
-        Add them on the People screen and set the owners on the budget afterwards.
+        <%# Never auto-created from a bare email (BudgetImport), so this is the
+            operator's job — and the link has to actually go somewhere. %>
+        <%= link_to "Register #{@import.unknown_owner_emails.one? ? 'them' : 'each of them'} on the People screen",
+                    new_admin_reimbursements_person_path, class: "underline font-medium",
+                    data: { turbo_frame: "_top" } %>
+        and set the owners on the budget afterwards.
       </p>
+    </div>
+  <% end %>
+
+  <%# A NAMED LIST, never a count: the union is forgiving in both directions,
+      so a stale address on one line would otherwise gain sign-off authority
+      over a whole show invisibly. See BudgetImport#area_owner_sets. %>
+  <% owner_sets = @import.area_owner_sets %>
+  <% if owner_sets.any? %>
+    <div class="mt-4 rounded border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
+      <p class="font-medium">Who will sign off for each area after this import</p>
+      <p class="text-gray-600">
+        An area's owners are everyone its lines name, and importing never removes one — any one
+        of them can endorse a claim on the area's budgets. Remove an owner on the area itself.
+        Owners are separate from the moves above: unticking a line leaves it where it is, but
+        the area the sheet named still gains the owner named beside it.
+      </p>
+      <ul class="mt-2 space-y-1">
+        <% owner_sets.each do |set| %>
+          <%# Mutually exclusive by construction: "new" means there is no record
+              yet, a scope means there is one and it sits outside this import's
+              year or cost centre. Same qualification as the re-home label. %>
+          <% qualifier = set[:area_scope] || ("new" if set[:area_is_new]) %>
+          <li>
+            <strong><%= set[:area_name] %></strong><% if qualifier %><span class="text-gray-600"> (<%= qualifier %>)</span><% end %>:
+            <%= safe_join(set[:owners].map do |owner|
+                  if owner[:added]
+                    content_tag(:span, "#{owner[:name]} (added)", class: "font-medium text-amber-800")
+                  else
+                    content_tag(:span, owner[:name].to_s)
+                  end
+                end, ", ") %>
+          </li>
+        <% end %>
+      </ul>
     </div>
   <% end %>
 
@@ -111,26 +222,129 @@
     </p>
   <% end %>
 
-  <%= form_with url: apply_admin_reimbursements_budget_import_path,
-                method: :post, class: "mt-6 flex flex-wrap items-center gap-3" do %>
+  <%# What the matcher read, stated. Keyword matching can only ever be nearly
+      right, and a column read as the wrong field is otherwise invisible — see
+      ExpenseImport's class comment for the class of bug this guards against,
+      which the old "Area Budget" heading would have tripped. %>
+  <details class="mt-4 text-sm">
+    <summary class="cursor-pointer text-gray-600">
+      Columns read from your sheet (check these before importing)
+    </summary>
+    <div class="mt-2 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-600">
+            <th class="py-1 pr-4">Field</th>
+            <th class="py-1 pr-4">Read from</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @import.column_mapping.each do |label, header| %>
+            <tr class="border-t border-gray-200">
+              <td class="py-1 pr-4"><%= label %></td>
+              <td class="py-1 pr-4">
+                <% if header %>
+                  <span class="font-mono"><%= header %></span>
+                <% else %>
+                  <span class="text-gray-500">not in this sheet</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <%= form_with url: apply_admin_reimbursements_budget_import_path, method: :post, class: "mt-6" do %>
     <%# The sheet travels as canonical TSV, so apply re-parses exactly what was
         previewed — including an upload, which has no file to re-send. The
         destination travels with it: apply resolves the year and cost centre
         from params exactly as this step did, so it cannot land in a different
         pair than the one previewed here. %>
     <%= hidden_field_tag :pasted_text, @import.to_tsv %>
+    <%# Marks the text above as this class's OWN escaped output, so apply
+        unescapes it. Without it a backslash the operator typed is unescaped as
+        though we had written it. %>
+    <%= hidden_field_tag :canonical, "1" %>
     <%= hidden_field_tag :year, selected_financial_year&.key %>
     <%= hidden_field_tag :cost_centre_id, selected_cost_centre&.id %>
-    <%# Only the parts that are actually happening: "Import 0 new budgets and 1
-        changed figure" reads as a mistake. %>
-    <% parts = [] %>
-    <% parts << pluralize(@import.entries_in(:create).size, "new budget") if @import.entries_in(:create).any? %>
-    <% parts << pluralize(@import.revisions.size, "changed figure") if @import.revisions.any? %>
-    <%= submit_tag parts.any? ? "Import #{parts.to_sentence}" : "Nothing to import",
-                   class: btn_classes(:primary),
-                   disabled: !@import.valid? || parts.empty?,
-                   data: { disable_with: "Importing…" } %>
-    <%= link_to "Cancel", import_path, class: btn_classes(:secondary) %>
+    <%# The re-home tickboxes and the Import button are ONE form: the lines you
+        leave ticked are the lines that move. Same shape as Reconcile's
+        offsetting pairs, and reported rather than applied on sight for the
+        same reason absent budgets are never deleted — somebody grouped that
+        line by hand, and the sheet doesn't get to overrule it silently. %>
+    <% if @import.re_homes.any? %>
+      <div class="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <p class="font-medium">
+          <%= pluralize(@import.re_homes.size, "budget") %>
+          <%= @import.re_homes.one? ? "is" : "are" %> in a different area than this sheet names.
+        </p>
+        <p>
+          Leave a line ticked to follow the sheet. Untick it if somebody moved that line on
+          purpose — an unticked line stays where it is, and an area nothing lands in isn't
+          created at all.
+        </p>
+        <%# Always posted, so an untick is a real "no" rather than a missing parameter. %>
+        <%= hidden_field_tag "re_home_budget_ids[]", "", id: nil %>
+        <ul class="mt-2 space-y-2">
+          <% @import.re_homes.each do |re_home| %>
+            <% checkbox_id = "re-home-#{re_home[:key]}" %>
+            <li class="flex items-start gap-2">
+              <%# Keyed by BUDGET ID, not row position: a re-import with the
+                  rows reordered must not land this tick on a different line. %>
+              <%= check_box_tag "re_home_budget_ids[]", re_home[:key], true,
+                                id: checkbox_id, class: "#{checkbox_classes} mt-0.5" %>
+              <div>
+                <%= label_tag checkbox_id, class: "cursor-pointer" do %>
+                  <strong><%= re_home[:budget_name] %></strong> —
+                  <%= re_home[:from_area_name].presence || "no area" %>
+                  <%# Qualified only when the names would otherwise read
+                      "Cogito -> Cogito": the FROM side when that area sits
+                      outside this import's year or cost centre, the TO side
+                      when this import is about to create it. %>
+                  <% if re_home[:from_area_scope] %>
+                    <span class="text-gray-600">(<%= re_home[:from_area_scope] %>)</span>
+                  <% end %>
+                  &rarr; <%= re_home[:to_area_name] %>
+                  <% if re_home[:to_area_is_new] %>
+                    <span class="text-gray-600">(new)</span>
+                  <% end %>
+                <% end %>
+                <%# The third way into an area, and the only silent one — and the
+                    one that moves many lines at once. Budget#owners resolves
+                    THROUGH the area, so a line landing in an ownerless area
+                    stops needing endorsement; said in the same words the area
+                    form and the budget form already use. %>
+                <% unless re_home[:to_area_has_owners] %>
+                  <p class="mt-1 text-sm text-warning">
+                    <%= re_home[:to_area_name] %> names nobody, so claims on this line skip
+                    budget-owner sign-off entirely.
+                  </p>
+                <% end %>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <%# Only the parts that are actually happening: "Import 0 new budgets and 1
+          changed figure" reads as a mistake. The LIST comes from
+          BudgetImport#apply_work, which is keyed by the store argument that
+          does each thing — counting only some of them leaves the button
+          reading "Nothing to import", disabled, over work the apply would
+          have done. %>
+      <% parts = @import.apply_work.each_value.filter_map do |label, count|
+           pluralize(count, label) if count.positive?
+         end %>
+      <%= submit_tag parts.any? ? "Import #{parts.to_sentence}" : "Nothing to import",
+                     class: btn_classes(:primary),
+                     disabled: !@import.valid? || parts.empty?,
+                     data: { disable_with: "Importing…" } %>
+      <%= link_to "Cancel", import_path, class: btn_classes(:secondary) %>
+    </div>
   <% end %>
 <% end %>
 <% end %>
