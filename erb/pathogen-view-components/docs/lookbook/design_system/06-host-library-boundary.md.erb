@@ -41,6 +41,22 @@ Reusable UI is `Pathogen::*`. Prefer host **views that compose Pathogen** over g
 
 If the gem needs host-specific behaviour, pass it in (slot, block, callback, option)—do not reach out into the host.
 
+## Sidebar boot script
+
+`Pathogen::Sidebar` persists the desktop expanded/rail preference in `localStorage` and restores it when its Stimulus controller connects. On its own that restore runs after first paint, so a sidebar that was collapsed before a refresh briefly flashes open, then snaps to the rail—most visibly under Turbo navigations.
+
+The `pathogen_sidebar_boot_tag` helper prevents that flash by applying the persisted state to the `<html>` element before the sidebar paints. It only works from the document `<head>`, exactly like a dark-mode anti-FOUC check.
+
+- **Host owns placement.** Render it in the layout `<head>` (next to any dark-mode check), passing the same `id:` used for the sidebar:
+
+  ```erb
+  <head>
+    <%%= pathogen_sidebar_boot_tag(id: "sidebar") %>
+  </head>
+  ```
+
+- Placing it in `<body>` runs the script after the first paint, so the flash returns. Lookbook previews render layout-less and cannot inject into `<head>`, so the demo layout carries an equivalent generic shim instead—treat that as a preview convenience, not the integration pattern.
+
 ## Promotion rule
 
 If a pattern is reusable, or it appears on two or more host surfaces, implement or extend Pathogen first (or in the same change), then wire the host. Do not permanently fork the pattern in the host.

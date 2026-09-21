@@ -8,7 +8,40 @@
     <%= stylesheet_link_tag "pathogen_view_components" %>
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
     <%= stylesheet_link_tag "lookbook_preview" %>
-    <%= javascript_importmap_tags "lookbook_preview" %>
+    <%= javascript_include_tag "lookbook_preview", type: "module", "data-turbo-track": "reload" %>
+
+    <%#
+      Demo-only anti-flash shim. In a real host, place `pathogen_sidebar_boot_tag`
+      in the document <head> (next to the dark-mode check) so persisted sidebar
+      state is applied before first paint. Preview scenarios render layout-less,
+      so their `content_for :head` can't reach here; this generic scan mirrors the
+      helper for whichever sidebar a preview shows.
+    %>
+
+    <script nonce="<%= content_security_policy_nonce %>">
+      (function () {
+        var desktop = window.matchMedia("(min-width: 80rem)").matches;
+        document.documentElement.setAttribute(
+          "data-pathogen-sidebar-viewport",
+          desktop ? "desktop" : "mobile"
+        );
+        if (!desktop) return;
+        var value = "true";
+        try {
+          for (var i = 0; i < window.localStorage.length; i++) {
+            var key = window.localStorage.key(i);
+            if (!key || key.indexOf("pathogen.sidebar.") !== 0 || key.slice(-5) !== ".open") continue;
+            var stored = window.localStorage.getItem(key);
+            if (stored === "false" || stored === "true") value = stored;
+          }
+        } catch (error) {
+          value = "true";
+        }
+        document.documentElement.setAttribute("data-pathogen-sidebar-open", value);
+      })();
+    </script>
+
+    <%= yield :head %>
   </head>
 
   <body class="min-h-screen bg-[var(--pvc-color-surface-muted)] p-4 text-[var(--pvc-color-text)]">

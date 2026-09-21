@@ -1,14 +1,13 @@
 <%= render "organized/bikes/sticker_header" if @bike_sticker.present? %>
 
-<% settings_component = Pages::Org::Search::Settings::Component.new(
+<% settings = ComponentStructs::OrgSearchSettings.new(
   organization: current_organization,
   interpreted_params: @interpreted_params,
   sortable_search_params:,
   params:,
   search_stickers: @search_stickers,
   search_address: @search_address,
-  search_status: @search_status,
-  bike_sticker: @bike_sticker
+  search_status: @search_status
 ) %>
 
 <% form_interpreted_params = @interpreted_params.merge(
@@ -19,12 +18,9 @@
   search_notes: params[:search_notes]
 ).compact %>
 
-<div
-  class="org-search-component"
-  data-controller="org--search org--search-column-toggle"
-  data-org--search-column-toggle-default-columns-value="<%= settings_component.initially_checked_columns.to_json %>"
-  data-org--search-column-toggle-assign-bike-sticker-value="<%= @bike_sticker.present? %>"
->
+<%= tag.div(class: "org-search-component", data: Pages::Org::Search::Settings::Component
+  .column_toggle_data_attributes(settings)
+  .merge("org--search-column-toggle-assign-bike-sticker-value": @bike_sticker.present?)) do %>
   <%# Frame requests only need the results frame; skip the form (Turbo discards it) %>
   <% unless turbo_frame_request? %>
     <div class="mb-4">
@@ -32,7 +28,7 @@
         target_search_path: organization_registrations_path(organization_id: current_organization.to_param),
         target_frame: :organized_bikes_results_frame,
         interpreted_params: form_interpreted_params,
-        settings_component:
+        settings:
       )) do %>
         <% if @bike_sticker.present? %>
           <%= hidden_field_tag :bike_sticker, @bike_sticker.code %>
@@ -43,7 +39,9 @@
 
   <%= render Pages::SearchResults::Frame::Component.new(frame_id: :organized_bikes_results_frame,
     render_results: @render_results, current_path: request.original_fullpath) do %>
-    <%= render UI::PeriodSelect::Component.new(period: @period, start_time: @start_time, end_time: @end_time, sortable_search_params:) %>
+    <div class="tw:flex tw:justify-end">
+      <%= render UI::PeriodSelect::Component.new(period: @period, start_time: @start_time, end_time: @end_time, sortable_search_params:) %>
+    </div>
 
     <div class="tw:mt-2 tw:text-right">
       <%= link_to t(".render_chart", default: "Render chart"),
@@ -52,6 +50,6 @@
         data: {turbo_action: "advance"} %>
     </div>
 
-    <%= render partial: "results" %>
+    <%= render partial: "results", locals: {settings:} %>
   <% end %>
-</div>
+<% end %>
