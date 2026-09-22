@@ -406,6 +406,64 @@ def command_drift(argv)
   0
 end
 
+def license_change_for(app)
+  recorded = app.license_file
+
+  return nil if recorded && File.file?(File.join(app.dir, recorded))
+
+  detected = detect_license_file(app.dir)
+
+  return nil if recorded.nil? && detected.nil?
+
+  { "name" => app.name, "from" => recorded, "to" => detected, "redistributable" => app.redistributable? }
+end
+
+def apply_license_changes(changes)
+  return if changes.empty?
+
+  renamed, vanished = changes.partition { |change| change["to"] }
+
+  unless renamed.empty?
+    Dir.chdir(ROOT) do
+      document = Yerba.parse_file(File.basename(MANIFEST))
+      entries = document["apps"].to_a
+
+      renamed.each do |change|
+        index = entries.index { |entry| entry["name"] == change["name"] }
+        next unless index
+
+        document.set("apps[#{index}].license_file", change["to"])
+      end
+
+      document.save!(apply: true)
+    end
+
+    renamed.each do |change|
+      puts "#{Color.yellow("license")} #{change["name"]} #{Color.dim("#{change["from"] || "none"} -> #{change["to"]}, corpus.yml updated")}"
+    end
+
+    puts Color.yellow(
+      "Read the #{noun_for(renamed.size, "file")} before trusting the recorded license: a rename can " \
+      "accompany a relicense."
+    )
+  end
+
+  vanished.each do |change|
+    puts "#{Color.red("license")} #{change["name"]} #{Color.dim("#{change["from"]} is gone and nothing replaces it")}"
+  end
+
+  return if vanished.empty?
+
+  at_risk = vanished.count { |change| change["redistributable"] }
+
+  puts Color.red(
+    "#{pluralize(vanished.size, "app")} lost #{verb_for(vanished.size, "its", "their")} license file" \
+    "#{at_risk.positive? ? "; #{at_risk} of those #{verb_for(at_risk, "is", "are")} redistributable" : ""}. " \
+    "Set `license_file`, or mark #{verb_for(vanished.size, "it", "them")} `redistributable: false`, " \
+    "before extracting."
+  )
+end
+
 def command_update(argv)
   commit = false
   report_path = nil
@@ -418,7 +476,8 @@ def command_update(argv)
 
   apps = load_apps(argv).select(&:cloned?)
   moved = []
-  report = { "moved" => [], "skipped" => [], "failed" => [], "unchanged" => 0 }
+  license_changes = []
+  report = { "moved" => [], "skipped" => [], "failed" => [], "license_changes" => [], "unchanged" => 0 }
 
   apps.each do |app|
     if app.frozen?
@@ -470,8 +529,15 @@ def command_update(argv)
         "erb_before" => erb_before,
         "erb_after" => app.erb_files.size
       }
+
+      if (change = license_change_for(app))
+        license_changes << change
+        report["license_changes"] << change
+      end
     end
   end
+
+  apply_license_changes(license_changes)
 
   write_report(report_path, report) if report_path
 
