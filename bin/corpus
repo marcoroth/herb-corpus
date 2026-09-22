@@ -116,10 +116,7 @@ App = Struct.new(:name, :path, :url, :branch, :meta, keyword_init: true) do
   def frozen? = !meta["frozen"].nil?
   def frozen_sha = meta["frozen"].to_s
 
-  def frozen_source_dir = Dir.exist?(File.join(ROOT, path)) ? File.join(ROOT, path) : File.join(ERB_DIR, name)
-  def frozen_from_erb? = frozen? && frozen_source_dir == File.join(ERB_DIR, name)
-
-  def dir = frozen? ? frozen_source_dir : File.join(ROOT, path)
+  def dir = frozen? ? File.join(ERB_DIR, name) : File.join(ROOT, path)
   def cloned? = frozen? ? Dir.exist?(dir) : (Dir.exist?(File.join(dir, ".git")) || File.exist?(File.join(dir, ".git")))
   def repo = meta["repo"] || url.to_s.sub(%r{\Ahttps://github\.com/}, "").sub(/\.git\z/, "")
   def upstream = meta["upstream"]
@@ -474,7 +471,7 @@ def command_update(argv)
     parser.on("--report FILE", "Write a JSON summary of what moved") { |value| report_path = value }
   end.parse!(argv)
 
-  apps = load_apps(argv).select(&:cloned?)
+  apps = load_apps(argv).select { |app| app.cloned? || app.frozen? }
   moved = []
   license_changes = []
   report = { "moved" => [], "skipped" => [], "failed" => [], "license_changes" => [], "unchanged" => 0 }
@@ -648,7 +645,7 @@ def command_list(argv)
       app.name,
       app.repo + (app.fork? ? Color.yellow(" (fork)") : ""),
       app.branch,
-      count ? count.to_s : Color.dim("not cloned"),
+      count ? count.to_s : Color.dim(app.frozen? ? "frozen" : "not cloned"),
       app.redistributable? ? app.license : Color.yellow("#{app.license} *")
     ]
   end
@@ -1047,7 +1044,7 @@ def command_extract(argv)
 
   manifest_path = File.join(out, "MANIFEST.json")
   previous = (JSON.parse(File.read(manifest_path)) if incremental && File.exist?(manifest_path))
-  keep = apps.select(&:frozen_from_erb?).map { |app| File.join(out, app.name) }.to_set
+  keep = apps.select(&:frozen?).map { |app| File.join(out, app.name) }.to_set
 
   if previous
     entries = previous["apps"] || {}
@@ -1476,7 +1473,7 @@ def adoption_report(refresh_history: true, allow_partial: false, jobs: 12)
 
     [app.name, {
       "repo" => app.repo,
-      "pin" => app.pinned_sha,
+      "pin" => app.head_sha,
       "config" => config,
       "config_version" => config_version_for(app, config),
       "components" => components
@@ -1974,7 +1971,7 @@ def prior_art_report(refresh_history: true, rescan: false, allow_partial: false,
       [component, entry]
     end
 
-    [app.name, { "repo" => app.repo, "pin" => app.pinned_sha, "components" => components }]
+    [app.name, { "repo" => app.repo, "pin" => app.head_sha, "components" => components }]
   end
 
   if refresh_history && pending.any?
