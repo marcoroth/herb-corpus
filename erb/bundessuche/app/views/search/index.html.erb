@@ -1,0 +1,68 @@
+<form class="search__form search__form--centered">
+  <div class="search__bar">
+    <input
+      type="text"
+      name="q"
+      value="<%= @query %>"
+      placeholder="<%= t("search_placeholder", total: @total) %>"
+      class="search__text-input"
+      autocomplete="off"
+    >
+    <input type="submit" value="<%= t("search_button") %>" class="search__button">
+  </div>
+  <%# Without JavaScript every filter simply stays unfolded and keeps working. %>
+  <% filters_open = (@from.values + @to.values).any?(&:present?) %>
+  <section class="search__filters">
+    <h3 class="search__filters-title">
+      <%# The button needs JavaScript to do anything, so browsers without it get
+          the plain heading and the unfolded filters underneath instead. %>
+      <button
+        type="button"
+        class="search__filters-toggle"
+        aria-controls="search_filters_list"
+        aria-expanded="<%= filters_open %>"
+      ><%= t("search_filters") %></button>
+      <span class="search__filters-heading"><%= t("search_filters") %></span>
+    </h3>
+    <div class="search__filters-list <%= "search__filters-list--open" if filters_open %>" id="search_filters_list">
+      <%= render DateFilterComponent.new(prefix: "from", legend: t("search_date_from"), parts: @from) %>
+      <%= render DateFilterComponent.new(prefix: "to", legend: t("search_date_to"), parts: @to) %>
+    </div>
+    <p class="search__hints"><%= t("search_hint_fields") %></p>
+    <p class="search__hints"><%= t("search_hint_wildcard") %></p>
+  </section>
+</form>
+<% if @query %>
+  <%# The results carry translated headings and buttons, so each language needs
+      its own entry. %>
+  <% cache [controller.action_name, I18n.locale, query_cache_key(@query, @from_value, @to_value), @archive_files.current_page] do %>
+    <% if @pagination_cache[:total_count] > 0 %>
+      <h3><%= t("search_results_found", count: @pagination_cache[:total_count]) %></h3>
+      <div class="pagination">
+        <%= paginate @archive_files, total_pages: @pagination_cache[:total_pages] %>
+      </div>
+      <hr>
+      <%# One query for the ancestor chains of the whole page, rather than one
+          per result once the JSON column is gone. %>
+      <% ArchiveFile.preload_parents(@archive_files) %>
+      <% @archive_files.each do |archive_file| %>
+        <%= render ResultComponent.new(query: @query, archive_file: archive_file) %>
+        <hr>
+      <% end %>
+      <div class="pagination">
+        <%= paginate @archive_files, total_pages: @pagination_cache[:total_pages] %>
+      </div>
+    <% elsif @query_too_short %>
+      <hr>
+      <h3 class="search__warning"><%= t("search_query_too_short") %></h3>
+    <% else %>
+      <hr>
+      <h3><%= t("search_no_results") %></h3>
+    <% end %>
+  <% end %>
+<% else %>
+  <hr class="title-spacer">
+  <h2><%= t("search_intro_title") %></h2>
+  <p><%= t("search_intro_project_html") %></p>
+  <p><%= t("search_intro_alternatives_html") %></p>
+<% end %>

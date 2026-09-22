@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **343** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **38,191** from 277 apps |
+| Applications and engines | **344** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **38,200** from 278 apps |
 | Size of `erb/` | ~59 MB |
 | Excluded pending license review | 66 apps |
 
@@ -213,7 +213,7 @@ both and silently compare a branch against itself, so the measurement scripts ru
 
 ### Herb
 
-**132 of 343** applications use Herb: `herb` 81, `@herb-tools/linter` 56, `@herb-tools/formatter` 35, `.herb.yml` 104, `.herb/` 1.
+**133 of 344** applications use Herb: `herb` 82, `@herb-tools/linter` 56, `@herb-tools/formatter` 35, `.herb.yml` 104, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -261,6 +261,8 @@ both and silently compare a branch against itself, so the measurement scripts ru
 | [bops](https://github.com/unboxed/bops/tree/75d2bc2f7be6ec42f6b88a3c9f594421b0ff02ab) | linter | ^0.10.3 | explicit | [2025-08-04](https://github.com/unboxed/bops/commit/52eac8fbf50a99778a6a30e959cccb563c142b64 "first seen in package.json") |
 |  | formatter | ^0.10.3 | explicit | [2026-08-25](https://github.com/unboxed/bops/commit/4a01d7da742a003fd3fee88a14d9d7fde2cb4b20 "first seen in package.json") |
 |  | .herb.yml | 0.10.3 | – | [2026-08-25](https://github.com/unboxed/bops/commit/e346f7bbff7e881bfb2e0e66be2665b09a957dd2 "first seen in .herb.yml") |
+|  |  |  |  |  |
+| [bundessuche](https://github.com/michaelem/bundessuche/tree/7146e282831e9fcdcfdcfa2a70d4d9009fb47468) | herb | 0.10.4 | transitive | – |
 |  |  |  |  |  |
 | [cal_memo](https://github.com/Kiryuanzu/cal_memo/tree/54b93216d671f3d97b941bfc303d2a26d8de615a) | linter | ^0.10.1 | explicit | [2026-05-12](https://github.com/Kiryuanzu/cal_memo/commit/30fa0cbea5ed17f616e021b6d966367acd086db5 "first seen in package.json") |
 |  | formatter | ^0.10.1 | explicit | [2026-05-11](https://github.com/Kiryuanzu/cal_memo/commit/41bf5054cfd9a35a7cb53d7a847bd58bf8158fac "first seen in package.json") |
@@ -628,11 +630,13 @@ both and silently compare a branch against itself, so the measurement scripts ru
 
 ### ReActionView
 
-**26 of 343** applications use ReActionView: `reactionview` 26.
+**27 of 344** applications use ReActionView: `reactionview` 27.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
 | [bike_index](https://github.com/bikeindex/bike_index/tree/023fd749afd9c617e550baa0eddb876b196776d1) | reactionview | 0.3.0 | explicit | [2025-10-21](https://github.com/bikeindex/bike_index/commit/3001826a1f7b7ba754d664f7a245c58b81bf6201 "first seen in Gemfile.lock") |
+|  |  |  |  |  |
+| [bundessuche](https://github.com/michaelem/bundessuche/tree/7146e282831e9fcdcfdcfa2a70d4d9009fb47468) | reactionview | 0.4.1 | explicit | [2026-09-20](https://github.com/michaelem/bundessuche/commit/39d060da6f86dd8b0ae35cbaab3ef89254f37a42 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [canivete](https://github.com/fbatista/canivete/tree/4356cb0cc17d36de211befe0d0825ac959fef930) | reactionview | 0.4.0 | explicit | [2025-09-24](https://github.com/fbatista/canivete/commit/420be9605781a6fed76c25197253912bab0b0928 "first seen in Gemfile") |
 |  |  |  |  |  |
@@ -692,17 +696,17 @@ xychart
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
   y-axis "Apps" 0 --> 133
   line [3, 8, 15, 22, 34, 46, 54, 65, 81, 91, 103, 111, 123, 129, 132]
-  line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 26]
+  line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27]
 ```
 
-Herb 132 · ReActionView 26
+Herb 132 · ReActionView 27
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 77 apps
-  "0.10.4" : 28
+  title Herb releases across 78 apps
+  "0.10.4" : 29
   "0.10.3" : 28
   "0.10.2" : 5
   "0.10.1" : 10
@@ -752,7 +756,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**38 of 343** applications use `erb_lint` directly. 5 dropped it and now use Herb, and 21 run both.
+**38 of 344** applications use `erb_lint` directly. 5 dropped it and now use Herb, and 21 run both.
 
 > History could not be searched in 92 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -853,7 +857,7 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 343** applications use `better_html` directly. 3 dropped it and now use Herb, and 6 run both.
+**9 of 344** applications use `better_html` directly. 3 dropped it and now use Herb, and 6 run both.
 
 > History could not be searched in 95 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -892,7 +896,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 343** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 344** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 92 repositories, so the dropped and migrated counts are lower bounds.
 
