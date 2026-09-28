@@ -1,0 +1,67 @@
+---
+title: Data Grid Pagination
+---
+
+# Data Grid Pagination
+
+`Pathogen::DataGridComponent` can request server-rendered rows as the user scrolls.
+The host application owns the query, authorization, filtering, ordering, and pagination.
+The demo app uses Pagy offset pagination in `Demo::SamplesController`.
+
+## Render the first page
+
+Pass `virtual: true`, the first page of rows, and `virtual_pagination`:
+
+- `total_count`: the complete filtered result count, including zero for an empty result.
+- `rows_url`: the host endpoint that returns row HTML as JSON.
+- `page_size`: the number of rows requested per page. It must match the host paginator.
+- `row_offset`: the zero-based position of the first supplied row. It defaults to zero.
+- `search_params`: optional query parameters forwarded with each request, including filters and sorting.
+
+For a nonempty result, supply the initial page when rendering the grid. An empty `rows`
+collection renders the empty state. Constrain the grid height and use `fill_container: true`
+when the grid should scroll within that space.
+
+Keep column definitions in one host method used by both the initial grid and the rows
+endpoint. Use pixel widths and leading sticky columns for virtual grids.
+
+## Return additional rows
+
+The grid sends `page` and `limit` to `rows_url`. Authorize every request and apply the
+same filters and stable ordering used for the initial page. Include a unique tie-breaker in the ordering.
+Replace the grid when its filters, ordering, or result count change.
+If rows include selection controls, test selection persistence and bulk actions in the
+host as pages load, leave the viewport, and return.
+
+Return a JSON object with a `rows` array. Each entry contains `index`, the zero-based
+position in the complete result, and `html`, one rendered row. Pagy metadata may also
+be included; the grid uses the total count supplied with the initial page.
+
+Render each fragment using the same configured grid and column definitions:
+
+```ruby
+render Pathogen::DataGrid::VirtualRowComponent.new(
+  grid: grid,
+  row: sample,
+  global_row_index: offset + index
+)
+```
+
+The row component prepares its columns during rendering. The parent grid does not
+need to be rendered first, and the endpoint should not call `before_render` itself.
+Cell rendering blocks can return Rails helper output, including links and buttons;
+plain strings remain escaped.
+
+The demo's `Demo::SamplesGrid`, `Demo::SamplesController`, and `demo/samples/_row`
+partial provide a complete example. Keep the host's Pagy calls appropriate to its
+installed version; Pathogen does not require Pagy in the shared component library.
+
+## Interactive cells and widget mode
+
+Cells with focusable controls enter widget mode on `Enter` or `F2`; `Escape` returns
+focus to the cell. The grid only treats an element as a focusable widget when it can
+actually receive focus: `a` requires an `href`, hidden inputs (`type="hidden"`) are
+ignored, and elements that are `disabled`, `[hidden]`, `[inert]`, visually hidden
+(`display: none`, `visibility: hidden`, `content-visibility: hidden`), or collapsed
+inside a closed `<details>` are skipped. Render controls the host wants keyboard-
+reachable as genuinely enabled and visible focusable elements.

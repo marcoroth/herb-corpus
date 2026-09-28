@@ -3,7 +3,7 @@
 <% modulus = ::Reimbursements::ReviewSupport.modulus_result(@expense, modulus_checker) %>
 
 <p class="mb-3 text-gray-600">
-  Finance edit for a single expense at any status. Changes save immediately.
+  Finance edit for a single expense at any status, including Submitted and Paid.
   <%= link_to "All expenses", admin_reimbursements_expense_edits_path, class: "text-primary underline" %>
   or the <%= link_to "Review queue", admin_reimbursements_review_path, class: "text-primary underline" %>.
 </p>
@@ -18,66 +18,156 @@
     <span class="flex items-center gap-1">Bank: <%= reimbursements_effective_modulus_badge(@expense, checker: modulus_checker) %></span>
     <span>Receipts: <%= @expense.receipt_count %></span>
     <%= render BadgeComponent.new(type: Reimbursements::Status.badge_variant(@expense.status), pill: true).with_content(@expense.status) %>
+    <%# A rejection was terminal: nothing in the portal wrote a status back to
+        Pending, so a mistaken one meant a console or a refile under a new
+        number, which loses the thread between the two. Back to PENDING, never
+        Approved — the claim re-enters the queue and the owner gate as a fresh
+        one would, so this can never be a way round a sign-off. %>
+    <% if @expense.status == ::Reimbursements::Status::REJECTED %>
+      <%= button_to "Reopen this claim",
+            admin_reimbursements_reopen_expense_edit_path(@expense.record_id),
+            method: :post, class: btn_classes(:secondary, :sm),
+            form: { class: "inline-block" },
+            data: { turbo_confirm: "Put ##{@expense.auto_number} back in the review queue as " \
+                                   "Pending? Nobody is emailed, and the rejection stays in its " \
+                                   "history." } %>
+    <% end %>
   </div>
 
-  <%# --- Why this needs attention (blocked vs advisory) --- %>
-  <% if @attention[:blocking].any? %>
+  <%# --- Why this needs attention (blocked vs advisory) ---
+      Only while the claim can still be approved or paid. On a Submitted, Paid
+      or Rejected row the same reasons are advice about a decision nobody is
+      going to take again: a Paid claim opened with "This can't be approved
+      until these are fixed" stacked above "already been paid". The expenses
+      index has suppressed them on those rows for a while; this is the page
+      catching up. %>
+  <% advice = ::Reimbursements::ReviewSupport.attention_actionable?(@expense) %>
+  <% if advice && @attention[:blocking].any? %>
     <div class="mt-3"><%= render AlertComponent.new(type: :danger) do %>
-      <p class="font-medium">This can't be approved until these are fixed:</p>
-      <ul class="mt-1 list-disc pl-5">
-        <% @attention[:blocking].each do |reason| %>
-          <li><%= reason %></li>
-        <% end %>
-      </ul>
-    <% end %></div>
+        <p class="font-medium">This can't be approved until these are fixed:</p>
+        <ul class="mt-1 list-disc pl-5">
+          <% @attention[:blocking].each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      <% end %></div>
   <% end %>
-  <% if @attention[:advisory].any? %>
+  <% if advice && @attention[:advisory].any? %>
     <div class="mt-3"><%= render AlertComponent.new(type: :warning) do %>
-      <p class="font-medium">Worth checking before approving (approval still goes through):</p>
-      <ul class="mt-1 list-disc pl-5">
-        <% @attention[:advisory].each do |reason| %>
-          <li><%= reason %></li>
-        <% end %>
-      </ul>
-    <% end %></div>
+        <p class="font-medium">Worth checking before approving (approval still goes through):</p>
+        <ul class="mt-1 list-disc pl-5">
+          <% @attention[:advisory].each do |reason| %>
+            <li><%= reason %></li>
+          <% end %>
+        </ul>
+      <% end %></div>
   <% end %>
 
   <%# --- Already-processed note (Submitted / Paid) --- %>
   <% if @expense.status == Reimbursements::Status::SUBMITTED %>
     <div class="mt-3"><%= render AlertComponent.new(type: :warning) do %>
-      This expense has <strong>already been sent to EUSA</strong>. Edits here won't change what
-      EUSA has already processed. Update it only to keep our records straight, then follow up with
-      EUSA directly if the payment itself needs to change.
-    <% end %></div>
+        <strong>Already sent to EUSA.</strong> Editing here updates our records only: talk to
+        EUSA if the payment itself has to change.
+      <% end %></div>
   <% elsif @expense.status == Reimbursements::Status::PAID %>
     <div class="mt-3"><%= render AlertComponent.new(type: :warning) do %>
-      This expense has <strong>already been paid</strong>. Edits here won't change what EUSA has
-      already processed. Update it only to keep our records straight.
-    <% end %></div>
+        <strong>Already paid.</strong> Editing here updates our records only.
+      <% end %></div>
   <% end %>
 
   <% if @expense.payee_override? %>
     <div class="mt-3"><%= render AlertComponent.new(type: :info) do %>
-      Direct payment to <strong><%= @expense.effective_payee_name %></strong>
-      (not the submitter <%= @expense.person&.name %>), paying
-      <% if @expense.international? %>
-        IBAN <strong><%= Reimbursements::BankDetails.format_iban(@expense.effective_iban) %></strong>
-        (BIC <strong><%= @expense.effective_bic %></strong>)
-      <% else %>
-        <%= render Admin::Reimbursements::BankDetailsComponent.new(
+        Direct payment to <strong><%= @expense.effective_payee_name %></strong>
+        (not the submitter <%= @expense.person&.name %>), paying
+        <% if @expense.international? %>
+          IBAN <strong><%= Reimbursements::BankDetails.format_iban(@expense.effective_iban) %></strong>
+          (BIC <strong><%= @expense.effective_bic %></strong>)
+        <% else %>
+          <%= render Admin::Reimbursements::BankDetailsComponent.new(
               sort_code: @expense.effective_sort_code,
               account_number: @expense.effective_account_number,
               payee: @expense.effective_payee_name) %>
-      <% end %>.
-    <% end %></div>
+        <% end %>.
+      <% end %></div>
   <% end %>
 
   <% if modulus == Reimbursements::ModulusCheck::INVALID %>
     <div class="mt-3"><%= render AlertComponent.new(type: :danger) do %>
-      Modulus check failed for the effective sort code + account number. Likely a typo.
-    <% end %></div>
+        Modulus check failed for the effective sort code + account number. Likely a typo.
+      <% end %></div>
   <% end %>
 
+<% end %>
+
+<%# --- History: what has actually happened to this claim ---
+    Read-only. It had no timeline at all — submitted, endorsed, approved,
+    batched and paid live on four tables and no screen assembled them — so a
+    Paid claim's page was a status pill and nothing else, and the rejection
+    reason and the override note, both stored, appeared nowhere in the portal.
+    Every row is omitted when it has nothing to say, so a fresh claim shows
+    only its submission. %>
+<% has_history = @expense.submitted_at.present? || @endorsement.present? ||
+                 @expense.rejection_reason.present? || @batch.present? ||
+                 @expense.payment_confirmed_date.present? %>
+<% if has_history %>
+  <%= render CardComponent.new(title: "History", html_class: "mt-4") do %>
+    <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+      <% if @expense.submitted_at.present? %>
+        <dt class="font-medium">Submitted</dt>
+        <dd><%= reimbursements_date(@expense.submitted_at) %></dd>
+      <% end %>
+
+      <% if @endorsement&.owner_endorsement? %>
+        <dt class="font-medium">Owner sign-off</dt>
+        <dd>
+          <%= @endorsing_person&.name.presence || "an owner" %>
+          on <%= reimbursements_date(@endorsement.endorsed_at) %>
+        </dd>
+      <% elsif @endorsement&.finance_override? %>
+        <%# Who bypassed the owner gate, when, and the reason they gave. The
+            note was write-only before this. %>
+        <dt class="font-medium">Owner sign-off overridden</dt>
+        <dd>
+          <%= @endorsement.overridden_by&.name_or_email.presence || "a finance user" %>
+          on <%= reimbursements_date(@endorsement.endorsed_at) %><% if @endorsement.note.present? %>:
+            <q><%= @endorsement.note %></q>
+          <% end %>
+        </dd>
+      <% end %>
+
+      <% if @expense.rejection_reason.present? %>
+        <dt class="font-medium">Rejected</dt>
+        <dd>
+          <% if @expense.rejection_notified.present? %>
+            <%= reimbursements_date(@expense.rejection_notified) %>, producer emailed:
+          <% end %>
+          <q><%= @expense.rejection_reason %></q>
+          <%# The reason and the stamp are kept after a reopen, so on a claim
+              that is no longer Rejected this row is history rather than its
+              state — say which. %>
+          <% if @expense.status != ::Reimbursements::Status::REJECTED %>
+            <span class="text-gray-500">(reopened since)</span>
+          <% end %>
+        </dd>
+      <% end %>
+
+      <% if @batch.present? %>
+        <dt class="font-medium">In batch</dt>
+        <dd>
+          <%= link_to @batch.name.presence || @batch.record_id,
+                      admin_reimbursements_batch_path(@batch.record_id),
+                      class: "text-primary underline" %>
+          <%# "BACS date", never "sent": nothing records the manual send. %>
+          <span class="text-gray-500">(BACS <%= reimbursements_date(@batch.date_sent) %>)</span>
+        </dd>
+      <% end %>
+
+      <% if @expense.payment_confirmed_date.present? %>
+        <dt class="font-medium">Payment confirmed</dt>
+        <dd><%= reimbursements_date(@expense.payment_confirmed_date) %></dd>
+      <% end %>
+    </dl>
+  <% end %>
 <% end %>
 
 <%# Details and receipts side by side, so the figure on the document and the
@@ -85,7 +175,21 @@
     narrow screens, where squeezing both would leave neither readable. %>
 <div class="flex flex-col gap-4 lg:flex-row lg:items-start">
   <div class="min-w-0 lg:flex-1">
-    <%= form_with url: admin_reimbursements_expense_edit_path(@expense.record_id), method: :patch do %>
+    <%# The producer form's rail controller, reused rather than copied: it
+        swaps the bank pair and the invoice-amount block for the chosen rail's
+        own, and every one of its other behaviours is guarded by a
+        has…Target check, so it degrades to exactly this much here. A second
+        controller doing the same three toggles would trip jscpd, which gates
+        duplication at 0.
+
+        None of the fields below carries HTML `required`, so hiding one cannot
+        reproduce the trap where a hidden required input makes the browser
+        refuse the whole submit silently. The server re-validates the rail it
+        is actually given (see #posted_rail_international?). %>
+    <%= form_with url: admin_reimbursements_expense_edit_path(@expense.record_id), method: :patch,
+                  data: { controller: "reimbursements-receipt",
+                          reimbursements_receipt_international_method_value:
+                            Reimbursements::Expense::PAYMENT_METHOD_INTERNATIONAL } do %>
       <%= render CardComponent.new(title: "Details") do |card| %>
         <% card.with_footer do %>
           <%= render "shared/form/actions", submit: "Save changes",
@@ -101,10 +205,69 @@
                            include_blank: @expense.expense_type.blank?, class: input_classes %>
           <% end %>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <%= render "shared/form/field", label: "Amount (GBP)", name: :amount do %>
-              <%= number_field_tag :amount, reimbursements_amount_value(@expense.amount), step: 0.01, min: 0, class: input_classes %>
+          <%# WHOSE claim this is, and on the Reimbursement rail whose bank
+              details pay it. Finance could not change it at all, so a claim
+              matched to the wrong person — by email-in, or by the settled-claim
+              import, where a blank Submitter email once sent 140 production
+              claims to one payee — could only be fixed from a console.
+              Deliberately offered at every status: the case it exists for is a
+              batch of imported claims already Paid to the wrong payee. %>
+          <%= render "shared/form/field", label: "Submitter / payee", name: :person_record_id,
+                hint: "Who filed this claim, and on the Reimbursement rail whose bank details " \
+                      "pay it. Changing it corrects the portal's record and decides who a " \
+                      "FUTURE batch pays; it changes nothing EUSA has already been sent." do %>
+            <% person_options = @people.map { |p| [ p.name.presence || p.email.presence || p.record_id, p.record_id ] } %>
+            <%= select_tag :person_record_id,
+                           options_for_select(person_options, @expense.person&.record_id),
+                           include_blank: @expense.person&.record_id.blank?,
+                           class: "simple-select2" %>
+          <% end %>
+
+          <%# Which rail the money travels on. Finance could not change it at
+              all before: a claim filed as UK that turns out to need an IBAN
+              had to be withdrawn and resubmitted. Offered only while the
+              money can still move — on a Submitted or Paid claim the
+              paperwork EUSA acted on has already gone out, so the stored rail
+              is a record of what happened rather than a choice. %>
+          <% if rail_editable?(@expense) %>
+            <%= render "shared/form/field", label: "How is this paid?", name: :payment_method,
+                  hint: "International pays a bank outside the UK: EUSA fills in a separate payment " \
+                        "form for those and needs an IBAN and BIC instead of a sort code. Switching " \
+                        "keeps the other rail's details, so it can be switched back." do %>
+              <%= select_tag :payment_method,
+                             options_for_select(
+                               [ [ "UK bank account", Reimbursements::Expense::PAYMENT_METHOD_UK_BACS ],
+                                 [ "International (IBAN)",
+                                   Reimbursements::Expense::PAYMENT_METHOD_INTERNATIONAL ] ],
+                               @expense.payment_method
+                             ),
+                             data: { reimbursements_receipt_target: "paymentMethod",
+                                     action: "change->reimbursements-receipt#paymentMethodChanged" },
+                             class: input_classes %>
             <% end %>
+          <% end %>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <%# Same fx-rate controller as the Review card, so the arithmetic
+                finance would otherwise do in their head is on both screens
+                that ask for this figure. Renders nothing on the UK rail. %>
+            <%# mb-4 moves to this wrapper and off the field, so the label,
+                the control and the implied-rate line space as one group and
+                still line up with the ex-VAT cell beside them. %>
+            <div class="mb-4" <%= tag.attributes(reimbursements_fx_rate_data(@expense)) %>>
+              <%= render "shared/form/field", label: "Amount (GBP)", name: :amount,
+                    hint: (reimbursements_fx_converter_link(@expense) if @expense.international?),
+                    html_class: "" do %>
+                <%= number_field_tag :amount, reimbursements_amount_value(@expense.amount),
+                      step: 0.01, min: 0, class: input_classes,
+                      data: (@expense.international? ? { fx_rate_target: "amount",
+                                                         action: "input->fx-rate#render" } : {}) %>
+              <% end %>
+              <% if @expense.international? %>
+                <p class="mt-1 mb-0 text-sm text-gray-600" data-fx-rate-target="output"
+                   aria-live="polite"></p>
+              <% end %>
+            </div>
             <%= render "shared/form/field", label: "Amount excl. VAT (GBP)", name: :amount_excl_vat do %>
               <%= number_field_tag :amount_excl_vat, reimbursements_amount_value(@expense.amount_excl_vat), step: 0.01, min: 0,
                                    class: input_classes %>
@@ -141,7 +304,11 @@
           <%# The invoice figure and its currency, which is what EUSA's bank
               actually pays. The GBP amount above stays finance's own estimate
               until reconcile corrects it. %>
-          <% if @expense.international? %>
+          <%# Rendered whatever the stored rail, hidden when it does not apply,
+              so the browser can switch to international without a round trip.
+              The server writes these two only on the international rail. %>
+          <div data-reimbursements-receipt-target="internationalAmount"
+               class="<%= "hidden" unless @expense.international? %>">
             <div class="grid gap-4 sm:grid-cols-2">
               <%= render "shared/form/field", label: "Invoice currency", name: :foreign_currency do %>
                 <%# input_classes, not simple-select2: every other select on this
@@ -152,12 +319,16 @@
                                                   @expense.foreign_currency),
                                class: input_classes %>
               <% end %>
-              <%= render "shared/form/field", label: "Invoice amount", name: :foreign_amount do %>
+              <%# Blank CLEARS it; anything unreadable is refused by name. It
+                  used to be ignored silently and come back with the old
+                  figure still in the field. %>
+              <%= render "shared/form/field", label: "Invoice amount", name: :foreign_amount,
+                    hint: "As printed on the invoice. Leave blank to clear it." do %>
                 <%= text_field_tag :foreign_amount, @expense.foreign_amount,
                                    placeholder: "as printed on the invoice", class: input_classes %>
               <% end %>
             </div>
-          <% end %>
+          </div>
 
           <div class="border-t border-gray-200 pt-3">
             <h3 class="mb-1">Payee overrides</h3>
@@ -169,10 +340,16 @@
           <%= render "shared/form/field", label: "Payee name override", name: :payee_name_override do %>
             <%= text_field_tag :payee_name_override, @expense.payee_name_override, class: input_classes %>
           <% end %>
-          <%# Only the rail's own pair is rendered. Showing both would invite
-              filling in a sort code for a payment that goes over SWIFT, and the
-              all-or-nothing rule reads whichever pair applies. %>
-          <% if @expense.international? %>
+          <%# BOTH pairs are in the markup, with the inactive one hidden, so the
+              rail select above can swap them without a round trip. Only one is
+              ever visible, so this still does not invite typing a sort code for
+              a payment going over SWIFT — and the all-or-nothing rule reads
+              whichever pair the POSTED rail names. Switching keeps the other
+              pair: they are encrypted details a human typed, inert while that
+              rail is inactive, and a silent wipe on a mis-click could not be
+              undone. %>
+          <div data-reimbursements-receipt-target="internationalFields"
+               class="<%= "hidden" unless @expense.international? %>">
             <div class="grid gap-4 sm:grid-cols-2">
               <%= render "shared/form/field", label: "Payee IBAN", name: :iban_override do %>
                 <%= text_field_tag :iban_override,
@@ -184,7 +361,9 @@
                                    placeholder: "8 or 11 characters", class: input_classes %>
               <% end %>
             </div>
-          <% else %>
+          </div>
+          <div data-reimbursements-receipt-target="ukFields"
+               class="<%= "hidden" if @expense.international? %>">
             <div class="grid gap-4 sm:grid-cols-2">
               <%= render "shared/form/field", label: "Sort code override", name: :sort_code_override do %>
                 <%= text_field_tag :sort_code_override, @expense.sort_code_override, placeholder: "00-00-00",
@@ -195,7 +374,7 @@
                                    placeholder: "8 digits", class: input_classes %>
               <% end %>
             </div>
-          <% end %>
+          </div>
         </div>
       <% end %>
     <% end %>

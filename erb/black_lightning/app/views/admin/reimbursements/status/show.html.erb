@@ -1,7 +1,6 @@
 <p class="mb-3 text-gray-600">
-  The health of the external services the reimbursements flows depend on. The last nightly-run
-  date per cost centre is a plain database read and always shown; the live service probes run
-  only when you press <strong>Run checks</strong>, so an idle visit doesn't wait on Microsoft.
+  What the portal has emailed, and whether Microsoft is reachable. Press
+  <strong>Run checks</strong> to probe the live services.
 </p>
 
 <%= render CardComponent.new(title: "Last nightly run") do %>
@@ -22,8 +21,9 @@
 
 <%= render CardComponent.new(title: "Notification recipients", html_class: "mt-4") do %>
   <p class="text-sm text-gray-600 mb-3">
-    Who gets each cost centre's nightly reminders — claims stuck awaiting approval, and the queue
-    ready to batch. Change it under that cost centre's Settings.
+    Who gets each cost centre's nightly reminders: claims stuck awaiting approval, and the queue
+    ready to batch. The nightly run sends a third reminder, one per budget owner with a claim
+    awaiting their sign-off; that one goes to the owners themselves, not to these addresses.
   </p>
   <ul class="flex flex-col gap-3">
     <% @cost_centres.each do |cost_centre| %>
@@ -34,11 +34,16 @@
                                    .with_content(addresses.any? ? pluralize(addresses.size, "address") : "No notification recipients")) %>
           <span><strong><%= cost_centre.name %></strong></span>
           <span class="text-gray-500"><%= addresses.to_sentence %></span>
+          <%# The audit's "Change it under Settings" sentence, as the link it
+              should always have been: straight to THIS centre's own page. %>
+          <%= link_to "Change under #{cost_centre.name} Settings",
+                      edit_admin_reimbursements_setting_path(cost_centre.key),
+                      class: "text-primary underline" %>
         </div>
         <% if addresses.empty? %>
           <p class="text-xs text-danger mt-1">
-            Nobody gets this cost centre's reminders. The nightly logs a warning and retries rather
-            than marking the day handled, so nothing is lost — but nothing is sent either.
+            Nobody gets this cost centre's reminders until an address is set. The nightly keeps
+            retrying until one is.
           </p>
         <% end %>
       </li>
@@ -47,10 +52,14 @@
 <% end %>
 
 <%= render CardComponent.new(title: "Integration checks", html_class: "mt-4") do %>
+  <%# The note about #run_checks staying an array, and each probe being rescued
+      on its own, is a fact about the CONTROLLER and belongs beside it — it was
+      typed into the paragraph below and rendered on screen to finance users
+      for as long as this card has existed. Anything that explains the code
+      goes in an ERB comment like this one, never in the copy. %>
   <p class="text-sm text-gray-600 mb-2">
-    Probe Microsoft Graph with the app's own credentials. Graph is the only
-    integration left to check; #run_checks stays an array so adding the next one
-    is a one-line change, and each probe is rescued on its own.
+    Probe Microsoft Graph with the app's own credentials. Graph is the only integration this
+    portal has to reach, so it is the only check here.
   </p>
   <div data-controller="busy-dim"
        data-action="turbo:submit-start->busy-dim#start turbo:submit-end->busy-dim#end">
@@ -61,4 +70,91 @@
       <%= render "checks", checks: @checks %>
     </div>
   </div>
+<% end %>
+
+<%# What the portal has actually emailed. The page could say whether Graph was
+    reachable and when each centre's nightly last completed, and nothing about
+    what was sent to whom — so "did this person get their reminder?" had no
+    answer short of asking them. %>
+<%= render CardComponent.new(title: "What has been emailed", html_class: "mt-4") do %>
+  <p class="mb-3 text-sm text-gray-600">
+    Every reminder and notification the portal sent, and to which address. It records the
+    handover to Microsoft, not delivery: a bounce or a full mailbox after that is invisible here.
+    Automatic replies to emailed-in receipts are not listed.
+  </p>
+
+  <%= form_with url: admin_reimbursements_status_path, method: :get,
+                class: "mb-4 flex flex-wrap items-end gap-3" do %>
+    <%= render "shared/form/field", label: "What was sent to this address?", name: :recipient,
+          html_class: "grow max-w-md",
+          hint: "The whole address; a partial one finds nothing." do %>
+      <%= text_field_tag :recipient, @recipient_query, type: "search",
+                         placeholder: "name@example.com", class: input_classes %>
+    <% end %>
+    <%= submit_tag "Search", class: "#{btn_classes(:secondary, :sm)} mb-4" %>
+    <% if @recipient_query.present? %>
+      <%= link_to "Clear", admin_reimbursements_status_path,
+                  class: "#{btn_classes(:secondary, :sm)} mb-4" %>
+    <% end %>
+  <% end %>
+
+  <% if @send_counts.any? && @recipient_query.blank? %>
+    <%# Per-run counts: a run-day sends a batch of one kind to several people,
+        and the count is the thing that looks wrong when it is wrong. %>
+    <p class="mb-1 text-sm font-medium">Per run</p>
+    <p class="mb-1 text-sm text-gray-600">
+      The <%= @send_log_limit %> newest messages only, so a large run can show fewer recipients
+      than it sent.<% if @send_log_since %> Log starts
+      <%= reimbursements_date(@send_log_since) %>.<% end %>
+    </p>
+    <ul class="mb-4 flex flex-col gap-1 text-sm">
+      <% @send_counts.each do |(date, kind), count| %>
+        <li class="flex flex-wrap items-baseline gap-x-2">
+          <span class="text-gray-500"><%= reimbursements_date(date) %></span>
+          <span class="grow"><%= kind.humanize %></span>
+          <span class="tabular-nums"><%= pluralize(count, "recipient") %></span>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <% if @sends.empty? %>
+    <p class="mb-0 text-gray-600">
+      <% if @recipient_query.present? %>
+        Nothing has been emailed to <strong><%= @recipient_query %></strong>. Check the address on
+        their People record: a reminder to an address nobody reads looks exactly like this.
+      <% else %>
+        Nothing has been emailed yet. Reminders go out on each cost centre's run days; a
+        rejection or a batch notification is sent as it happens.
+      <% end %>
+    </p>
+  <% else %>
+    <div class="table-scroll">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-300 text-left text-gray-600">
+            <th scope="col" class="px-3 py-2">Sent</th>
+            <th scope="col" class="px-3 py-2">To</th>
+            <th scope="col" class="px-3 py-2">What</th>
+            <th scope="col" class="px-3 py-2">Cost centre</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @sends.each do |log| %>
+            <tr class="border-b border-gray-200">
+              <td class="px-3 py-2 whitespace-nowrap"><%= log.sent_at.to_fs(:short) %></td>
+              <td class="px-3 py-2"><%= log.recipient %></td>
+              <td class="px-3 py-2">
+                <%= log.kind.humanize %>
+                <% if log.subject.present? %>
+                  <div class="text-xs text-gray-500"><%= log.subject %></div>
+                <% end %>
+              </td>
+              <td class="px-3 py-2 text-gray-600"><%= log.cost_centre&.name %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
 <% end %>

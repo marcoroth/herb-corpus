@@ -20,8 +20,9 @@
 <% if @candidates.empty? %>
   <%= render CardComponent.new(title: "Which claim did this pay?") do %>
     <p class="mb-0 text-gray-600">
-      No unpaid claims to link this to. Every claim on file is already Paid, so this row is
-      either income, someone else's, or a cost nobody claimed - in which case
+      No claim here can be settled by this row. Paid claims are settled already, and drafts and
+      rejected claims are never offered. So this row is income, someone else's, or a cost nobody
+      claimed - in which case
       <%= link_to "create an expense from it", new_expense_admin_reimbursements_actual_path(@actual.record_id) %>
       instead.
     </p>
@@ -34,7 +35,9 @@
                 method: :post do |f| %>
     <%= render CardComponent.new(title: "Which claim did this pay?") do |card| %>
       <p class="mb-3 text-sm text-gray-600">
-        Closest amount first. An <strong>international</strong> claim's amount is only the
+        A claim whose payee the row's narrative names comes first; after that, closest amount.
+        Draft and rejected claims are not offered: settling one would mark paid something
+        nobody agreed to pay. An <strong>international</strong> claim's amount is only the
         estimate finance typed at review, so it will not match the row exactly; linking it
         corrects the claim to what EUSA actually charged.
       </p>
@@ -56,6 +59,13 @@
                   ).with_content(expense.status) %>
               <span class="block text-gray-600">
                 <%= expense.budget&.display_name.presence || "(no budget)" %>
+                <%# The claim's POT. A row belongs to one centre and a claim
+                    resolves one through its budget, so a candidate from the
+                    other centre is almost certainly the wrong answer — and
+                    the list said nothing about it. %>
+                <% if (centre = @cost_centres_by_id[expense.budget&.cost_centre_id]) %>
+                  <span class="text-gray-500">(<%= centre.name %>)</span>
+                <% end %>
                 <%= "- #{expense.description}" if expense.description.present? %>
               </span>
             </span>

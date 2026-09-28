@@ -1,6 +1,11 @@
 <%# locals: (headers:, ordered_area_ids:, budgets_by_area_id:, none_budgets:, areas_by_id:, people_by_id:) %>
 <div class="table-scroll">
-  <table class="table table-hover table-sticky-head">
+  <%# table-pinned-actions keeps the Edit column against the right-hand edge:
+      measured at 1366x768 this table is 1218px of columns in a 1012px box, so
+      Edit sat 87px off screen. The budget NAME is a link to the same form, so
+      there are two routes to it either way. %>
+  <table class="table table-hover table-sticky-head table-pinned-actions"
+         data-controller="sticky-table">
     <thead>
       <tr>
         <% headers.each do |header| %>
@@ -21,7 +26,8 @@
         <tr class="bg-gray-50">
           <th scope="rowgroup" colspan="<%= headers.size %>" class="text-left py-2">
             <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <span class="font-semibold text-base"><%= area.name %></span>
+              <%= link_to area.name, admin_reimbursements_area_path(area.record_id),
+                          class: "font-semibold text-base" %>
               <%# Only shown when some of the area's lines sit in another year or cost centre. %>
               <% if visible_count < total_count %>
                 <span class="text-sm text-gray-500">
@@ -34,7 +40,11 @@
                   entirely when nobody agreed a total, as the overview card
                   suppresses it: "Agreed total (expenses) -" reads as a claim
                   about expenses rather than as an unset plan. %>
-              <% unless area.projected_amount.nil? %>
+              <%# no_budget_set?, not projected_amount.nil?: a £0 total with
+                  nothing allocated is a figure nobody filled in, and
+                  "Agreed total (expenses) £0.00" reads as a claim about
+                  expenses rather than as an unset plan. %>
+              <% unless area.no_budget_set? %>
                 <span class="text-sm text-gray-600">
                   <%= area.basis_label %> <%= reimbursements_money(area.projected_amount) %>
                 </span>

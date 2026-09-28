@@ -6,7 +6,11 @@
   <%= render AlertComponent.new(type: :danger) do %><%= flash[:alert] %><% end %>
 <% end %>
 
-<%= render CardComponent.new(title: "Preview: #{selected_financial_year.label}") do %>
+<%# The heading names BOTH coordinates, as the expense preview's already did:
+    the <h1> outside this frame can name neither, and "which pot is this
+    landing in" is the question a whole committee sheet turns on. %>
+<%= render CardComponent.new(
+      title: "Preview: #{selected_financial_year.label} · #{chosen_cost_centre&.name}") do %>
   <p class="mb-4 text-sm text-gray-600">
     Nothing has been written yet. Check the lines below, then confirm at the bottom.
   </p>
@@ -101,6 +105,36 @@
     </div>
   <% end %>
 
+  <%# The agreed total each NEW area is about to be given. It caps a whole
+      show, it is write-once (only #area_creates ever sets it), and the
+      preview stated it nowhere — so the one figure the operator most needs to
+      check before confirming was invisible until after it was written.
+      Revisions to a stored area's total are the table below. %>
+  <% area_creates = @import.area_creates.select { |attrs| attrs[:initial_budget] } %>
+  <% if area_creates.any? %>
+    <h3 class="mt-4 mb-2 font-medium">Agreed totals to be set (<%= area_creates.size %>)</h3>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-600">
+            <th class="py-1 pr-4">New area</th>
+            <th class="py-1 pr-4 text-right">Area total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% area_creates.each do |attrs| %>
+            <tr class="border-t border-gray-200">
+              <td class="py-1 pr-4"><%= attrs[:name] %></td>
+              <td class="py-1 pr-4 text-right font-medium">
+                <%= number_to_currency(attrs[:initial_budget], unit: "£") %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
   <%# The area-level twin of "Changed figures": the sheet is the committee's
       route for revising a show's agreed total, so a revised Area total has to
       be visible before it is applied. initial_budget stays write-once — this
@@ -122,7 +156,7 @@
             <tr class="border-t border-gray-200">
               <td class="py-1 pr-4"><%= revision[:area_name] %></td>
               <td class="py-1 pr-4 text-right">
-                <%= revision[:from] ? number_to_currency(revision[:from], unit: "£") : "—" %>
+                <%= revision[:from] ? number_to_currency(revision[:from], unit: "£") : "-" %>
               </td>
               <td class="py-1 pr-4 text-right font-medium">
                 <%= number_to_currency(revision[:amount], unit: "£") %>
@@ -141,7 +175,7 @@
         <%= @import.absent_budgets.one? ? "isn't" : "aren't" %> in this sheet.
       </p>
       <p class="text-gray-600">
-        Nothing will happen to <%= @import.absent_budgets.one? ? "it" : "them" %> — importing never
+        Nothing will happen to <%= @import.absent_budgets.one? ? "it" : "them" %>. Importing never
         deletes a budget, because its claims and history hang off it.
         <%# The one panel whose names NECESSARILY span areas, with nowhere to
             put a heading: bare, two shows each missing a Marketing and an
@@ -154,7 +188,7 @@
         <p class="mt-1 text-amber-800">
           <%= @import.superseded_absent_budgets.map(&:display_name).to_sentence %>
           <%= @import.superseded_absent_budgets.one? ? "carries" : "carry" %> an area's name as a
-          prefix, and this sheet creates the same line inside that area. Nothing is merged —
+          prefix, and this sheet creates the same line inside that area. Nothing is merged, so
           check whether the older line should be retired.
         </p>
       <% end %>
@@ -187,10 +221,9 @@
     <div class="mt-4 rounded border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
       <p class="font-medium">Who will sign off for each area after this import</p>
       <p class="text-gray-600">
-        An area's owners are everyone its lines name, and importing never removes one — any one
-        of them can endorse a claim on the area's budgets. Remove an owner on the area itself.
-        Owners are separate from the moves above: unticking a line leaves it where it is, but
-        the area the sheet named still gains the owner named beside it.
+        Owners are added, never removed: take one off on the area itself. Unticking a move
+        above does <strong>not</strong> withhold the owner, and the area the sheet named still
+        gains them.
       </p>
       <ul class="mt-2 space-y-1">
         <% owner_sets.each do |set| %>
@@ -282,7 +315,7 @@
         </p>
         <p>
           Leave a line ticked to follow the sheet. Untick it if somebody moved that line on
-          purpose — an unticked line stays where it is, and an area nothing lands in isn't
+          purpose: an unticked line stays where it is, and an area nothing lands in isn't
           created at all.
         </p>
         <%# Always posted, so an untick is a real "no" rather than a missing parameter. %>
@@ -297,7 +330,7 @@
                                 id: checkbox_id, class: "#{checkbox_classes} mt-0.5" %>
               <div>
                 <%= label_tag checkbox_id, class: "cursor-pointer" do %>
-                  <strong><%= re_home[:budget_name] %></strong> —
+                  <strong><%= re_home[:budget_name] %></strong> ·
                   <%= re_home[:from_area_name].presence || "no area" %>
                   <%# Qualified only when the names would otherwise read
                       "Cogito -> Cogito": the FROM side when that area sits

@@ -11,8 +11,27 @@
     <%= render "shared/form/field", label: "Name", name: :name do %>
       <%= text_field_tag :name, name, class: input_classes %>
     <% end %>
-    <%= render "shared/form/field", label: "Nominal code", name: :nominal_code do %>
-      <%= text_field_tag :nominal_code, nominal_code, class: input_classes %>
+    <%# A datalist, NOT a select: the curated list is a set of suggestions, and
+        a code absent from it is legitimate (BudgetImport allows a blank one and
+        the overview has a "(none)" bucket), so refusing an unlisted code would
+        make the list a constraint nobody agreed to. Until now the labels
+        finance maintains on Settings fed nothing at all and this was bare
+        free text. %>
+    <%= render "shared/form/field", label: "Nominal code", name: :nominal_code,
+          hint: (if nominal_code_suggestions.any?
+                   "Start typing to pick from the codes finance maintains on Settings, " \
+                     "or enter another."
+                 end) do %>
+      <%= text_field_tag :nominal_code, nominal_code, class: input_classes,
+                         list: ("nominal-code-suggestions" if nominal_code_suggestions.any?),
+                         autocomplete: "off" %>
+      <% if nominal_code_suggestions.any? %>
+        <datalist id="nominal-code-suggestions">
+          <% nominal_code_suggestions.each do |code, label| %>
+            <option value="<%= code %>"><%= label %></option>
+          <% end %>
+        </datalist>
+      <% end %>
     <% end %>
     <%= render "shared/form/field", label: "Type", name: :budget_type do %>
       <%= select_tag :budget_type, options_for_select(::Reimbursements::Budget::TYPES, budget_type),
@@ -28,7 +47,7 @@
           among them would read as a different kind of control. %>
       <%= select_tag :area_id,
             options_from_collection_for_select(areas, :record_id, :name, area_id),
-            include_blank: "— none —", class: input_classes,
+            include_blank: "No area", class: input_classes,
             data: { reimbursements_budget_area_target: "area",
                     action: "change->reimbursements-budget-area#areaChanged" } %>
     <% end %>
@@ -60,12 +79,12 @@
       <% owner_names = owners_from_area.owners.map { |person| person.name.presence || person.email } %>
       <p class="text-sm text-gray-700">
         <% if owner_names.any? %>
-          Owned by <%= owner_names.to_sentence %> —
+          Owned by <%= owner_names.to_sentence %>
         <% else %>
-          <%= render(BadgeComponent.new(type: :warning, pill: true).with_content("No owner")) %> —
+          <%= render(BadgeComponent.new(type: :warning, pill: true).with_content("No owner")) %>
         <% end %>
-        <%= link_to "edit on the area", edit_admin_reimbursements_area_path(owners_from_area.record_id),
-              class: "text-primary underline" %>
+        (<%= link_to "edit on the area", edit_admin_reimbursements_area_path(owners_from_area.record_id),
+              class: "text-primary underline" %>)
       </p>
       <% if owner_names.empty? %>
         <%# An area naming nobody switches the gate OFF for every line under it
@@ -88,8 +107,8 @@
           can switch its descendants off, which is what stops the browser
           posting owner_ids at all once an area is chosen. %>
       <%= render "shared/form/field", label: "Owners", name: :owner_ids,
-            hint: "Everyone who owns this budget. A line placed in an area takes " \
-                  "its owners from the area, and they are set there." do %>
+            hint: "Everyone who owns this budget. A line placed in an area takes the " \
+                  "area's owners instead." do %>
         <%# Only `simple-select2`, never input_classes — Tom Select copies the
             classes onto the wrapper that already draws the box. `select_tag`
             emits no hidden empty field of its own, and without it clearing
@@ -110,7 +129,7 @@
         rather than read out as it is re-traversed. %>
     <p class="text-sm text-gray-700" hidden aria-live="polite"
        data-reimbursements-budget-area-target="notice">
-      This line goes in an area, so it takes the area's owners — set them on the area itself.
+      This line goes in an area, so it takes the area's owners. Set them on the area itself.
     </p>
   <% end %>
 

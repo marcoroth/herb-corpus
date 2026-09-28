@@ -1,12 +1,13 @@
 <%# Same Turbo Frame as show/apply — see show.html.erb for why the wizard
     renders inside a frame. %>
 <%= turbo_frame_tag "reconcile" do %>
+<%# The wizard's steps read "Step 1" and then "Step 3" — this screen is the
+    missing two, and was headed nothing at all. %>
+<h2 class="mb-2 text-lg font-semibold">Step 2: Review the matches</h2>
 <p class="mb-3 text-gray-600">
-  Review the matches below. Every row is imported under the cost centre its own Cost Centre
-  column names. Debits are matched to Submitted or Paid expenses, credits to income budgets,
-  both within that row's cost centre. Rows that cancel each other out are proposed as
-  offsetting pairs for you to confirm. When you're happy, apply the reconciliation to save
-  everything and mark the matched expenses Paid. Nobody is emailed.
+  Every row is imported under the cost centre its own Cost Centre column names, and is matched
+  within that centre: debits to Submitted or Paid claims, credits to income budgets. Applying
+  marks the matched claims Paid. Nobody is emailed.
 </p>
 
 <% if flash.now[:alert].present? %>
@@ -44,7 +45,7 @@
     <p class="mb-3 text-gray-600">
       <%= pluralize(@attribution.unassigned_blank_rows.size, "row") %> in this paste
       <%= @attribution.unassigned_blank_rows.size == 1 ? "has" : "have" %> no cost centre of
-      <%= @attribution.unassigned_blank_rows.size == 1 ? "its" : "their" %> own — the export
+      <%= @attribution.unassigned_blank_rows.size == 1 ? "its" : "their" %> own. The export
       left the column out or blank. Say which cost centre they belong to, or skip them if they
       are not ours. Nothing at all is imported until you answer.
     </p>
@@ -118,7 +119,15 @@
                 <td class="py-1 pr-3"><%= reimbursements_date(row.date) %></td>
                 <td class="py-1 pr-3"><%= row.narrative %></td>
                 <td class="py-1 pr-3 text-right"><%= reimbursements_money(row.debit) %></td>
-                <td class="py-1 pr-3">#<%= expense.auto_number %></td>
+                <%# The claim this row is about to mark Paid, as a link to it.
+                    "_top" because a link inside a Turbo Frame navigates the
+                    FRAME, and the edit page carries no matching one. %>
+                <td class="py-1 pr-3">
+                  <%= link_to "##{expense.auto_number}",
+                              edit_admin_reimbursements_expense_edit_path(expense.record_id),
+                              class: "text-primary underline",
+                              data: { turbo_frame: "_top" } %>
+                </td>
                 <td class="py-1 pr-3"><%= expense.effective_payee_name %></td>
                 <td class="py-1 text-right"><%= reimbursements_money(expense.amount_excl_vat || expense.amount || 0) %></td>
               </tr>
@@ -185,7 +194,7 @@
                 <td class="py-1 pr-3 text-right"><%= reimbursements_money(row.credit) if row.credit.positive? %></td>
                 <td class="py-1 text-gray-600">
                   <%= if row.debit.positive?
-                        "No matching submitted expense"
+                        "No matching Submitted or Paid claim"
                       elsif row.credit.positive?
                         "No matching income budget"
                       else
@@ -205,7 +214,10 @@
   <%# The offsetting-pair tickboxes and the Apply button are one form: the
       pairs you leave ticked are the pairs that get collapsed. %>
   <%= form_with url: apply_admin_reimbursements_reconciliation_path, method: :post do %>
-    <%= hidden_field_tag :pasted_text, params[:pasted_text] %>
+    <%# @pasted_text, never params[:pasted_text]: an UPLOADED sheet arrives as
+        a file and is converted to text by the controller, so the raw param is
+        empty and this form would apply nothing at all. %>
+    <%= hidden_field_tag :pasted_text, @pasted_text %>
     <%# The wizard keeps no session state, so the blank-cost-centre answer rides
         along with the paste the way the pair ticks do. Without it, apply
         re-derives "no choice made" and refuses. %>
@@ -299,7 +311,7 @@
     <%= render CardComponent.new(title: "Step 3: Apply reconciliation") do %>
       <% if @attribution.blank_choice_required? %>
         <p class="mb-3 text-warning">
-          Answer the cost-centre question above first. Until then nothing here can be applied —
+          Answer the cost-centre question above first. Until then nothing here can be applied,
           not even the rows that do have a cost centre, because importing those while the rest
           quietly vanished is exactly what this step exists to prevent.
         </p>

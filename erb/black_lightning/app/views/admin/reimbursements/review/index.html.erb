@@ -1,9 +1,18 @@
+<%# ?focus=expense-<id> is where the last action came back to. See
+    scroll_to_controller: the redirect's own fragment does not survive a Turbo
+    form submission, so the query parameter is what makes "keep my place"
+    work. %>
+<div data-controller="scroll-to" data-scroll-to-param-value="focus"></div>
 <%= render "admin/reimbursements/shared/cost_centre_selector" %>
 <p class="mb-3 text-gray-600">
-  Review submitted expenses before they go to EUSA. Each card shows a live modulus
-  check on the details the money will actually be paid to, plus any duplicate or override
-  warnings. Fix anything that needs attention, then approve or reject.
+  Review submitted expenses before they go to EUSA. Fix anything flagged, then approve or
+  reject. UK claims with bank details on file carry a live modulus check.
+  <%= link_to "What the words mean", admin_reimbursements_glossary_path, class: "underline" %>.
 </p>
+
+<%= render "admin/reimbursements/shared/glossary_terms",
+           summary: "What the words on these cards mean",
+           terms: ::Reimbursements::Glossary.terms(:statuses, :endorse, :committed, :batch) %>
 
 <% awaiting_owner_total = @awaiting_owner.sum { |e| e.amount || 0 } %>
 <% to_approve_total = @to_approve.sum { |e| e.amount || 0 } %>
@@ -42,7 +51,13 @@
   <% else %>
     <p class="mb-3 text-gray-600">
       <%= @approved.size %> approved, total <%= reimbursements_money(approved_total) %>.
-      Ready to submit on the Build Batch page.
+      <%# The next step in the weekly loop, as a link rather than the name of a
+          page to go and find in the sidebar. Carries the selected cost centre:
+          a batch is built for ONE pot, and the one on screen is the one meant. %>
+      Ready to submit on
+      <%= link_to "the Build Batch page",
+                  new_admin_reimbursements_batch_path(cost_centre: selected_cost_centre&.key),
+                  class: "text-primary underline" %>.
     </p>
     <% @approved.each do |expense| %>
       <%= render "expense_card", expense: expense, allow_approve: false, duplicates: nil %>
@@ -60,18 +75,50 @@
       total <%= reimbursements_money(awaiting_owner_total) %>.
     </p>
     <%= render AlertComponent.new(type: :info) do %>
-      These are with their budget owners, who endorse them on their own My Budgets page — they are
-      not yours to approve yet. Each card names the owners. Where no owner can act (nobody holds a
-      portal account, say), you can override the sign-off and approve it here; the override is
-      recorded against your account. A claim on a budget with no owner never appears here — it goes
-      straight to To approve.
+      These are with their budget owners, who endorse them from My Budgets. Where no owner can
+      act, override the sign-off here: the override is recorded against your account.
+      <%# So nobody chases by hand believing nothing else will. The nightly job
+          names every gated claim to each of its owners on every due run day,
+          with no age threshold (see NightlyBatchJob#remind_budget_owners). %>
+      An owner with an address on file is reminded on each run day until they sign off or the
+      claim is rejected. An owner with no address is never emailed: chase them, or override the
+      sign-off below.
     <% end %>
-    <%# The bulk toolbar is deliberately NOT rendered here: bulk approve skips
+    <%# Bulk OVERRIDE, and deliberately no bulk approve: bulk approve skips
         every gated claim, so a "0 approved" summary is all it could ever
-        report. Overriding is a per-claim judgement with a reason attached. %>
-    <% @awaiting_owner.each do |expense| %>
-      <%= render "expense_card", expense: expense, allow_approve: true, duplicates: @duplicates[expense.record_id] %>
-    <% end %>
+        report. That argues for this toolbar, not for none — one owner who
+        never opens the portal gates every claim on their show, and clearing
+        ten of them was ten forms. The note is required here though it is
+        optional on a single claim: this is the higher-consequence action and
+        the note is the only record of it. %>
+    <div data-controller="bulk-review">
+      <div class="mb-4 flex flex-wrap items-center gap-3 rounded border border-gray-200 bg-gray-50 p-3">
+        <label class="flex items-center gap-2 text-sm font-medium">
+          <%= check_box_tag "select_all", "1", false,
+                            data: { bulk_review_target: "selectAll", action: "bulk-review#toggleAll" },
+                            class: "h-4 w-4" %>
+          Select all
+        </label>
+        <span class="text-sm text-gray-600" data-bulk-review-target="counter">0 selected</span>
+        <%= form_with url: admin_reimbursements_bulk_override_approve_review_path(tab: @tab),
+                      method: :patch, id: "bulk-review-form",
+                      class: "flex flex-wrap items-center gap-2" do %>
+          <%= text_field_tag :override_note, nil,
+                             placeholder: "Why are you overriding? (required)",
+                             "aria-label": "Why you are overriding sign-off",
+                             data: { bulk_review_target: "reason", action: "bulk-review#refresh" },
+                             class: input_classes(width: nil) %>
+          <%= submit_tag "Override sign-off and approve",
+                         data: { bulk_review_target: "overrideButton", disable_with: false },
+                         disabled: true, class: btn_classes(:warning, :sm) %>
+        <% end %>
+      </div>
+
+      <% @awaiting_owner.each do |expense| %>
+        <%= render "expense_card", expense: expense, allow_approve: true, selectable: true,
+                   duplicates: @duplicates[expense.record_id] %>
+      <% end %>
+    </div>
   <% end %>
 
 <% else %>
@@ -103,8 +150,13 @@
         <span class="text-sm text-gray-600" data-bulk-review-target="counter">0 selected</span>
         <%= form_with url: admin_reimbursements_bulk_approve_review_path(tab: @tab), method: :patch,
                       id: "bulk-review-form", class: "flex flex-wrap items-center gap-2" do %>
+          <%# Deliberately NOT required, unlike the per-card reject box: this one
+              box is shared with "Approve selected", which needs no reason, and a
+              required attribute here would block every bulk approval. The
+              controller enables Reject selected only once it is filled in, and
+              the server refuses a blank reason either way. %>
           <%= text_field_tag :rejection_reason, nil, placeholder: "Reason (required to reject)",
-                             data: { bulk_review_target: "reason" },
+                             data: { bulk_review_target: "reason", action: "bulk-review#refresh" },
                              class: input_classes(width: nil) %>
           <%= submit_tag "Approve selected",
                          formaction: admin_reimbursements_bulk_approve_review_path(tab: @tab),
