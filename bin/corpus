@@ -1310,10 +1310,20 @@ def rails_main_dependency
   revision = source.revision if source&.respond_to?(:revision)
   raise CommandError, "ActionView is not locked to a Rails git revision" unless revision
 
-  [actionview.full_gem_path, activesupport.full_gem_path, revision]
+  require_paths = specs
+    .reject { |candidate| candidate.name == "herb" }
+    .flat_map(&:full_require_paths)
+    .uniq
+
+  [actionview.full_gem_path, activesupport.full_gem_path, revision, require_paths]
 end
 
-def measure_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, files:, rounds:, warmups:, out:, label: nil)
+def run_action_view(args, require_paths:)
+  env = { "RUBYLIB" => require_paths.join(File::PATH_SEPARATOR) }
+  without_bundler { system(env, RbConfig.ruby, *args) }
+end
+
+def measure_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, require_paths:, files:, rounds:, warmups:, out:, label: nil)
   args = [
     File.join(ROOT, "bin", "measure-action-view"),
     "--actionview-path", actionview_path,
@@ -1327,12 +1337,12 @@ def measure_action_view(version, gem_path:, actionview_path:, activesupport_path
   args += version ? ["--version", version] : ["--gem-path", gem_path]
   args += ["--label", label] if label
 
-  ok = without_bundler { system(RbConfig.ruby, *args) }
+  ok = run_action_view(args, require_paths: require_paths)
 
   ok or raise CommandError, "ActionView performance measurement failed for #{gem_path || "Herb #{version}"}"
 end
 
-def screen_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, limit:, out:)
+def screen_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, require_paths:, limit:, out:)
   args = [
     File.join(ROOT, "bin", "measure-action-view"),
     "--actionview-path", actionview_path,
@@ -1343,7 +1353,7 @@ def screen_action_view(version, gem_path:, actionview_path:, activesupport_path:
   args += version ? ["--version", version] : ["--gem-path", gem_path]
   args += ["--limit", limit.to_s] if limit
 
-  ok = without_bundler { system(RbConfig.ruby, *args) }
+  ok = run_action_view(args, require_paths: require_paths)
 
   ok or raise CommandError, "ActionView compatibility screening failed for #{gem_path || "Herb #{version}"}"
 end
@@ -1404,7 +1414,7 @@ def command_performance(argv)
   validate_herb_working_tree!(gem_path) if gem_path
 
   FileUtils.mkdir_p(PERFORMANCE_RUNS_DIR)
-  actionview_path, activesupport_path, actionview_ref = rails_main_dependency
+  actionview_path, activesupport_path, actionview_ref, require_paths = rails_main_dependency
 
   targets = versions.map do |version|
     { version: version, gem_path: nil, slug: action_view_version_slug(version), label: nil }
@@ -1422,6 +1432,7 @@ def command_performance(argv)
       actionview_path: actionview_path,
       activesupport_path: activesupport_path,
       actionview_ref: actionview_ref,
+      require_paths: require_paths,
       limit: limit,
       out: path
     )
@@ -1445,6 +1456,7 @@ def command_performance(argv)
       actionview_path: actionview_path,
       activesupport_path: activesupport_path,
       actionview_ref: actionview_ref,
+      require_paths: require_paths,
       files: manifest_path,
       rounds: rounds,
       warmups: warmups,
