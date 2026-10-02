@@ -1193,6 +1193,7 @@ def render_stats(stats)
 end
 
 RUNS_DIR = File.join(ROOT, "runs")
+PERFORMANCE_RUNS_DIR = File.join(RUNS_DIR, "action-view")
 
 def without_bundler(&block)
   return yield unless defined?(Bundler)
@@ -1270,6 +1271,210 @@ def command_measure(argv)
   puts
 
   diff_runs!(*runs.last(2), fail_on_regression: fail_on_regression)
+end
+
+def action_view_version_slug(version)
+  version.gsub(/[^0-9A-Za-z_.-]/, "-")
+end
+
+def validate_herb_working_tree!(path)
+  path = File.expand_path(path)
+  required = [
+    File.join(path, "lib", "herb.rb"),
+    File.join(path, "lib", "herb", "parser_options.rb")
+  ]
+  native_extensions = Dir.glob(File.join(path, "lib", "herb", "{,*/}herb.{bundle,so}"))
+
+  return if required.all? { |file| File.file?(file) } && native_extensions.any?
+
+  raise CommandError, <<~MESSAGE.chomp
+    Herb working tree is not built: #{path}
+    Run:
+      cd #{Shellwords.escape(path)}
+      bundle install
+      bundle exec rake templates make compile
+  MESSAGE
+end
+
+def rails_main_dependency
+  require "bundler"
+  Bundler.setup
+
+  specs = Bundler.load.specs
+  actionview = specs.find { |candidate| candidate.name == "actionview" }
+  activesupport = specs.find { |candidate| candidate.name == "activesupport" }
+
+  raise CommandError, "Rails main is not available; run bundle install" unless actionview && activesupport
+
+  source = actionview.respond_to?(:source) ? actionview.source : nil
+  revision = source.revision if source&.respond_to?(:revision)
+  raise CommandError, "ActionView is not locked to a Rails git revision" unless revision
+
+  [actionview.full_gem_path, activesupport.full_gem_path, revision]
+end
+
+def measure_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, files:, rounds:, warmups:, out:, label: nil)
+  args = [
+    File.join(ROOT, "bin", "measure-action-view"),
+    "--actionview-path", actionview_path,
+    "--activesupport-path", activesupport_path,
+    "--files", files,
+    "--rounds", rounds.to_s,
+    "--warmups", warmups.to_s,
+    "--out", out
+  ]
+  args += ["--actionview-ref", actionview_ref] if actionview_ref
+  args += version ? ["--version", version] : ["--gem-path", gem_path]
+  args += ["--label", label] if label
+
+  ok = without_bundler { system(RbConfig.ruby, *args) }
+
+  ok or raise CommandError, "ActionView performance measurement failed for #{gem_path || "Herb #{version}"}"
+end
+
+def screen_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, limit:, out:)
+  args = [
+    File.join(ROOT, "bin", "measure-action-view"),
+    "--actionview-path", actionview_path,
+    "--activesupport-path", activesupport_path,
+    "--screen-out", out
+  ]
+  args += ["--actionview-ref", actionview_ref] if actionview_ref
+  args += version ? ["--version", version] : ["--gem-path", gem_path]
+  args += ["--limit", limit.to_s] if limit
+
+  ok = without_bundler { system(RbConfig.ruby, *args) }
+
+  ok or raise CommandError, "ActionView compatibility screening failed for #{gem_path || "Herb #{version}"}"
+end
+
+def diff_performance_runs!(before_path, after_path, fail_on_regression:, max_regression:, absolute_budget:)
+  args = [
+    File.join(ROOT, "bin", "diff-performance-runs"),
+    before_path,
+    after_path,
+    "--max-regression", max_regression.to_s,
+    "--absolute-budget", absolute_budget.to_s
+  ]
+  args << "--fail-on-regression" if fail_on_regression
+
+  system(RbConfig.ruby, *args) ? 0 : 1
+end
+
+def command_performance(argv)
+  versions = []
+  gem_path = nil
+  rounds = 5
+  warmups = 1
+  limit = nil
+  diff_only = nil
+  fail_on_regression = false
+  max_regression = 0.05
+  absolute_budget = 7.0
+
+  OptionParser.new do |parser|
+    parser.banner = "usage: corpus performance [options]"
+    parser.on("--herb V", "Herb version to measure; repeat to compare two") { |value| versions << value }
+    parser.on("--gem-path PATH", "Measure a Herb working tree (compared against the last --herb)") { |value| gem_path = value }
+    parser.on("--rounds N", Integer, "Measured corpus passes per engine (default: 5)") { |value| rounds = value }
+    parser.on("--warmups N", Integer, "Untimed corpus passes per engine (default: 1)") { |value| warmups = value }
+    parser.on("--limit N", Integer, "Only consider the first N files") { |value| limit = value }
+    parser.on("--diff A B", Array, "Diff two existing performance runs instead of measuring") { |value| diff_only = value }
+    parser.on("--fail-on-regression", "Exit non-zero if the normalized ratio regresses too far") { fail_on_regression = true }
+    parser.on("--max-regression FRACTION", Float, "Allowed ratio regression (default: 0.05)") { |value| max_regression = value }
+    parser.on("--absolute-budget RATIO", Float, "Informational Herb/Erubi budget (default: 7.0)") { |value| absolute_budget = value }
+  end.parse!(argv)
+
+  if diff_only
+    return diff_performance_runs!(
+      diff_only[0],
+      diff_only[1],
+      fail_on_regression: fail_on_regression,
+      max_regression: max_regression,
+      absolute_budget: absolute_budget
+    )
+  end
+
+  raise CommandError, "give at least one --herb VERSION, or --gem-path" if versions.empty? && !gem_path
+  raise CommandError, "--rounds must be positive" unless rounds.positive?
+  raise CommandError, "--warmups cannot be negative" if warmups.negative?
+  raise CommandError, "--max-regression cannot be negative" if max_regression.negative?
+  raise CommandError, "--absolute-budget must be positive" unless absolute_budget.positive?
+
+  validate_herb_working_tree!(gem_path) if gem_path
+
+  FileUtils.mkdir_p(PERFORMANCE_RUNS_DIR)
+  actionview_path, activesupport_path, actionview_ref = rails_main_dependency
+
+  targets = versions.map do |version|
+    { version: version, gem_path: nil, slug: action_view_version_slug(version), label: nil }
+  end
+
+  if gem_path
+    targets << { version: nil, gem_path: gem_path, slug: "working-tree", label: nil }
+  end
+
+  screens = targets.map do |target|
+    path = File.join(PERFORMANCE_RUNS_DIR, "#{target[:slug]}-screen.json")
+    screen_action_view(
+      target[:version],
+      gem_path: target[:gem_path],
+      actionview_path: actionview_path,
+      activesupport_path: activesupport_path,
+      actionview_ref: actionview_ref,
+      limit: limit,
+      out: path
+    )
+    JSON.parse(File.read(path))
+  end
+
+  shared_files = screens.map { |screen| screen.fetch("shared_files") }.reduce(&:&).sort
+  raise CommandError, "the requested Herb versions have no commonly compilable files" if shared_files.empty?
+
+  manifest_path = File.join(PERFORMANCE_RUNS_DIR, "shared-files.txt")
+  File.write(manifest_path, "#{shared_files.join("\n")}\n")
+
+  puts "#{shared_files.size} files compile with Erubi and every requested Herb version"
+  puts
+
+  runs = targets.map do |target|
+    path = File.join(PERFORMANCE_RUNS_DIR, "#{target[:slug]}.json")
+    measure_action_view(
+      target[:version],
+      gem_path: target[:gem_path],
+      actionview_path: actionview_path,
+      activesupport_path: activesupport_path,
+      actionview_ref: actionview_ref,
+      files: manifest_path,
+      rounds: rounds,
+      warmups: warmups,
+      out: path,
+      label: target[:label]
+    )
+    path
+  end
+
+  if runs.size < 2
+    run = JSON.parse(File.read(runs.first))
+    puts format(
+      "\n%s: Herb is %.2fx Erubi over %d files",
+      run["label"],
+      run["herb_to_erubi_ratio"],
+      run["files_shared"]
+    )
+    puts Color.dim("Pass a second --herb to compare normalized performance.")
+
+    return 0
+  end
+
+  puts
+
+  diff_performance_runs!(
+    *runs.last(2),
+    fail_on_regression: fail_on_regression,
+    max_regression: max_regression,
+    absolute_budget: absolute_budget
+  )
 end
 
 ADOPTION_START = "<!-- corpus:adoption:start -->"
@@ -2183,6 +2388,7 @@ COMMANDS = {
   "stats" => method(:command_stats),
   "adoption" => method(:command_adoption),
   "measure" => method(:command_measure),
+  "performance" => method(:command_performance),
   "list" => method(:command_list),
   "add" => method(:command_add),
   "remove" => method(:command_remove),
@@ -2201,6 +2407,7 @@ USAGE = <<~TEXT
     stats     Print corpus totals, or refresh the generated block in README.md
     adoption  Report which apps depend on Herb and how they configure it
     measure   Run one or two Herb versions over the corpus and diff the results
+    performance Compare production ActionView compilation against Erubi
     drift     Report which pins are behind their branch (no checkout needed)
     list      List apps with repo, branch, template count, and license
     add       Add a new app as a submodule and stub its manifest entry

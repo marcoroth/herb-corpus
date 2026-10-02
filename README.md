@@ -80,17 +80,18 @@ are not at the tip of their branch, and a shallow fetch cannot reach them.
 ## The CLI
 
 ```
-bin/corpus setup     Apply the local git settings a fresh checkout wants
-bin/corpus clone     Clone the apps that are not checked out yet (ERB-only by default)
-bin/corpus update    Move each pin to the tip of its tracked branch
-bin/corpus status    Show each app's pin, checkout state, and drift
-bin/corpus drift     Report which pins are behind their branch (no checkout needed)
-bin/corpus list      List apps with repo, branch, .erb count, and license
-bin/corpus add       Add a new app as a submodule and stub its manifest entry
-bin/corpus remove    Remove an app's submodule and checkout
-bin/corpus extract   Copy the .erb files into erb/ with a provenance manifest
-bin/corpus stats     Print corpus totals, or refresh the generated block in this README
-bin/corpus measure   Run Herb versions over the corpus and diff the results
+bin/corpus setup        Apply the local git settings a fresh checkout wants
+bin/corpus clone        Clone the apps that are not checked out yet (ERB-only by default)
+bin/corpus update       Move each pin to the tip of its tracked branch
+bin/corpus status       Show each app's pin, checkout state, and drift
+bin/corpus drift        Report which pins are behind their branch (no checkout needed)
+bin/corpus list         List apps with repo, branch, .erb count, and license
+bin/corpus add          Add a new app as a submodule and stub its manifest entry
+bin/corpus remove       Remove an app's submodule and checkout
+bin/corpus extract      Copy the .erb files into erb/ with a provenance manifest
+bin/corpus stats        Print corpus totals, or refresh the generated block in this README
+bin/corpus measure      Run Herb versions over the corpus and diff the results
+bin/corpus performance  Compare production ActionView compilation against Erubi
 ```
 
 Every command takes an optional list of app names to work on a subset, and `--help` for its own
@@ -184,10 +185,12 @@ than only by opening a pull request:
 
 | | |
 | --- | --- |
-| `bin/corpus` | management CLI — clone, update, drift, extract, stats, measure |
+| `bin/corpus` | management CLI — clone, update, drift, extract, stats, measure, performance |
 | `bin/check` | consistency checks across `.gitmodules`, `corpus.yml`, and `erb/MANIFEST.json` |
 | `bin/measure-herb` | measure one Herb version against the corpus |
 | `bin/diff-runs` | compare two measurement runs |
+| `bin/measure-action-view` | compare one Herb version with Erubi using Rails main's production configuration |
+| `bin/diff-performance-runs` | compare two normalized ActionView performance runs |
 | `bin/drift-report` | turn `corpus drift --json` into step outputs and annotations |
 | `bin/render-pr-body` | build the weekly pin-update pull request body |
 
@@ -197,15 +200,16 @@ bundle exec bin/check     # what CI checks
 bundle exec yerba check   # what CI checks about formatting
 ```
 
-Only `bin/corpus` and `bin/check` need a gem, and only Yerba. `bin/diff-runs`, `bin/drift-report`,
-and `bin/render-pr-body` are Ruby stdlib only, so Herb's CI can compare a branch against a release
-with nothing installed beyond a corpus checkout.
+The management commands in `bin/corpus` and `bin/check` need only Yerba. `bin/diff-runs`,
+`bin/diff-performance-runs`, `bin/drift-report`, and `bin/render-pr-body` are Ruby stdlib only.
+The measurement commands resolve the Herb version under test themselves. ActionView comes from
+Rails main through the Gemfile, with its locked revision updated by Dependabot.
 
-**Herb is deliberately not in the Gemfile.** The version under measurement is swapped per run —
-`bin/measure-herb` takes either an installed gem version or a working tree, and Herb's CI measures
-the last release against the branch in the same job. A Gemfile entry would pin one version for
-both and silently compare a branch against itself, so the measurement scripts run with
-`BUNDLE_GEMFILE` cleared and resolve Herb themselves.
+**Herb is deliberately not a direct Gemfile dependency.** Rails main brings a released Herb
+version transitively so Bundler can resolve ActionView, but the version under measurement is
+swapped per run. The measurement scripts run with `BUNDLE_GEMFILE` cleared and explicitly load
+either the requested installed Herb version or a working tree, so a locked transitive version
+cannot make a comparison silently measure the same Herb twice.
 
 ## Who uses Herb
 
@@ -975,6 +979,44 @@ Three things make the comparison trustworthy:
 `.github/workflows/measure.yml` tracks released versions weekly. Herb's own CI runs
 `bin/measure-herb --gem-path .` against the last release on every pull request and fails on
 regressions — that check belongs where the code changes.
+
+## Measuring production ActionView compilation
+
+```sh
+bundle install
+gem install herb -v 0.10.4
+gem install herb -v 0.11.0
+
+bin/corpus performance \
+  --herb 0.10.4 \
+  --herb 0.11.0 \
+  --fail-on-regression
+
+bin/corpus performance \
+  --herb 0.11.0 \
+  --gem-path ../herb \
+  --fail-on-regression
+```
+
+The working tree must be built first with
+`bundle exec rake templates make compile` from the Herb checkout.
+
+`performance` compiles templates through Rails main's production ActionView Erubi and Herb
+handlers. It first finds the files that Erubi and every requested Herb version can compile, then
+measures that exact shared set for every version. Sources are loaded before timing, each engine
+gets one warmup and five measured corpus passes, engine order alternates, and the median
+Herb/Erubi ratio is recorded in JSON under `runs/action-view/`.
+
+The comparison fails only when the newer version's normalized Herb/Erubi ratio is more than 5%
+worse than the older version:
+
+```
+new ratio > old ratio × 1.05
+```
+
+The report also shows progress against an absolute budget of 7× Erubi, but that number is
+informational and never affects the exit status. `.github/workflows/performance.yml` runs this
+comparison on demand and uploads the screening and measurement artifacts.
 
 ## Pinning
 

@@ -1,0 +1,74 @@
+name: Performance
+
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Space-separated Herb versions to compare (oldest first)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  action-view:
+    name: ActionView compilation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Install Herb versions
+        env:
+          VERSIONS: ${{ inputs.versions }}
+        run: |
+          for version in $VERSIONS; do
+            gem install herb -v "$version" --no-document
+          done
+
+      - name: Measure and compare
+        env:
+          VERSIONS: ${{ inputs.versions }}
+        run: |
+          set -euo pipefail
+
+          args=()
+          for version in $VERSIONS; do
+            args+=(--herb "$version")
+          done
+
+          NO_COLOR=1 bundle exec bin/corpus performance \
+            "${args[@]}" \
+            --fail-on-regression \
+            --max-regression 0.05 \
+            --absolute-budget 7.0 | tee performance.txt
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### Production ActionView compilation'
+            echo
+            echo '```'
+            cat performance.txt 2>/dev/null || echo "the comparison did not run"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-view-performance-runs
+          path: runs/action-view/
+          if-no-files-found: ignore
+          retention-days: 90

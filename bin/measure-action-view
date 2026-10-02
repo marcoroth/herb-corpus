@@ -1,0 +1,297 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Measures production-configured ActionView compilation with Herb and Erubi.
+#
+# Normally invoked through `bin/corpus performance`, which supplies the locked
+# Rails main component paths while this process selects the requested Herb.
+
+require "json"
+require "optparse"
+require "fileutils"
+require "digest"
+
+options = {
+  root: File.expand_path("../erb", __dir__),
+  version: nil,
+  gem_path: nil,
+  actionview_path: ENV["ACTIONVIEW_PATH"],
+  activesupport_path: ENV["ACTIVESUPPORT_PATH"],
+  actionview_ref: ENV["ACTIONVIEW_REF"],
+  label: nil,
+  rounds: 5,
+  warmups: 1,
+  limit: nil,
+  files: nil,
+  out: nil,
+  screen_out: nil
+}
+
+OptionParser.new do |parser|
+  parser.banner = "usage: measure-action-view [options]"
+  parser.on("--version V", "Herb gem version to measure") { |value| options[:version] = value }
+  parser.on("--gem-path PATH", "Load Herb from a working tree instead of an installed gem") { |value| options[:gem_path] = value }
+  parser.on("--actionview-path PATH", "Load ActionView from this Bundler checkout") { |value| options[:actionview_path] = value }
+  parser.on("--activesupport-path PATH", "Load ActiveSupport from this Bundler checkout") { |value| options[:activesupport_path] = value }
+  parser.on("--actionview-ref SHA", "Locked Rails revision for the report") { |value| options[:actionview_ref] = value }
+  parser.on("--label TEXT", "How to name this run (default: released Herb version)") { |value| options[:label] = value }
+  parser.on("--corpus DIR", "Directory of template files (default: erb/)") { |value| options[:root] = File.expand_path(value) }
+  parser.on("--files FILE", "Newline-delimited relative paths to measure") { |value| options[:files] = value }
+  parser.on("--rounds N", Integer, "Measured corpus passes per engine (default: 5)") { |value| options[:rounds] = value }
+  parser.on("--warmups N", Integer, "Untimed corpus passes per engine (default: 1)") { |value| options[:warmups] = value }
+  parser.on("--limit N", Integer, "Only consider the first N files") { |value| options[:limit] = value }
+  parser.on("--screen-out FILE", "Screen compatibility and write JSON without measuring") { |value| options[:screen_out] = value }
+  parser.on("--out FILE", "Write measurement JSON here instead of stdout") { |value| options[:out] = value }
+end.parse!
+
+abort "give exactly one of --version or --gem-path" if options[:version].nil? == options[:gem_path].nil?
+abort "give --actionview-path and --activesupport-path" unless options[:actionview_path] && options[:activesupport_path]
+abort "--rounds must be positive" unless options[:rounds].positive?
+abort "--warmups cannot be negative" if options[:warmups].negative?
+
+if defined?(Bundler) || ENV["RUBYOPT"].to_s.include?("bundler")
+  abort "measure-action-view resolves Herb itself and cannot run inside Bundler.\n" \
+        "Run it directly, or via `bin/corpus performance`, which clears the bundle for you."
+end
+
+if options[:gem_path]
+  $LOAD_PATH.unshift(File.join(File.expand_path(options[:gem_path]), "lib"))
+else
+  gem "herb", options[:version]
+end
+
+$LOAD_PATH.unshift(File.join(File.expand_path(options[:actionview_path]), "lib")) if options[:actionview_path]
+$LOAD_PATH.unshift(File.join(File.expand_path(options[:activesupport_path]), "lib")) if options[:activesupport_path]
+
+require "herb"
+require "herb/engine"
+require "action_view"
+require "action_view/base"
+require "action_view/template/handlers/erb"
+require "action_view/template/handlers/erb/erubi"
+require "action_view/template/handlers/erb/herb"
+
+ENGINES = {
+  "erubi" => ActionView::Template::Handlers::ERB::Erubi,
+  "herb" => ActionView::Template::Handlers::ERB::Herb
+}.freeze
+
+TEMPLATE_GLOB = "**/*.{erb,rhtml,herb}"
+ERB_HANDLER = ActionView::Template::Handlers::ERB.new
+HTML_TEMPLATE = ActionView::Template.new(
+  "",
+  "corpus.html.erb",
+  ActionView::Template::Handlers::ERB,
+  locals: [],
+  format: :html
+)
+
+ActionView::Base.annotate_rendered_view_with_filenames = false
+
+def relative_path(root, path)
+  path.delete_prefix("#{root}/")
+end
+
+def with_engine(engine)
+  handler = ActionView::Template::Handlers::ERB
+  previous = handler.erb_implementation
+  handler.erb_implementation = engine
+  yield
+ensure
+  handler.erb_implementation = previous
+end
+
+def compile(source)
+  ERB_HANDLER.call(HTML_TEMPLATE, source)
+end
+
+def median(values)
+  sorted = values.sort
+  midpoint = sorted.length / 2
+
+  sorted.length.odd? ? sorted[midpoint] : (sorted[midpoint - 1] + sorted[midpoint]) / 2.0
+end
+
+def variability(values)
+  center = median(values)
+  return 0.0 if center.zero?
+
+  deviations = values.map { |value| (value - center).abs }
+  (median(deviations) / center * 100).round(1)
+end
+
+def git_commit
+  Dir.chdir(File.expand_path("..", __dir__)) { `git rev-parse HEAD 2>/dev/null`.strip }
+rescue StandardError
+  ""
+end
+
+def git_describe(dir)
+  return nil unless File.directory?(File.join(dir, ".git"))
+
+  Dir.chdir(dir) do
+    branch = `git rev-parse --abbrev-ref HEAD 2>/dev/null`.strip
+    sha = `git rev-parse --short HEAD 2>/dev/null`.strip
+
+    next nil if sha.empty?
+
+    branch.empty? || branch == "HEAD" ? sha : "#{branch}@#{sha}"
+  end
+rescue StandardError
+  nil
+end
+
+root = options[:root]
+
+files =
+  if options[:files]
+    File.readlines(options[:files], chomp: true).reject(&:empty?).map { |path| File.join(root, path) }
+  else
+    Dir.glob(File.join(root, TEMPLATE_GLOB), File::FNM_DOTMATCH)
+       .select { |path| File.file?(path) }
+       .sort
+  end
+
+files = files.first(options[:limit]) if options[:limit]
+abort "no template files selected" if files.empty?
+
+missing = files.reject { |path| File.file?(path) }
+abort "selected files are missing: #{missing.first(5).join(", ")}" if missing.any?
+
+sources = files.to_h { |path| [path, File.binread(path)] }
+herb_ref = options[:gem_path] ? git_describe(File.expand_path(options[:gem_path])) : nil
+label =
+  options[:label] ||
+  if options[:gem_path]
+    herb_ref ? "working tree (#{herb_ref})" : "working tree"
+  else
+    "released Herb #{Herb::VERSION}"
+  end
+
+screened = {}
+
+ENGINES.each do |name, engine|
+  failures = {}
+  successful = []
+
+  with_engine(engine) do
+    sources.each do |path, source|
+      compile(source)
+      successful << path
+    rescue StandardError, SyntaxError => error
+      failures[relative_path(root, path)] = {
+        "class" => error.class.name,
+        "message" => error.message.lines.first.to_s.strip
+      }
+    end
+  end
+
+  screened[name] = { "successful" => successful, "failures" => failures }
+end
+
+shared = screened.values.map { |result| result["successful"] }.reduce(&:&).sort
+shared_relative = shared.map { |path| relative_path(root, path) }
+
+screen_report = {
+  "label" => label,
+  "herb_version" => Herb::VERSION,
+  "herb_ref" => herb_ref,
+  "source" => options[:gem_path] ? "working-tree" : "gem",
+  "actionview_version" => ActionView::VERSION::STRING,
+  "actionview_ref" => options[:actionview_ref],
+  "ruby_version" => RUBY_VERSION,
+  "corpus_commit" => (git_commit.empty? ? nil : git_commit),
+  "files_considered" => files.size,
+  "files_shared" => shared.size,
+  "shared_files" => shared_relative,
+  "shared_files_sha256" => Digest::SHA256.hexdigest(shared_relative.join("\n")),
+  "failures" => screened.transform_values { |result| result["failures"] }
+}
+
+if options[:screen_out]
+  FileUtils.mkdir_p(File.dirname(options[:screen_out]))
+  File.write(options[:screen_out], "#{JSON.pretty_generate(screen_report)}\n")
+  warn "Herb #{Herb::VERSION}: #{shared.size} of #{files.size} files compile with both engines -> #{options[:screen_out]}"
+  exit 0
+end
+
+unless shared.size == files.size
+  abort "#{files.size - shared.size} selected files did not compile with both engines; screen versions first and pass their shared manifest with --files"
+end
+
+options[:warmups].times do
+  ENGINES.each_value do |engine|
+    with_engine(engine) do
+      sources.each_value { |source| compile(source) }
+    end
+  end
+end
+
+rounds = Hash.new { |hash, key| hash[key] = [] }
+
+options[:rounds].times do |round|
+  order = round.even? ? ENGINES.to_a : ENGINES.to_a.reverse
+
+  order.each do |name, engine|
+    GC.start
+    allocated_before = GC.stat(:total_allocated_objects)
+    compiled_bytes = 0
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    with_engine(engine) do
+      sources.each_value { |source| compiled_bytes += compile(source).bytesize }
+    end
+
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    allocated = GC.stat(:total_allocated_objects) - allocated_before
+
+    rounds[name] << {
+      "seconds" => elapsed,
+      "allocated_objects" => allocated,
+      "compiled_bytes" => compiled_bytes
+    }
+  end
+end
+
+summary = rounds.transform_values do |engine_rounds|
+  times = engine_rounds.map { |round| round["seconds"] }
+  allocations = engine_rounds.map { |round| round["allocated_objects"] }
+
+  {
+    "median_seconds" => median(times),
+    "microseconds_per_file" => (median(times) / files.size * 1_000_000),
+    "median_allocated_objects" => median(allocations),
+    "allocated_objects_per_file" => (median(allocations) / files.size.to_f),
+    "compiled_bytes" => engine_rounds.first["compiled_bytes"],
+    "variability_percent" => variability(times),
+    "rounds" => engine_rounds
+  }
+end
+
+ratio = summary["herb"]["median_seconds"] / summary["erubi"]["median_seconds"]
+
+report = screen_report.merge(
+  "metric" => "action_view_production_compile",
+  "label" => label,
+  "round_count" => options[:rounds],
+  "warmup_count" => options[:warmups],
+  "engines" => summary,
+  "herb_to_erubi_ratio" => ratio
+).reject { |key, _| key == "shared_files" || key == "failures" }
+
+json = JSON.pretty_generate(report)
+
+if options[:out]
+  FileUtils.mkdir_p(File.dirname(options[:out]))
+  File.write(options[:out], "#{json}\n")
+  warn format(
+    "%<label>s: Herb %<ratio>.2fx Erubi over %<files>d files (%<rounds>d rounds) -> %<out>s",
+    label: label,
+    ratio: ratio,
+    files: files.size,
+    rounds: options[:rounds],
+    out: options[:out]
+  )
+else
+  puts json
+end

@@ -1,0 +1,84 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Compares production ActionView compilation runs from bin/measure-action-view.
+#
+#   bin/diff-performance-runs runs/action-view/old.json runs/action-view/new.json --fail-on-regression
+
+require "json"
+require "optparse"
+
+fail_on_regression = false
+max_regression = 0.05
+absolute_budget = 7.0
+
+OptionParser.new do |parser|
+  parser.banner = "usage: diff-performance-runs BEFORE.json AFTER.json [options]"
+  parser.on("--fail-on-regression", "Exit non-zero if the normalized ratio regresses past the allowance") { fail_on_regression = true }
+  parser.on("--max-regression FRACTION", Float, "Allowed ratio regression (default: 0.05)") { |value| max_regression = value }
+  parser.on("--absolute-budget RATIO", Float, "Informational Herb/Erubi budget (default: 7.0)") { |value| absolute_budget = value }
+end.parse!
+
+before_path, after_path = ARGV
+abort "usage: diff-performance-runs BEFORE.json AFTER.json [options]" unless before_path && after_path
+abort "--max-regression cannot be negative" if max_regression.negative?
+abort "--absolute-budget must be positive" unless absolute_budget.positive?
+
+before = JSON.parse(File.read(before_path))
+after = JSON.parse(File.read(after_path))
+
+%w[metric corpus_commit shared_files_sha256 files_shared actionview_version actionview_ref ruby_version round_count warmup_count].each do |key|
+  next if before[key] == after[key]
+
+  abort "runs differ on #{key} (#{before[key].inspect} vs #{after[key].inspect}); they are not comparable"
+end
+
+unless before["metric"] == "action_view_production_compile"
+  abort "unsupported metric: #{before["metric"].inspect}"
+end
+
+before_ratio = before.fetch("herb_to_erubi_ratio")
+after_ratio = after.fetch("herb_to_erubi_ratio")
+allowed_ratio = before_ratio * (1 + max_regression)
+regression = after_ratio / before_ratio - 1
+regressed = after_ratio > allowed_ratio
+
+format_seconds = ->(value) { format("%.3fs", value) }
+format_ratio = ->(value) { format("%.2fx", value) }
+format_percent = ->(value) { format("%+.1f%%", value * 100) }
+
+puts "#{before["label"]}  ->  #{after["label"]}"
+actionview_ref = after["actionview_ref"]&.slice(0, 8)
+actionview_label = [after["actionview_version"], actionview_ref].compact.join("@")
+puts "#{after["files_shared"]} files, ActionView #{actionview_label}, Ruby #{after["ruby_version"]}"
+puts
+puts format("%-24s %12s %12s", "", before["label"], after["label"])
+puts format("%-24s %12s %12s", "-" * 24, "-" * 12, "-" * 12)
+puts format(
+  "%-24s %12s %12s",
+  "Erubi median",
+  format_seconds.call(before.dig("engines", "erubi", "median_seconds")),
+  format_seconds.call(after.dig("engines", "erubi", "median_seconds"))
+)
+puts format(
+  "%-24s %12s %12s",
+  "Herb median",
+  format_seconds.call(before.dig("engines", "herb", "median_seconds")),
+  format_seconds.call(after.dig("engines", "herb", "median_seconds"))
+)
+puts format("%-24s %12s %12s", "Herb / Erubi", format_ratio.call(before_ratio), format_ratio.call(after_ratio))
+puts
+puts "Regression allowance: #{format("%.1f%%", max_regression * 100)} (maximum #{format_ratio.call(allowed_ratio)})"
+puts "Observed ratio change: #{format_percent.call(regression)}"
+puts(
+  if regressed
+    "Regression budget: FAIL"
+  else
+    "Regression budget: pass"
+  end
+)
+puts
+puts "Absolute budget: #{format_ratio.call(absolute_budget)} (informational only)"
+puts "Absolute status: #{format_ratio.call(after_ratio)} is #{after_ratio > absolute_budget ? "over" : "within"} budget"
+
+exit 1 if fail_on_regression && regressed
