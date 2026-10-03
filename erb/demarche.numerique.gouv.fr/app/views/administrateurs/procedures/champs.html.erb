@@ -1,0 +1,110 @@
+<% content_for(:sticky_header) do %>
+  <%= render partial: 'administrateurs/procedures/unpublished_changes_sticky_header', locals: { procedure: @procedure } %>
+<% end %>
+
+<% render_procedure_sticky_title(@procedure) %>
+<%= render partial: 'shared/breadcrumbs_section', locals: { steps: [[admin_procedures_back_label(@procedure), admin_procedures_back_path(@procedure)], [@procedure.libelle.truncate_words(10), admin_procedure_path(@procedure)], ['Champs du formulaire']] } %>
+
+<div class="fr-container">
+  <div class="flex justify-between align-center fr-mb-3w">
+    <h1 class="fr-h2">Champs du formulaire</h1>
+
+    <% if @procedure.revised? %>
+      <%= link_to "Voir l’historique des modifications du formulaire", modifications_admin_procedure_path(@procedure), class: 'fr-link' %>
+    <% end %>
+  </div>
+
+  <%= render NestedForms::FormOwnerComponent.new %>
+
+  <div class="fr-grid-row">
+    <%= render TypesDeChampEditor::HeaderSectionsSummaryComponent.new(procedure: @procedure, is_private: false) %>
+
+    <div class="fr-col" data-controller="lazy-modal">
+      <%= render Dsfr::CalloutComponent.new(title: nil) do |c| %>
+        <% c.with_html_body do %>
+          <% if @procedure.for_individual %>
+            <p class="fr-callout__text">
+              <%= t('administrateurs.procedures.champs.callout_personne_physique_html') %>
+            </p>
+            <ul>
+              <% if !@procedure.no_gender? %>
+                <%= t('administrateurs.procedures.champs.callout_personne_physique_gender_html') %>
+              <% end %>
+
+              <%= t('administrateurs.procedures.champs.callout_personne_physique_names_html') %>
+            </ul>
+            <p class="fr-callout__text fr-text--bold">
+              <%= t('administrateurs.procedures.champs.callout_no_ask_twice') %>
+            </p>
+          <% else %>
+            <p class="fr-callout__text">
+              <%= t('administrateurs.procedures.champs.callout_personne_morale_html') %>
+            </p>
+            <p class="fr-callout__text fr-text--bold">
+              <%= t('administrateurs.procedures.champs.callout_no_ask_twice') %>
+            </p>
+            <%= button_tag("Liste des informations remontées", type: :button, class: "fr-btn fr-icon-info-line fr-btn--icon-left fr-btn--tertiary-no-outline fr-btn--sm", data: { "fr-opened" => "false", "turbo-frame" => "api-champ-columns", action: "lazy-modal#load" }, src: api_champ_columns_admin_procedure_path(id: @procedure.id, stub_type_champ: 'siret'), "aria-controls" => "api-champ-columns-modal", "aria-haspopup" => "dialog") %>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <% if @procedure.revised? %>
+        <%= render Dsfr::AlertComponent.new(title: "Possibilités de modification limitées", state: :info, extra_class_names: 'fr-my-2w') do |c| %>
+          <% c.with_body do %>
+            <p>
+              Votre démarche est publiée et des dossiers ont déjà été déposés.
+              Afin d’éviter la perte de données sur les dossiers déjà déposés,
+              certaines transformations de champs uniquement sont autorisées.
+              Les types de champs non autorisés sont désactivés dans la liste
+              "TYPE DE CHAMP" d’un champ existant. Si vous souhaitez modifier un
+              champ existant, nous vous recommandons de supprimer ce champ et
+              d’ajouter un nouveau champ avec le type souhaité.
+            </p>
+          <% end %>
+        <% end %>
+      <% end %>
+
+      <%= render TypesDeChampEditor::EditorComponent.new(revision: @procedure.draft_revision, is_annotation: false) %>
+
+      <dialog
+        class="fr-modal"
+        id="api-champ-columns-modal"
+        aria-labelledby="fr-modal-api-champ-columns-h1"
+        role="dialog"
+      >
+        <div class="fr-container fr-container--fluid fr-container-md">
+          <div class="fr-grid-row fr-grid-row--center">
+            <div class="fr-col-12 fr-col-md-8">
+              <div class="fr-modal__body">
+                <div class="fr-modal__header">
+                  <button
+                    class="fr-btn--close fr-btn"
+                    aria-controls="api-champ-columns-modal"
+                    title="<%= t('utils.modal_close_alt') %>"
+                  >
+                    <%= t('utils.modal_close') %>
+                  </button>
+                </div>
+
+                <div class="fr-modal__content">
+                  <%= turbo_frame_tag "api-champ-columns", data: { "lazy-modal-target": "frame" } %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </dialog>
+    </div>
+  </div>
+</div>
+
+<%= render Procedure::FixedFooterComponent.new(procedure: @procedure) do %>
+  <% if @procedure.draft_revision.public_revision_type_de_champs.count > 0 %>
+    <%= link_to t('preview', scope: [:layouts, :breadcrumb]), apercu_admin_procedure_path(@procedure), target: "_blank", rel: "noopener", class: 'fr-link' %>
+  <% end %>
+
+  <div class="fr-ml-auto">
+    <div class="hidden" id="autosave-notice"></div>
+    <%= render TypesDeChampEditor::EstimatedFillDurationComponent.new(revision: @procedure.draft_revision, is_annotation: false) %>
+  </div>
+<% end %>

@@ -191,7 +191,7 @@ Buttons have two decisions: **tone** and **emphasis**.
 
 - One `primary` + `solid` per action group.
 - Form footers place the main action last; cancel stays secondary.
-- Toolbars use `small`, `outline` (default for `Toolbar::Button`) or `ghost`, and named icon buttons.
+- Toolbars use `outline` or `ghost` and named icon buttons. Use `small` only for an explicitly compact workflow; a toolbar is not automatically compact.
 - Table toolbars default to full-width reflow (`variant: :table`). Group related controls with `Pathogen::Toolbar::Group` and push end groups with `Toolbar::Spacer`. Keep text inputs and native selects outside `role="toolbar"` and its roving focus, even when they share the same visual action band. If an arrow-key-owning control is genuinely unavoidable inside the toolbar, include only one and place it last in DOM order.
 - Toggle toolbar buttons set `aria-pressed` and rely on Button's visible pressed styles (accent-tinted fill + accent border).
 - Do not put two primary solid buttons beside each other unless they are genuinely equal choices.
@@ -204,8 +204,10 @@ Solid fills should darken on hover, like pressing further in. Danger uses `red-6
 
 | Size | Where | Minimum target |
 |------|-------|----------------|
-| `medium` | Forms, dialogs, page actions | 44px |
-| `small` | Toolbars, grids, dense tables | 24px, with 8px between neighbours |
+| `medium` | Default for controls and actions | 44 × 44 CSS px |
+| `small` | Explicit compact choice for dense workflows | 24 × 24 CSS px, with 8px between neighbours |
+
+These are activation areas, not required icon or switch-track dimensions. Follow the [target-size policy](#target-size-and-density) for exceptions and migration status.
 
 Use short verb labels. Icon-only buttons need `aria-label`, `aria-labelledby`, or visible text. Use `disabled` when unfocusable. Use `aria_disabled` when the control must remain focusable so validation feedback can be announced.
 
@@ -248,7 +250,7 @@ Do not hide focus with transparent borders. Do not rely on colour alone for stat
 
 ## Accessibility
 
-Pathogen targets **WCAG 2.2 Level AA** for shared components and the host surfaces that use them. Accessibility is not a late audit pass. It is part of how quiet, precise, and trustworthy the product feels.
+Pathogen targets **WCAG 2.2 Level AA**, with the enhanced target-size and focus requirements below. This is a design and acceptance policy, not a claim that every component or host page already conforms. Accessibility is not a late audit pass. It is part of how quiet, precise, and trustworthy the product feels.
 
 ### How to build
 
@@ -264,11 +266,37 @@ Fix accessibility in Pathogen primitives first. Host apps inherit those gains ev
 - **Contrast** — WCAG AA for text and meaningful UI state (see [What is WCAG?](https://www.wcag.com/resource/what-is-wcag/) for an overview; [WCAG 2.2](https://www.w3.org/TR/WCAG22/) for success criteria).
 - **Visible focus** — `focus-visible` treatment in light, dark, high-contrast, and forced-colours modes ([Focus and keyboard](#focus-and-keyboard)).
 - **Names and labels** — visible labels, `aria-label`, or `aria-labelledby` where the visible UI does not speak for itself (especially icon-only controls).
-- **State beyond colour** — pair colour with text, icons, borders, position, or `aria-*` state so meaning survives without hue.
+- **State beyond colour** — use visible text, shape, icons, or position so meaning survives without hue. Expose the corresponding programmatic state separately through native HTML or ARIA. ARIA alone does not provide a visible cue.
 - **Keyboard** — full operation without a pointer; logical tab order; no keyboard traps except in modal flows that manage escape.
-- **Touch targets** — respect documented minimum sizes; keep at least 8px between adjacent `small` toolbar controls.
+- **Pointer targets** — default to 44 × 44 CSS px; choose compact mode explicitly under the policy below.
 - **Motion** — honour `prefers-reduced-motion` for non-essential animation.
 - **Forced colours** — custom controls remain usable when system high-contrast themes override author styles.
+
+<span id="target-size-and-density"></span>
+
+### Target size and density
+
+**Decision: 44px defaults with explicit compact mode, accepted 2026-09-21.**
+
+- Default activation areas must be at least **44 × 44 CSS px**, including icon-only actions. Keep the visual control smaller when appropriate by enlarging its associated clickable label or padding. Targets must not overlap unrelated actions.
+- Compact mode is an explicit component or workflow choice for dense clinical work. Existing `size: :small` is one such choice. Require at least **24 × 24 CSS px** and an **8px gap** between adjacent compact controls. Do not infer compact mode from screen width or pointer type.
+- Inline text links and other documented exceptions follow [Target Size (Enhanced), SC 2.5.5](https://www.w3.org/WAI/WCAG22/Understanding/target-size-enhanced.html). A dense layout alone is not a WCAG exception.
+- A 24px compact target can meet the AA size requirement while falling short of the enhanced 44px requirement. Record that distinction. The 8px gap is a Pathogen design rule; it is not the general spacing formula in [Target Size (Minimum), SC 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+- Demonstrate default and compact layouts with keyboard focus, long labels, and narrow viewports. Document who chooses compact mode and why.
+
+**Implementation:** `Button`, `Toolbar::Button`, `Disclosure`, `Tabs`, `Form::RadioButton`, and `Form::Switch` default to `size: :medium`. Use `size: :small` explicitly for compact use. Radio labels include the control in the activation area; switch tracks retain their visual size inside a larger label target. Hosts own spacing between separately rendered compact controls. Native checkbox helpers, grid controls, host-supplied triggers, and host layouts still require their own target audit; this list is not a library-wide conformance claim.
+
+### Enhanced focus
+
+Require a focus indicator with at least the area of a 2 CSS px perimeter and at least 3:1 contrast between the same pixels in focused and unfocused states, following [Focus Appearance, SC 2.4.13](https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html). A class name or token name is not proof: measure the rendered indicator on every supported adjacent surface.
+
+Keep the focused component fully visible despite author-created sticky regions and overlays, following [Focus Not Obscured (Enhanced), SC 2.4.12](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-enhanced.html). Library previews prove component behaviour; hosts must verify their complete page layouts. Selecting these enhanced criteria does not establish full AAA conformance.
+
+### Adaptation and evidence
+
+Verify representative workflows at 320 CSS px, 200% text resizing, 400% browser zoom, and WCAG text-spacing overrides. Two-dimensional grids and tables may need their own scrolling region; that does not exempt surrounding controls or the whole page from reflow.
+
+For each interactive component, record the tested states and distinguish automated checks, real-browser interaction, manual assistive-technology checks, and host acceptance. Record the date, revision, browser/platform, and tester for manual evidence. An unavailable screen reader means **not tested**, not passed. Automated scans alone do not establish conformance for complete pages or workflows.
 
 ### Where to look by pattern
 

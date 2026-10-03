@@ -94,8 +94,9 @@ Chaque jour de facturation, le système vérifie chaque membre et détermine si 
 
 1. L'année fiscale est découpée en périodes selon l'intervalle de paiement (par ex. trimestriel = 4 périodes de 3 mois).
 2. Si la **période en cours a déjà été facturée**, la prochaine facture est planifiée pour le début de la période suivante. Si l'abonnement est déjà trop facturé, elle est planifiée pour le prochain jour de facturation afin d'annuler et recréer la dernière facture.
-3. Si la **période en cours n'a pas encore été facturée**, la facture est créée au prochain jour de facturation, en respectant le paramètre "première livraison" ou "début de l'abonnement" décrit ci-dessus.
-4. Si la date calculée tombe **après la fin de l'année fiscale**, aucune facture supplémentaire n'est générée pour cette année.
+3. Si l'abonnement **est déjà terminé** (date de fin aujourd'hui ou antérieure), les périodes restantes ne s'appliquent plus. Tout reliquat est facturé au prochain jour de facturation.
+4. Si la **période en cours n'a pas encore été facturée**, la facture est créée au prochain jour de facturation, en respectant le paramètre "première livraison" ou "début de l'abonnement" décrit ci-dessus.
+5. Si la date calculée tombe **après la fin de l'année fiscale**, aucune facture supplémentaire n'est générée pour cette année.
 
 La facture est toujours créée le jour de la semaine configuré. Si une facture devient due un autre jour (par ex. une nouvelle période commence un mercredi mais le jour de facturation est le lundi), elle sera créée le lundi suivant.
 
@@ -113,7 +114,7 @@ La facture sera alors créée, mais **non envoyée**. Vous pouvez consulter le P
 
 > Le bouton "Facturer maintenant" produit exactement la même facture que le système automatique, la seule différence est qu'elle n'est pas envoyée automatiquement, ce qui vous laisse le temps de la vérifier.
 
-Le bouton est absent quand la facturation récurrente n'a pas de jour de la semaine, l'IBAN manque, la période en cours est déjà facturée, le membre est un [<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket), ou il ne reste rien à facturer.
+Le bouton est absent quand la facturation récurrente n'a pas de jour de la semaine, l'IBAN manque, le membre est un [<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket), ou il ne reste rien à facturer. Il reste aussi masqué tant que la période en cours est déjà facturée, sauf si l'abonnement est déjà terminé et qu'un reliquat reste dû.
 
 ### Tout facturer à l'avance {#future_billing}
 
@@ -289,7 +290,7 @@ Pour les paiements sans numéro de référence (liquide ou versement direct), il
 
 > Veuillez essayer de ne vous en tenir qu'à un seul format lors de l'importation des paiements, faire autrement peut entraîner la création de paiements en double.
 
-### Remboursement
+### Remboursement {#refund}
 
 Un trop-payé laisse une **balance positive** sur le membre. La prochaine facture l'absorbe. Un remboursement est un [paiement négatif](/payments/new), pas une facture négative. CSA Admin ne peut pas envoyer le virement: faites-le depuis votre e-banking.
 
@@ -303,9 +304,8 @@ Voir la [page dédiée SEPA](/handbook/sepa) du manuel pour la configuration com
 
 ## Rappels {#overdue_notice}
 
-Quand les paiements sont importés automatiquement, le système s'occupe automatiquement d'envoyer un rappel par email à tous les membres qui ont une facture non payée tous les 35 jours, jusqu'à ce que la facture soit payée (1er rappel après 35 jours, 2ᵉ rappel après 70 jours, etc.).
-
-Vous pouvez configurer le contenu de ce rappel en modifiant [le modèle d'e-mail "Rappel facture"](/mail_templates/invoice_overdue_notice).
+<% overdue_notice_days = MailTemplate.delay_in_days_for("invoice_overdue_notice") %>
+Quand les paiements sont importés automatiquement, le système envoie un rappel à chaque membre qui a une facture impayée, tous les <%= overdue_notice_days %> jours après l'envoi de la facture, puis de nouveau après le dernier rappel, jusqu'au paiement (1er rappel après <%= overdue_notice_days %> jours, 2e après <%= overdue_notice_days * 2 %> jours, et ainsi de suite). Les factures SEPA ne sont pas relancées. Le délai et le texte se règlent sur [l'e-mail "Rappel facture"](/mail_templates/invoice_overdue_notice).
 
 > Vous pouvez être notifié par email lorsque le 3ᵉ rappel d'une facture est envoyé. Gérer vos notifications depuis [votre compte admin](/admins/<%= current_admin.id %>/edit).
 

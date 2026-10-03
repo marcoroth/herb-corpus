@@ -1,0 +1,100 @@
+<% content_for(:title, t('.title')) %>
+
+<% if @state.nil? %>
+  <h1 class="fr-h2"><%= t('.page_title') %></h1>
+  <ul class="fr-toggle__list">
+    <li>
+      <%= form_for @procedure, method: :patch, url: update_instructeurs_self_management_enabled_admin_procedure_groupe_instructeurs_path(@procedure), data: { controller: 'autosubmit', turbo: 'true' } do |f| %>
+        <%= render Dsfr::ToggleComponent.new(form: f, target: :instructeurs_self_management_enabled, title: t('.self_management.title'), hint: "#{t('.self_management.hint')}#{ t('.self_management.hint_recommendation') if @procedure.routing_enabled? }", disabled: false, extra_class_names: 'fr-toggle--label-left fr-toggle--border-bottom') %>
+      <% end %>
+    </li>
+
+    <li>
+      <%= form_for @procedure, method: :patch, url: update_instructeurs_can_edit_dossiers_admin_procedure_groupe_instructeurs_path(@procedure), data: { controller: 'autosubmit', turbo: 'true' } do |f| %>
+        <%= render Dsfr::ToggleComponent.new(form: f, target: :instructeurs_can_edit_dossiers, title: t('.can_edit_dossiers.title'), hint: t('.can_edit_dossiers.hint'), disabled: false, extra_class_names: 'fr-toggle--label-left fr-toggle--border-bottom fr-mb-4v') %>
+      <% end %>
+    </li>
+  </ul>
+  <p><%= t('.routing') %></p>
+  <p class="fr-mt-1w fr-hint-text">
+    <%= t('.routing_configuration_notice_1') %>
+  </p>
+  <p class="fr-alert fr-alert--info fr-mb-3w" aria-hidden="true">
+    <%= t('.routage_doc.learn_more') %>
+    <%= link_to(t('.routage_doc.link_text'), ROUTAGE_URL, title: t('.routage_doc.title'), **helpers.external_link_attributes) %>
+  </p>
+  <% if !@procedure.routing_enabled? %>
+    <p class="fr-mt-2w">
+      <i class="fr-mt-2w"><%= t('.routing_not_configured') %></i>
+    </p>
+  <% else %>
+    <p class="fr-mt-2w">
+      <i class="fr-mt-2w">
+        <%= t('.routing_configured_html', groupe_instructeurs_count: @procedure.groupe_instructeurs.count) %>
+      </i>
+    </p>
+  <% end %>
+  <% if @procedure.active_revision.conditionable_type_de_champs.none? %>
+    <p class="fr-mt-2w fr-mb-0">
+      <%= t('.routing_configuration_notice_2_html') %>
+    </p>
+    <%= render TypesDeChamp::ByCategoryListComponent.new(types: TypeDeChamp.conditionable_types) %>
+    <p class="fr-mt-2w">
+      <%= t('.routing_configuration_notice_3_html', path: champs_admin_procedure_path(@procedure)) %>
+    </p>
+  <% elsif @procedure.groupe_instructeurs.active.one? %>
+    <% if @procedure.active_revision.simple_routable_type_de_champs.none? %>
+      <%= button_to t('.configure_routing'), wizard_admin_procedure_groupe_instructeurs_path(@procedure), method: :patch, params: { choice: { state: 'custom_routing' } }, class: 'fr-btn' %>
+    <% else %>
+      <%= link_to t('.configure_routing'), options_admin_procedure_groupe_instructeurs_path(@procedure, state: :choix), class: 'fr-btn' %>
+    <% end %>
+  <% else %>
+    <%= button_to t('.delete_routing'), destroy_all_groups_but_defaut_admin_procedure_groupe_instructeurs_path, class: 'fr-btn', method: :delete, title: t('.delete_title', defaut_label: @procedure.defaut_groupe_instructeur.label), data: ( @procedure.publiee? ? { turbo_submits_with: t('.deleting'), turbo_confirm: t('.delete_confirmation', defaut_label: @procedure.defaut_groupe_instructeur.label) } : nil), form: { data: { turbo: true } } %>
+  <% end %>
+<% elsif @state == 'choix' %>
+  <%= form_for :choice, method: :patch, data: { controller: 'enable-submit-if-checked' }, url: wizard_admin_procedure_groupe_instructeurs_path(@procedure) do |f| %>
+    <h1><%= t('.routing_configuration_title') %></h1>
+    <h2><%= t('.routing_configuration_subtitle') %></h2>
+
+    <div
+      class="card fr-pb-0"
+      data-action="click->enable-submit-if-checked#click"
+    >
+      <p class="fr-mb-0"><%= t('.configuration') %></p>
+      <%= render Dsfr::RadioButtonListComponent.new(form: f, target: :state, buttons: [ { label: t('.routing_type.automatic.label'), value: 'routage_simple', hint: t('.routing_type.automatic.hint') } , { label: t('.routing_type.manual.label'), value: 'custom_routing', hint: t('.routing_type.manual.hint') }]) %>
+    </div>
+
+    <ul class="fr-btns-group fr-btns-group--inline-sm">
+      <li>
+        <%= link_to t('.cancel'), options_admin_procedure_groupe_instructeurs_path(@procedure), class: 'fr-btn fr-btn--secondary' %>
+      </li>
+
+      <li>
+        <button
+          class="fr-btn"
+          disabled
+          data-enable-submit-if-checked-target="submit"
+        >
+          <%= t('.continue') %>
+        </button>
+      </li>
+    </ul>
+  <% end %>
+<% end %>
+
+<% if params[:state] != 'choix' %>
+  <hr class="fr-hr fr-mt-5w fr-mb-3w">
+  <%= render Dsfr::CalloutComponent.new(title: t('.anonymisation_callout.title'), heading_level: 'h2') do |c| %>
+    <% c.with_body do %>
+      <p>
+        <%= t('.anonymisation_callout.content_part_1') %>
+        <%= link_to t('.anonymisation_callout.link_text'), t('.anonymisation_callout.link_url'), title: helpers.new_tab_suffix(t('.anonymisation_callout.link_text')), **helpers.external_link_attributes %>
+      </p>
+
+      <p>
+        <%= t('.anonymisation_callout.content_part_2_html', id: @procedure.id, contact_email: CONTACT_EMAIL) %>
+      </p>
+    <% end %>
+  <% end %>
+  <%= render Procedure::FixedFooterComponent.new(procedure: @procedure) %>
+<% end %>
