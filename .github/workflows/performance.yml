@@ -4,8 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       versions:
-        description: "Space-separated Herb versions to compare (oldest first)"
+        description: "Space-separated released Herb versions (oldest first)"
         required: true
+        type: string
+      herb_ref:
+        description: "Optional marcoroth/herb SHA or branch to compare after the releases"
+        required: false
         type: string
 
 permissions:
@@ -23,6 +27,25 @@ jobs:
         with:
           submodules: false
 
+      - name: Checkout Herb
+        if: inputs.herb_ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: marcoroth/herb
+          ref: ${{ inputs.herb_ref }}
+          path: herb
+
+      - name: Add LLVM apt repository
+        if: inputs.herb_ref != ''
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb http://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-21 main"
+          sudo apt-get update
+
+      - name: Install Herb build dependencies
+        if: inputs.herb_ref != ''
+        run: xargs sudo apt-get install -y --no-install-recommends < herb/Aptfile
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -36,9 +59,17 @@ jobs:
             gem install herb -v "$version" --no-document
           done
 
+      - name: Build Herb ref
+        if: inputs.herb_ref != ''
+        working-directory: herb
+        run: |
+          bundle install --jobs 4
+          bundle exec rake templates make compile
+
       - name: Measure and compare
         env:
           VERSIONS: ${{ inputs.versions }}
+          HERB_REF: ${{ inputs.herb_ref }}
         run: |
           set -euo pipefail
 
@@ -46,6 +77,10 @@ jobs:
           for version in $VERSIONS; do
             args+=(--herb "$version")
           done
+
+          if [ -n "$HERB_REF" ]; then
+            args+=(--gem-path "$GITHUB_WORKSPACE/herb")
+          fi
 
           NO_COLOR=1 bundle exec bin/corpus performance \
             "${args[@]}" \
