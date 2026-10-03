@@ -94,8 +94,9 @@ An jedem Abrechnungstag überprüft das System jedes Mitglied und bestimmt, ob e
 
 1. Das Geschäftsjahr wird in Perioden auf Basis des Zahlungsintervalls aufgeteilt (z.B. quartalweise = 4 Perioden à 3 Monate).
 2. Wenn die **aktuelle Periode bereits abgerechnet** wurde, wird die nächste Rechnung für den Beginn der nächsten Periode geplant. Ist bereits zu viel abgerechnet, wird sie stattdessen für den nächsten Abrechnungstag geplant, damit die letzte Rechnung storniert und neu erstellt werden kann.
-3. Wenn die **aktuelle Periode noch nicht abgerechnet** wurde, wird die Rechnung am nächsten Abrechnungstag erstellt, unter Berücksichtigung der oben beschriebenen Einstellung "erste Lieferung" oder "Abonnement-Beginn".
-4. Wenn das berechnete Datum **nach dem Ende des Geschäftsjahres** liegt, wird keine weitere Rechnung für dieses Jahr erstellt.
+3. Wenn das Abonnement **bereits beendet** ist (Endedatum heute oder früher), gelten die restlichen Perioden nicht mehr. Ein Restbetrag wird am nächsten Abrechnungstag abgerechnet.
+4. Wenn die **aktuelle Periode noch nicht abgerechnet** wurde, wird die Rechnung am nächsten Abrechnungstag erstellt, unter Berücksichtigung der oben beschriebenen Einstellung "erste Lieferung" oder "Abonnement-Beginn".
+5. Wenn das berechnete Datum **nach dem Ende des Geschäftsjahres** liegt, wird keine weitere Rechnung für dieses Jahr erstellt.
 
 Die Rechnung wird immer am konfigurierten Wochentag erstellt. Wenn eine Rechnung an einem anderen Tag fällig wird (z.B. eine neue Periode beginnt an einem Mittwoch, aber der Abrechnungstag ist Montag), wird sie am folgenden Montag erstellt.
 
@@ -113,7 +114,7 @@ Die Rechnung wird dann erstellt, aber **nicht gesendet**. Du kannst das PDF eins
 
 > Die Schaltfläche "Jetzt abrechnen" erzeugt exakt die gleiche Rechnung wie das automatische System, der einzige Unterschied ist, dass sie nicht automatisch versendet wird, sodass Du sie vorher überprüfen kannst.
 
-Die Schaltfläche fehlt, wenn die wiederkehrende Abrechnung keinen Wochentag hat, die IBAN fehlt, die aktuelle Periode bereits abgerechnet ist, das Mitglied ein [<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket) ist, oder nichts mehr abzurechnen bleibt.
+Die Schaltfläche fehlt, wenn die wiederkehrende Abrechnung keinen Wochentag hat, die IBAN fehlt, das Mitglied ein [<%= Member.human_attribute_name(:salary_basket).downcase %>](/handbook/members#salary-basket) ist, oder nichts mehr abzurechnen bleibt. Sie bleibt auch versteckt, solange die aktuelle Periode bereits abgerechnet ist, ausser das Abonnement ist bereits beendet und ein Restbetrag steht noch aus.
 
 ### Alle in Zukunft abrechnen {#future_billing}
 
@@ -290,7 +291,7 @@ Für Zahlungen ohne Referenznummer (Bargeld oder direkte Einzahlung) musst Du ei
 
 > Bitte versuche, bei der Importierung von Zahlungen nur ein einziges Format zu verwenden, da sonst doppelte Zahlungen entstehen können.
 
-### Rückerstattung
+### Rückerstattung {#refund}
 
 Eine Überzahlung hinterlässt einen **positiven Saldo** beim Mitglied. Die nächste Rechnung nimmt ihn auf. Eine Rückerstattung ist eine [negative Zahlung](/payments/new), keine negative Rechnung. CSA Admin kann die Überweisung nicht senden: mach das über Dein E-Banking.
 
@@ -304,9 +305,8 @@ Siehe die [dedizierte SEPA-Handbuchseite](/handbook/sepa) für die vollständige
 
 ## Erinnerungen {#overdue_notice}
 
-Wenn Zahlungen automatisch importiert werden, kümmert sich das System automatisch darum, alle 35 Tage eine Erinnerungs-E-Mail an alle Mitglieder zu senden, die eine unbezahlte Rechnung haben, bis die Rechnung bezahlt ist (1. Erinnerung nach 35 Tagen, 2. Erinnerung nach 70 Tagen usw.).
-
-Du kannst den Inhalt dieser Erinnerung konfigurieren, indem Du [die E-Mail-Vorlage "Rechnungserinnerung"](/mail_templates/invoice_overdue_notice) bearbeitest.
+<% overdue_notice_days = MailTemplate.delay_in_days_for("invoice_overdue_notice") %>
+Wenn Zahlungen automatisch importiert werden, sendet das System alle <%= overdue_notice_days %> Tage nach dem Rechnungsversand eine Erinnerung an jedes Mitglied mit einer unbezahlten Rechnung, danach erneut nach der letzten Mahnung, bis die Rechnung bezahlt ist (1. Erinnerung nach <%= overdue_notice_days %> Tagen, 2. nach <%= overdue_notice_days * 2 %> Tagen, und so weiter). SEPA-Rechnungen werden nicht gemahnt. Frist und Text stehen auf [der E-Mail "Rechnungserinnerung"](/mail_templates/invoice_overdue_notice).
 
 > Du kannst per E-Mail benachrichtigt werden, wenn die 3. Erinnerung einer Rechnung gesendet wird. Verwalte Deine Benachrichtigungen über [Dein Administratorkonto](/admins/<%= current_admin.id %>/edit).
 

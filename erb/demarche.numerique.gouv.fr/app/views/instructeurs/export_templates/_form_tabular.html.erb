@@ -1,0 +1,86 @@
+<div class="fr-my-4w" id="export_template-edit">
+  <div class="fr-mb-6w">
+    <%= render Dsfr::AlertComponent.new(state: :info, title: "Nouvel éditeur de modèle d’export", heading_level: 'h3') do |c| %>
+      <% c.with_body do %>
+        <%= t('.info_html', mailto: mail_to(CONTACT_EMAIL, subject: 'Editeur de modèle d’export')) %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<div class="fr-grid-row fr-grid-row--gutters">
+  <div class="fr-col-12 fr-col-md-8">
+    <%= form_with model: [:instructeur, procedure, export_template], local: true, data: { turbo: true } do |f| %>
+      <h2>Paramètres de l’export</h2>
+      <%= f.hidden_field "[dossier_folder][template]", value: export_template.dossier_folder.template_json %>
+      <%= f.hidden_field "[export_pdf][template]", value: export_template.export_pdf.template_json %>
+      <%= render Dsfr::InputComponent.new(form: f, attribute: :name, input_type: :text_field) %>
+
+      <% if groupe_instructeurs.many? %>
+        <div class="fr-input-group">
+          <%= f.label :groupe_instructeur_id, class: 'fr-label' do %>
+            Groupe instructeur éditeur du modèle
+            <%= render EditableChamp::AsteriskMandatoryComponent.new %>
+            <span class="fr-hint-text"> Le groupe propriétaire qui pourra modifier le modèle le cas échéant </span>
+          <% end %>
+
+          <%= f.collection_select :groupe_instructeur_id, groupe_instructeurs, :id, :label, {}, class: 'fr-select' %>
+        </div>
+        <div class="fr-checkbox-group fr-input-group">
+          <%= f.check_box :shared %>
+          <%= f.label :shared, "Partager avec tous les autres groupes instructeurs", class: 'fr-label' %>
+        </div>
+      <% else %>
+        <%= f.hidden_field :groupe_instructeur_id %>
+      <% end %>
+
+      <fieldset class="fr-fieldset fr-fieldset--inline">
+        <legend
+          class="fr-fieldset__legend fr-text--regular"
+          id="radio-inline-legend"
+        >
+          Format export <%= asterisk %>
+        </legend>
+
+        <div class="fr-fieldset__element fr-fieldset__element--inline">
+          <div class="fr-radio-group">
+            <%= f.radio_button :kind, "xlsx", id: "xlsx" %>
+            <label class="fr-label" for="xlsx">xlsx</label>
+          </div>
+
+          <div class="fr-radio-group">
+            <%= f.radio_button :kind, "ods", id: "ods" %>
+            <label class="fr-label" for="ods">ods</label>
+          </div>
+
+          <div class="fr-radio-group">
+            <%= f.radio_button :kind, "csv", id: "csv" %>
+            <label class="fr-label" for="csv">csv</label>
+          </div>
+        </div>
+      </fieldset>
+
+      <h2>Contenu de l’export</h2>
+
+      <p>
+        Sélectionnez les colonnes que vous souhaitez voir affichées dans le
+        tableau de votre export.
+      </p>
+
+      <%= render partial: 'checkbox_group', locals: { title: 'Informations usager', all_columns: procedure.usager_columns_for_export, export_template: } %>
+      <%= render partial: 'checkbox_group', locals: { title: 'Informations dossier', all_columns: procedure.dossier_columns_for_export, export_template: } %>
+      <%= render ExportTemplate::ChampsComponent.new("Formulaire usager", export_template, @public_type_de_champs) %>
+      <%= render ExportTemplate::ChampsComponent.new("Annotations privées", export_template, @private_type_de_champs) if @private_type_de_champs.any? %>
+
+      <%= render FixedFooterComponent.new do |footer| %>
+        <% footer.with_action do %>
+          <%= link_to t('.cancel'), [:export_templates, :instructeur, procedure], class: "fr-btn fr-btn--secondary" %>
+        <% end %>
+
+        <% footer.with_action do %>
+          <%= f.button t('.submit'), class: "fr-btn", data: export_template.persisted? ? { turbo_confirm: t('.warning') } : {} %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

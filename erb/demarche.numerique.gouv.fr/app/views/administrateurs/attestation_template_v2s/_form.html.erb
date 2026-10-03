@@ -1,0 +1,261 @@
+<%= form_for attestation_template, url: admin_procedure_attestation_template_v2_path(procedure, attestation_kind:), html: { multipart: true, id: "attestation-template" }, data: { turbo: "true", controller: "autosubmit attestation", autosubmit_debounce_delay_value: 1000, attestation_logo_attachment_official_label_value: AttestationTemplate.human_attribute_name(:logo_additional), attestation_logo_attachment_free_label_value: AttestationTemplate.human_attribute_name(:logo) } do |f| %>
+  <div
+    class="fr-container fr-my-4w"
+    id="attestation-edit"
+    data-controller="tiptap"
+    data-tiptap-insert-after-tag-value=" "
+  >
+    <% if procedure.attestation_templates.v1.published.any? && attestation_kind == :acceptation %>
+      <div class="fr-mb-6w">
+        <%= render Dsfr::AlertComponent.new(state: :info, title: "Nouvel éditeur d’attestation", heading_level: "h3") do |c| %>
+          <% c.with_body do %>
+            <p>
+              Cette page présente un nouvel éditeur d’attestation, plus flexible
+              et conforme à la charte de l’État.
+            </p>
+
+            <p>
+              <strong>
+                Pour modifier l’attestation existante (actuellement délivrée aux
+                usagers),
+              </strong>
+
+              <%= link_to("cliquez ici", edit_admin_procedure_attestation_template_path(procedure, attestation_kind:)) + "." %>
+            </p>
+
+            <p>
+              Pour générer une attestation à la charte de l’État, créez-la
+              ci-dessous puis publiez-la: elle remplacera alors l’attestation
+              actuelle.
+            </p>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="fr-grid-row fr-grid-row--gutters">
+      <div class="fr-col-12 fr-col-lg-7">
+        <fieldset class="fr-fieldset" aria-labelledby="edit-attestation">
+          <legend class="fr-fieldset__legend" id="edit-attestation">
+            <h1 class="fr-h2">
+              <%= t(".attestation_#{attestation_kind}_title") %>
+            </h1>
+
+            <p class="fr-text--regular">
+              <%= t(".attestation_#{attestation_kind}_description") %>
+            </p>
+          </legend>
+
+          <div class="fr-fieldset__element">
+            <%= render Dsfr::CalloutComponent.new(title: "Activation de la délivrance de l’attestation", theme: :neutral) do |c| %>
+              <% c.with_html_body do %>
+                <div class="fr-toggle fr-toggle--label-left">
+                  <%= f.check_box :activated, class: "fr-toggle__input", id: dom_id(attestation_template, :activated) %>
+
+                  <label
+                    class="fr-toggle__label"
+                    for="<%= dom_id(attestation_template, :activated) %>"
+                    data-fr-checked-label="Activée"
+                    data-fr-unchecked-label="Désactivée"
+                  >
+                    <%= t(".attestation_#{attestation_kind}_activation_html") %>
+                  </label>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+
+          <div class="fr-fieldset__element">
+            <h2 class="fr-h4">En-tête</h2>
+          </div>
+
+          <div class="fr-fieldset__element">
+            <div class="fr-toggle fr-toggle--label-left">
+              <%= f.check_box :official_layout, class: "fr-toggle__input", id: dom_id(attestation_template, :official_layout), data: { "attestation-target": "layoutToggle"} %>
+
+              <label
+                class="fr-toggle__label"
+                for="<%= dom_id(attestation_template, :official_layout) %>"
+                data-fr-checked-label="Oui"
+                data-fr-unchecked-label="Non"
+              >
+                Je souhaite générer une attestation à la charte de l’état (logo
+                avec Marianne)
+              </label>
+            </div>
+          </div>
+
+          <div
+            class="fr-fieldset__element <%= class_names("hidden" => !attestation_template.official_layout?) %>"
+            data-attestation-target="logoMarianneLabelFieldset"
+          >
+            <%= render Dsfr::InputComponent.new(form: f, attribute: :label_logo, input_type: :text_area, required: attestation_template.official_layout?, opts: { rows: 3, data: { controller: :textarea, textarea_max_rows_value: 5 } }) do |c| %>
+              <% c.with_hint { "Exemple: Ministère de la Mer. 5 lignes maximum" } %>
+            <% end %>
+          </div>
+
+          <div
+            class="fr-fieldset__element"
+            data-attestation-target="logoAttachmentFieldset"
+          >
+            <label
+              class="fr-label"
+              for="<%= dom_id(attestation_template, :logo) %>"
+            >
+              <% if attestation_template.official_layout? %>
+                <%= AttestationTemplate.human_attribute_name(:logo_additional) %>
+              <% else %>
+                <%= AttestationTemplate.human_attribute_name(:logo) %>
+              <% end %>
+            </label>
+
+            <span class="fr-hint-text">
+              Dimensions conseillées : au minimum 500px de largeur ou de
+              hauteur.
+            </span>
+
+            <div id="<%= h(dom_id(attestation_template, :logo_attachment)) %>">
+              <%= render Attachment::FileFieldComponent.new(context: Attachment::Context.new(attached_file: attestation_template.logo, direct_upload: false), drop_zone: :none) %>
+            </div>
+          </div>
+
+          <div class="fr-fieldset__element">
+            <%= render Dsfr::InputComponent.new(form: f, attribute: :label_direction, input_type: :text_area, required: false, opts: { rows: 2, data: { controller: :textarea, textarea_max_rows_value: 2 } }) do |c| %>
+              <% c.with_hint { "Exemple: Direction interministérielle du numérique. 2 lignes maximum" } %>
+            <% end %>
+          </div>
+
+          <div class="fr-fieldset__element fr-mt-3w">
+            <div class="fr-input-group <%= class_names("fr-input-group--error" => f.object.errors.include?(:json_body)) %>">
+              <label class="fr-label fr-h4">
+                <%= AttestationTemplate.human_attribute_name :body %>
+                <%= render EditableChamp::AsteriskMandatoryComponent.new %>
+              </label>
+
+              <div class="flex flex-gap-2 fr-mb-2w">
+                <% buttons.each do |buttons| %>
+                  <div class="flex flex-gap-1">
+                    <% buttons.each do |(label, action, icon)| %>
+                      <button
+                        class="fr-btn fr-btn--secondary fr-btn--sm <%= icon == :hidden ? "hidden" : "fr-icon-#{icon}" %>"
+                        type="button"
+                        title="<%= label %>"
+                        data-action="click->tiptap#menuButton"
+                        data-tiptap-target="button"
+                        data-tiptap-action="<%= action %>"
+                      >
+                        <%= label %>
+                      </button>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+
+              <div
+                class="tiptap-editor"
+                id="editor"
+                data-tiptap-target="editor"
+                aria-describedby="attestation-template-json-body-messages"
+              ></div>
+
+              <%= f.hidden_field :tiptap_body, data: { tiptap_target: 'input' } %>
+
+              <div
+                class="fr-error-text <%= class_names("hidden" => !f.object.errors.include?(:json_body)) %>"
+                id="attestation-template-json-body-messages"
+              >
+                <% if f.object.errors.include?(:json_body) %>
+                  <%= render partial: "shared/errors_list", locals: { object: f.object, attribute: :json_body } %>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <div class="fr-fieldset__element">
+            <p class="fr-hint-text">
+              Tapez le caractère <strong class="fr-text-title--grey">@</strong>
+              suivi du nom de la balise, ou cliquez sur les boutons ci-dessous.
+            </p>
+
+            <div class="tags-buttons-panel">
+              <%= render TagsButtonListComponent.new(tags: attestation_template.tags_categorized) %>
+            </div>
+          </div>
+
+          <div class="fr-fieldset__element fr-mt-2w">
+            <h2 class="fr-h4">Pied de page</h2>
+          </div>
+
+          <div class="fr-fieldset__element">
+            <label
+              class="fr-label"
+              for="<%= dom_id(attestation_template, :signature) %>"
+            >
+              Tampon ou signature
+            </label>
+
+            <span class="fr-hint-text">
+              Dimensions conseillées : au minimum 500px de largeur ou de
+              hauteur.
+            </span>
+
+            <div
+              id="<%= h(dom_id(attestation_template, :signature_attachment)) %>"
+            >
+              <%= render Attachment::FileFieldComponent.new(context: Attachment::Context.new(attached_file: attestation_template.signature, direct_upload: false), drop_zone: :none) %>
+            </div>
+          </div>
+
+          <div class="fr-fieldset__element">
+            <%= render Dsfr::InputComponent.new(form: f, attribute: :footer, input_type: :text_area, required: false, opts: { rows: 3, data: { controller: :textarea, textarea_max_rows_value: 3 } }) do |c| %>
+              <% c.with_hint { "Exemple: 20 avenue de Ségur, 75007 Paris" } %>
+            <% end %>
+          </div>
+        </fieldset>
+      </div>
+
+      <div
+        class="fr-col-12 fr-col-lg-5 fr-background-alt--blue-france"
+        id="preview-column"
+      >
+        <div class="sticky--top fr-px-1w" data-controller="sticky-top">
+          <div class="flex justify-between align-center">
+            <h2 class="fr-h4">Aperçu</h2>
+
+            <p>
+              <%= link_to 'Prévisualiser en taille réelle', admin_procedure_attestation_template_v2_path(procedure, format: :pdf, attestation_kind:), class: 'fr-link', target: '_blank', rel: 'noopener' %>
+            </p>
+          </div>
+
+          <iframe
+            class="attestation-preview"
+            title="Aperçu"
+            src="<%= admin_procedure_attestation_template_v2_path(procedure, format: :pdf, attestation_kind:) %>"
+            data-attestation-target="preview"
+          ></iframe>
+
+          <p class="fr-hint-text">
+            L’aperçu est mis à jour automatiquement après chaque modification.
+            Pour générer un aperçu fidèle avec champs et dates,
+            <%= link_to("créez-vous un dossier", new_dossier_path(procedure_id: procedure, brouillon: true), **external_link_attributes) %>
+            et acceptez-le&nbsp;: l’aperçu l’utilisera.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% if attestation_template.draft? %>
+    <% content_for(:sticky_header) do %>
+      <%= render partial: "sticky_header", locals: { procedure: procedure, attestation_kind:, attestation_templates_for_kind: procedure.attestation_templates_v2_for(attestation_kind) } %>
+    <% end %>
+  <% end %>
+
+  <% render_procedure_sticky_title(procedure) %>
+
+  <%= render Procedure::FixedFooterComponent.new(procedure:) do %>
+    <div class="fr-ml-auto">
+      <span id="autosave-notice"></span>
+    </div>
+  <% end %>
+<% end %>
