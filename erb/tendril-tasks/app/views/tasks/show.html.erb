@@ -1,0 +1,109 @@
+<%= render TendrilTasks::Content.new(width: :large, class: "space-y-6") do %>
+  <%# Breadcrumb navigation %>
+  <%= render TendrilTasks::Breadcrumb.new do |breadcrumb| %>
+    <% breadcrumb.home %>
+    <% breadcrumb.item(Task.model_name.human(count: 2), href: tasks_path) %>
+    <% breadcrumb.item(@task.project.title, href: project_path(@task.project)) %>
+    <% breadcrumb.item(@task.title) %>
+  <% end %>
+
+  <%#
+    Info and action bar for editors and coordinators
+    Displays published status and action buttons: edit, create task, and
+    create project
+  %>
+
+  <% if can?(:coordinate, @task) ||
+        can?(:update, @task) ||
+        can?(:create, Project) ||
+        can?(:create, Task) %>
+    <div class="flex flex-row flex-wrap-reverse gap-4">
+      <%# Visibility badges %>
+      <%= render TendrilTasks::Elements::VisibilityInfoBar.new(@task) %>
+
+      <%# Action buttons %>
+      <%= render TendrilTasks::Elements::ActionBar.new(@task) %>
+    </div>
+  <% end %>
+
+  <div>
+    <%# Project badge %>
+    <%= link_to project_path(@task.project) do %>
+      <%= render Gustwave::Badge.new(@task.project.title, scheme: badge_scheme_by_id(@task.project.id), size: :lg) %>
+    <% end %>
+
+    <%# Task name %>
+    <%= render TendrilTasks::Heading
+                 .new(tag: :h2,
+                      scheme: :level2,
+                      class: "mt-2")
+                 .with_content(@task.title) %>
+
+    <%# Task description %>
+    <%= render Gustwave::RichText.new(@task.description) %>
+  </div>
+
+  <%= render TendrilTasks::HorizontalLine.new %>
+
+  <%# Applications %>
+  <% if can?(:coordinate, @task) %>
+    <%= render TendrilTasks::Heading
+                 .new(tag: :h3,
+                      scheme: :level3)
+                 .with_content(t(".section_title.applications")) %>
+    <div>
+      <% if @task_applications.size > 0 %>
+        <ol
+          class="relative border-s border-gray-200 dark:border-gray-600 ms-3.5 mb-4 md:mb-5"
+          id="task-applications-list"
+        >
+          <% @task_applications.each do |application| %>
+            <%= render TendrilTasks::Tasks::Application.new(application) %>
+          <% end %>
+        </ol>
+      <% else %>
+        <%= render TendrilTasks::Paragraph.new(t(".this_task_hasnt_received_applications"),
+                                               class: "mb-6") %>
+      <% end %>
+    </div>
+    <%= render TendrilTasks::HorizontalLine.new %>
+  <% end %>
+
+  <%# Apply to task %>
+  <%= render "tasks/application/form",
+             task: @task,
+             application: @application %>
+
+  <%= render TendrilTasks::HorizontalLine.new %>
+
+  <%# Contacts %>
+  <%= render TendrilTasks::Heading
+               .new(tag: :h3,
+                    scheme: :level3)
+               .with_content(t(".contact_people")) %>
+
+  <%= render TendrilTasks::Paragraph.new do %>
+    <%= t(".contact_people_content") %>
+  <% end %>
+
+  <%= render Modal::ContactListComponent.new(@task.coordinators) %>
+  <%= render TendrilTasks::HorizontalLine.new %>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 justify-center text-center gap-2">
+    <%= render Gustwave::Button
+                 .new(tag: :a,
+                      href: tasks_path,
+                      scheme: :alternative,
+                      size: :lg)
+                 .with_content(t(".goto_tasks_button")) %>
+
+    <%= render Gustwave::Button
+                 .new(@task.project.title,
+                      tag: :a,
+                      href: project_path(@task.project),
+                      scheme: :alternative,
+                      size: :lg, class: "text-center justify-center") do |button| %>
+      <% button.trailing_icon(:arrow_right) %>
+    <% end %>
+  </div>
+<% end %>

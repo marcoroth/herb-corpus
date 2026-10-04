@@ -1,0 +1,114 @@
+<%= render TendrilTasks::Content.new(width: :large, class: "space-y-6") do %>
+  <%= render TendrilTasks::Breadcrumb.new do |breadcrumb| %>
+    <% breadcrumb.home %>
+    <% breadcrumb.item t("breadcrumbs.admin"), href: admin_root_path %>
+    <% breadcrumb.item t("admin.footer.title") %>
+  <% end %>
+
+  <%# Main heading %>
+  <%= render TendrilTasks::Heading.new(tag: :h1) do %>
+    <%= t("admin.footer.title") %>
+  <% end %>
+
+  <%= render TendrilTasks::Paragraph.new do %>
+    <%= t(".description") %>
+  <% end %>
+
+  <%= render TendrilTasks::HorizontalLine.new %>
+
+  <%# Copyright %>
+  <%= render TendrilTasks::Heading.new(tag: :h2) do %>
+    <%= t(".copyright.title") %>
+  <% end %>
+
+  <%= render TendrilTasks::Paragraph.new do %>
+    <%= t(".copyright.explainer") %>
+  <% end %>
+
+  <%= form_with id: "copyright-form",
+                url: admin_footer_copyright_path,
+                method: :put,
+                class: "space-y-6" do |form| %>
+    <div class="flex flex-nowrap space-x-4">
+      <div class="grow">
+        <%= render Form::TextFieldComponent.new(form,
+                                                :copyright_notice,
+                                                "Copyright",
+                                                value: @copyright,
+                                                placeholder: "© 2025 Example Corp") %>
+      </div>
+
+      <div class="content-end">
+        <%= render Gustwave::Button.new(type: :submit, size: :md) do %>
+          <%= t("forms.save") %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%= render TendrilTasks::HorizontalLine.new %>
+
+  <%# Sitemap Links %>
+  <%= render TendrilTasks::Heading.new(tag: :h2) do %>
+    <%= t(".sitemap.title") %>
+  <% end %>
+
+  <%= render TendrilTasks::Paragraph.new do %>
+    <%= t(".sitemap.explainer") %>
+  <% end %>
+
+  <%= form_with model: @sitemap,
+                id: "sitemap-links-form",
+                url: admin_footer_sitemap_path,
+                method: :put,
+                class: "space-y-6" do |form| %>
+    <%
+      # Build empty categories, so that there are always elements for exactly
+      # two categories.
+      category_blueprint = ::Footer::Category.new
+      category_blueprint.links << ::Footer::Link.new
+      filler_categories = (@sitemap.categories.count...2).map { category_blueprint }
+
+      # The footer lays out categories right-to-left, so show them reversed to
+      # match its left-to-right reading order. Fillers go first, as that is
+      # where new categories appear in the footer. The controller reverses the
+      # submitted order back.
+      categories = filler_categories + @sitemap.categories.reverse
+    %>
+
+    <%= render partial: "admin/footer/sitemap_category",
+               collection: categories,
+               as: :category %>
+
+    <template id="sitemap-link-template">
+      <%= render 'admin/footer/sitemap_link', item: ::Footer::Link.new %>
+    </template>
+
+    <template id="sitemap-category-template">
+      <%= render 'admin/footer/sitemap_category', category: category_blueprint %>
+    </template>
+
+    <%= render Form::SubmitButtonGroupComponent.new(form) do |button_group| %>
+      <% button_group.delete_button(t("forms.delete"),
+                                    target_modal_id: "confirm-sitemap-links-deletion") %>
+
+      <% button_group.button(t("forms.save"), type: :submit) %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%= content_for :modal do %>
+  <%= render DeleteConfirm::ModalComponent.new(id: "confirm-sitemap-links-deletion",
+                                               delete_path: admin_footer_sitemap_path) do |modal| %>
+    <% modal.heading(t ".sitemap.delete_confirm.modal.title") %>
+
+    <% content = t(".sitemap.delete_confirm.modal.content",
+                   brand: RocketChatConfig.branding) %>
+
+    <% paragraphize(content).each do |text| %>
+      <% modal.paragraph(text) %>
+    <% end %>
+
+    <% modal.confirm_button(t(".sitemap.delete_confirm.modal.confirm_button")) %>
+  <% end %>
+<% end %>

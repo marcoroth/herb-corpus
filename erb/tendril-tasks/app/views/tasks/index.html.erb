@@ -1,0 +1,81 @@
+<%= render TendrilTasks::Content.new do %>
+  <%# Headline %>
+  <% case @type %>
+  <% when :all_published_tasks %>
+    <%= render 'tasks/index/headline_for_all_published_tasks',
+               count: @tasks.size %>
+  <% else %>
+    <%= render partial: 'tasks/index/headline_for_filtered_by_initiative',
+               locals: {
+                 count: @tasks.size,
+                 project: @selected_project
+               } %>
+  <% end %>
+
+  <%# Filter by projects %>
+  <% if @projects.size > 0 %>
+    <% is_selected = current_page?(tasks_path) %>
+    <ul id="filter-by-project" class="flex flex-wrap gap-2">
+      <li>
+        <%= render Gustwave::Badge.new(
+          t(".filter_by_project.show_all"),
+          tag: (is_selected ? :span : :a),
+          href: (tasks_path unless is_selected),
+          size: :sm,
+          outline: is_selected,
+          class: "md:text-lg md:font-semibold") %>
+      </li>
+
+      <% @projects.each do |project| %>
+        <% is_selected = current_page?(project_tasks_path(project)) %>
+
+        <li>
+          <%= render Gustwave::Badge.new(
+            project.title,
+            tag: is_selected ? :span : :a,
+            href: (project_tasks_path(project) unless is_selected),
+            size: :sm,
+            scheme: badge_scheme_by_id(project.id),
+            outline: is_selected,
+            class: "md:text-lg md:font-semibold") %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <%# Tasks displayed as cards in a grid %>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <% @tasks.each do |task| %>
+      <%= render TendrilTasks::Tasks::Card.new(task) %>
+    <% end %>
+  </div>
+
+  <%= render TendrilTasks::HorizontalLine.new %>
+
+  <%= render TendrilTasks::ButtonGrid.new(orientation: :vertical, size: :lg) do |grid| %>
+    <%# Link to all tasks when filter is applied %>
+    <% grid
+         .button(tag: :a,
+                 href: tasks_path,
+                 scheme: :alternative,
+                 class: "w-full text-center")
+         .with_content(t ".view_all_tasks") if @type != :all_published_tasks %>
+
+    <%# Link to projects for convenience %>
+    <% grid
+         .button(tag: :a,
+                 href: projects_path,
+                 scheme: :alternative,
+                 class: "w-full justify-center") do |button| %>
+      <% button.leading_icon(:arrow_left, size: :lg) %>
+      <%= t ".goto_initiatives" %>
+    <% end %>
+
+    <%# Link to create project %>
+    <% grid
+         .button(tag: :a,
+                 href: new_task_path,
+                 class: "w-full")
+         .with_content(t ".create_task") if can? :create, Task %>
+  <% end %>
+<% end %>

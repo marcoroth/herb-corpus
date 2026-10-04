@@ -1,0 +1,63 @@
+<div
+  class="inline-block"
+  data-controller="dropdown-keyboard"
+  data-action="keydown->dropdown-keyboard#keydown focusout->dropdown-keyboard#focusout turbo:submit-start->dropdown-keyboard#submitted"
+>
+  <%# Dropdown button %>
+  <%= button_tag type: "button",
+                 id: "dropdown-status-button-#{@application.user.id}",
+                 "data-dropdown-toggle": "dropdown-status-info-#{@application.user.id}",
+                 "aria-haspopup": "true",
+                 "aria-controls": "dropdown-status-info-#{@application.user.id}",
+                 data: {
+                   dropdown_keyboard_target: "trigger",
+                   action: "click->dropdown-keyboard#toggled"
+                 },
+                 class: "#{color_scheme_for(@application.status)} focus:ring-4 focus:outline-hidden focus:ring-gray-300 font-medium rounded-full text-sm p-2.5 text-center inline-flex items-center ms-2" do %>
+    <%= render_icon_for(@application.status) %>
+    <span class="ms-1 hidden sm:inline-flex"><%= t("activerecord.attributes.task_application.status.#{@application.status}") %></span>
+
+    <%# Arrow down icon %>
+    <%= render Gustwave::Icon.new(:chevron_down, class: "hidden sm:inline-flex me-0") unless @application.withdrawn? %>
+  <% end %>
+
+  <%# Dropdown options %>
+  <% unless @application.withdrawn? %>
+    <%= form_with url: task_application_status_path(@application.task, @application.user),
+                  method: :patch,
+                  id: "dropdown-status-info-#{@application.user.id}",
+                  data: { dropdown_keyboard_target: "menu" },
+                  class: "z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow-sm w-44 dark:bg-gray-700 dark:divide-gray-600 text-start" do %>
+      <div class="px-4 py-3 text-sm text-gray-900 dark:text-white">
+        <%= tag.div t(".selectbox.title") %>
+
+        <%= tag.div t(".selectbox.undertitle"),
+                    class: "font-medium truncate" %>
+      </div>
+
+      <div
+        class="py-2 text-sm text-gray-700"
+        role="group"
+        aria-labelledby="dropdown-status-button-<%= @application.user.id %>"
+      >
+        <% TaskApplication::COORDINATOR_STATUSES.each do |status| %>
+          <% current = @application.status == status %>
+
+          <%= button_tag type: :submit,
+                         name: :status,
+                         value: status,
+                         "aria-current": current.to_s,
+                         data: { dropdown_keyboard_target: "item" },
+                         class: class_names(
+                           "flex items-center gap-1 w-full text-start px-4 py-2 hover:bg-gray-100 focus-visible:bg-gray-100",
+                           "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500",
+                           "font-semibold": current
+                         ) do %>
+            <%= render_icon_for(status) %>
+            <%= t("activerecord.attributes.task_application.status.#{status}") %>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

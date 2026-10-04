@@ -1,0 +1,53 @@
+<%# locals: (form_object:) %>
+<%= form_with model: form_object,
+              url: form_object.form_path,
+              method: form_object.form_method,
+              class: "mx-auto space-y-4" do |f| %>
+  <%= render Form::SelectComponent.new(
+      f,
+      :project_id,
+      Project.model_name.human,
+      form_object.project_options, :id, :title,
+      error_field_attribute: :project,
+      prompt: t(".choose_initiative"),
+      selected: form_object.project&.id) do |project_select| %>
+    <% project_select.trailing_button(tag: :a, href: new_project_path).with_content(t(".new_initiative_button")) %>
+  <% end %>
+
+  <%= render Form::TextFieldComponent.new(f, :title) %>
+
+  <%= render Form::RichTextAreaComponent.new(f, :description) do |with| %>
+    <% with.disabled_buttons(:heading1, :heading2, :heading3) %>
+  <% end %>
+
+  <%= render Form::CoordinatorPickerComponent.new(f, :coordinators) %>
+
+  <%= render Form::ToggleComponent.new(f, :publish, t(".visibility")) do |toggle| %>
+    <% toggle.checked_state_text(t(".private")) %>
+    <% toggle.unchecked_state_text(t(".public")) %>
+  <% end %>
+
+  <% if form_object.persisted? %>
+    <%= render Form::SubmitButtonGroupComponent.new(f) do |button_group| %>
+      <% button_group.delete_button(t("forms.delete"), target_modal_id: "confirm-task-delete") %>
+      <% button_group.button(t("forms.update")) %>
+    <% end %>
+  <% else %>
+    <%= render Form::SubmitButtonGroupComponent.new(f) do |button_group| %>
+      <% button_group.button(t("forms.create"), value: "save") %>
+      <% button_group.button(t(".save_and_new"), value: "save_and_new") %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%= content_for :modal do %>
+  <%= render DeleteConfirm::ModalComponent.new(
+      id: "confirm-task-delete",
+      delete_path: form_object.form_path) do |modal| %>
+    <% modal.heading(t(".delete_confirm.modal.title")) %>
+
+    <% paragraphize(t(".delete_confirm.modal.content")).each do |text| %>
+      <% modal.paragraph(text) %>
+    <% end %>
+  <% end %>
+<% end %>

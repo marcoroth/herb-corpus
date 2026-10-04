@@ -1,0 +1,58 @@
+<%# locals: (form_object:) %>
+<%= form_with model: form_object,
+              url: form_object.form_path,
+              method: form_object.form_method,
+              class: "mx-auto space-y-4" do |f| %>
+  <%= render Form::TextFieldComponent.new(f, :title) %>
+
+  <%= render Form::RichTextAreaComponent.new(f, :description) do |with| %>
+    <% with.disabled_buttons(:heading1, :heading2, :heading3) %>
+  <% end %>
+
+  <%= render Form::CoordinatorPickerComponent.new(f, :coordinators) %>
+
+  <%= render Form::ToggleComponent.new(f, :publish, t(".visibility")) do |toggle| %>
+    <% toggle.checked_state_text(t(".private")) %>
+    <% toggle.unchecked_state_text(t(".public")) %>
+  <% end %>
+
+  <% if form_object.persisted? %>
+    <%# Update buttons %>
+    <%= render Form::SubmitButtonGroupComponent.new(f) do |button_group| %>
+      <% button_group.delete_button(t("forms.delete"), target_modal_id: "confirm-project-delete") %>
+      <% button_group.button(t("forms.update")) %>
+    <% end %>
+  <% else %>
+    <%# Create buttons %>
+    <%= render Form::SubmitButtonGroupComponent.new(f) do |button_group| %>
+      <% button_group.button(t("forms.create"), value: "save") %>
+      <% button_group.button(t(".save_and_create_task"), value: "save_and_new_task") %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%= content_for :modal do %>
+  <%= render DeleteConfirm::ModalComponent.new(
+      id: "confirm-project-delete",
+      delete_path: form_object.form_path) do |modal| %>
+    <% modal.heading(t(".delete_confirm_modal.heading")) %>
+
+    <% paragraphize(t(".delete_confirm_modal.content")).each do |text| %>
+      <% modal.paragraph(text) %>
+    <% end %>
+
+    <% modal.section do %>
+      <div>
+        <h2 class="mb-2 text-base font-medium text-gray-900 dark:text-white">
+          <%= t ".delete_confirm_modal.affected_tasks" %>:
+        </h2>
+
+        <%= tag.ul class: "max-w-md space-y-1 text-gray-500 list-disc list-inside dark:text-gray-400" do %>
+          <% form_object.project.tasks.each do |task| %>
+            <%= tag.li tag.a task.title, href: task_path(task) %>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

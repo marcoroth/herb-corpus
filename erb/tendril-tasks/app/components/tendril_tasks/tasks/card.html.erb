@@ -1,0 +1,74 @@
+<section
+  class="bg-white border rounded-xl shadow-md dark:bg-gray-900 py-4 px-4 text-start flex flex-col"
+  id="task-card-<%= @task.id %>"
+>
+  <div class="mb-2">
+    <%= render TendrilTasks::ProjectBadge.new(@task.project) %>
+    <%= render TendrilTasks::NewItemBadge.new if is_new? %>
+  </div>
+
+  <%= link_to task_path(@task) do %>
+    <%= render TendrilTasks::Heading
+                 .new(tag: :h2,
+                      scheme: :level5,
+                      responsive: false,
+                      class: "overflow-hidden pb-0.5")
+                 .with_content(@task.title) %>
+  <% end %>
+
+  <%# Plain text description %>
+  <%= tag.div class: "grow my-2 line-clamp-6 hyphens-auto", lang: I18n.locale do %>
+    <% paragraphize(@task.description_plain_text&.truncate_words(50), delimiter: "\n\n").each do |paragraph| %>
+      <%= render TendrilTasks::Paragraph.new(class: "lg:text-lg") do %>
+        <%= link_to task_path(@task) do %>
+          <%= simple_line_breaks(paragraph) %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <div>
+    <%# Coordinators %>
+    <%= render TendrilTasks::ContactsPill.new(@task.coordinators,
+                                              modal_id: "task-contacts-#{@task.id}",
+                                              class: "pe-2 my-4") %>
+  </div>
+
+  <%# Action buttons %>
+  <%= render TendrilTasks::ButtonGrid.new(tag: :a,
+                                       size: :md,
+                                       orientation: :vertical) do |grid| %>
+    <% grid.button(href: task_path(@task),
+                   scheme: :alternative)
+           .with_content(t(".read_more")) %>
+
+    <% if current_user.applied_to?(@task) %>
+      <% grid.button(tag: :a,
+                     href: task_path(@task, anchor: "apply-now"),
+                     size: :md,
+                     scheme: :green,
+                     class: "w-full")
+             .with_content(t(".applied_for_task_button")) %>
+    <% else %>
+      <% grid.button(tag: :a,
+                        href: task_path(@task, anchor: "apply-now"),
+                        size: :md,
+                        class: "w-full")
+             .with_content(t(".express_interest_button")) %>
+    <% end %>
+  <% end %>
+</section>
+
+<%# Modal for viewing coordinators %>
+<%= content_for :modal do %>
+  <%= render ::Modal::DialogComponent.new("task-contacts-#{@task.id}") do |modal| %>
+    <% modal.heading(t(".your_contact_people")) %>
+
+    <%= render ::Modal::ParagraphComponent.new
+                 .with_content(t(".contact_people_description")) %>
+
+    <%= render ::Modal::ContactListComponent.new(@task.coordinators) %>
+    <% modal.button(scheme: :light, type: :reset).with_content(t(".close_window")) %>
+  <% end %>
+<% end %>
+<%# End of modal for coordinators %>
