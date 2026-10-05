@@ -1,4 +1,35 @@
-<% active_section_keys = @custom_action.actions.map(&:key) %>
+<%#-- copyright
+OpenProject is an open source project management software.
+Copyright (C) the OpenProject GmbH
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License version 3.
+
+OpenProject is a fork of ChiliProject, which is a fork of Redmine. The copyright follows:
+Copyright (C) 2006-2013 Jean-Philippe Lang
+Copyright (C) 2010-2013 the ChiliProject Team
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+See COPYRIGHT and LICENSE files for more details.
+
+++#%>
+
+<% active_section_keys = @automation.actions.map(&:key) %>
+<% trigger = @automation.button_trigger || @automation.triggers.build(type: "Automations::Triggers::Button") %>
+<% trigger_options = @automation.available_triggers.map { |klass| [klass.human_name, klass.name] } %>
 
 <div class="form--field -required">
   <%= f.text_field :name, required: true, container_class: "-middle" %>
@@ -7,16 +38,31 @@
   <%= f.text_area :description, container_class: "-middle" %>
 </div>
 
-<fieldset class="form--fieldset" id="custom-actions-form--conditions">
-  <legend class="form--fieldset-legend">
-    <%= t("custom_actions.conditions") %>
-  </legend>
+<fieldset class="form--fieldset" id="automations-form--trigger">
+  <legend class="form--fieldset-legend"><%= t("automations.trigger") %></legend>
+  <div class="form--field">
+    <%= styled_label_tag "automation_triggers_attributes_0_type", t("automations.triggers.name"), class: "-top" %>
+    <div class="form--field-container">
+      <%= styled_select_tag "automation[triggers_attributes][0][type]",
+                            options_for_select(trigger_options, trigger.type),
+                            container_class: "-middle",
+                            aria: { describedby: "automation_triggers_attributes_0_type_instructions" } %>
+    </div>
+    <div class="form--field-instructions" id="automation_triggers_attributes_0_type_instructions">
+      <%= t("automations.triggers.more_coming") %>
+    </div>
+  </div>
+  <%= hidden_field_tag "automation[triggers_attributes][0][id]", trigger.id if trigger.persisted? %>
+  <%= render partial: "trigger_fields_button", locals: { trigger: } %>
+</fieldset>
 
-  <% @custom_action.all_conditions.each do |condition| %>
+<fieldset class="form--fieldset" id="automations-form--conditions">
+  <legend class="form--fieldset-legend"><%= t("automations.conditions") %></legend>
+
+  <% @automation.all_conditions.each do |condition| %>
     <div class="form--field">
-      <%= styled_label_tag("custom_action_conditions_#{condition.key}", condition.human_name, class: "-top") %>
-      <% input_name = "custom_action[conditions][#{condition.key}]" %>
-
+      <%= styled_label_tag("automation_conditions_#{condition.key}", condition.human_name, class: "-top") %>
+      <% input_name = "automation[conditions][#{condition.key}]" %>
       <div class="form--field-container">
         <div class="form--select-container -middle">
           <% if condition.key == :project %>
@@ -26,7 +72,7 @@
                                         filters: [{ name: "active", operator: "=", values: ["t"] }],
                                         resource: "projects",
                                         inputName: input_name,
-                                        labelForId: "custom_action_actions_#{condition.key}",
+                                        labelForId: "automation_conditions_#{condition.key}",
                                         inputValue: condition.values
                                       } %>
           <% else %>
@@ -38,31 +84,28 @@
                                         model: condition.value_objects.map { |v| { id: v[:value], name: v[:label] } },
                                         inputName: input_name,
                                         bindLabel: "name",
-                                        labelForId: "custom_action_conditions_#{condition.key}"
+                                        labelForId: "automation_conditions_#{condition.key}"
                                       } %>
           <% end %>
         </div>
       </div>
     </div>
-    <div class="form--space"></div>
   <% end %>
 </fieldset>
 
-<fieldset class="form--fieldset" id="custom-actions-form--actions">
-  <legend class="form--fieldset-legend">
-    <%= t("custom_actions.actions.name") %>
-  </legend>
+<fieldset class="form--fieldset" id="automations-form--actions">
+  <legend class="form--fieldset-legend"><%= t("automations.actions.name") %></legend>
 
-  <div id="custom-actions-form--active-actions">
-    <% @custom_action.all_actions.each do |action| %>
+  <div id="automations-form--active-actions">
+    <% @automation.all_actions.each do |action| %>
       <section class="hide-section"
                data-hide-sections-target="section"
                data-name="<%= action.key %>"
                <%= tag.attributes(data: { section_name: action.key }, hidden: active_section_keys.exclude?(action.key)) %>>
         <div class="form--field">
-          <%= styled_label_tag("custom_action_actions_#{action.key}", action.human_name, class: "-top") %>
+          <%= styled_label_tag("automation_actions_#{action.key}", action.human_name, class: "-top") %>
+          <% input_name = "automation[actions][#{action.key}]" %>
 
-          <% input_name = "custom_action[actions][#{action.key}]" %>
           <% if %i(associated_property boolean user project).include?(action.type) %>
             <div class="form--field-container">
               <div class="form--select-container -middle">
@@ -75,7 +118,7 @@
                                               resource: "projects",
                                               inputName: input_name,
                                               appendTo: "body",
-                                              labelForId: "custom_action_actions_#{action.key}",
+                                              labelForId: "automation_actions_#{action.key}",
                                               inputValue: action.values.first
                                             } %>
                 <% in { type: :user, custom_field_based: false } %>
@@ -98,7 +141,7 @@
                                                 { id: action.current_user_value_key, name: action.current_user_name }
                                               ],
                                               searchKey: "any_name_attribute",
-                                              labelForId: "custom_action_actions_#{action.key}",
+                                              labelForId: "automation_actions_#{action.key}",
                                               focusDirectly: false
                                             } %>
                 <% else %>
@@ -112,12 +155,12 @@
                                               model: action.multi_value? ? selected : selected.first,
                                               inputName: input_name,
                                               bindLabel: "name",
-                                              labelForId: "custom_action_actions_#{action.key}"
+                                              labelForId: "automation_actions_#{action.key}"
                                             } %>
                 <% end %>
               </div>
             </div>
-          <% elsif %i(date_property).include?(action.type) %>
+          <% elsif action.type == :date_property %>
             <div class="form--field-container">
               <% date = action.values.first %>
               <%= angular_component_tag "opce-custom-date-action-admin",
@@ -125,74 +168,41 @@
             </div>
           <% elsif %i(string_property text_property).include?(action.type) %>
             <div class="form--field-container">
-              <%= styled_text_field_tag input_name,
-                                        action.values,
-                                        container_class: "-slim",
-                                        step: "any" %>
+              <%= styled_text_field_tag input_name, action.values, container_class: "-slim" %>
             </div>
-          <% elsif %i(link_property).include?(action.type) %>
+          <% elsif action.type == :link_property %>
             <div class="form--field-container">
-              <%= styled_url_field_tag input_name,
-                                       action.values,
-                                       container_class: "-slim",
-                                       step: "any" %>
+              <%= styled_url_field_tag input_name, action.values, container_class: "-slim" %>
             </div>
-          <% elsif action.type == :float_property %>
+          <% elsif %i(float_property integer_property).include?(action.type) %>
             <div class="form--field-container">
               <%= styled_number_field_tag input_name,
                                           action.values,
                                           container_class: "-slim",
                                           min: action.minimum,
                                           max: action.maximum,
-                                          step: "any" %>
-            </div>
-          <% elsif action.type == :integer_property %>
-            <div class="form--field-container">
-              <%= styled_number_field_tag input_name,
-                                          action.values,
-                                          container_class: "-slim",
-                                          min: action.minimum,
-                                          max: action.maximum,
-                                          step: 1 %>
+                                          step: action.type == :integer_property ? 1 : "any" %>
             </div>
           <% end %>
-          <%=
-            render(
-              Primer::Beta::IconButton.new(
-                icon: :x,
-                size: :small,
-                scheme: :invisible,
-                type: :button,
-                aria: { label: t(:button_close) },
-                data: { action: "click->hide-sections#hide" }
-              )
-            )
-          %>
+
+          <%= render(Primer::Beta::IconButton.new(icon: :x, size: :small, scheme: :invisible, type: :button, aria: { label: t(:button_close) }, data: { action: "click->hide-sections#hide" })) %>
         </div>
       </section>
     <% end %>
   </div>
 
-  <div class="form--space"></div>
-
   <div class="form--field">
-    <label class="form--label" for="add-custom-action-select">
+    <label class="form--label" for="add-automation-action-select">
       <%= render(Primer::Beta::Octicon.new(icon: :plus, size: :small)) %>
-      <%= I18n.t(:"custom_actions.actions.add") %>
+      <%= I18n.t(:"automations.actions.add") %>
     </label>
     <span class="form--field-container">
       <span class="form--select-container -middle">
         <%= select_tag "add_action",
-                       options_for_select(
-                         @custom_action.all_actions.map { |a| [a.human_name, a.key] },
-                         disabled: active_section_keys
-                       ),
-                       id: "add-custom-action-select",
-                       prompt: t(:"custom_actions.actions.add"),
-                       data: {
-                         "hide-sections-target": "select",
-                         action: "change->hide-sections#add"
-                       },
+                       options_for_select(@automation.all_actions.map { |a| [a.human_name, a.key] }, disabled: active_section_keys),
+                       id: "add-automation-action-select",
+                       prompt: t(:"automations.actions.add"),
+                       data: { "hide-sections-target": "select", action: "change->hide-sections#add" },
                        class: "form--select" %>
       </span>
     </span>
