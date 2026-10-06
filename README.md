@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **348** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **38,735** from 281 apps |
+| Applications and engines | **349** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **38,786** from 282 apps |
 | Size of `erb/` | ~60 MB |
 | Excluded pending license review | 67 apps |
 
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**136 of 348** applications use Herb: `herb` 84, `@herb-tools/linter` 57, `@herb-tools/formatter` 36, `.herb.yml` 106, `.herb/` 1.
+**137 of 349** applications use Herb: `herb` 85, `@herb-tools/linter` 57, `@herb-tools/formatter` 36, `.herb.yml` 106, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -475,6 +475,8 @@ cannot make a comparison silently measure the same Herb twice.
 |  | linter | 0.11.0 | explicit | [2026-05-20](https://github.com/ministryofjustice/moj-components/commit/08031f67c8011ba3e9236ed71ed525217c61beea "first seen in package.json") |
 |  | .herb.yml | 0.10.3 | – | [2026-05-19](https://github.com/ministryofjustice/moj-components/commit/fd53e0acb24f76cc32d220b54e95a7ef2e71e16c "first seen in .herb.yml") |
 |  |  |  |  |  |
+| [neighbourly](https://github.com/sofiabesenski4/neighbourly/tree/13091864227c176100a2a1d10ffbfe1473311afa) | herb | 0.11.0 | explicit | [2026-09-30](https://github.com/sofiabesenski4/neighbourly/commit/81ee758b5b96d8dee2c45df1e8f537b24bfb5ccd "first seen in Gemfile") |
+|  |  |  |  |  |
 | [ninetynine-staples-mono](https://github.com/denvermullets/ninetynine-staples-mono/tree/49aa560c4a5a7a165c2bcad485c3d7068cf3d0bc) | linter | ^0.10.2 | explicit | [2026-01-29](https://github.com/denvermullets/ninetynine-staples-mono/commit/d976541de2c678a1e576f13db86b798542e93252 "first seen in package.json") |
 |  | formatter | ^0.10.2 | explicit | [2026-01-29](https://github.com/denvermullets/ninetynine-staples-mono/commit/d976541de2c678a1e576f13db86b798542e93252 "first seen in package.json") |
 |  | .herb.yml | 0.10.2 | – | [2026-01-29](https://github.com/denvermullets/ninetynine-staples-mono/commit/d976541de2c678a1e576f13db86b798542e93252 "first seen in .herb.yml") |
@@ -643,7 +645,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**27 of 348** applications use ReActionView: `reactionview` 27.
+**27 of 349** applications use ReActionView: `reactionview` 27.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -707,19 +709,19 @@ cannot make a comparison silently measure the same Herb twice.
 xychart
   title "Cumulative adoption, by project"
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
-  y-axis "Apps" 0 --> 137
-  line [3, 8, 15, 22, 34, 46, 54, 65, 81, 91, 103, 111, 123, 129, 134, 136]
+  y-axis "Apps" 0 --> 138
+  line [3, 8, 15, 22, 34, 46, 54, 65, 81, 91, 103, 111, 123, 129, 135, 137]
   line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27, 27]
 ```
 
-Herb 136 · ReActionView 27
+Herb 137 · ReActionView 27
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 80 apps
-  "0.11.0" : 28
+  title Herb releases across 81 apps
+  "0.11.0" : 29
   "0.10.4" : 15
   "0.10.3" : 17
   "0.10.2" : 4
@@ -770,7 +772,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**38 of 348** applications use `erb_lint` directly. 5 dropped it and now use Herb, and 21 run both.
+**39 of 349** applications use `erb_lint` directly. 5 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -787,7 +789,7 @@ the commit that removed it.
 - [templatus-hotwire](https://github.com/templatus/templatus-hotwire/tree/5eec9aab2437c36289793b3ef8c653f0095c40dc): Adopted `erb_lint` in 2025, used it for 10 months, dropped it in 2026, started Herb in 2026.
   [2025-09-16](https://github.com/templatus/templatus-hotwire/commit/770d01e4e76144323718a04a0a0be7c00fc01dea "added Gemfile") · [2026-07-19](https://github.com/templatus/templatus-hotwire/commit/b504744d57b50e4aeb83c3b746320c147bcf568b "removed Gemfile") · [herb 2026-07-19](https://github.com/templatus/templatus-hotwire/commit/b504744d57b50e4aeb83c3b746320c147bcf568b "first seen in Gemfile")
 
-**Running both** (21)
+**Running both** (22)
 
 - [openstreetmap-website](https://github.com/openstreetmap/openstreetmap-website/tree/8476abfc8dba154cc70486ee1c3ea1ab8015c918): Adopted `erb_lint` in 2019, still using it 7 years later, started Herb in 2026.
   [2019-03-06](https://github.com/openstreetmap/openstreetmap-website/commit/d6a2515cb0c55eb69c8bb1c872e13b5f59ea64b5 "added Gemfile") · gem `0.9.0` · `.erb_lint.yml` · [herb 2026-02-08](https://github.com/openstreetmap/openstreetmap-website/commit/929609c97bf992e43b84a75984c3f38fd0c9a038 "first seen in package.json")
@@ -831,6 +833,8 @@ the commit that removed it.
   [2026-03-30](https://github.com/sebaherrera07/jira-project-estimator/commit/ae6911257dddc0c1b6b892d4461438fc49110b67 "added .erb_lint.yml") · `.erb_lint.yml` · [herb 2026-03-30](https://github.com/sebaherrera07/jira-project-estimator/commit/28dd823458428b399f813539bce872eba3cfe489 "first seen in Gemfile")
 - [f2](https://github.com/dreikanter/f2/tree/d85cd745db1eb4ce619d4599fdc6bcf59ae66af6): Adopted `erb_lint` in 2026, still using it 5 months later, started Herb in 2026.
   [2026-05-13](https://github.com/dreikanter/f2/commit/fceaf3fd3367eed73c960d2d19956a4a29276719 "added .erb_lint.yml") · `.erb_lint.yml` · [herb 2026-06-20](https://github.com/dreikanter/f2/commit/51cce61ee4f8ef388aa2c3c2cdfbd038d14b3769 "first seen in .herb.yml")
+- [neighbourly](https://github.com/sofiabesenski4/neighbourly/tree/13091864227c176100a2a1d10ffbfe1473311afa): Adopted `erb_lint` in 2026, still using it 1 month later, started Herb in 2026.
+  [2026-09-30](https://github.com/sofiabesenski4/neighbourly/commit/81ee758b5b96d8dee2c45df1e8f537b24bfb5ccd "added Gemfile") · gem `0.9.0` · [herb 2026-09-30](https://github.com/sofiabesenski4/neighbourly/commit/81ee758b5b96d8dee2c45df1e8f537b24bfb5ccd "first seen in Gemfile")
 
 **Still on erb_lint** (17)
 
@@ -871,7 +875,7 @@ the commit that removed it.
 
 ### better_html
 
-**10 of 348** applications use `better_html` directly. 3 dropped it and now use Herb, and 7 run both.
+**10 of 349** applications use `better_html` directly. 3 dropped it and now use Herb, and 7 run both.
 
 > History could not be searched in 96 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -912,7 +916,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 348** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 349** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
 

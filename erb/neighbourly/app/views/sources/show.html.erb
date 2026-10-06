@@ -1,0 +1,72 @@
+<% content_for :title, @source.name %>
+
+<div class="w-full">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="font-bold text-4xl"><%= @source.name %></h1>
+      <div class="mt-2 flex items-center gap-3 text-sm text-gray-500">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <%= @source.source_type.upcase %>
+        </span>
+        <% if @source.url.present? %>
+          <span><%= @source.url %></span>
+        <% end %>
+        <span><%= pluralize(@documents.count, "document") %></span>
+        <% if @source.last_fetched_at %>
+          <span>Last ingested <%= time_ago_in_words(@source.last_fetched_at) %> ago</span>
+        <% end %>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <%= button_to "Delete", source_path(@source), method: :delete, class: "rounded-md px-3.5 py-2.5 bg-red-600 hover:bg-red-500 text-white inline-block font-medium cursor-pointer", data: { turbo_confirm: "Delete source '#{@source.name}' and all its documents?" } %>
+    </div>
+  </div>
+
+  <div class="mt-6">
+    <% if @documents.any? %>
+      <div class="space-y-4">
+        <% @documents.each do |doc| %>
+          <div id="document_<%= doc.id %>" class="bg-white shadow-sm rounded-lg border border-gray-200 p-5">
+            <div class="flex justify-between items-start">
+              <h3 class="font-medium text-stone-900"><%= doc.title || "Untitled" %></h3>
+              <%= button_to "Delete", document_path(doc), method: :delete, class: "ml-2 rounded-md px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium cursor-pointer", data: { turbo_confirm: "Delete document '#{doc.title}'?" } %>
+            </div>
+
+            <% if doc.metadata.present? && doc.metadata.keys.any? %>
+              <dl class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                <% doc.metadata.each do |key, value| %>
+                  <% next if value.blank? %>
+                  <div>
+                    <dt class="font-medium text-gray-500"><%= key.to_s.titleize %></dt>
+                    <dd class="mt-0.5 text-gray-900">
+                      <% if value.is_a?(Array) %>
+                        <%= value.join(", ") %>
+                      <% elsif value.is_a?(Hash) %>
+                        <%= value.map { |k, v| "#{k}: #{v}" }.join(", ") %>
+                      <% else %>
+                        <%= value %>
+                      <% end %>
+                    </dd>
+                  </div>
+                <% end %>
+              </dl>
+            <% end %>
+
+            <% if doc.content.present? %>
+              <details class="mt-3">
+                <summary class="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700">Raw content</summary>
+                <pre class="mt-2 text-xs text-gray-600 whitespace-pre-wrap bg-gray-50 rounded p-3 max-h-48 overflow-y-auto"><%= doc.content %></pre>
+              </details>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-center my-10 text-gray-500">No documents in this source.</p>
+    <% end %>
+  </div>
+
+  <div class="mt-4">
+    <%= link_to "Back to sources", sources_path, class: "rounded-md px-3.5 py-2.5 bg-gray-100 hover:bg-gray-50 inline-block font-medium" %>
+  </div>
+</div>
