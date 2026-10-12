@@ -1,0 +1,74 @@
+<section
+  class="bg-white border rounded-xl shadow-md dark:bg-gray-800 dark:border-gray-700 p-4 text-start flex flex-col gap-2"
+  id="task-compact-card-<%= @task.id %>"
+>
+  <div>
+    <%= render TendrilTasks::ProjectBadge.new(@task.project) %>
+    <%= render TendrilTasks::NewItemBadge.new if is_new? %>
+  </div>
+
+  <%= link_to task_path(@task) do %>
+    <%= render TendrilTasks::Heading
+                 .new(tag: :h3,
+                      scheme: :level5,
+                      responsive: false,
+                      class: "overflow-hidden pb-0.5 mb-0")
+                 .with_content(@task.title) %>
+  <% end %>
+
+  <%# First lines of the plain text description %>
+  <%= link_to task_path(@task), class: "grow" do %>
+    <%= render TendrilTasks::Paragraph.new(@task.description_plain_text&.truncate_words(30),
+                                           size: :md,
+                                           class: "line-clamp-3") %>
+  <% end %>
+
+  <%# Contact people as a pill as wide as the button, e.g. "Help Pete and Igor" %>
+  <% if @task.coordinators.any? %>
+    <%= render Modal::ToggleButtonComponent.new(
+      scheme: :none,
+      modal_id: modal_id,
+      class: "flex w-full items-center gap-2 my-2 p-1 pe-3 text-sm font-medium text-gray-700 bg-gray-100 rounded-full hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+    ) do %>
+      <%= render TendrilTasks::AvatarGroup.new(@task.coordinators,
+                                               size: :sm,
+                                               visible_count: VISIBLE_CONTACTS,
+                                               class: "shrink-0") %>
+
+      <%= tag.span t(".help", names: contact_names),
+                   class: "grow min-w-0 truncate text-start" %>
+
+      <%= render Gustwave::Icon.new(:chevron_right,
+                                    size: :sm,
+                                    position: :standalone,
+                                    class: "shrink-0 text-gray-500 dark:text-gray-400") %>
+    <% end %>
+  <% end %>
+
+  <% if applied? %>
+    <%= render Gustwave::Button.new(t(".applied_for_task_button"),
+                                    tag: :a,
+                                    href: task_path(@task, anchor: "apply-now"),
+                                    scheme: :green,
+                                    class: "w-full") %>
+  <% else %>
+    <%= render Gustwave::Button.new(t(".express_interest_button"),
+                                    tag: :a,
+                                    href: task_path(@task, anchor: "apply-now"),
+                                    class: "w-full") %>
+  <% end %>
+</section>
+
+<%# Modal for viewing the contact people %>
+<%= content_for :modal do %>
+  <%= render ::Modal::DialogComponent.new(modal_id) do |modal| %>
+    <% modal.heading(t(".your_contact_people")) %>
+
+    <%= render ::Modal::ParagraphComponent.new
+                 .with_content(t(".contact_people_description")) %>
+
+    <%= render ::Modal::ContactListComponent.new(@task.coordinators) %>
+    <% modal.button(scheme: :light, type: :reset).with_content(t(".close_window")) %>
+    <% modal.button(tag: :a, href: task_path(@task)).with_content(t(".go_to_task")) %>
+  <% end %>
+<% end %>

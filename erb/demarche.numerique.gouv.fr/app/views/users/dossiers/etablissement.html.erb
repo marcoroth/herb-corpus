@@ -1,0 +1,56 @@
+<% content_for(:title, t('.title')) %>
+
+<% content_for :footer do %>
+  <%= render partial: "users/procedure_footer", locals: { procedure: @dossier.procedure, dossier: @dossier } %>
+<% end %>
+
+<% etablissement = @dossier.etablissement %>
+<% siret = @dossier.siret %>
+<% token_rejected = @dossier.demandeur_siret.present? && @dossier.demandeur_siret_component_args('usager')[:token_rejected] %>
+
+<div class="fr-mt-5w">
+  <div class="container">
+    <h1><%= t('.title') %></h1>
+
+    <% if etablissement.nil? || etablissement.as_degraded_mode? %>
+      <%= render Dsfr::CalloutComponent.new(title: t('.unverified_title'), theme: :warning, icon: "fr-icon-feedback-fill") do |c| %>
+        <% c.with_body do %>
+          <p>
+            <%= token_rejected ? t('.token_rejected') : t('.insee_down') %>
+            <br>
+            <br>
+            <%= t('.check_yourself_html', siret: pretty_siret(siret)) %>
+          </p>
+
+          <p>
+            <%= link_to annuaire_link(siret), class: "fr-btn fr-btn--secondary", **external_link_attributes do %>
+              <%= t('.check_in_annuaire') %>
+            <% end %>
+          </p>
+        <% end %>
+      <% end %>
+    <% elsif etablissement.diffusable_commercialement == false %>
+      <p>
+        <%= t('warning_for_private_info', scope: 'views.shared.dossiers.identite_entreprise', siret: pretty_siret(etablissement.siret)) %>
+      </p>
+    <% else %>
+      <p><%= t('.fetched_from_insee') %></p>
+      <p><%= t('.attached') %></p>
+      <%= render Dsfr::CalloutComponent.new(title: raison_sociale_or_name(etablissement)) do |c| %>
+        <% c.with_body do %>
+          <%= render partial: 'users/dossiers/etablissement/infos_entreprise', locals: { etablissement: } %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <ul class="fr-mt-2w fr-mb-5w fr-btns-group fr-btns-group--inline">
+      <li>
+        <%= link_to t('.other_siret'), siret_dossier_path(@dossier), class: 'fr-btn fr-btn--secondary' %>
+      </li>
+
+      <li>
+        <%= link_to t('.continue'), url_for_dossier(@dossier), class: 'fr-btn' %>
+      </li>
+    </ul>
+  </div>
+</div>
