@@ -1,0 +1,295 @@
+<%# locals: (message:, request_id: nil, scroll_down: false, only_scroll_down_if_was_bottom: false, thinking: nil, streamed: false, message_counter: -1) -%>
+<%# request_id is not used, but broadcasting turbo stream messages provides it as a local so it needs to be accepted %>
+
+<% conversation = message.conversation %>
+<% conversation_version = streamed ? message.version : @version %>
+<% if message.versions.present?
+  previous_version  = message.versions.push(nil)[ message.versions.index(message.version)-1 ]
+  next_version      = message.versions.push(nil)[ message.versions.index(message.version)+1 ]
+end %>
+<% max_index = conversation.messages.for_conversation_version(conversation_version).count - 1 %>
+<% last_message = message_counter == max_index %>
+<% initial_page_load = last_message && !scroll_down # this value is only accurate when rendering last_message %>
+<% scroll_down = scroll_down || initial_page_load %>
+<% thinking ||= last_message && message.content_text.blank? && message.not_cancelled? %>
+<%# content_text is "" once the job starts streaming and nil before it does; either way we're waiting on a reply %>
+<% done_thinking = !thinking && message.content_text.present? %>
+<% debug_tool_message = false %>
+
+<div
+  id="<%= dom_id message %>"
+  class="mb-5 ml-9 sm:ml-3 md:ml-8 group <%= message.only_tool_response? && !message_to_user_from_tool_call?(message) && !debug_tool_message && "hidden" %>"
+  data-role="message"
+  data-subrole="<%= message.role %>-message"
+
+  data-controller="<%= message.assistant? && !message.only_tool_response? && "playback" %>"
+  data-playback-id-value="<%= message.id %>"
+  data-playback-sentences-index-value="0"
+  data-playback-done-prompting-value="false"
+  data-playback-transition-outlet="#playback-control-<%= message.id %>"
+  data-action="turbo:before-morph-attribute->playback#preserveStimulusValues"
+> <!-- this outer div persists throughout streaming updates -->
+  <div
+    class="flex"
+    data-role="inner-message"
+
+    data-controller="<%= class_names(
+      "message-scroller" => scroll_down || only_scroll_down_if_was_bottom,
+      "stream-watchdog"  => thinking
+    ) %>"
+    data-message-scroller-scroll-down-value="<%= scroll_down %>"
+    data-message-scroller-only-scroll-down-if-scrolled-to-bottom-value="<%= only_scroll_down_if_was_bottom %>"
+    data-message-scroller-instantly-value="<%= initial_page_load %>"
+  > <!-- this inner div is replaced during streaming updates (inner_html of dom_id message) -->
+
+    <!-- Left Column -->
+    <div class="w-7 ml-1 flex">
+      <%= render_avatar_for(message) %>
+    </div>
+
+    <!-- Right Column -->
+    <div
+      id="message-contents-<%= message.id %>"
+      data-role="message-contents"
+      class="flex-1 min-w-0 ml-3 mr-8 text-base text-gray-950 dark:text-gray-100"
+      data-controller="
+        clipboard
+        transition
+      "
+      data-transition-toggle-class="hidden"
+    >
+      <div class="mt-[6px] mb-1 font-semibold" data-role="from">
+        <%= from_name_for(message) unless message.tool? %>
+      </div>
+
+      <turbo-frame id="message-text-<%= message.id %>">
+        <div
+          class="hidden"
+          data-clipboard-target="text"
+        ><%= format_for_copying message.content_text %></div>
+        <div
+          class="hidden"
+          data-playback-target="<%= message.assistant? && "assistantText" %>"
+          data-thinking="<%= !!thinking %>"
+        ><%= format_for_speaking message.content_text %></div>
+
+        <% if message.assistant? && message.thinking_text.present? && conversation.user.show_thinking? %>
+          <%# open while the reply streams in, collapsed once it is done %>
+          <details data-role="thinking-text" class="mb-2 text-sm text-gray-500 dark:text-gray-400" <%= "open" if thinking %>>
+            <summary class="cursor-pointer select-none"><%= t("app.messages.thinking") %></summary>
+            <div class="mt-1 pl-3 border-l-2 border-gray-200 dark:border-gray-600 whitespace-pre-wrap break-words"><%= message.thinking_text %></div>
+          </details>
+        <% end %>
+
+        <div
+          data-role="content-text"
+          class="prose break-words leading-normal dark:[&_*]:text-gray-100 dark:marker:text-gray-100"
+        >
+          <% if message.documents.present? %>
+            <div class="flex flex-wrap gap-2 my-1" data-role="document-attachments">
+              <% message.documents.each do |document| %>
+                <% if document.has_image? %>
+                  <div data-controller="modal" data-modal-image-loader-outlet="[data-image-modal='<%= dom_id(document) %>']">
+                    <%= button_tag type: "button",
+                      class: "w-full h-auto flex focus:outline-none",
+                      data: {
+                        role: "image-preview",
+                        controller: "image-loader",
+                        image_loader_message_scroller_outlet: "[data-role='inner-message']",
+                        image_loader_url_value: document.image_url(:small),
+                        action: "modal#open",
+                    } do %>
+                      <%= image_tag document.image_url(:small, fallback: ""),
+                        class: %|
+                          my-0
+                          mx-auto
+                          max-w-full
+                          border-2 border-gray-100 dark:border-gray-400
+                          rounded-md
+                        |,
+                        data: {
+                          image_loader_target: "image",
+                          action: %|
+                            error->image-loader#retryAfterDelay
+                            load->image-loader#show
+                          |
+                      } %>
+                      <div data-role="image-loader" class="mx-auto hidden" data-image-loader-target="loader">
+                        <%= spinner size: 6, class: "text-black dark:text-white" %>
+                      </div>
+                    <% end %>
+
+                    <dialog class="modal no-focus-outline" data-modal-target="dialog" data-role="image-modal">
+                      <main class="modal-box max-w-5xl p-0 rounded-none">
+                        <article
+                          class="flex flex-col md:flex-row justify-center"
+                          data-controller="image-loader"
+                          data-image-modal="<%= dom_id(document) %>"
+                          data-image-loader-message-scroller-outlet="[data-role='inner-message']"
+                          data-image-loader-url-value="<%= document.image_link_url(:large) %>"
+                          data-image-loader-lazy-value="true"
+                          data-turbo-permanent
+                        >
+                          <%= image_tag "",
+                            class: "w-full h-auto",
+                            data: {
+                              image_loader_target: "image",
+                              action: %|
+                                error->image-loader#retryAfterDelay
+                                load->image-loader#show
+                          | } %>
+                          <div data-role="image-loader" class="hidden p-5" data-image-loader-target="loader">
+                            <%= spinner size: 6, class: "text-black dark:text-white" %>
+                          </div>
+                        </article>
+                      </main>
+                      <form method="dialog" class="modal-backdrop no-focus-outline">
+                        <button><%= t("app.share.close") %></button>
+                      </form>
+                    </dialog>
+                  </div>
+                <% elsif document.has_document_pdf? %>
+                  <%= link_to document.file.url,
+                    class: "w-full my-2 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 block",
+                    target: "_blank",
+                    rel: "noopener noreferrer" do %>
+                    <div class="flex items-center space-x-3">
+                      <div class="flex-shrink-0">
+                        <svg class="w-8 h-8 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
+                        </svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          <%= document.filename %>
+                        </p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                          <%= t("app.messages.pdf_document") %>
+                        </p>
+                      </div>
+                      <div class="flex-shrink-0">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                        </svg>
+                      </div>
+                    </div>
+                  <% end %>
+                <% end %>
+              <% end %>
+            </div>
+          <% end %>
+          <%= formatted_text = format_for_display message, append_inside_tag: thinking_html(message, thinking) %>
+        </div>
+
+        <% if message.assistant? && message.assistant.not_deleted? && (message.failed? || thinking) %>
+          <%= render "messages/retry", message: message, failed: message.failed? %>
+        <% end %>
+
+        <% if debug_tool_message && message.content_tool_calls.present? %>
+          <div
+            data-role="content-text"
+            class="prose break-words leading-normal dark:[&_*]:text-gray-100 dark:marker:text-gray-100"
+          >
+            <%= formatted_text = format "```\n#{message.content_tool_calls}\n```" %>
+          </div>
+        <% end %>
+
+        <div class="
+          flex justify-start
+          gap-2
+          text-gray-600 dark:text-gray-300
+          h-[19px]
+          <%= !last_message && done_thinking && "invisible" %> group-tap:visible
+        ">
+          <% if message.versions.length > 1 %>
+            <%= render "messages/version_button", message:, version: previous_version, role: "previous", margin: "-ml-1", icon_name: "chevron-left", title: t("app.messages.previous_version") %>
+
+            v<%= message.version %>
+            <%= render "messages/version_button", message:, version: next_version, role: "next", margin: "mr-2", icon_name: "chevron-right", title: t("app.messages.next_version") %>
+          <% end %>
+
+          <% if message.user? && message.assistant.not_deleted? && !message.has_document_image? %>
+            <%= link_to edit_assistant_message_path(message.assistant, message),
+              class: "cursor-pointer hover:text-gray-900 dark:hover:text-white flex items-center",
+              data: {
+                role: "message-edit",
+                composer_target: "messageEdit",
+                turbo_frame: "message-text-#{message.id}",
+              } do %>
+              <%= icon "pencil", variant: :outline, size: 18, title: t("app.messages.edit") %>
+            <% end %>
+          <% elsif message.assistant? && message.assistant.not_deleted? %>
+            <% if Feature.voice? %>
+              <%= button_tag type: "button",
+                id: "playback-control-#{message.id}",
+                class: "cursor-pointer hover:text-gray-900 dark:hover:text-white",
+                data: {
+                  role: "playback",
+                  controller: "transition",
+                  transition_toggle_class: "hidden",
+                  action: %|
+                    playback#toggleSpeakingMessage
+                  |,
+              } do %>
+                <%= icon "speaker-wave", variant: :outline, size: 19, title: t("app.messages.read_aloud"), data: { role: "play", transition_target: "transitionable" } %>
+                <%= icon "stop-circle", variant: :outline, size: 19, title: t("app.conversations.ui.stop"), data: { role: "stop", transition_target: "transitionable" }, class: "hidden" %>
+              <% end %>
+            <% end %>
+            <%= button_tag type: "button",
+              class: "cursor-pointer hover:text-gray-900 dark:hover:text-white",
+              data: {
+                role: "clipboard",
+                action: %|
+                  clipboard#copy
+                  transition#toggleClassOn
+                  mouseleave->transition#toggleClassOff
+                |,
+                keyboard_target: formatted_text.present? && formatted_text.exclude?("keyboard-target") ? "keyboardable" : nil,
+                # ^ ensure the keyboard shortcut is only attached if there is text && if this text does not contain a code block
+            } do %>
+              <%= icon "clipboard", variant: :outline, size: 18, title: t("app.messages.copy"), data: { transition_target: "transitionable" } %>
+              <%= icon "check", variant: :outline, size: 18, title: t("app.messages.copied"), data: { transition_target: "transitionable" }, class: "hidden" %>
+            <% end %>
+
+            <div class="dropdown dropdown-top flex items-center">
+              <%= icon "arrow-path",
+                tabindex: 0,
+                role: :button,
+                variant: :outline,
+                size: 18,
+                title: t("app.messages.regenerate"),
+                data: { role: "regenerate" }
+              %>
+
+              <menu tabindex="0" class="dropdown-content -ml-6 z-10 menu p-2 shadow-xl bg-base-100 rounded-box w-52 dark:!bg-gray-700">
+                <% message.user.assistants.ordered.excluding(message.assistant).to_a.push(message.assistant).each do |assistant| %>
+                  <% last = message.assistant == assistant %>
+                  <li class="overflow-hidden <%= "border-t border-gray-200 dark:border-gray-500 pt-1 mt-1" if last %>">
+                    <%= button_to assistant_messages_path(assistant),
+                      form_class: "inline-block p-0",
+                      class: "truncate w-full py-2 px-4 text-left",
+                      method: :post,
+                      params: { message: {
+                        conversation_id: conversation.id,
+                        assistant_id: assistant.id,
+                        role: "assistant",
+                        index: message.index,
+                        branched: true,
+                        branched_from_version: message.version
+                      } },
+                      data: {
+                        turbo_frame: "_top",
+                        turbo_action: "replace",
+                    } do %>
+                      <%= t("app.messages.regenerate_menu.using", name: assistant.name) %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </menu>
+            </div>
+          <% end %>
+        </div>
+      </turbo-frame>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,442 @@
+<turbo-frame
+  id="conversation"
+  class="relative flex flex-col flex-1 min-w-0"
+  data-turbo-action="advance"
+>
+  <%= button_to user_path(Current.user),
+    id: "handle",
+    form_class: %|
+      hidden md:flex
+      absolute left-0 -mt-10 top-1/2
+      z-20
+      cursor-pointer
+      group
+    |,
+    method: :patch,
+    params: { user: { preferences: { nav_closed: !Current.user.nav_closed } } },
+    class: %| flex-1 flex w-8 h-20
+    |,
+    data: {
+      turbo_frame: "_top",
+      controller: "keyboard",
+      action: %|
+        nav#toggleColumn
+
+        keydown.meta+shift+s@document->keyboard#click
+        keydown.ctrl+shift+s@document->keyboard#click
+        keydown.meta+period@document->keyboard#click
+        keydown.ctrl+period@document->keyboard#click
+      |,
+  } do
+  %>
+    <%= render "messages/main_column/sidebar_handle", side: "left", visibility: "hidden nav-open:!flex", tip: t("app.conversations.ui.close_sidebar"),
+      top_tilt: "group-hover:rotate-12", bottom_tilt: "group-hover:-rotate-12" %>
+    <%= render "messages/main_column/sidebar_handle", side: "right", visibility: "flex nav-open:!hidden", tip: t("app.conversations.ui.open_sidebar"),
+      top_tilt: "-rotate-12", bottom_tilt: "rotate-12" %>
+  <% end %>
+
+  <!-- Only one of these headers is visible at a time, depending on width -->
+  <header id="wide-header" class="justify-between flex-none hidden h-10 mt-2 mb-3 ml-2 text-lg text-gray-950 dark:text-gray-100 md:flex">
+    <%= render "messages/main_column/assistant_header" %>
+
+    <div class="flex items-center gap-2">
+      <%= render "messages/main_column/share_button", conversation: @conversation %>
+
+      <%= link_to new_assistant_message_path(@assistant),
+        target: "_top",
+        class: "block cursor-pointer inline-flex mr-3 px-2 py-2 group",
+        data: {
+          role: "new",
+          controller: "keyboard",
+          action: %|
+            keydown.meta+shift+o@document->keyboard#click
+            keydown.ctrl+shift+o@document->keyboard#click
+            keydown.meta+j@document->keyboard#click
+            keydown.ctrl+j@document->keyboard#click
+          |
+        } do %>
+        <%= icon "pencil-square", variant: :outline, size: 22, class: "stroke-2 text-gray-950 dark:text-gray-100", title: t("app.conversations.new_chat"), tooltip: :left %>
+      <% end %>
+    </div>
+  </header>
+
+  <header id="narrow-header" class="flex-none text-lg text-center h-14 md:hidden">
+    <div class="flex items-center justify-between flex-1 mb-2 border-b border-gray-300 text-gray-950 dark:text-gray-100 dark:border-gray-600 dark:bg-gray-800">
+      <%= render "layouts/nav_toggle" %>
+
+      <%= render "messages/main_column/assistant_header" %>
+
+      <div class="flex items-center gap-2">
+        <%= render "messages/main_column/share_button", conversation: @conversation %>
+
+        <%= link_to new_assistant_message_path(@assistant), target: "_top", class: "block cursor-pointer inline-flex mr-1 px-2 group", data: { role: "new" } do %>
+          <%= icon "pencil-square", variant: :outline, size: 22, class: "stroke-2 text-gray-950 dark:text-gray-100", title: t("app.conversations.new_chat"), tooltip: :left %>
+        <% end %>
+      </div>
+    </div>
+  </header>
+  <!-- end header possibilities -->
+
+  <section
+    class="flex flex-col flex-grow overflow-y-auto bg-white dark:bg-gray-800 overflow-x-clip scrollbar-hide"
+    data-controller="scrollable speaker"
+    data-action="turbo:before-morph-attribute->speaker#preserveStimulusValues"
+    data-speaker-playback-outlet="[data-subrole='assistant-message']"
+    data-scrollable-not-bottom-class="!block"
+  >
+    <div id="messages" class="relative flex-grow overflow-y-auto overscroll-contain" data-scrollable-target="scrollable" data-action="scroll->scrollable#scrolled">
+      <div id="messages-container" class="w-full md:max-w-none lg:max-w-[700px] xl:max-w-[810px] mx-auto mt-2">
+        <%= yield :messages %>
+      </div>
+    </div>
+
+    <footer class="relative flex flex-col flex-none">
+      <div id="scroll-button" class="absolute hidden text-center transform -translate-x-1/2 -top-14 left-1/2" data-scrollable-target="widget">
+        <%= button_tag type: "button",
+              class: "block rounded-full bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-600 inline-flex px-2 py-2 tooltip tooltip-top hover:tooltip-open cursor-pointer group",
+              data: {
+                tip: t("app.conversations.ui.scroll_down"),
+                action: "scrollable#scrollToBottom"
+              } do
+        %>
+          <%= icon "arrow-down", variant: :outline, size: 16, class: "text-gray-800 dark:text-white cursor-pointer stroke-3" %>
+        <% end %>
+      </div>
+
+      <div class="<%= @assistant.not_deleted? && "hidden" %> flex-1 pl-6 pr-6 w-full md:max-w-none lg:max-w-[700px] xl:max-w-[810px] mx-auto relative leading-relaxed">
+        <p class="text-center"><%= t("app.conversations.assistant_deleted", name: @assistant.name) %></p>
+      </div>
+
+      <div id="composer"
+        class="
+          <%= @assistant.deleted? && "hidden" %>
+          flex-1 relative
+          leading-relaxed
+          pl-6 pr-6 mx-auto mb-6
+          w-full md:max-w-none lg:max-w-[700px] xl:max-w-[810px]
+        "
+        data-controller="composer"
+        data-composer-speaker-outlet="[data-controller~='speaker']"
+        data-composer-blur-placeholder-value="<%= t("app.conversations.composer.blur_placeholder") %>"
+        data-composer-focus-placeholder-value="<%= t("app.conversations.composer.focus_placeholder") %>"
+        data-composer-speak-placeholder-value="<%= t("app.conversations.composer.speak_placeholder") %>"
+        data-composer-mic-permission-required-value="<%= t("app.conversations.ui.mic_permission_required") %>"
+      >
+        <%= button_tag type: "button",
+              id: "attach-button",
+              class: "absolute left-11 bottom-[26px] w-[23px] h-[23px]",
+              data: { action: "image-upload#choose" } do
+        %>
+          <%= icon "paper-clip", variant: :mini, size: 23, class: "text-black dark:text-white cursor-pointer stroke-2", title: t("app.conversations.ui.attach"), tooltip: :top %>
+        <% end %>
+
+        <div id="document-previews" class="absolute hidden flex-wrap gap-3 max-w-[280px] left-9 top-3 show-previews:preview-container" data-image-upload-target="previewList">
+          <template data-image-upload-target="previewTemplate">
+            <div class="
+                flex flex-col
+                items-stretch
+                w-16 h-16
+                overflow-hidden
+                border-2 border-gray-100
+                rounded-xl
+                group
+                relative
+              "
+              data-role="preview"
+            >
+              <%= button_tag type: "button",
+                class: "rounded-full absolute -top-2 -right-2 border border-gray-300 bg-gray-200 dark:bg-gray-800 hidden group-hover:block",
+                data: {
+                  action: "image-upload#removeFile",
+                  role: "preview-remove"
+                } do
+              %>
+                <%= icon "x-mark",
+                  variant: :mini,
+                  class: %|
+                    text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white
+                    cursor-pointer stroke-2
+                  |,
+                  title: t("app.conversations.ui.remove_file"),
+                  tooltip: :top
+                %>
+              <% end %>
+
+              <%= button_tag type: "button",
+                class: "w-full h-full flex-1 p-0" do
+              %>
+                <%= image_tag "", class: "w-full h-full object-cover" %>
+              <% end %>
+            </div>
+          </template>
+        </div>
+
+        <% if @streaming_message %>
+          <%= form_with(
+            model: @streaming_message,
+            class: %|
+              z-20
+              absolute
+              right-8 bottom-4
+              h-[40px] w-[100px]
+              flex items-center justify-end
+              bg-white dark:bg-gray-800
+            |,
+            data: {
+              composer_target: "cancel",
+              turbo_frame: "_top" # this causes the page to morph, without this it does a frame substitution
+          }) do |form| %>
+            <div class="text-gray-300 dark:text-gray-500 mr-2 hidden md:block">
+              ⌘ ESC
+            </div>
+            <%= form.hidden_field :cancelled_at, value: Time.current %>
+            <%= form.button type: "submit",
+              id: "cancel",
+              data: {
+                controller: "keyboard",
+                action: %|
+                  keydown.meta+esc@document->keyboard#click
+                  keydown.ctrl+esc@document->keyboard#click
+                |,
+              },
+              class: %|
+                relative
+                flex items-center justify-center
+                w-[40px] h-[40px]
+                bg-white dark:bg-gray-800
+            | do %>
+              <%= icon "stop", variant: :solid, size: 15, class: "absolute top-[6px] left-[6px]" %>
+              <%= icon "stop-circle", variant: :outline, size: 39, title: t("app.conversations.ui.stop"), tooltip: :top %>
+            <% end %>
+          <% end %>
+        <% end %>
+
+        <%= form_with(
+          model: [@assistant, @new_message],
+          data: {
+            composer_target: "form",
+            turbo_frame: "_top", # this causes the page to morph, without this it does a frame substitution
+        }) do |form| %>
+          <%= form.hidden_field :conversation_id %>
+          <%= form.hidden_field :index, value: @messages&.length %>
+          <%= form.hidden_field :version, value: @version %>
+          <%= form.hidden_field :spoken, value: false, data: { composer_target: "spoken" } %>
+          <%= form.fields_for :documents, @new_message.documents.build do |document_form| %>
+            <%= document_form.file_field :file, accept: attachment_types_for(@assistant), class: "hidden", data: { image_upload_target: "file" } %>
+          <% end %>
+          <div class="hidden" data-image-upload-target="fileInputs"></div>
+
+          <%= file_field_tag :attachment_picker,
+            multiple: true,
+            accept: attachment_types_for(@assistant),
+            class: "hidden",
+            data: { image_upload_target: "picker" } %>
+
+          <%= form.text_area :content_text,
+            id: "composer-input",
+            data: {
+              composer_target: "input",
+              image_upload_target: "content",
+              application_target: "newMessageField",
+              controller: "textarea-autogrow permanent-value",
+              action: %|
+                composer#determineSubmitButton
+
+                keydown.enter->composer#submitForm:prevent
+                keydown.meta+enter->composer#submitForm
+                keydown.ctrl+enter->composer#submitForm
+
+                keydown.shift+esc@document->composer#focusKeydown
+                keydown.slash@document->composer#focusKeydown
+                focus->composer#focus
+                blur->composer#blur
+
+                keydown.esc->composer#unfocusKeydown
+
+                keydown.meta+shift+o->composer#unfocusKeydown
+                keydown.ctrl+shift+o->composer#unfocusKeydown
+                keydown.meta+j->composer#unfocusKeydown
+                keydown.ctrl+j->composer#unfocusKeydown
+
+                paste->composer#smartPaste
+
+                keydown.ctrl+m@document->composer#toggleMicrophone
+                keydown.meta+m@document->composer#toggleMicrophone
+
+                keydown.up->composer#editPrevious
+              |
+            },
+            rows: 1,
+            class: %|
+              w-full pt-[14px] pb-[13px] min-h-14
+              mb-2 block
+              pl-14 pr-12 show-previews:pt-24
+              bg-transparent
+              text-black dark:text-gray-200
+              placeholder-gray-300 dark:placeholder-gray-500
+              text-md
+              rounded-2xl border-gray-300
+              focus:ring-0 focus:border-gray-400 focus:shadow
+              disabled:text-gray-300 disabled:border-gray-200
+              resize-none
+            |
+          %>
+
+          <!-- options for the composer right button -->
+
+          <% if Feature.voice? %>
+            <%= form.button type: "button",
+              data: {
+                composer_target: "microphoneDisable",
+                action: "composer#userDisableMicrophone"
+              },
+              id: "microphone-disable",
+              class: %w|
+                hidden
+                z-40
+                absolute right-8 bottom-4
+                w-[40px] h-[40px]
+                flex items-center justify-center
+                text-red-600 dark:text-red-400
+                bg-white dark:bg-gray-800
+              | do
+            %>
+              <%= icon "microphone", variant: :solid, size: 26, title: t("app.conversations.ui.stop"), tooltip: :top %>
+            <% end %>
+          <% end %>
+
+          <%= form.button type: "button",
+            data: {
+              composer_target: "submit",
+              action: "composer#submitForm"
+            },
+            id: "send",
+            class: %w|
+              hidden
+              z-30
+              absolute right-8 bottom-4
+              w-[39px] h-[39px]
+              text-gray-100 dark:text-gray-600
+              enabled:text-black
+              enabled:dark:text-white
+              bg-white dark:bg-gray-800
+            | do
+          %>
+            <%= icon "arrow-up-circle", variant: :solid, size: 39, title: t("app.conversations.ui.send_message"), tooltip: :top %>
+          <% end %>
+
+          <!-- the cancel button is z-20, it's declared above the current form and positioned in this same spot -->
+
+          <% if Feature.voice? %>
+            <div
+              id="microphone-enable"
+              data-composer-target="microphoneEnable"
+              class="
+                z-10
+                absolute
+                right-8 bottom-4
+                h-[40px] w-[100px]
+                flex items-center justify-end
+                bg-white dark:bg-gray-800
+            ">
+              <div class="text-gray-300 dark:text-gray-500 mr-1 hidden md:block">
+                ⌘ M
+              </div>
+
+              <%= form.button type: "button",
+                data: {
+                  action: "composer#enableMicrophone"
+                },
+                class: %w|
+                  flex items-center justify-center
+                  w-[40px] h-[40px]
+                  text-gray-100 dark:text-gray-600
+                  enabled:text-black
+                  enabled:dark:text-white
+                | do
+              %>
+                <%= icon "microphone", variant: :outline, size: 26, title: t("app.conversations.ui.voice_mode"), tooltip: :top %>
+              <% end %>
+            </div>
+          <% end %>
+
+          <%= form.button type: "button",
+            disabled: true,
+            data: {
+              composer_target: "disabledSubmit",
+            },
+            class: %|
+              z-10
+              absolute right-8 bottom-4
+              w-[40px] h-[40px]
+              flex items-center justify-center
+              text-gray-100 dark:text-gray-600
+              enabled:text-black
+              enabled:dark:text-white
+              #{Feature.voice? && "!hidden"}
+            | do
+          %>
+            <%= icon "arrow-up-circle", variant: :solid, size: 39, title: t("app.conversations.ui.send_message"), tooltip: :top %>
+          <% end %>
+
+          <div
+            id="composer-overlay"
+            data-composer-target="overlay"
+            data-action="click->composer#userDisableMicrophone"
+            class="absolute inset-0 bg-white dark:bg-gray-800 !bg-opacity-65 hidden">
+          </div>
+
+        <% end %>
+      </div>
+    </footer>
+  </section>
+</turbo-frame>
+
+<dialog
+  id="tooltip-dialog"
+  class="modal no-focus-outline"
+  data-controller="modal"
+  data-action="keydown@document->modal#keydownQuestionOpen"
+>
+  <div class="modal-box max-w-5xl dark:bg-black">
+    <header class="font-bold text-lg mb-5">
+      <%= t("app.conversations.shortcuts.header") %>
+    </header>
+    <article class="flex flex-col md:flex-row">
+      <section class="flex-1 pr-0 md:pr-5">
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.open_new"), keys: ["Ctrl or ⌘", "J"] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.focus_input"), keys: ["/"] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.unfocus_input"), keys: ["ESC"] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.toggle_microphone"), keys: ["Ctrl or ⌘", "M"] %>
+
+      </section>
+      <section class="flex-1 pl-0 md:pl-5">
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.stop_streaming"), keys: ["Ctrl or ⌘", "ESC"] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.copy_last"), keys: ["Shift", "Ctrl or ⌘", "C"] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.toggle_sidebar"), keys: ["Ctrl or ⌘", "."] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.show_shortcuts"), keys: ["?"] %>
+      </section>
+    </article>
+    <header class="font-semibold text-lg my-5 pb-1 border-b-2 border-gray-100">
+      <%= t("app.conversations.shortcuts.inside_input_header") %>
+    </header>
+    <article class="flex flex-col md:flex-row">
+      <section class="flex-1 pr-0 md:pr-5">
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.submit_chat"), keys: ["RETURN"] %>
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.edit_previous"), keys: ["↑"] %>
+      </section>
+      <section class="flex-1 pl-0 md:pl-5">
+        <%= render "messages/main_column/shortcut", label: t("app.conversations.shortcuts.unfocus_input"), keys: ["ESC"] %>
+      </section>
+    </article>
+  </div>
+  <form method="dialog" class="modal-backdrop no-focus-outline">
+    <button id="modal-backdrop">close</button>
+  </form>
+</dialog>
+
+<%= render "layouts/visualizer_overlay" %>
+
+<% if @conversation&.persisted? %>
+  <%= render "conversations/share_modal", conversation: @conversation %>
+<% end %>

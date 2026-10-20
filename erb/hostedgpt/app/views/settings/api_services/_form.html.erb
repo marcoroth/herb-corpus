@@ -1,0 +1,168 @@
+<%= form_with(model: [:settings, api_service], class: "contents", data: {controller: "testing"}) do |form| %>
+  <%= render "layouts/form_errors", record: api_service, title: t("app.settings.api_services.errors_title", count: api_service.errors.count) %>
+
+  <%= labeled_text_field form, :name, t("app.settings.api_services.table.name") %>
+
+  <div class="my-5">
+    <%= form.label :driver, t("app.settings.api_services.table.driver") %>
+    <%= form.select :driver,
+      APIService.drivers.keys,
+      {},
+      data: { action: "change->testing#disable_test_link" },
+      class: %|
+        block
+        border border-gray-200 outline-none
+        shadow rounded-md
+        px-3 py-2 mt-2
+        w-full
+        dark:text-black
+      |
+    %>
+  </div>
+
+  <div class="my-5 inline-block w-full">
+    <%= form.label :url, t("app.settings.api_services.table.url") %>
+    <span>
+      <% if api_service.persisted? && !brave?(api_service) %>
+        <%= link_to t("app.settings.api_services.test"), settings_api_service_test_path(api_service),
+          data: { testing_target: "test", action: "click->testing#test_api_service" },
+          class: "underline text-blue-600"
+        %>
+      <% end %>
+      <span id="test_result"></span>
+    </span>
+    <%= form.text_field :url,
+      data: { testing_target: "url" },
+      class: "block shadow rounded-md border border-gray-200 outline-none px-3 py-2 mt-2 w-full dark:text-black"
+    %>
+  </div>
+
+  <div class="my-5" data-controller="transition" data-transition-toggle-class="hidden">
+    <%= form.label :token, :token %>
+    <%= button_tag type: "button",
+      id: "instructions",
+      class: "underline text-blue-600 #{!official?(api_service) && "hidden"}",
+      data: {
+        transition_target: "transitionable",
+        action: "transition#toggleClass",
+      } do
+    %><%= t("app.settings.api_services.instructions_button") %>
+    <% end %>
+    <ol id="openai-instructions"
+      data-transition-target="<%= openai?(api_service) && "transitionable" %>"
+      class="
+        list-decimal
+        my-3 p-2 pl-8
+        border border-gray-200
+        bg-gray-50 dark:bg-transparent
+        hidden
+      "
+    >
+      <%= instruction_step "openai.step1_html", "Platform", "https://platform.openai.com/" %>
+      <%= instruction_step "openai.step2_html", t("app.settings.api_services.instructions.take_me_to_api_keys"), "https://platform.openai.com/api-keys" %>
+      <li><%= t("app.settings.api_services.instructions.openai.step3") %></li>
+      <li><%= t("app.settings.api_services.instructions.openai.step4_html", name: Setting.product_name) %></li>
+      <%= instruction_step "openai.step5_html", t("app.settings.api_services.instructions.take_me_to_billing"), "https://platform.openai.com/account/billing/overview" %>
+      <li><%= t("app.settings.api_services.instructions.openai.step6") %></li>
+    </ol>
+    <ol id="anthropic-instructions"
+      data-transition-target="<%= anthropic?(api_service) && "transitionable" %>"
+      class="
+        list-decimal
+        my-3 p-2 pl-8
+        border border-gray-200
+        bg-gray-50 dark:bg-transparent
+        hidden
+      "
+    >
+      <%= instruction_step "anthropic.step1_html", "Console", "https://console.anthropic.com/" %>
+      <%= instruction_step "anthropic.step2_html", t("app.settings.api_services.instructions.take_me_to_api_keys"), "https://console.anthropic.com/settings/keys" %>
+      <li><%= t("app.settings.api_services.instructions.anthropic.step3_html", name: Setting.product_name) %></li>
+      <li><%= t("app.settings.api_services.instructions.anthropic.step4") %></li>
+      <%= instruction_step "anthropic.step5_html", t("app.settings.api_services.instructions.take_me_to_plans"), "https://console.anthropic.com/settings/plans" %>
+      <li><%= t("app.settings.api_services.instructions.anthropic.step6") %></li>
+    </ol>
+    <ol id="groq-instructions"
+      data-transition-target="<%= groq?(api_service) && "transitionable" %>"
+      class="
+        list-decimal
+        my-3 p-2 pl-8
+        border border-gray-200
+        bg-gray-50 dark:bg-transparent
+        hidden
+      "
+    >
+      <%= instruction_step "groq.step1_html", "Groq Cloud Console", "https://console.groq.com/" %>
+      <%= instruction_step "groq.step2_html", t("app.settings.api_services.instructions.take_me_to_api_keys"), "https://console.groq.com/keys" %>
+      <li><%= t("app.settings.api_services.instructions.groq.step3_html", name: Setting.product_name) %></li>
+    </ol>
+    <ol id="openrouter-instructions"
+      data-transition-target="<%= openrouter?(api_service) && 'transitionable' %>"
+      class="
+        list-decimal
+        my-3 p-2 pl-8
+        border border-gray-200
+        bg-gray-50 dark:bg-transparent
+        hidden
+      "
+    >
+      <%= instruction_step "openrouter.step1_html", "OpenRouter", "https://openrouter.ai/" %>
+      <%= instruction_step "openrouter.step2_html", t("app.settings.api_services.instructions.take_me_to_api_keys"), "https://openrouter.ai/keys" %>
+      <li><%= t('app.settings.api_services.instructions.openrouter.step3_html', name: Setting.product_name) %></li>
+      <%= instruction_step "openrouter.step4_html", t("app.settings.api_services.instructions.take_me_to_billing"), "https://openrouter.ai/credits" %>
+    </ol>
+    <ol id="gemini-instructions"
+      data-transition-target="<%= gemini?(api_service) && "transitionable" %>"
+      class="
+        list-decimal
+        my-3 p-2 pl-8
+        border border-gray-200
+        bg-gray-50 dark:bg-transparent
+        hidden
+      "
+    >
+      <li><%= t("app.settings.api_services.instructions.gemini.step1") %></li>
+      <%= instruction_step "gemini.step2_html", "Google AI Studio", "https://aistudio.google.com/" %>
+      <%= instruction_step "gemini.step3_html", t("app.settings.api_services.instructions.take_me_to_api_keys"), "https://aistudio.google.com/apikey" %>
+      <li><%= t("app.settings.api_services.instructions.gemini.step4") %></li>
+      <li><%= t("app.settings.api_services.instructions.gemini.step5") %></li>
+      <li><%= t("app.settings.api_services.instructions.gemini.step6") %></li>
+      <%= instruction_step "gemini.step7_html", "Gemini Credentials", "https://github.com/gbaptista/gemini-ai#credentials" %>
+    </ol>
+    <ol id="brave-instructions"
+      data-transition-target="<%= brave?(api_service) && "transitionable" %>"
+      class="
+        list-decimal
+        my-3 p-2 pl-8
+        border border-gray-200
+        bg-gray-50 dark:bg-transparent
+        hidden
+      "
+    >
+      <%= instruction_step "brave.step1_html", "Brave Search API", "https://brave.com/search/api/" %>
+      <%= instruction_step "brave.step2_html", "API Keys", "https://api.search.brave.com/app/keys" %>
+      <li><%= t("app.settings.api_services.instructions.brave.step3_html", name: Setting.product_name) %></li>
+    </ol>
+    <%= form.text_field :token,
+      class: %|
+        block shadow
+        rounded-md border border-gray-200 outline-none
+        px-3 py-2 mt-2 w-full dark:text-black
+      |,
+      autocomplete: "off",
+      id: "input_token",
+      data: { testing_target: "token" }
+    %>
+  </div>
+
+  <%= form.submit t("app.settings.api_services.save"),
+    class: %|
+      inline-block font-bold
+      bg-gray-200 dark:bg-gray-900
+      border border-gray-400
+      rounded-lg py-3 px-5
+      cursor-pointer
+    |,
+    data: { turbo_submits_with: t("app.settings.api_services.saving") }
+  %>
+<% end %>
