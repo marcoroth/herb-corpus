@@ -1,0 +1,52 @@
+<%= form_with scope: :batch, url: url, class: "flex flex-column gap" do |form| %>
+  <%= render "shared/errors", record: batch %>
+
+  <%# Always sent, so the batch arrives even with every row removed. %>
+  <%= form.hidden_field :sent, value: true, id: nil %>
+
+  <% if batch.already_on_the_list.any? || batch.not_addresses.any? %>
+    <ul class="batch__rows">
+      <% batch.already_on_the_list.each do |found| %>
+        <li class="batch__row batch__row--registered txt-small">
+          <span class="batch__found"><%= found["email"] %></span>
+          <% if (subscriber = batch.match_on_the_list(found)).active? %>
+            <span class="txt-subtle"><%= t "subscribers_batch_already_on_the_list" %></span>
+          <% else %>
+            <span class="txt-subtle"><%= t "subscribers_batch_skipped_#{subscriber.status}" %></span>
+          <% end %>
+        </li>
+      <% end %>
+
+      <% batch.not_addresses.each do |found| %>
+        <li class="batch__row batch__row--registered txt-small">
+          <span class="batch__found"><%= found["email"].truncate(60) %></span>
+          <span class="txt-subtle"><%= t "subscribers_batch_not_address" %></span>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <div class="batch flex flex-column gap-half" data-controller="repeater">
+    <ol class="batch__rows" data-repeater-target="list">
+      <% batch.rows.each_with_index do |row, index| %>
+        <%= render "subscribers/batches/row", row: row, index: index, number: index + 1 %>
+      <% end %>
+    </ol>
+
+    <template data-repeater-target="template">
+      <%= render "subscribers/batches/row", row: batch.blank_row, index: "ROW", number: "ROW_NUMBER" %>
+    </template>
+
+    <div>
+      <button type="button" class="btn txt-small" data-action="repeater#add">
+        <%= icon_tag "add" %>
+        <span><%= t "subscribers_batch_more_rows" %></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="flex gap-half">
+    <%= form.button t("subscribers_batch_add_button"), type: "submit", class: "btn btn--link" %>
+    <%= link_to t("cancel_and_go_back"), subscribers_path, class: "btn borderless" %>
+  </div>
+<% end %>

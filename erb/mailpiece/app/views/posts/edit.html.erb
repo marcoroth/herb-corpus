@@ -1,0 +1,48 @@
+<% @page_title = @post.title_in_database.presence || t("untitled") %>
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= link_to t("posts"), posts_path %>
+      <span class="breadcrumbs__separator">▸</span>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end">
+    <%= toolbar_button t("posts_history"), post_revision_path(@post, "latest"), icon: "history" if @post.revisions.exists? %>
+    <%= toolbar_button t("posts_results_title"), post_results_path(@post), icon: "thumb-up" %>
+    <%= toolbar_button t("posts_view_on_web"), public_post_url(@post.public_param, **Current.account.reader_url_options), icon: "world" if @post.published? && @post.on_the_web? %>
+  </div>
+<% end %>
+
+<div class="page writing" data-controller="post-bar">
+  <%# The form itself is the save, which is what auto-save submits, in the background and when a draft's writer asks
+      for it. Every other button posts to its own resource and carries its own _method, which comes after the
+      form's and so replaces it. %>
+  <%= form_with model: @post, class: "writing__form", style: "view-transition-name: #{dom_id(@post)}", data: post_editor_data(@post) do |form| %>
+    <%= render "posts/fields", form: form, post: @post, auto_save: @post.draft? %>
+
+    <% if @post.draft? %>
+      <%# Only a draft's editor carries it, so an auto-save, a test or a release from a tab left open on a post published since is refused. %>
+      <%= hidden_field_tag :auto_save, true, id: nil %>
+    <% end %>
+
+    <div class="writing-bar post-actions" data-controller="dialog-manager">
+      <% if @post.published? %>
+        <%= render "posts/bar/published", form: form, post: @post %>
+      <% elsif @post.scheduled? %>
+        <%= render "posts/bar/scheduled", form: form, post: @post, release: @release %>
+      <% else %>
+        <%= render "posts/bar/draft", form: form, post: @post, release: @release %>
+      <% end %>
+
+      <%= render "posts/bar/delete", form: form, post: @post %>
+      <%= post_bar_state(@post) %>
+    </div>
+  <% end %>
+
+  <%# Outside the editor's form, so "Listed" and "By link only" send none of the text. %>
+  <% if @post.published? && @post.on_the_web? %>
+    <%= form_with url: post_listing_path(@post), id: dom_id(@post, :listing_form), data: { action: "turbo:submit-end->post-bar#submitted" } %>
+  <% end %>
+</div>

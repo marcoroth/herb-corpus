@@ -1,0 +1,69 @@
+<% @page_title = @subscriber.email %>
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= up_crumb_to t("subscribers"), subscribers_path %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="page flex flex-column gap">
+  <article class="record" style="view-transition-name: <%= dom_id(@subscriber) %>">
+    <header class="record__header">
+      <h2 class="record__title"><%= @subscriber.email %></h2>
+      <p class="record__byline"><%= status_tag @subscriber.status.to_s, form: :badge %></p>
+      <p class="record__byline"><%= subscriber_state_sentence(@subscriber) %></p>
+    </header>
+
+    <% unless @subscriber.bounced? %>
+      <div class="flex flex-column align-center gap-half">
+        <% if @subscriber.deactivated? %>
+          <div class="flex justify-center">
+            <%= button_to t("subscribers_resume_button"), subscriber_activation_path(@subscriber), class: "btn" %>
+          </div>
+        <% elsif @subscriber.deactivatable? %>
+          <div class="flex justify-center gap-half">
+            <% if @subscriber.unconfirmed? %>
+              <%= button_to t("subscribers_confirm_button"), subscriber_confirmation_path(@subscriber), class: "btn",
+                    data: { turbo_confirm: t("subscribers_confirm_confirm", email: @subscriber.email) } %>
+            <% end %>
+            <%= button_to t("subscribers_stop_button"), subscriber_activation_path(@subscriber), method: :delete, class: "btn",
+                  data: { turbo_confirm: t("subscribers_stop_confirm", email: @subscriber.email) } %>
+          </div>
+        <% end %>
+
+        <%= button_to t("subscribers_bounce_button"), subscriber_bounce_path(@subscriber), class: "btn btn--plain txt-link txt-small",
+              data: { turbo_confirm: t("subscribers_bounce_confirm", email: @subscriber.email) } %>
+      </div>
+    <% end %>
+  </article>
+
+  <section>
+    <h2 class="divider txt-medium txt-tight-lines margin-none-block-start margin-block-end"><%= t "subscribers_history" %></h2>
+
+    <div class="trail trail--events trail--whole">
+      <% subscriber_events(@subscriber).each do |time, sentence, path| %>
+        <article class="trail__entry">
+          <%= local_datetime_tag time, style: :timeordate, class: "trail__time trail__time--short" %>
+
+          <% if path %>
+            <%= link_to sentence, path, class: "trail__sentence trail__sentence--link" %>
+          <% else %>
+            <%= tag.span sentence, class: "trail__sentence" %>
+          <% end %>
+        </article>
+      <% end %>
+    </div>
+  </section>
+
+  <div class="flex justify-center">
+    <%= button_to subscriber_path(@subscriber), method: :delete, class: "btn txt-negative borderless txt-small",
+          data: { turbo_confirm: t("subscribers_delete_confirm", email: @subscriber.email) } do %>
+      <%= icon_tag "trash" %>
+      <span><%= t("subscribers_delete_button") %></span>
+    <% end %>
+  </div>
+</div>

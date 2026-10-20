@@ -1,0 +1,30 @@
+<% @page_title = t("sessions_verify_email_heading") %>
+
+<% content_for :header do %>
+  <h1 class="header__title"><%= @page_title %></h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="panel panel--centered flex flex-column gap-half <%= "shake" if flash[:alert] || flash[:shake] %>">
+  <p class="margin-none txt-balance"><%= t("sessions_verify_email_hint", email: email_address_pending_authentication, duration: distance_of_time_in_words(MagicLink::EXPIRATION_TIME)) %></p>
+
+  <%= form_with url: session_magic_link_path, method: :post, html: { class: "flex flex-column gap-half txt-align-start", data: { controller: "magic-link clear-offline-cache", action: "submit->clear-offline-cache#clearCache" } } do |form| %>
+    <label for="code"><strong><%= t("sessions_verify_email_code_label") %></strong></label>
+    <%= form.text_field :code, id: "code", class: "input txt-large full-width", required: true,
+        autofocus: true, autocorrect: "off", autocapitalize: "off", spellcheck: "false", "data-1p-ignore": true,
+        autocomplete: "one-time-code", maxlength: "6", placeholder: t("sessions_verify_email_code_placeholder"), value: params[:code],
+        aria: { invalid: ("true" if flash[:shake]), describedby: ("code_error" if flash[:shake]) },
+        data: { magic_link_target: "input", action: "keydown.enter->magic-link#submitOnEnter paste->magic-link#submitOnPaste" } %>
+    <% if flash[:shake] %>
+      <p id="code_error" class="error-explanation margin-none"><%= t("sessions_verify_email_code_error") %></p>
+    <% end %>
+  <% end %>
+  <% if flash[:magic_link_code].present? %>
+    <p class="margin-none"><%= t("sessions_verify_email_code_display", code: flash[:magic_link_code]) %></p>
+  <% end %>
+  <p class="margin-block-start-half margin-none-block-end txt-small"><%= link_to t("sessions_verify_email_use_different_email"), new_session_path %></p>
+</div>
+
+<% content_for :footer do %>
+  <%= render "sessions/footer" %>
+<% end %>

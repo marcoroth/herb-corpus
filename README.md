@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **350** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **39,091** from 282 apps |
+| Applications and engines | **351** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **39,262** from 283 apps |
 | Size of `erb/` | ~61 MB |
 | Excluded pending license review | 68 apps |
 
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**139 of 350** applications use Herb: `herb` 87, `@herb-tools/linter` 57, `@herb-tools/formatter` 35, `.herb.yml` 108, `.herb/` 1.
+**140 of 351** applications use Herb: `herb` 88, `@herb-tools/linter` 57, `@herb-tools/formatter` 35, `.herb.yml` 108, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -444,6 +444,8 @@ cannot make a comparison silently measure the same Herb twice.
 | [licketysplit](https://github.com/raghubetina/licketysplit/tree/f01f06a22e375972bf215b3a3d02c94d18ea016c) | herb | 0.10.3 | explicit | [2025-11-16](https://github.com/raghubetina/licketysplit/commit/0397f780489185fcdc4101b4f23a88c98e685fdd "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2025-11-16](https://github.com/raghubetina/licketysplit/commit/1b42ab4d98463b41d47e852f429196a1ba74b420 "first seen in .herb.yml") |
 |  |  |  |  |  |
+| [mailpiece](https://github.com/mailpiece/mailpiece/tree/3fc582497e3e83d43ca606ac4b2f4a6c9f7dd40e) | herb | 0.11.0 | transitive | [2026-10-16](https://github.com/mailpiece/mailpiece/commit/362e16076e20c81b492e1545fa10137e59581a8f "first seen in Gemfile.lock") |
+|  |  |  |  |  |
 | [maintenance_tasks](https://github.com/Shopify/maintenance_tasks/tree/5536c9506f278374ed542a4ff590c293c8682cb2) | herb | 0.11.0 | explicit | [2026-05-15](https://github.com/Shopify/maintenance_tasks/commit/1a96d637506eb28c8eb5af69738f243f9fa1261f "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2026-05-15](https://github.com/Shopify/maintenance_tasks/commit/1a96d637506eb28c8eb5af69738f243f9fa1261f "first seen in .herb.yml") |
 |  |  |  |  |  |
@@ -650,7 +652,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**28 of 350** applications use ReActionView: `reactionview` 28.
+**28 of 351** applications use ReActionView: `reactionview` 28.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -716,19 +718,19 @@ cannot make a comparison silently measure the same Herb twice.
 xychart
   title "Cumulative adoption, by project"
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
-  y-axis "Apps" 0 --> 140
-  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 90, 102, 110, 122, 128, 134, 139]
+  y-axis "Apps" 0 --> 141
+  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 90, 102, 110, 122, 128, 134, 140]
   line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27, 28]
 ```
 
-Herb 139 · ReActionView 28
+Herb 140 · ReActionView 28
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 83 apps
-  "0.11.0" : 46
+  title Herb releases across 84 apps
+  "0.11.0" : 47
   "0.10.4" : 5
   "0.10.3" : 14
   "0.10.2" : 3
@@ -778,7 +780,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**38 of 350** applications use `erb_lint` directly. 6 dropped it and now use Herb, and 22 run both.
+**38 of 351** applications use `erb_lint` directly. 6 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -809,10 +811,10 @@ the commit that removed it.
   [2022-01-13](https://github.com/indirect/feedyour.email/commit/731e16d45fb6bfb8060b797c767146c006f9a36f "added Gemfile") · `.erb_lint.yml` · [herb 2026-07-18](https://github.com/indirect/feedyour.email/commit/fb5cd53648d5cc645a413009e0414b9600383edd "first seen in Gemfile")
 - [kasaharacup](https://github.com/yannis/kasaharacup/tree/f6e911554c8e22e57374db545db564f0ccfbfe12): Adopted `erb_lint` in 2023, still using it 3 years later, started Herb in 2026.
   [2023-05-07](https://github.com/yannis/kasaharacup/commit/0f852c93d6e753133adf21ab6804f3122508ded5 "added .erb-lint.yml") · gem `0.9.0` · `.erb-lint.yml` · [herb 2026-02-26](https://github.com/yannis/kasaharacup/commit/6af8f57c06efcbccc3fc7c77645d9c6b20063695 "first seen in yarn.lock")
-- [miroha](https://github.com/tristandunn/miroha/tree/8a1687063b6011590763ff709277c7a4dcb63c21): Adopted `erb_lint` in 2023, still using it 3 years later, started Herb in 2026.
-  [2023-05-26](https://github.com/tristandunn/miroha/commit/333394bb32e5121992be34af7cef2efe29a7b20f "added .erb-lint.yml") · gem `0.9.0` · `.erb_lint.yml` · [herb 2026-07-03](https://github.com/tristandunn/miroha/commit/3509571ac7761c06ee9a8814b3a66572afbee9d1 "first seen in yarn.lock")
 - [untitled](https://github.com/tristandunn/untitled/tree/3146d79abe68bd07493b6ee9ffba17e5de65ca8f): Adopted `erb_lint` in 2023, still using it 3 years later, started Herb in 2025.
   [2023-05-26](https://github.com/tristandunn/untitled/commit/624303f2fbeef95996b58b0f7137387209af84ca "added .erb-lint.yml") · gem `0.9.0` · `.erb_lint.yml` · [herb 2025-12-14](https://github.com/tristandunn/untitled/commit/6a089ebd6e14890e4f18dd8cdc492a7cdfa357ad "first seen in .herb.yml")
+- [miroha](https://github.com/tristandunn/miroha/tree/8a1687063b6011590763ff709277c7a4dcb63c21): Adopted `erb_lint` in 2023, still using it 3 years later, started Herb in 2026.
+  [2023-05-26](https://github.com/tristandunn/miroha/commit/333394bb32e5121992be34af7cef2efe29a7b20f "added .erb-lint.yml") · gem `0.9.0` · `.erb_lint.yml` · [herb 2026-07-03](https://github.com/tristandunn/miroha/commit/3509571ac7761c06ee9a8814b3a66572afbee9d1 "first seen in yarn.lock")
 - [rubyevents](https://github.com/rubyevents/rubyevents/tree/f7f67abe7badaa330f320974d6d514fef46cd903): Adopted `erb_lint` in 2023, still using it 3 years later, started Herb in 2025.
   [2023-06-24](https://github.com/rubyevents/rubyevents/commit/7dc527c2a3a91372875978832a42733d073caf64 "added Gemfile") · gem `0.9.0` · `.erb_lint.yml` · [herb 2025-10-16](https://github.com/rubyevents/rubyevents/commit/81996a0f5fcf530447e18ae735010deca69f9d4b "first seen in package.json")
 - [openproject](https://github.com/opf/openproject/tree/5c9aff0f74ace973fb10a22a53474fca77cef53c): Adopted `erb_lint` in 2023, still using it 3 years later, started Herb in 2026.
@@ -881,7 +883,7 @@ the commit that removed it.
 
 ### better_html
 
-**10 of 350** applications use `better_html` directly. 3 dropped it and now use Herb, and 7 run both.
+**10 of 351** applications use `better_html` directly. 3 dropped it and now use Herb, and 7 run both.
 
 > History could not be searched in 96 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -922,7 +924,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 350** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 351** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
 

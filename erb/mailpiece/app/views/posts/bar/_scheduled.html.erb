@@ -1,0 +1,75 @@
+<%# The form's first button, though drawn after the main one: Enter in a field saves. %>
+<%= form.button type: "submit", class: "btn post-actions__beside" do %>
+  <span><%= t("save") %></span>
+<% end %>
+
+<div class="display-contents"
+     data-controller="dialog"
+     data-dialog-orient-value="false"
+     data-action="keydown.esc->dialog#close:stop click@document->dialog#closeOnClickOutside">
+  <span class="post-actions__split post-actions__main">
+    <%= form.button type: "submit", name: "_method", value: "post", formaction: post_schedule_path(post), class: "btn btn--link post-actions__primary",
+          data: {
+            post_bar_target: "primary",
+            schedule_path: post_schedule_path(post),
+            publication_path: post_publication_path(post),
+            now: Time.zone.now.strftime("%Y-%m-%dT%H:00"),
+            turbo_confirm: (post_schedule_confirm(release.recipients_count) if release.proposed.mailed?)
+          } do %>
+      <span data-post-bar-target="action"><%= post_destination_schedule_action(release.proposed, release.recipients_count) %></span>
+    <% end %>
+    <button type="button"
+            class="btn btn--link post-actions__more"
+            aria-label="<%= t("posts_schedule_change") %>"
+            aria-haspopup="dialog"
+            data-action="dialog#toggle">
+      <%= icon_tag "caret-down" %>
+    </button>
+  </span>
+
+  <dialog class="popup post-pop post-pop--menu"
+          aria-label="<%= t("posts_schedule_change") %>"
+          data-dialog-target="dialog"
+          data-action="post-bar:submitted->dialog#close">
+    <div class="post-pop__columns" data-controller="post-nearby" data-action="change->post-nearby#load">
+      <div class="post-pop__choices">
+        <span class="post-pop__heading"><%= t("posts_destinations_label") %></span>
+        <% post.destinations.each do |destination| %>
+          <label class="post-pop__item">
+            <%= radio_button_tag :destination, destination.name, destination == release.proposed,
+                  class: "checkbox",
+                  data: post_destination_data(destination, release.recipients_count) %>
+            <span><%= destination.label %></span>
+          </label>
+        <% end %>
+
+        <% if !post.deliverable? %>
+          <p><%= t("posts_email_not_set_up_html", link: link_to(t("posts_finish_settings"), settings_path_to_finish_sending)) %></p>
+        <% elsif release.recipients_count.zero? %>
+          <p><%= t("posts_no_subscribers_note") %></p>
+        <% end %>
+
+        <span class="post-pop__heading"><%= t("posts_publication_date") %></span>
+        <div class="post-pop__when">
+          <%= date_field_tag :day, release.day, id: nil, class: "input",
+                aria: { label: t("posts_schedule_day") }, data: { post_bar_target: "day", post_nearby_target: "day", action: "post-bar#choose keydown.enter->dialog#close:prevent" } %>
+          <%= select_tag :hour, post_release_hour_options(release.hour), id: nil, class: "input input--select",
+                aria: { label: t("posts_schedule_hour") }, data: { post_bar_target: "hour", post_nearby_target: "hour", action: "post-bar#choose keydown.enter->dialog#close:prevent" } %>
+        </div>
+
+        <%= form.button type: "submit",
+              name: "_method",
+              value: "delete",
+              formaction: post_schedule_path(post),
+              formnovalidate: true,
+              class: "post-pop__item btn" do %>
+          <span class="txt-negative"><%= t("posts_cancel_schedule") %></span>
+        <% end %>
+      </div>
+
+      <%= render "posts/bar/nearby", post: post %>
+    </div>
+  </dialog>
+</div>
+
+<%= render "posts/bar/test_delivery", form: form, post: post if post.testable? %>
