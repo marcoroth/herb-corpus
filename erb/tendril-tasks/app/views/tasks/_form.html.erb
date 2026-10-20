@@ -9,9 +9,11 @@
       Project.model_name.human,
       form_object.project_options, :id, :title,
       error_field_attribute: :project,
-      prompt: t(".choose_initiative"),
-      selected: form_object.project&.id) do |project_select| %>
-    <% project_select.trailing_button(tag: :a, href: new_project_path).with_content(t(".new_initiative_button")) %>
+      prompt: t(".choose_initiative")) do |project_select| %>
+    <%# Creates the initiative in a modal, so the entries of this form are kept %>
+    <% project_select.with_trailing_button(
+         id: "new-project-button",
+         data: { "modal-target": "new-project-modal", "modal-show": "new-project-modal" }).with_content(t(".new_initiative_button")) if can?(:create, Project) %>
   <% end %>
 
   <%= render Form::TextFieldComponent.new(f, :title) %>
@@ -23,20 +25,26 @@
   <%= render Form::CoordinatorPickerComponent.new(f, :coordinators) %>
 
   <%= render Form::ToggleComponent.new(f, :publish, t(".visibility")) do |toggle| %>
-    <% toggle.checked_state_text(t(".private")) %>
-    <% toggle.unchecked_state_text(t(".public")) %>
+    <% toggle.with_checked_state_text(t(".private")) %>
+    <% toggle.with_unchecked_state_text(t(".public")) %>
   <% end %>
 
   <% if form_object.persisted? %>
     <%= render Form::SubmitButtonGroupComponent.new(f) do |button_group| %>
-      <% button_group.delete_button(t("forms.delete"), target_modal_id: "confirm-task-delete") %>
-      <% button_group.button(t("forms.update")) %>
+      <% button_group.with_button_delete(t("forms.delete"), target_modal_id: "confirm-task-delete") %>
+      <% button_group.with_button_regular(t("forms.update")) %>
     <% end %>
   <% else %>
     <%= render Form::SubmitButtonGroupComponent.new(f) do |button_group| %>
-      <% button_group.button(t("forms.create"), value: "save") %>
-      <% button_group.button(t(".save_and_new"), value: "save_and_new") %>
+      <% button_group.with_button_regular(t("forms.create"), value: "save") %>
+      <% button_group.with_button_regular(t(".save_and_new"), value: "save_and_new") %>
     <% end %>
+  <% end %>
+<% end %>
+
+<% if can?(:create, Project) %>
+  <%= content_for :modal do %>
+    <%= render "tasks/projects/modal", project_form: ProjectForm.new(publish: true) %>
   <% end %>
 <% end %>
 
@@ -44,10 +52,10 @@
   <%= render DeleteConfirm::ModalComponent.new(
       id: "confirm-task-delete",
       delete_path: form_object.form_path) do |modal| %>
-    <% modal.heading(t(".delete_confirm.modal.title")) %>
+    <% modal.with_heading(t(".delete_confirm.modal.title")) %>
 
     <% paragraphize(t(".delete_confirm.modal.content")).each do |text| %>
-      <% modal.paragraph(text) %>
+      <% modal.with_body_element_paragraph(text) %>
     <% end %>
   <% end %>
 <% end %>
