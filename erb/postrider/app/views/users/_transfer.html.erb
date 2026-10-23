@@ -1,0 +1,72 @@
+<section class="settings__section">
+  <% transfer = user.identity.transfer %>
+
+  <header>
+    <h2 class="divider txt-medium txt-tight-lines">Devices</h2>
+    <% if Current.user != user %>
+      <p class="margin-none" id="session_transfer_label">Share to get them back into their account.</p>
+    <% else %>
+      <p class="margin-none" id="session_transfer_label">Single-use link to automatically sign in on another device.</p>
+    <% end %>
+  </header>
+
+  <% if transfer %>
+    <% url = session_transfer_url(transfer.token, script_name: nil) %>
+
+    <input type="text" class="input fill-white" id="session_transfer_url" value="<%= url %>" aria-labelledby="session_transfer_label" readonly>
+
+    <% if transfer.issuer %>
+      <p class="margin-none txt-small txt-subtle">Issued by <%= transfer.issuer.name %> <%= local_datetime_tag transfer.created_at, style: :timeordate %>.</p>
+    <% end %>
+
+    <div class="flex justify-center gap">
+      <div data-controller="dialog" data-dialog-modal-value="true" class="flex-inline">
+        <%= tag.button class: "btn", data: { action: "dialog#open", controller: "tooltip" } do %>
+          <%= icon_tag "qr-code" %>
+          <span class="for-screen-reader">Display sign-in QR code</span>
+        <% end %>
+
+        <dialog class="dialog panel shadow" data-dialog-target="dialog" style="--panel-size: 50ch;">
+          <p class="margin-none-block-start txt-balance">
+            <strong>Scan this code to instantly sign in on another device:</strong>
+          </p>
+
+          <%= qr_code_image(url) %>
+
+          <form method="dialog" class="margin-block-start flex justify-center">
+            <button class="btn">
+              <span>Done</span>
+            </button>
+          </form>
+        </dialog>
+      </div>
+
+      <%= button_to_copy_to_clipboard(url) do %>
+        <%= icon_tag "copy-paste" %>
+        <span class="for-screen-reader">Copy sign-in link</span>
+      <% end %>
+
+      <% if Current.user == user %>
+        <%= button_to transfer_token_path, method: :post, class: "btn", data: { controller: "tooltip" } do %>
+          <%= icon_tag "refresh" %>
+          <span class="for-screen-reader">Generate a new sign-in link</span>
+        <% end %>
+      <% end %>
+    </div>
+  <% elsif Current.user == user %>
+    <div class="flex justify-center">
+      <%= button_to transfer_token_path, method: :post, class: "btn" do %>
+        <%= icon_tag "refresh" %>
+        <span>Generate a new sign-in link</span>
+      <% end %>
+    </div>
+  <% elsif Current.session.sudo? %>
+    <div class="flex justify-center">
+      <%= button_to "Show their sign-in link", user_transfer_token_path(user), method: :post, class: "btn" %>
+    </div>
+  <% else %>
+    <div class="flex justify-center">
+      <%= link_to "Confirm it's you to show their sign-in link", new_my_sudo_path, class: "btn txt-small" %>
+    </div>
+  <% end %>
+</section>

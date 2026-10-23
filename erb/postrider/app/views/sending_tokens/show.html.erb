@@ -1,0 +1,93 @@
+<% @page_title = @sending_token.name %>
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= link_to "Domains", domains_path %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= link_to @sending_token.domain.name, domain_path(@sending_token.domain) %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= up_crumb_to "Sending tokens", domain_sending_tokens_path(@sending_token.domain) %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="page flex flex-column gap">
+  <% if flash[:sending_token] %>
+    <div class="panel shadow flex flex-column gap-half">
+      <label class="flex flex-column gap-half">
+        <strong>Token (shown once)</strong>
+        <input type="text" value="<%= flash[:sending_token] %>" class="input txt-mono" readonly>
+      </label>
+
+      <p class="txt-small txt-subtle margin-none">Use it as the SMTP password, or as a Bearer token for the API. It cannot be shown again.</p>
+
+      <div class="flex gap-half">
+        <%= button_to_copy_to_clipboard flash[:sending_token] do %>
+          <%= icon_tag "copy-paste" %>
+          <span>Copy token</span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <article class="record">
+    <header class="record__header">
+      <h2 class="record__title"><%= @sending_token.name %></h2>
+      <p class="record__byline">
+        <% if @sending_token.last_used_at? %>
+          <span>Last used <%= local_datetime_tag @sending_token.last_used_at, style: :datetime %></span>
+        <% else %>
+          <span>Never used</span>
+        <% end %>
+      </p>
+    </header>
+
+    <div class="details details--columns details--lined">
+      <div class="details__row">
+        <span class="details__label">Host</span>
+        <span class="details__value"><code class="txt-mono"><%= Relay.submission_hostname %></code> port 587 (STARTTLS)</span>
+      </div>
+      <div class="details__row">
+        <span class="details__label">Username</span>
+        <span class="details__value"><code class="txt-mono"><%= SendingToken::SMTP_USERNAME %></code></span>
+      </div>
+      <div class="details__row">
+        <span class="details__label">API</span>
+        <span class="details__value"><code class="txt-mono">POST <%= messages_url %></code> <%= link_to "The same token, as a Bearer token", docs_path %></span>
+      </div>
+      <div class="details__row">
+        <span class="details__label">Domain</span>
+        <span class="details__value"><code class="txt-mono"><%= @sending_token.domain.name %></code></span>
+      </div>
+    </div>
+  </article>
+
+  <section class="project__activity page">
+    <h2 class="divider txt-medium txt-tight-lines margin-none-block-start margin-block-end">History</h2>
+
+    <div class="trail trail--events trail--whole">
+      <% if @sending_token.last_used_at? %>
+        <article class="trail__entry">
+          <%= trail_time_tag @sending_token.last_used_at %>
+          <span class="trail__sentence">Last used</span>
+        </article>
+      <% end %>
+      <article class="trail__entry">
+        <%= trail_time_tag @sending_token.created_at %>
+        <span class="trail__sentence">Sending token created</span>
+      </article>
+    </div>
+  </section>
+
+  <div class="txt-align-center">
+    <%= button_to domain_sending_token_path(@sending_token.domain, @sending_token), method: :delete,
+          class: "btn txt-negative borderless txt-small",
+          data: { turbo_confirm: "Revoke sending token #{@sending_token.name}?" } do %>
+      <%= icon_tag "trash" %>
+      <span>Revoke this sending token</span>
+    <% end %>
+  </div>
+</div>

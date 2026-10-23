@@ -1,0 +1,69 @@
+<div class="page flex flex-column gap">
+  <article class="record">
+    <header class="record__header">
+      <h2 class="record__title"><%= @page_title %></h2>
+      <p class="record__byline">
+        <%= status_tag delivery.status, form: :badge %>
+        <% if delivery.next_retry_at %>
+          <span>Next retry <%= local_datetime_tag delivery.next_retry_at, style: :datetime %></span>
+        <% end %>
+      </p>
+      <%= render "emails/byline", from: delivery.message.mail_from, at: delivery.created_at, to: delivery.rcpt_to %>
+      <% if delivery.message.tags.any? %>
+        <p class="record__byline">Tags: <%= delivery.message.tags.join(", ") %></p>
+      <% end %>
+    </header>
+
+    <% if delivery.message.incinerated? %>
+      <p class="txt-small txt-subtle margin-none">Message content was incinerated on <%= local_datetime_tag delivery.message.incinerated_at, style: :date %>.</p>
+    <% else %>
+      <%= render "emails/body", parsed_email: delivery.parsed_email, mailpiece: mailpiece %>
+      <%= render "emails/attachments", attachments: delivery.message.attachments_blobs %>
+    <% end %>
+  </article>
+
+  <section class="project__activity page">
+    <h2 class="divider txt-medium txt-tight-lines margin-none-block-start margin-block-end">History</h2>
+
+    <div class="trail trail--events trail--whole">
+      <% delivery.activity_log.each do |entry| %>
+        <article id="<%= dom_id entry %>" class="trail__entry">
+          <%= trail_time_tag entry.created_at %>
+          <% if entry.is_a?(Event) %>
+            <span class="trail__sentence"><%= entry.description_for(Current.user) %><%= " (#{entry.particulars["category"]})" if entry.particulars["category"].present? %></span>
+            <% if entry.particulars["smtp_output"].present? %>
+              <span class="smtp-reply"><%= entry.particulars["smtp_output"] %></span>
+            <% end %>
+          <% else %>
+            <span class="trail__sentence">Delivery attempt at <%= entry.mx_host.presence || "an unknown host" %></span>
+            <% if entry.code.present? || entry.output.present? %>
+              <span class="smtp-reply"><%= smtp_code_tag entry.code if entry.code.present? %> <%= entry.output %></span>
+            <% end %>
+          <% end %>
+        </article>
+      <% end %>
+
+      <article class="trail__entry">
+        <%= trail_time_tag delivery.created_at %>
+        <span class="trail__sentence"><%= delivery.message.forwarded? ? "Queued by a forward" : "Submitted" %></span>
+      </article>
+    </div>
+
+    <% if delivery.message.raw_email.attached? %>
+      <%= link_to "Download original", rails_blob_url(delivery.message.raw_email, disposition: "attachment"), class: "btn txt-small flex fit-content center", data: { turbo: false } %>
+    <% end %>
+  </section>
+
+  <% if Current.user.admin? %>
+    <div class="txt-align-center">
+      <%= button_to mailpiece_path(mailpiece), method: :delete,
+            class: "btn txt-negative borderless txt-small",
+            data: { turbo_confirm: delivery.queued? || delivery.deferred? ?
+              "This delivery is still in flight. Deleting it will cancel any pending delivery attempts. Delete permanently?" :
+              "Delete this message permanently?" } do %>
+        <%= icon_tag "trash" %>
+        <span>Delete this mailpiece</span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

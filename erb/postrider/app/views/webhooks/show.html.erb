@@ -1,0 +1,77 @@
+<% @page_title = @webhook.name.presence || @webhook.url %>
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= link_to "Domains", domains_path %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= link_to @domain.name, domain_path(@domain) %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= up_crumb_to "Webhooks", domain_webhooks_path(@domain) %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end">
+    <%= edit_link_to edit_domain_webhook_path(@domain, @webhook) %>
+  </div>
+<% end %>
+
+<div class="page flex flex-column gap">
+  <article class="record">
+    <header class="record__header">
+      <h2 class="record__title"><%= @page_title %></h2>
+      <p class="record__byline"><%= active_tag @webhook, form: :badge %></p>
+      <p class="record__byline">
+        <span>Sends to</span>
+        <span class="record__byline-name"><%= @webhook.url %></span>
+      </p>
+      <% if @webhook.active? %>
+        <%= button_to "Deactivate", domain_webhook_activation_path(@domain, @webhook), method: :delete, class: "btn txt-small" %>
+      <% else %>
+        <%= button_to "Activate", domain_webhook_activation_path(@domain, @webhook), class: "btn txt-small" %>
+      <% end %>
+    </header>
+
+    <div class="details details--columns details--lined">
+      <div class="details__row">
+        <span class="details__label">Signing secret</span>
+        <div class="details__value">
+          <code class="txt-mono txt-break"><%= @webhook.signing_secret %></code>
+          <% if @webhook.for_action_mailbox_relay? %>
+            <p class="txt-small txt-subtle margin-none">This URL matches Rails' Action Mailbox relay ingress, so deliveries are sent as raw RFC822 mail with HTTP Basic Auth (username <code class="txt-mono">actionmailbox</code>, password = this signing secret) instead of the signed JSON envelope.</p>
+          <% else %>
+            <p class="txt-small txt-subtle margin-none">Each delivery is signed in the <code class="txt-mono">X-Webhook-Signature</code> header (HMAC-SHA256 of the body).</p>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="details__row">
+        <span class="details__label">Events</span>
+        <span class="details__value">
+          <%= @webhook.subscribed_actions.map { |action| webhook_action_label(action) }.to_sentence %>
+        </span>
+      </div>
+    </div>
+  </article>
+
+  <section class="project__activity page">
+    <h2 class="divider txt-medium txt-tight-lines margin-none-block-start margin-block-end">Recent deliveries</h2>
+
+    <% if @webhook.deliveries.empty? %>
+      <div class="blank-slate fit-content center"><strong>This webhook hasn't been triggered yet.</strong></div>
+    <% else %>
+      <div class="trail trail--events trail--whole">
+        <%= render partial: "webhooks/delivery", collection: @webhook.deliveries.ordered.includes(:event).limit(20), as: :delivery %>
+      </div>
+    <% end %>
+  </section>
+
+  <div class="txt-align-center">
+    <%= button_to domain_webhook_path(@domain, @webhook), method: :delete,
+          class: "btn txt-negative borderless txt-small",
+          data: { turbo_confirm: "Delete this webhook?" } do %>
+      <%= icon_tag "trash" %>
+      <span>Delete this webhook</span>
+    <% end %>
+  </div>
+</div>

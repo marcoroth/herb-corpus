@@ -1,0 +1,210 @@
+<% @page_title = "Docs" %>
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= up_crumb_to "Settings", account_settings_path %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="page">
+  <article class="record docs">
+    <p>There are two ways to send mail through PostRider. Use the HTTP API to send and list mail, or point your existing SMTP code at PostRider. The examples below use placeholder credentials. Swap in your own.</p>
+
+    <h2>HTTP API</h2>
+    <p>Sending and listing use different credentials, both passed as a bearer token:</p>
+    <div class="details details--columns">
+      <div class="details__row">
+        <span class="details__label">Send a message</span>
+        <span class="details__value">A <strong>sending token</strong>, created per domain under <%= link_to "Domains", domains_path %> (the same credential SMTP submission uses). Access tokens won't work here.</span>
+      </div>
+      <div class="details__row">
+        <span class="details__label">List mail</span>
+        <span class="details__value">A <%= link_to "personal access token", my_access_tokens_path %>. <code>read</code> permission is all you need.</span>
+      </div>
+    </div>
+    <p>Admins can also mint sending tokens over the API: <code>POST <%= request.base_url %><%= request.script_name %>/domains/:domain_id/sending_tokens</code> with a <code>write</code> token and a body of <code>{"name"}</code> returns <code>201</code> with <code>{"id", "name", "domain", "token"}</code>. That <code>token</code> begins with <code>postrider_</code>. It is the SMTP password, pinned to the domain, and shown only once. Both token types are stored as digests, so copy them the moment they appear.</p>
+
+    <h2>Send a message</h2>
+    <%
+      message_example_fields = [
+        %(  "from": "sender@example.com"),
+        %(  "from_name": "Example"),
+        %(  "to": ["recipient@example.com"]),
+        %(  "cc": ["cc@example.com"]),
+        %(  "bcc": ["bcc@example.com"]),
+        %(  "reply_to": "replies@example.com"),
+        %(  "reply_to_name": "Replies"),
+        %(  "envelope_from": "bounces@example.com"),
+        %(  "subject": "Hello"),
+        %(  "text": "Hi there"),
+        %(  "html": "<p>Hi there</p>"),
+        %(  "list_unsubscribe": "https://example.com/unsubscribe"),
+        %(  "in_reply_to": "<parent@example.com>"),
+        %(  "references": "<grandparent@example.com> <parent@example.com>"),
+        %(  "tags": ["welcome"]),
+        %(  "metadata": {"order_id": "1234"}),
+        %(  "headers": {"X-Entity-Ref-ID": "123"}),
+        %(  "attachments": [{\n    "name": "invoice.pdf",\n    "content_type": "application/pdf",\n    "content": "BASE64_ENCODED_CONTENT"\n  }])
+      ]
+      message_example = [
+        "curl #{messages_url}",
+        "-H \"Authorization: Bearer YOUR_SENDING_TOKEN\"",
+        "-H \"Accept: application/json\"",
+        "-H \"Content-Type: application/json\"",
+        "-d '{\n#{message_example_fields.join(",\n")}\n}'"
+      ].join(" \\\n  ")
+    %>
+    <pre><code><%= message_example %></code></pre>
+
+    <h3>Body</h3>
+    <p>Only <code>from</code>, one recipient, and a body (<code>text</code> or <code>html</code>) are required. Everything else is optional:</p>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>from</code></td><td>string</td><td>Required. Bare address or <code>"Name &lt;address&gt;"</code></td></tr>
+        <tr><td><code>from_name</code></td><td>string</td><td>Display name; overrides one embedded in <code>from</code></td></tr>
+        <tr><td><code>to</code> / <code>cc</code> / <code>bcc</code></td><td>array, or comma-separated string</td><td>At least one recipient across the three. Each entry may be <code>"Name &lt;address&gt;"</code></td></tr>
+        <tr><td><code>subject</code></td><td>string</td><td>Optional</td></tr>
+        <tr><td><code>text</code> / <code>html</code></td><td>string</td><td>At least one required; send both for a multipart message</td></tr>
+        <tr><td><code>reply_to</code> / <code>reply_to_name</code></td><td>string</td><td>Optional</td></tr>
+        <tr><td><code>in_reply_to</code></td><td>string</td><td>The <code>Message-ID</code> this replies to, e.g. <code>&lt;parent@example.com&gt;</code></td></tr>
+        <tr><td><code>references</code></td><td>string</td><td>Space-separated list of <code>Message-ID</code>s</td></tr>
+        <tr><td><code>list_unsubscribe</code></td><td>string</td><td>Unsubscribe header value. A lone URL is bracketed for you, per RFC 2369; pass several as <code>&lt;https://…&gt;, &lt;mailto:…&gt;</code>. An <code>https://</code> URL among them turns on RFC 8058 one-click unsubscribe (adds <code>List-Unsubscribe-Post</code>)</td></tr>
+        <tr><td><code>envelope_from</code> / <code>return_path</code></td><td>string</td><td>SMTP <code>MAIL FROM</code>, independent of the <code>From</code> header</td></tr>
+        <tr><td><code>tags</code></td><td>array of strings, or one string</td><td>Not embedded in the message; echoed in every <code>delivery_*</code> webhook so you can filter your own records</td></tr>
+        <tr><td><code>metadata</code></td><td>object of strings</td><td>Not embedded in the message; echoed in every <code>delivery_*</code> webhook so you can correlate a delivery with your records</td></tr>
+        <tr><td><code>headers</code></td><td>object</td><td>Custom headers. Can't overwrite core fields (<code>From</code>, <code>To</code>, <code>Subject</code>, <code>In-Reply-To</code>, <code>References</code>, <code>DKIM-Signature</code>, and the like)</td></tr>
+        <tr><td><code>attachments</code></td><td>array of <code>{name, content_type, content}</code></td><td><code>content</code> is base64. Add a <code>cid</code> to embed a file inline instead of as a download</td></tr>
+      </tbody>
+    </table>
+    <p>For display names, use <code>from_name</code> / <code>reply_to_name</code>, or RFC 5322 form like <code>"Example &lt;sender@example.com&gt;"</code> on <code>from</code>, <code>reply_to</code>, or any recipient entry.</p>
+    <p>Attachments accept these extensions only: <code>jpeg jpg png gif txt pdf docx xlsx pptx csv att ics ical html zip auf xml dwg</code>. A filename can hold at most one period (so <code>image.001.jpeg</code> is rejected). For big or unusual files, host them somewhere and link to them in the email: it's faster and scales better than attaching them directly.</p>
+
+    <h3>Response</h3>
+    <p>You get back <code>201</code> with:</p>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>The message's PostRider id</td></tr>
+        <tr><td><code>status</code></td><td>Always <code>"queued"</code> here: delivery happens in the background</td></tr>
+        <tr><td><code>message_id</code></td><td>The RFC 822 <code>Message-ID</code> stamped on the mail; echoed in webhook payloads so you can match them up</td></tr>
+        <tr><td><code>recipients</code></td><td>Every address a delivery was created for, including <code>cc</code> and <code>bcc</code></td></tr>
+        <tr><td><code>submitted_at</code></td><td>When PostRider accepted the message</td></tr>
+      </tbody>
+    </table>
+    <p>Want retries to be safe? Add an <code>Idempotency-Key</code> header (up to 255 characters). A settled key replays the original response; an in-flight key returns <code>409</code> with <code>Retry-After: 1</code>.</p>
+
+    <h2>List mail</h2>
+    <pre><code><%= [
+      "curl \"#{mailpieces_url}\"",
+      "-H \"Authorization: Bearer YOUR_ACCESS_TOKEN\"",
+      "-H \"Accept: application/json\""
+    ].join(" \\\n  ") %></code></pre>
+    <table>
+      <thead>
+        <tr><th>Endpoint</th><th>Returns</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>GET /mailpieces</code></td><td>Delivered mail. Metadata only, one entry per message, each with a <code>direction</code> of <code>inbound</code> or <code>outbound</code></td></tr>
+        <tr><td><code>GET /mailpieces/:id</code></td><td>A single entry, including a <code>raw_url</code></td></tr>
+      </tbody>
+    </table>
+    <p>That <code>raw_url</code> downloads the original RFC 822 message as <code>message/rfc822</code>. We never base64-inflate it into the JSON. It's an ordinary authenticated endpoint, so follow it with the same <code>Authorization: Bearer</code> header (a <code>read</code> token is plenty) or from a signed-in browser session. Same for each attachment's <code>url</code>.</p>
+
+    <h2>SMTP submission (sending token)</h2>
+    <p>Already have code that speaks SMTP? Point it here. First create a sending token for your domain under <%= link_to "Domains", domains_path %>: that's your AUTH PLAIN/LOGIN password. Each sending token is pinned to a single domain.</p>
+    <div class="details details--columns">
+      <div class="details__row">
+        <span class="details__label">Host</span>
+        <span class="details__value"><%= Relay.submission_hostname.presence || "(set ENV RELAY_HOSTNAME first)" %></span>
+      </div>
+      <div class="details__row">
+        <span class="details__label">Port</span>
+        <span class="details__value">587 (STARTTLS), the standard submission port</span>
+      </div>
+      <div class="details__row">
+        <span class="details__label">Auth</span>
+        <span class="details__value">PLAIN or LOGIN. The sending token is the password; the SMTP username is ignored (many clients use <code>postrider</code>)</span>
+      </div>
+    </div>
+
+    <h2>Webhooks</h2>
+    <p>Want to know what's happening to your mail? Set up HTTPS endpoints and event subscriptions on each domain under <%= link_to "Domains", domains_path %>. Webhooks are scoped to a domain: an endpoint hears only that domain's events, nothing about the others.</p>
+
+    <h3>Event types</h3>
+    <table>
+      <thead>
+        <tr><th>Event</th><th>Fires when</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>inbound_email_received</code></td><td>Mailpiece arrived for a registered mailbox (or a domain with catch-all forward/discard)</td></tr>
+        <tr><td><code>inbound_email_bounce_received</code></td><td>A DSN arrived at the bounce address</td></tr>
+        <tr><td><code>inbound_email_forwarded</code></td><td>Mail for a forwarding mailbox was sent on to that mailbox's destination address. A second event about the mailpiece, after <code>inbound_email_received</code></td></tr>
+        <tr><td><code>delivery_delivered</code></td><td>The recipient's MX accepted the message</td></tr>
+        <tr><td><code>delivery_deferred</code></td><td>A transient SMTP failure, or sending to its domain is paused; the delivery will be retried</td></tr>
+        <tr><td><code>delivery_failed</code></td><td>We never got it in front of the remote MX: the recipient is suppressed, or the retries ran out</td></tr>
+        <tr><td><code>delivery_bounced</code></td><td>The remote MX saw it, turned it down, and told us why (or a DSN came back later); the payload's <code>raw</code> carries the DSN</td></tr>
+        <tr><td><code>recipient_domain_paused</code></td><td>Sending to the recipient's domain paused because its mail servers refuse this server's IP. Its mail waits and retries as <code>delivery_deferred</code> until the server's operator resumes it, and fails if the domain is still paused when its retries run out</td></tr>
+        <tr><td><code>recipient_domain_resumed</code></td><td>The server's operator resumed sending to that domain</td></tr>
+        <tr><td><code>sending_token_created</code></td><td>An admin created a sending token for the domain</td></tr>
+        <tr><td><code>sending_token_revoked</code></td><td>An admin revoked one of the domain's sending tokens</td></tr>
+        <tr><td><code>sending_token_refused</code></td><td>A valid sending token was used from an IP outside the domain's allowed IPs, and the request was refused. Sent at most once an hour for each token and address, and at most 10 an hour for each token</td></tr>
+      </tbody>
+    </table>
+    <p>Every delivery is one message to one recipient, and always ends in exactly one of <code>delivery_delivered</code>, <code>delivery_failed</code>, or <code>delivery_bounced</code>, with any number of <code>delivery_deferred</code>s along the way.</p>
+
+    <h3>Body shape</h3>
+    <p>One endpoint carries every action, so each POST body is an event envelope, <code>{"event": "&lt;action&gt;", "payload": {…}}</code>, not the payload alone. Switch on <code>event</code> to tell an inbound email from a delivery report, then read <code>payload</code>.</p>
+    <p>Point a webhook at a Slack incoming webhook URL (<code>https://hooks.slack.com/services/…</code>) and you get a notification instead: PostRider recognizes the URL by its shape and posts <code>{"text": "…"}</code>: one sentence about the event and a link back into PostRider. None of the payload above rides along, so keep a webhook on your own endpoint for the data.</p>
+
+    <h3>Inbound payload</h3>
+    <p><code>inbound_email_received</code> and <code>inbound_email_bounce_received</code> hand you the parsed email:</p>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>from</code></td><td>Always present; a single address string</td></tr>
+        <tr><td><code>headers</code></td><td>Always present; the message's headers as an array of <code>"Name: value"</code> strings</td></tr>
+        <tr><td><code>to</code> / <code>cc</code> / <code>bcc</code> / <code>reply_to</code></td><td>Each an array of address strings; present when the message has them</td></tr>
+        <tr><td><code>subject</code>, <code>in_reply_to</code>, <code>message_id</code>, <code>html</code>, <code>text</code></td><td>Present when the message has them (<code>message_id</code> is the inbound message's own Message-ID, dropped when the original had none)</td></tr>
+        <tr><td><code>attachments</code></td><td>Metadata only: an array of <code>{type, contentType, contentDisposition, filename, headers, size, contentId, cid, related}</code>, optional keys omitted</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Delivery payload</h3>
+    <p>Delivery events carry the delivery details instead:</p>
+    <table>
+      <thead>
+        <tr><th>Field</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>delivery_id</code>, <code>status</code>, <code>rcpt_to</code>, <code>mail_from</code>, <code>message_id</code>, <code>tags</code>, <code>metadata</code>, <code>smtp_code</code>, <code>smtp_output</code>, <code>mx_host</code></td><td>The delivery and the last SMTP result</td></tr>
+        <tr><td><code>raw</code></td><td>On <code>delivery_bounced</code> only: the DSN</td></tr>
+        <tr><td><code>category</code></td><td>On <code>delivery_bounced</code> only, and always present. One of <code>invalid</code>, <code>full</code>, <code>oversized</code>, <code>blocked</code>, or <code>unknown</code>. <code>null</code> when the report could not be read. <code>invalid</code> is the only value that means the address itself is bad.</td></tr>
+        <tr><td><code>recipient_domain</code></td><td>On <code>recipient_domain_paused</code> and <code>recipient_domain_resumed</code> only: the domain sending paused or resumed for</td></tr>
+        <tr><td><code>reason</code></td><td>On <code>delivery_failed</code>: <code>suppressed</code> or <code>exhausted</code>. On <code>delivery_deferred</code>, only when sending to the domain is paused: <code>recipient_domain_paused</code></td></tr>
+      </tbody>
+    </table>
+    <p>You'll never find the RFC 822 bytes in the payload: a large message would have to be parsed, JSON-encoded, and signed once for every subscribed webhook, so we leave it out. When you need those bytes exactly as they arrived (to re-verify a DKIM signature, or pull attachment bytes), fetch the mailpiece's <code>raw_url</code> from <code>GET /mailpieces/:id</code>: an authenticated download, same bearer token.</p>
+    <p>One thing to keep in mind: <code>headers</code> is a parsed convenience view. The mail parser can reorder fields and rewrite folding whitespace, so it won't be byte-for-byte identical to what came off the wire.</p>
+
+    <h3>Sending token payload</h3>
+    <p>Sending token events carry <code>domain_id</code>, <code>domain</code> and the token's <code>token_name</code>, never the token itself. <code>sending_token_refused</code> adds the refused <code>ip</code>.</p>
+
+    <h3>Verifying</h3>
+    <p>Every request carries <code>X-Webhook-Signature</code>, the HMAC-SHA256 of the exact request body, keyed with the webhook's signing secret (you'll find it on the webhook's page). To confirm a request really came from us, recompute the signature over the raw body and compare. Each request also carries <code>X-Webhook-Timestamp</code>, the event's creation time in ISO 8601. Check that it's recent if you want to guard against replayed requests.</p>
+
+    <h3>Failures</h3>
+    <p>We try each webhook delivery once. Anything other than a <code>2xx</code> counts as a failure, and it is not sent again. A webhook that fails ten times in a row over more than an hour is deactivated.</p>
+
+  </article>
+</div>

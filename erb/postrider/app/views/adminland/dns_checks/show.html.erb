@@ -1,0 +1,55 @@
+<% @page_title = "DNS records" %>
+
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb url: session_menu_path, label: "Back to app" %>
+      <%= up_crumb_to "Adminland", adminland_settings_path %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="page">
+  <div class="settings">
+    <div class="settings__panel panel shadow">
+      <section class="settings__section">
+        <% if Relay.hostname.blank? %>
+          <p class="margin-none">Not configured. Set ENV <code>RELAY_HOSTNAME</code> to this server's public hostname.</p>
+        <% else %>
+          <p class="margin-none">DNS status: <%= tag.span @dns_check.dns_ok? ? "OK" : "Not ready", class: class_names("status status--badge", @dns_check.dns_ok? ? "status--success" : "status--warning") %></p>
+
+          <p class="margin-none">Publish these at your DNS provider.<% if @dns_check.dns_checked? %> Last checked <%= local_datetime_tag @dns_check.dns_checked_at, style: :datetime %>.<% end %></p>
+
+          <div class="dns-checks">
+            <% @dns_check.dns_records.chunk_while { |record, following| record.check && record.check == following.check }.each do |records| %>
+              <% if records.many? %>
+                <section class="dns-check-group">
+                  <header class="dns-check__header">
+                    <h3 class="dns-check__title"><%= records.map(&:purpose).uniq.to_sentence %></h3>
+                    <span class="chip"><%= records.map(&:type).uniq.join(" + ") %></span>
+                    <span class="dns-check__status"><%= dns_status_tag @dns_check.public_send("#{records.first.check}_status") %></span>
+                  </header>
+
+                  <p class="txt-small txt-subtle margin-none">One check covers these <%= records.size %> records.<% if error = @dns_check.public_send("#{records.first.check}_error").presence %> <%= error %><% end %></p>
+
+                  <% records.each do |record| %>
+                    <%= render "domains/dns_record", record: record, title: record.purpose %>
+                  <% end %>
+                </section>
+              <% elsif check = records.first.check %>
+                <%= render "domains/dns_record", record: records.first, title: records.first.purpose,
+                      status: dns_status_tag(@dns_check.public_send("#{check}_status")), error: @dns_check.public_send("#{check}_error") %>
+              <% else %>
+                <%= render "domains/dns_record", record: records.first, title: records.first.purpose %>
+              <% end %>
+            <% end %>
+          </div>
+
+          <%= button_to "Check DNS now", adminland_dns_check_path, class: "btn btn--link" %>
+        <% end %>
+      </section>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,75 @@
+<% @page_title = "Add people" %>
+<% turbo_exempts_page_from_cache %>
+
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= link_to "Settings", account_settings_path %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= up_crumb_to "People", users_path %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="page flex flex-column gap">
+  <div class="panel shadow flex flex-column gap">
+    <p class="margin-none">Share the link below to invite people to this account.</p>
+    <% url = join_url(code: @join_code.code, script_name: Current.account.slug) %>
+
+    <input class="input full-width" id="join-code-url" type="text" autocomplete="off" autocorrect="off" value="<%= url %>" aria-label="Invite link" readonly>
+
+    <div class="flex flex-wrap align-center gap">
+      <%= button_to_copy_to_clipboard url do %>
+        <%= icon_tag "copy-paste" %>
+        <span>Copy invite link</span>
+      <% end %>
+
+      <div data-controller="dialog dialog-focus" data-dialog-modal-value="true" data-action="keydown.esc->dialog#close:stop">
+        <%= tag.button type: "button", class: "btn", aria: { haspopup: "dialog", expanded: false }, data: { dialog_focus_target: "trigger", action: "dialog#open" } do %>
+          <%= icon_tag "qr-code" %>
+          <span>Get QR code</span>
+        <% end %>
+
+        <dialog class="dialog panel shadow" data-dialog-target="dialog" style="--panel-size: 50ch;">
+          <p class="margin-none-block-start margin-block-end txt-balance">
+            <strong>Scan this code to join <%= Current.account.name %>:</strong>
+          </p>
+
+          <%= qr_code_image(url) %>
+
+          <div class="margin-block-start flex justify-center">
+            <button type="button" class="btn" data-action="dialog#close">
+              <span>Done</span>
+            </button>
+          </div>
+        </dialog>
+      </div>
+    </div>
+
+    <footer class="txt-small">
+      <hr class="separator--horizontal full-width margin-block" style="--border-color: var(--color-ink-lighter)">
+
+      <p class="margin-none">
+        This code has been used <%= @join_code.usage_count %>/<%= @join_code.usage_limit %> times
+        (<%= @join_code.active? ? @join_code.usage_limit - @join_code.usage_count : "none" %> remaining)
+
+        <% if Current.user.admin? %>
+          <%= link_to edit_account_join_code_path do %>
+            <span>Change limit</span>
+          <% end %>
+        <% end %>
+      </p>
+    </footer>
+  </div>
+
+  <% if Current.user.admin? %>
+    <%= button_to account_join_code_path, method: :delete, class: "btn", data: {
+          turbo_confirm: "Are you sure you want to generate a new link? The previous code will stop working." } do %>
+      <%= icon_tag "refresh" %>
+      <span>Generate a new code</span>
+    <% end %>
+  <% end %>
+</div>

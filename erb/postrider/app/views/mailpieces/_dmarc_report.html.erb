@@ -1,0 +1,64 @@
+<section class="dmarc-report">
+  <h3 class="txt-medium txt-tight-lines margin-none">DMARC report</h3>
+
+  <div class="details details--columns details--lined">
+    <% if report.organization.present? %>
+      <div class="details__row">
+        <span class="details__label">Organization</span>
+        <span class="details__value"><%= report.organization %></span>
+      </div>
+    <% end %>
+    <% if report.report_id.present? %>
+      <div class="details__row">
+        <span class="details__label">Report ID</span>
+        <span class="details__value"><%= report.report_id %></span>
+      </div>
+    <% end %>
+    <% if report.range %>
+      <div class="details__row">
+        <span class="details__label">Coverage</span>
+        <span class="details__value">
+          <%= local_datetime_tag report.range.begin, style: :datetime %> to <%= local_datetime_tag report.range.end, style: :datetime %>
+        </span>
+      </div>
+    <% end %>
+    <% if policy = report.policy %>
+      <div class="details__row">
+        <span class="details__label">Policy</span>
+        <span class="details__value">
+          <%= policy.domain %>
+          <% if policy.p.present? %>· p=<%= policy.p %><% end %>
+          <% if policy.sp.present? %>, sp=<%= policy.sp %><% end %>
+          <% if policy.pct.present? %> (<%= policy.pct %>%)<% end %>
+        </span>
+      </div>
+    <% end %>
+  </div>
+
+  <% if report.records.any? %>
+    <ul class="rows">
+      <% report.records.each do |record| %>
+        <li class="row">
+          <div class="row__body">
+            <strong class="row__title row__title--wrap">
+              <%= record.source_ip %>
+              <%= record.disposition&.humanize %>
+            </strong>
+            <span class="row__meta row__meta--wrap">
+              <%= pluralize record.count, "message" %> ·
+              <%= verdict_tag(record.dkim, label: "DKIM") if record.dkim.present? %>
+              <%= verdict_tag(record.spf, label: "SPF") if record.spf.present? %>
+              <% if record.reasons.any? %>
+                · <%= record.reasons.map { |reason| reason.type&.humanize }.compact.join(", ") %>
+              <% end %>
+            </span>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <% if report.errors.any? %>
+    <p class="txt-small txt-subtle margin-none">Reader errors: <%= report.errors.join(", ") %></p>
+  <% end %>
+</section>

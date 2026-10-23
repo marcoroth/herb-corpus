@@ -1,0 +1,45 @@
+<% what = local_assigns[:what] %>
+<% placeholder = local_assigns[:placeholder] || (what ? "Filter #{what}…" : "Filter…") %>
+<% label = local_assigns[:label] || (what ? "Filter #{what}" : "Filter") %>
+
+<% results = capture do %>
+  <div class="filter-bar margin-block-end" data-controller="dialog-manager">
+    <%= local_assigns[:filters] %>
+
+    <div class="filter-box">
+      <%= search_field_tag :query, nil, autofocus: local_assigns[:autofocus], autocomplete: "off", class: "input filter-bar__terms",
+            placeholder: placeholder, aria: { label: label, keyshortcuts: "F" },
+            data: { controller: "field-aware-hotkey", quick_find_target: "input",
+                    action: "input->quick-find#filter keydown.esc->quick-find#clear keydown.f@document->field-aware-hotkey#focus" } %>
+      <kbd class="filter-box__hint hide-on-touch" aria-hidden="true">F</kbd>
+      <button type="button" class="btn filter-box__clear" data-action="quick-find#clear">
+        <%= icon_tag "close" %>
+        <span class="for-screen-reader">Clear the filter</span>
+      </button>
+    </div>
+
+    <%= local_assigns[:quick_filters] %>
+  </div>
+
+  <%= yield %>
+<% end %>
+
+<div data-controller="quick-find">
+  <%# The menus swap with the rows, so their labels and links read the new filter; the controller stays outside to keep what was typed. %>
+  <% if frame = local_assigns[:frame] %>
+    <%= turbo_frame_tag frame, target: "_top" do %>
+      <%= results %>
+    <% end %>
+  <% else %>
+    <%= results %>
+  <% end %>
+
+  <div class="filter__empty blank-slate" role="status">
+    <strong>Nothing matches.</strong>
+    <% if search = local_assigns[:search] %>
+      <%= link_to search, data: { quick_find_target: "searchLink" } do %>
+        <%= t("filter_search_everything_html", term: tag.span(data: { quick_find_target: "term" })) %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

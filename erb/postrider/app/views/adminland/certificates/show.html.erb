@@ -1,0 +1,49 @@
+<% @page_title = "TLS certificate" %>
+
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb url: session_menu_path, label: "Back to app" %>
+      <%= up_crumb_to "Adminland", adminland_settings_path %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end"></div>
+<% end %>
+
+<div class="page">
+  <div class="settings">
+    <div class="settings__panel panel shadow">
+      <section class="settings__section">
+        <% if @certificate.pem.present? %>
+          <% if @certificate.expiring_soon? %>
+            <p class="margin-none txt-warning">Expires <%= @certificate.expires_at.to_fs(:long) %>. Renewal starts 30 days out, so it has been failing for a couple of weeks. The error below should say why.</p>
+          <% else %>
+            <p class="margin-none">Issued for <code><%= Relay.tls_hostnames.join(", ") %></code>, expires <%= @certificate.expires_at.to_fs(:long) %>. Renews itself about 30 days before that.</p>
+          <% end %>
+        <% elsif Rails.env.local? %>
+          <p class="margin-none">No certificate installed. Both listeners are using a generated self-signed certificate.</p>
+        <% else %>
+          <p class="margin-none txt-warning">No certificate yet; one is ordered automatically once the delegation below is in place.</p>
+        <% end %>
+
+        <% if @certificate.renewal_error.present? %>
+          <p class="margin-none txt-negative">Last renewal attempt failed: <%= @certificate.renewal_error %></p>
+        <% end %>
+
+        <% if Relay.acme? %>
+          <%= button_to "Renew now", adminland_certificate_renewal_path, class: "btn btn--link" %>
+        <% end %>
+      </section>
+
+      <section class="settings__section">
+        <% if Relay.hostname.blank? %>
+          <p class="margin-none"><%= DnsCheckable::HOSTNAME_UNCONFIGURED %>.</p>
+        <% else %>
+          <p class="margin-none">Let's Encrypt reads the challenge from this relay on port 53, so <%= safe_join(Relay.tls_hostnames.map { |hostname| tag.code("_acme-challenge.#{hostname}") }, " and ") %> must be delegated to it by NS: <%= dns_status_tag @dns_check.acme_delegation_status %></p>
+          <p class="txt-small txt-subtle margin-none"><% if @dns_check.acme_delegation_error.present? %><%= @dns_check.acme_delegation_error %> <% end %>The records to publish are under <%= link_to "DNS records", adminland_dns_check_path %>.</p>
+        <% end %>
+      </section>
+    </div>
+  </div>
+</div>

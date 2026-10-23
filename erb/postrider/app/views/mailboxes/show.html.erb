@@ -1,0 +1,87 @@
+<% @page_title = "#{@mailbox.local_part}@#{@mailbox.domain.name}" %>
+<% content_for :header do %>
+  <h1 class="header__title">
+    <span class="breadcrumbs">
+      <%= home_crumb %>
+      <%= link_to "Domains", domains_path %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= link_to @domain.name, domain_path(@domain) %>
+      <span class="breadcrumbs__separator">▸</span>
+      <%= up_crumb_to "Mailboxes", domain_mailboxes_path(@domain) %>
+      <strong><%= @page_title %></strong>
+    </span>
+  </h1>
+  <div class="header__actions header__actions--end">
+    <%= edit_link_to edit_domain_mailbox_path(@domain, @mailbox) %>
+  </div>
+<% end %>
+
+<div class="page flex flex-column gap">
+  <article class="record">
+    <header class="record__header">
+      <h2 class="record__title"><%= @page_title %></h2>
+      <p class="record__byline"><%= mailbox_status_tag @mailbox %></p>
+      <p class="record__byline">
+        <% if @mailbox.forwarding? %>
+          <span>Forwards to</span>
+          <span class="record__byline-name"><%= @mailbox.forward_to %></span>
+        <% elsif @mailbox.forward_to.present? %>
+          <span>Set to forward to</span>
+          <span class="record__byline-name"><%= @mailbox.forward_to %></span>
+        <% else %>
+          <span>Not forwarding</span>
+        <% end %>
+      </p>
+    </header>
+
+    <% if @mailbox.forward_to.blank? %>
+      <div class="flex justify-center">
+        <%= link_to "Set up forwarding", edit_domain_mailbox_path(@domain, @mailbox), class: "btn txt-small" %>
+      </div>
+    <% end %>
+
+    <% if @mailbox.forward_to.present? && !@mailbox.forwarding? %>
+      <div class="flex flex-column align-center gap-half">
+        <% if @domain.verified? %>
+          <p class="txt-small txt-subtle margin-none txt-align-center">Mail is not forwarded until that address confirms. A confirmation is also cleared when mail forwarded there bounces for good.</p>
+          <%= button_to "Send a confirmation link", domain_mailbox_forwardings_path(@domain, @mailbox), class: "btn txt-small" %>
+        <% else %>
+          <p class="txt-small txt-subtle margin-none txt-align-center">Verify this domain's DKIM, then send the confirmation.</p>
+          <%= link_to "See the DNS records", edit_domain_path(@domain), class: "btn txt-small" %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if @mailbox.reserved? %>
+      <p class="txt-small txt-subtle margin-none txt-align-center">This mailbox is required for the domain and can't be removed: <code class="txt-mono">postmaster</code> is mandated for every mail domain, and <code class="txt-mono">dmarc-reports</code> receives the aggregate reports this domain's DMARC record asks for.</p>
+    <% end %>
+  </article>
+
+  <section class="project__activity page">
+    <h2 class="divider txt-medium txt-tight-lines margin-none-block-start margin-block-end">History</h2>
+
+    <div class="trail trail--events trail--whole">
+      <% if @mailbox.forwarding? %>
+        <article class="trail__entry">
+          <%= trail_time_tag @mailbox.forward_confirmed_at %>
+          <span class="trail__sentence"><%= @mailbox.forward_to %> confirmed forwarding</span>
+        </article>
+      <% end %>
+      <article class="trail__entry">
+        <%= trail_time_tag @mailbox.created_at %>
+        <span class="trail__sentence">Mailbox added</span>
+      </article>
+    </div>
+  </section>
+
+  <% unless @mailbox.reserved? %>
+    <div class="txt-align-center">
+      <%= button_to domain_mailbox_path(@mailbox.domain, @mailbox), method: :delete,
+            class: "btn txt-negative borderless txt-small",
+            data: { turbo_confirm: "Remove #{@mailbox.local_part}@#{@mailbox.domain.name}?" } do %>
+        <%= icon_tag "trash" %>
+        <span>Remove this mailbox</span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

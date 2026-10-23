@@ -1,0 +1,49 @@
+<div class="page flex flex-column gap">
+  <article class="record">
+    <header class="record__header">
+      <h2 class="record__title"><%= @page_title %></h2>
+      <p class="record__byline"><%= inbound_status_tag inbound_email, form: :badge %></p>
+      <%= render "emails/byline", from: inbound_email.mail_from, at: inbound_email.created_at, to: inbound_email.rcpt_to %>
+    </header>
+
+    <% if inbound_email.incinerated? %>
+      <p class="txt-small txt-subtle margin-none">Message content was incinerated on <%= local_datetime_tag inbound_email.incinerated_at, style: :date %>.</p>
+    <% else %>
+      <% if report = inbound_email.dmarc_report %>
+        <%= render "mailpieces/dmarc_report", report: report %>
+      <% end %>
+      <%= render "emails/body", parsed_email: inbound_email.parsed_email, mailpiece: mailpiece %>
+      <%= render "emails/attachments", attachments: inbound_email.attachments_blobs %>
+    <% end %>
+  </article>
+
+  <section class="project__activity page">
+    <h2 class="divider txt-medium txt-tight-lines margin-none-block-start margin-block-end">History</h2>
+
+    <div class="trail trail--events trail--whole">
+      <% inbound_email_trail(inbound_email).each do |at, sentence| %>
+        <article class="trail__entry">
+          <%= trail_time_tag at %>
+          <span class="trail__sentence"><%= sentence %></span>
+        </article>
+      <% end %>
+    </div>
+
+    <% if inbound_email.raw_email.attached? %>
+      <%= link_to "Download original", rails_blob_url(inbound_email.raw_email, disposition: "attachment"), class: "btn txt-small flex fit-content center", data: { turbo: false } %>
+    <% end %>
+  </section>
+
+  <% if Current.user.admin? %>
+    <div class="txt-align-center">
+      <%= button_to mailpiece_path(mailpiece), method: :delete,
+            class: "btn txt-negative borderless txt-small",
+            data: { turbo_confirm: inbound_email.processed? ?
+              "Delete this message permanently?" :
+              "This message is still being processed. Deleting it will cancel forwarding. Delete permanently?" } do %>
+        <%= icon_tag "trash" %>
+        <span>Delete this mailpiece</span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,65 @@
+<%# locals: (domain:, users:, accessed_user_ids:) %>
+
+<section>
+  <h2 class="settings-index__heading">Who can use this domain</h2>
+  <div class="settings-index__body">
+    <p class="txt-small txt-subtle margin-none">People without access can't see this domain, its mail, or its bounces. Not even admins, and not even you. Only someone who still has access can hand it back.</p>
+
+    <%= render layout: "shared/filter", locals: { what: "people" } do %>
+      <%= form_with model: domain, url: domain_accesses_path(domain), method: :patch, class: "flex flex-column gap", data: {
+            controller: "accesses-form",
+            accesses_form_self_removal_prompt_message_value: "Are you sure you want to remove yourself from this domain? You won't be able to get back in unless someone invites you.",
+            action: "turbo:submit-start->accesses-form#submitWithWarning" } do |form| %>
+        <div class="flex flex-column gap <%= "toggler--toggled" if domain.all_access? %>"
+             data-controller="toggle-class navigable-list" data-toggle-class-toggle-class="toggler--toggled"
+             data-action="keydown->navigable-list#navigate"
+             data-navigable-list-actionable-items-value="true" data-navigable-list-only-act-on-focused-items-value="true">
+          <ul class="rows" style="--rows-margin: 0; --rows-padding: 0; --rows-border-size: 0; --rows-shadow: none; --rows-bg: transparent">
+            <li class="row">
+              <div class="row__body flex-item-grow">
+                <strong class="row__title">Everyone</strong>
+                <span class="row__meta">Including people who join later</span>
+              </div>
+              <span class="row__end">
+                <label class="switch">
+                  <%= form.check_box :all_access, class: "switch__input", data: { action: "change->toggle-class#toggle" } %>
+                  <span class="switch__btn"></span>
+                  <span class="for-screen-reader">Give everyone access to this domain</span>
+                </label>
+              </span>
+            </li>
+          </ul>
+
+          <div class="flex gap-half toggler__visible-when-off">
+            <%= button_tag "Select all", type: "button", class: "btn txt-x-small", data: { action: "click->toggle-class#checkAll click->accesses-form#checkMe" } %>
+            <%= button_tag "Select none", type: "button", class: "btn txt-x-small", data: { action: "click->toggle-class#checkNone" } %>
+          </div>
+
+          <ul class="rows" style="--rows-margin: 0; --rows-padding: 0; --rows-border-size: 0; --rows-shadow: none; --rows-bg: transparent">
+            <% users.each do |user| %>
+              <li id="<%= dom_id user, :access %>" class="row" data-quick-find-target="item" data-navigable-list-target="item" tabindex="-1">
+                <div class="row__body flex-item-grow">
+                  <strong class="row__title"><%= user.name %></strong>
+                  <span class="row__meta"><%= user.identity.email_address %></span>
+                </div>
+                <span class="row__end">
+                  <%= icon_tag "check", class: "toggler__visible-when-on" %>
+
+                  <label class="switch toggler__visible-when-off">
+                    <% checkbox_data = user == Current.user ? { accesses_form_target: "meCheckbox" } : { toggle_class_target: "checkbox" } %>
+                    <%= check_box_tag "user_ids[]", user.id, accessed_user_ids.include?(user.id),
+                          id: nil, class: "switch__input", data: checkbox_data %>
+                    <span class="switch__btn"></span>
+                    <span class="for-screen-reader">Give <%= user.name %> access to this domain</span>
+                  </label>
+                </span>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+
+        <%= form.button "Update access", type: "submit", class: "btn btn--link center" %>
+      <% end %>
+    <% end %>
+  </div>
+</section>
