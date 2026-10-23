@@ -1,0 +1,39 @@
+<%# Meetings (Gespräche) master-detail — Slice 1a. List left, detail in a Turbo
+    frame right; layout-toggle + viewport drive the list/detail switch (desktop
+    collapse + mobile). Search reloads only the list frame so the detail pane
+    survives. The wrapper and the grid are shared with "Alle Meetings"
+    (meeting_list_page_data, _index_desktop, _index_mobile). %>
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+  <%# Keep Turbo visits alive: a full reload discards the permanent assistant's
+      draft and selected revision. index-page restores meeting/filter/form
+      history; no-cache above keeps stale detail snapshots out of that history. %>
+<% end %>
+
+<turbo-frame id="modal"></turbo-frame>
+
+<div class="labor-layout-view <%= 'show-content' if @selected_meeting || @new_meeting %> hide-panel"
+     <%= tag.attributes(data: meeting_list_page_data(index_url: organisation_project_meetings_path(@current_organisation, @project),
+                                                     list_frame_id: Organisations::MeetingsController::LIST_FRAME_ID,
+                                                     viewport_mode: @viewport_mode, selected: @selected_meeting,
+                                                     lane_forms: %w[new], new_form_open: @new_meeting.present?)
+                                .merge(meeting_column_picker_data(organisation: @current_organisation, project: @project, active_view: @active_smart_folder,
+                                                                  frame_id: Organisations::MeetingsController::LIST_FRAME_ID))) %>>
+  <% list = capture do %>
+    <%= render 'organisations/meetings/list_head' %>
+    <%= render 'organisations/meetings/meetings_results', meetings: @meetings, selected_meeting: @selected_meeting %>
+  <% end %>
+
+  <%# The form as a state of the lane (?new=meeting), or a refused edit
+      rendered as a page (MeetingsController#render_form_with_errors). %>
+  <% lane_form = if @new_meeting
+                   render (@new_meeting.persisted? ? 'organisations/meetings/meeting_edit' : 'organisations/meetings/meeting_new_for_frame'),
+                          meeting: @new_meeting, detail_frame_id: 'meeting_display_frame'
+                 end %>
+
+  <% if @viewport_mode == 'mobile' %>
+    <%= render 'organisations/meetings/index_mobile', list: list, lane_form: lane_form %>
+  <% else %>
+    <%= render 'organisations/meetings/index_desktop', list: list, lane_form: lane_form %>
+  <% end %>
+</div>

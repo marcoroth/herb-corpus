@@ -1,0 +1,60 @@
+<%# List frame: brings its own <turbo-frame id="meetings_results"> (the
+    controller replaces it wholesale on create/update/destroy). %>
+<turbo-frame id="meetings_results" data-keyboard-navigation-target="listContainer">
+  <div data-fb-hits-total="<%= @pagy.count %>" class="text-base min-h-[70vh]" data-list-filter-query="<%= meeting_list_state(pagy: @pagy).to_query %>">
+    <% if meetings.empty? %>
+        <% if meetings_first_use?(@project) %>
+          <%# First time: warm empty state; writers get a CTA that opens the
+              inline form in the detail frame. %>
+          <% cta = nil %>
+          <% if policy(@project).area_access?(:meetings, :write) %>
+            <% cta = capture do %>
+              <% new_entry_frame = @viewport_mode == 'mobile' ? '_top' : 'meeting_display_frame' %>
+              <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :primary, icon: 'plus-lg', size: :large,
+                url: new_organisation_project_meeting_path(@current_organisation, @project, **meeting_list_state.symbolize_keys, frame: 'content', frame_id: 'meeting_display_frame', viewport: @viewport_mode),
+                data: { turbo_frame: new_entry_frame }
+              ) do %>
+                <%= t('views.organisations.meetings.index.empty_cta') %>
+              <% end %>
+            <% end %>
+          <% end %>
+          <%# First time: full-width two-column grid like the documentation
+              reference (style guide "Leerzustände") — empty card + explainer,
+              stacked on mobile, starting at the top of the list area.
+              first-use-empty-grid/-card: while the detail pane shows the
+              new-meeting form (.show-content), layout.css hides the CTA card
+              (it would prompt for the action already in progress) and the
+              explainer takes the full list column. %>
+          <div class="first-use-empty-grid grid w-full gap-5 md:grid-cols-2 md:items-stretch">
+            <div class="first-use-empty-card h-full">
+              <%= render 'shared/empty_content',
+                  variant: :first_time,
+                  icon_class: 'bi bi-chat-quote',
+                  title: t('views.organisations.meetings.index.empty_first_time_title'),
+                  description: t('views.organisations.meetings.index.empty_first_time_description'),
+                  actions: cta %>
+            </div>
+            <%= render 'shared/explainer_panel',
+                i18n_scope: 'views.organisations.meetings.index.explainer',
+                points: { capture: 'chat-quote', transcript: 'file-earmark-text', search: 'search', chat: 'robot' } %>
+          </div>
+        <% else %>
+          <%# Existing meetings but the search/filter matched none. %>
+          <div class="flex items-center justify-center min-h-[50vh]">
+            <%= render 'shared/empty_content',
+                variant: :no_results,
+                icon_class: 'bi bi-search',
+                title: t('views.organisations.meetings.index.empty_no_results') %>
+          </div>
+        <% end %>
+    <% else %>
+      <%= render 'organisations/meetings/meetings_table', meetings: meetings, selected_meeting: selected_meeting,
+                 base_path: organisation_project_meetings_path(@current_organisation, @project), frame_id: 'meetings_results' %>
+    <% end %>
+    <% if @pagy.count.positive? %>
+      <%= render 'shared/pagination_nav_compact', pagy: @pagy, frame_id: 'meetings_results', items_per_page: @pagy.limit,
+                 smart_folder_id: @active_smart_folder&.id, current_organisation: @current_organisation, project: @project %>
+    <% end %>
+  </div>
+</turbo-frame>

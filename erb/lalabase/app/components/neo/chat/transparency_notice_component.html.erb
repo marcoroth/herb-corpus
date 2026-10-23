@@ -1,0 +1,76 @@
+<%# Art. 13 GDPR / Art. 50 AI Act labelling, in two parts (Feinschliff P3).
+
+    VISIBLE at all times: that the answers are AI-generated, and by whom. That is
+    the sentence the AI Act asks for, and it is four words long.
+
+    BEHIND the disclosure: where the input travels, under which jurisdiction, in
+    which region, plus the second recipient when the search routes elsewhere.
+    Those are the sentences that used to sit under every conversation permanently,
+    and nobody read them twice.
+
+    ⚠️ A NATIVE <details>, not a div driven by a controller (review of #625). The
+    Art. 13 half must not depend on JavaScript: this app has already shipped a
+    broken controller manifest to production once (root CLAUDE.md, "Stimulus
+    Controller Index Bug"), and the privacy link in here is the ONLY one the chat
+    surfaces have. With <details> the disclosure works with the controller absent,
+    and Stimulus only adds the slide, Escape and click-beside.
+
+    Two more things it gets for free, both of them findings in the first draft:
+    the accessible name of the control IS its visible text (WCAG 2.5.3 — an
+    aria-label reading "Hinweis zur KI-Verarbeitung anzeigen" over a control
+    labelled "Details" is not reachable by voice), and there is no role="dialog"
+    promising a focus trap that nothing implements.
+
+    ⚠️ NO dom id, deliberately. This component renders on three surfaces, and the
+    assistant panel renders on TOP of the two chat pages — a fixed id would collide
+    with itself, which is a trap this codebase has walked into three times. <details>
+    needs none: the element IS the state. %>
+<details class="relative" data-controller="neo-ai-disclosure" data-action="toggle->neo-ai-disclosure#toggled">
+  <%# text-muted, not text-faint: this line carries the one legally required
+      statement that stays on screen, and it is also a control. Measured on white,
+      --cream-500 gives 3.33:1 and --cream-600 gives 5.55:1; 1.4.3 AA asks 4.5:1 at
+      this size (review of #625). list-none drops the native marker; the fold is
+      told by the word "Details" instead. %>
+  <summary class="text-xs text-muted list-none cursor-pointer select-none [&::-webkit-details-marker]:hidden">
+    <i class="bi bi-info-circle mr-1" aria-hidden="true"></i>
+    <%= t('views.organisations.chats.chat_show.ai_transparency_summary', provider: ai_provider_display_name) %>
+    <span class="underline decoration-1 underline-offset-2">
+      <%= t('views.organisations.chats.chat_show.ai_transparency_details') %>
+    </span>
+  </summary>
+
+  <%# Above the summary (bottom-full) and sliding up into the conversation. The
+      translation classes come OFF one frame after opening, so without JavaScript
+      the note simply appears — the information is never behind the animation. %>
+  <div data-neo-ai-disclosure-target="layer"
+       class="absolute bottom-full inset-x-0 mb-2 z-10 translate-y-2 opacity-0 transition-all duration-200
+              bg-surface-raised border-2 border-stroke rounded p-3 shadow-[3px_3px_0_0_#000]">
+    <p class="text-xs font-bold text-cream-900">
+      <%= t('views.organisations.chats.chat_show.ai_transparency_heading') %>
+    </p>
+    <p class="mt-1 text-xs text-muted">
+      <% if package_jurisdiction %>
+        <%# The jurisdiction labels are owned by the package catalogue's locale
+            block — reusing them keeps the notice and the card literally the same
+            claim (P5), which is the point of feeding both from the package. %>
+        <%= t('views.organisations.chats.chat_show.ai_transparency_package',
+              provider: ai_provider_display_name,
+              jurisdiction: t("views.organisations.ai_settings.packages.jurisdictions.#{package_jurisdiction}")) %>
+        <% if package_processing_region %>
+          <%= t('views.organisations.chats.chat_show.ai_transparency_package_region',
+                region: package_processing_region) %>
+        <% end %>
+      <% else %>
+        <%= t('views.organisations.chats.chat_show.ai_transparency', provider: ai_provider_display_name) %>
+      <% end %>
+      <% if embedding_provider_display_name_if_different %>
+        <%= t('views.organisations.chats.chat_show.ai_transparency_embeddings',
+              provider: embedding_provider_display_name_if_different) %>
+      <% end %>
+      <%= helpers.legal_page_link :privacy,
+                                  label: t('views.organisations.chats.chat_show.ai_transparency_privacy_link'),
+                                  target: '_blank', rel: 'noopener',
+                                  class: 'underline decoration-1 underline-offset-2 hover:text-cream-900' %>
+    </p>
+  </div>
+</details>

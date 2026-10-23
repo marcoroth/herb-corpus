@@ -1,0 +1,125 @@
+<%# app/views/smart_folders/share.html.erb %>
+<div class="flex items-center gap-4 justify-between mb-6">
+  <h2 class="text-2xl md:text-[1.6rem] font-semibold">
+    <%= t('.title', name: @smart_folder.name) %>
+  </h2>
+  
+  <%= link_to organisation_smart_folder_path(current_organisation, @smart_folder), class: 'text-cobalt-600 hover:text-cobalt-800 flex items-center' do %>
+    <i class="bi bi-arrow-left me-1"></i> <%= t('generic.back_to_details', default: 'Zurück zum Ordner') %>
+  <% end %>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+  <%# Form for adding new shares %>
+  <div class="p-6 bg-surface-raised shadow-sm rounded-lg border border-gray-200">
+    <h3 class="text-lg font-medium text-gray-900 mb-4">
+      <%= t('.add_new_share', default: 'Neue Freigabe hinzufügen') %>
+    </h3>
+    
+    <%= form_with url: perform_share_organisation_smart_folder_path(current_organisation, @smart_folder), method: :post, data: { turbo: false }, class: 'space-y-4' do |form| %>
+      <div>
+        <%= form.label :share_user_ids, t('.select_users'), class: 'block text-sm font-medium text-gray-700 mb-1' %>
+        <%= form.select :share_user_ids,
+                        options_from_collection_for_select(@users_for_sharing, :id, :email),
+                        { include_blank: t('helpers.select.prompt') },
+                        { multiple: true, 
+                          class: 'mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm rounded-md',
+                          size: 6 } %>
+        <p class="mt-1 text-xs text-gray-500">
+          <%= t('.users_hint', default: 'Halten Sie Strg/Cmd gedrückt, um mehrere Benutzer auszuwählen') %>
+        </p>
+      </div>
+
+      <div class="mt-6">
+        <h4 class="font-medium text-sm text-gray-700 mb-2">
+          <%= t('.permissions') %>
+        </h4>
+        <div class="space-y-2">
+          <div class="flex items-start">
+            <%= form.check_box :share_can_edit, 
+                              { class: 'h-4 w-4 text-cobalt-600 focus:ring-cobalt-500 border-gray-300 rounded mt-1' }, 
+                              '1', '0' %>
+            <div class="ml-3">
+              <%= form.label :share_can_edit, t('.can_edit'), class: 'text-sm text-gray-700 block' %>
+              <p class="text-xs text-gray-500"><%= t('.can_edit_hint', default: 'Benutzer können die Regeln und Einstellungen des Ordners bearbeiten') %></p>
+            </div>
+          </div>
+          
+          <div class="flex items-start">
+            <%= form.check_box :share_can_share, 
+                              { class: 'h-4 w-4 text-cobalt-600 focus:ring-cobalt-500 border-gray-300 rounded mt-1' }, 
+                              '1', '0' %>
+            <div class="ml-3">
+              <%= form.label :share_can_share, t('.can_share'), class: 'text-sm text-gray-700 block' %>
+              <p class="text-xs text-gray-500"><%= t('.can_share_hint', default: 'Benutzer können den Ordner mit anderen teilen') %></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-200">
+        <%= form.submit t('.share_button'), class: 'inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-on-fill bg-cobalt-600 hover:bg-cobalt-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cobalt-500' %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# List of existing shares %>
+  <div class="p-6 bg-surface-raised shadow-sm rounded-lg border border-gray-200">
+    <h3 class="text-lg font-medium text-gray-900 mb-4">
+      <%= t('.shared_with') %>
+    </h3>
+    
+    <% if @existing_shares.any? %>
+      <div class="divide-y divide-gray-200">
+        <% @existing_shares.each do |share| %>
+          <div class="py-4 flex justify-between items-center">
+            <div>
+              <div class="flex items-center">
+                <div class="text-lg text-gray-400 mr-2">
+                  <i class="bi bi-person-circle"></i>
+                </div>
+                <span class="text-gray-900 font-medium">
+                  <%= share.user.email %>
+                </span>
+              </div>
+              <div class="mt-1 ml-6 flex space-x-2">
+                <% if share.can_edit %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                    <i class="bi bi-pencil me-1 text-xs"></i> <%= t('.can_edit') %>
+                  </span>
+                <% end %>
+                <% if share.can_share %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cobalt-100 text-cobalt-800">
+                    <i class="bi bi-share me-1 text-xs"></i> <%= t('.can_share') %>
+                  </span>
+                <% end %>
+              </div>
+            </div>
+            <div>
+              <%= button_to unshare_user_organisation_smart_folder_path(@current_organisation, @smart_folder, share.user_id),
+                        method: :delete,
+                        data: { turbo_confirm: t('.confirm_remove_share') },
+                        class: 'text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100' do %>
+                <i class="bi bi-trash"></i>
+                <span class="sr-only"><%= t('.remove_share') %></span>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="py-6 text-center text-gray-500 border border-dashed border-slate-400 rounded-lg">
+        <div class="text-2xl mb-2">
+          <i class="bi bi-people"></i>
+        </div>
+        <p><%= t('.no_shares') %></p>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="mt-8 pt-4 border-t border-gray-200">
+  <%= link_to organisation_smart_folder_path(current_organisation, @smart_folder), class: 'text-cobalt-600 hover:text-cobalt-800 flex items-center' do %>
+    <i class="bi bi-arrow-left me-1"></i> <%= t('generic.back_to_details', default: 'Zurück zum Ordner') %>
+  <% end %>
+</div>

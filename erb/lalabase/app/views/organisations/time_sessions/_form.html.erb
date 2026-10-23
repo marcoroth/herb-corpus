@@ -1,0 +1,58 @@
+<%# locals: (time_session:, project: nil, ticket: nil) %>
+<%# Ticket-context form (modal on ticket pages). Shared fields: _form_fields. %>
+<%= form_with(model: [@current_organisation, @project, time_session],
+              id: "time_session_form",
+              class: "space-y-4 p-1",
+              data: {
+                controller: "time-session-form",
+                action: "turbo:submit-end->time-session-form#handleSubmit"
+                # No turbo_frame - default behavior for forms
+              }) do |f| %>
+  <%# Hidden context field to pass the context to the controller %>
+  <%= hidden_field_tag :context, ticket.present? ? 'ticket' : nil %>
+
+  <%# Lazy t('.') resolves in the yield block within the form_fields scope — so evaluate it here in advance. %>
+  <% ticket_label = t('.ticket_label')
+     ticket_search_placeholder = t('.ticket_search_placeholder')
+     no_ticket_assignment = t('.no_ticket_assignment') %>
+
+  <%= render layout: 'organisations/time_sessions/form_fields',
+             locals: {
+               f: f,
+               time_session: time_session,
+               group_collection: (@time_session_groups if @time_session_groups&.any?),
+               cancel_action: "click->modal#close"
+             } do %>
+    <%
+      # Determine ticket ID from various sources in priority order:
+      # 1. Directly passed ticket object
+      # 2. time_session.ticket_id
+      # 3. params[:ticket_id]
+      ticket_id = if ticket.present?
+                    ticket.id
+                  elsif time_session.ticket_id.present?
+                    time_session.ticket_id
+                  elsif params[:ticket_id].present?
+                    params[:ticket_id]
+                  end
+    %>
+    <% if policy(project || @project).area_access?(:tickets, :read) %>
+      <div class="mb-4">
+        <%= f.label :ticket_id, ticket_label, class: "block text-sm font-medium text-gray-700 text-left mb-1" %>
+        <% tickets_collection = @tickets || (project || @project)&.tickets || [] %>
+        <% ticket_options = tickets_collection.map { |t| { value: t.id, text: t.display_title } } %>
+        <%= render NeoAutosuggestComponent.new(
+          name: :ticket_id,
+          options: ticket_options,
+          selected: ticket_id,
+          placeholder: ticket_search_placeholder,
+          include_blank: true,
+          blank_text: no_ticket_assignment,
+          form: f
+        ) %>
+      </div>
+    <% else %>
+      <%= f.hidden_field :ticket_id, value: nil %>
+    <% end %>
+  <% end %>
+<% end %>

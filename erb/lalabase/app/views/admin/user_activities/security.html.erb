@@ -1,0 +1,191 @@
+<div class="container mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold mb-2 flex items-center gap-2">
+      <i class="bi bi-shield-exclamation text-red-500"></i>
+      <%= t('views.admin.user_activities.security.title') %>
+    </h1>
+    <p class="text-gray-600"><%= t('views.admin.user_activities.security.subtitle') %></p>
+  </div>
+
+  <!-- Suspicious Users Alert -->
+  <% if @suspicious_users.any? %>
+    <div class="bg-red-50 border-2 border-red-500 rounded-lg p-4 mb-6">
+      <div class="flex items-start">
+        <i class="bi bi-exclamation-triangle-fill text-red-500 text-xl mr-3"></i>
+        <div class="flex-1">
+          <h3 class="font-bold text-red-900 mb-2"><%= t('views.admin.user_activities.security.suspicious_users_title') %></h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <% @suspicious_users.each do |user| %>
+              <div class="bg-white border border-red-300 rounded p-3">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1 min-w-0">
+                    <%= link_to admin_user_activities_path(user_id: user.id, action_type: 'login_failed'),
+                        class: "font-medium text-red-600 hover:text-red-800 truncate block" do %>
+                      <%= user.email %>
+                    <% end %>
+                    <p class="text-sm text-gray-600">
+                      <%= t('views.admin.user_activities.security.failed_attempts', count: user.failed_attempts) %>
+                    </p>
+                  </div>
+                  <%= link_to admin_user_path(user),
+                      class: "ml-2 text-gray-500 hover:text-gray-700" do %>
+                    <i class="bi bi-person-fill"></i>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Suspicious IPs -->
+  <% if @suspicious_ips.any? %>
+    <div class="bg-yellow-50 border-2 border-yellow-500 rounded-lg p-4 mb-6">
+      <div class="flex items-start">
+        <i class="bi bi-geo-alt-fill text-yellow-600 text-xl mr-3"></i>
+        <div class="flex-1">
+          <h3 class="font-bold text-yellow-900 mb-2"><%= t('views.admin.user_activities.security.suspicious_ips_title') %></h3>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <% @suspicious_ips.each do |ip, count| %>
+              <div class="bg-white border border-yellow-300 rounded p-2">
+                <div class="font-mono text-sm"><%= ip %></div>
+                <div class="text-xs text-gray-600"><%= t('views.admin.user_activities.security.ip_attempts', count: count) %></div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Security Events Table -->
+  <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-4 py-3 border-b-2 border-black bg-red-50">
+      <h2 class="text-lg font-bold text-red-900"><%= t('views.admin.user_activities.security.table_title') %></h2>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-gray-100 border-b-2 border-black">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_time') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_severity') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_user') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_event') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_ip') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_details') %></th>
+            <th class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.security.th_actions') %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          <% @security_events.each do |event| %>
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <div>
+                  <div class="font-medium"><%= l(event.created_at, format: :short) %></div>
+                  <div class="text-xs text-gray-500"><%= event.created_at.strftime('%H:%M:%S') %></div>
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <% severity = case event.action
+                              when 'login_failed' then 'low'
+                              when 'account_locked', 'api_token_deleted' then 'medium'
+                              when 'suspicious_activity', 'api_token_created' then 'high'
+                              else 'info'
+                              end %>
+                <span class="px-2 py-1 text-xs font-bold rounded
+                  <%= case severity
+                      when 'high' then 'bg-red-100 text-red-800'
+                      when 'medium' then 'bg-orange-100 text-orange-800'
+                      when 'low' then 'bg-yellow-100 text-yellow-800'
+                      else 'bg-gray-100 text-gray-800'
+                      end %>">
+                  <%= severity.upcase %>
+                </span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <%= link_to event.user.email,
+                    admin_user_path(event.user),
+                    class: "text-blue-600 hover:text-blue-800" %>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                  <i class="bi <%= case event.action
+                                  when 'login_failed' then 'bi-x-circle text-red-500'
+                                  when 'account_locked' then 'bi-lock-fill text-orange-500'
+                                  when 'account_unlocked' then 'bi-unlock-fill text-green-500'
+                                  when 'suspicious_activity' then 'bi-exclamation-triangle-fill text-red-600'
+                                  when 'api_token_created', 'api_token_deleted' then 'bi-key-fill text-purple-500'
+                                  else 'bi-shield text-gray-500'
+                                  end %>"></i>
+                  <span class="text-sm font-medium"><%= event.action.humanize %></span>
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <span class="font-mono text-xs"><%= event.ip_address || '-' %></span>
+              </td>
+              <td class="px-4 py-3 text-sm">
+                <% if event.failure_reason.present? %>
+                  <span class="text-red-600"><%= event.failure_reason %></span>
+                <% elsif event.metadata.present? && event.metadata['reason'].present? %>
+                  <span class="text-gray-600"><%= event.metadata['reason'] %></span>
+                <% else %>
+                  <span class="text-gray-400">-</span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-center">
+                <div class="flex justify-center gap-2">
+                  <%= link_to admin_user_activity_path(event),
+                      class: "text-gray-600 hover:text-gray-900",
+                      title: t('views.admin.user_activities.security.tooltip_details') do %>
+                    <i class="bi bi-eye"></i>
+                  <% end %>
+
+                  <% if event.action == 'login_failed' && event.user.failed_login_count > 5 %>
+                    <%= link_to admin_user_path(event.user),
+                        class: "text-orange-600 hover:text-orange-800",
+                        title: t('views.admin.user_activities.security.tooltip_manage_user') do %>
+                      <i class="bi bi-person-gear"></i>
+                    <% end %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if @security_events.empty? %>
+      <div class="px-4 py-8 text-center text-gray-500">
+        <i class="bi bi-shield-check text-4xl text-green-500 mb-2"></i>
+        <p><%= t('views.admin.user_activities.security.empty_title') %></p>
+      </div>
+    <% end %>
+
+    <!-- Info -->
+    <% if @security_events.any? %>
+      <div class="px-4 py-3 border-t border-gray-200 text-sm text-gray-600">
+        <%= t('views.admin.user_activities.security.showing_count', count: @security_events.count) %>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Actions -->
+  <div class="mt-6 flex gap-4">
+    <%= link_to admin_user_activities_path,
+        class: "inline-flex items-center px-4 py-2 border-2 border-black rounded-lg hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+      <i class="bi bi-arrow-left mr-2"></i>
+      <%= t('views.admin.user_activities.security.btn_back') %>
+    <% end %>
+
+    <%= link_to admin_user_activities_path(format: :csv, action_type: 'login_failed,account_locked,suspicious_activity'),
+        class: "inline-flex items-center px-4 py-2 border-2 border-black rounded-lg bg-red-100 hover:bg-red-200 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+      <i class="bi bi-download mr-2"></i>
+      <%= t('views.admin.user_activities.security.btn_export') %>
+    <% end %>
+  </div>
+</div>

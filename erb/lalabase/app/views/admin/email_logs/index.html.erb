@@ -1,0 +1,312 @@
+<div class="min-h-screen bg-gray-50">
+  <!-- Header -->
+  <div class="bg-white shadow-sm border-b">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="py-6 flex items-center justify-between">
+        <h1 class="text-3xl font-bold text-gray-900"><%= t('views.admin.email_logs.index.title') %></h1>
+        <div class="flex gap-4">
+          <%= link_to t('views.admin.email_logs.index.export_csv'), export_admin_email_logs_path(params.permit!),
+              class: "inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50" %>
+          <button id="refresh-stats" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+            <i class="bi bi-arrow-clockwise mr-2"></i>
+            <%= t('views.admin.email_logs.index.refresh') %>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts Section (kompakt, aufklappbar) -->
+  <% if @recent_failures.any? %>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+    <details class="group bg-red-50 border-l-4 border-red-400 rounded-r-md">
+      <summary class="flex items-center gap-2 p-3 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
+        <i class="bi bi-exclamation-triangle-fill text-red-400"></i>
+        <span class="text-sm font-medium text-red-800"><%= t('views.admin.email_logs.index.recent_failures') %></span>
+        <span class="inline-flex items-center justify-center min-w-[1.25rem] px-1.5 py-0.5 text-xs font-semibold rounded-full bg-red-200 text-red-900"><%= @recent_failures.count %></span>
+        <i class="bi bi-chevron-down text-red-400 ml-auto transition-transform group-open:rotate-180"></i>
+      </summary>
+      <div class="px-3 pb-3 pl-9 text-sm text-red-700">
+        <p><%= t('views.admin.email_logs.index.failures_last_24h', count: @recent_failures.count) %></p>
+        <ul class="list-disc list-inside mt-1">
+          <% @recent_failures.first(3).each do |log| %>
+          <li>
+            <%= log.recipient_email || t('views.admin.email_logs.index.unknown_recipient') %> -
+            <%= log.status.humanize %>
+            (<%= t('views.admin.email_logs.index.ago', time: time_ago_in_words(log.created_at)) %>)
+          </li>
+          <% end %>
+        </ul>
+      </div>
+    </details>
+  </div>
+  <% end %>
+
+  <!-- Charts Section (server-rendered, no JS charting dependency) -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Status Distribution (horizontal bars) -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4"><%= t('views.admin.email_logs.index.status_distribution_chart') %></h3>
+        <% status_counts = (@stats[:by_status] || {}).reject { |_status, count| count.to_i.zero? } %>
+        <% status_total = status_counts.values.sum %>
+        <% if status_total.zero? %>
+          <p class="h-64 flex items-center justify-center text-sm text-gray-400"><%= t('views.admin.email_logs.index.no_chart_data') %></p>
+        <% else %>
+          <div class="space-y-3">
+            <% status_counts.sort_by { |_status, count| -count }.each do |status, count| %>
+              <% pct = (count * 100.0 / status_total).round(1) %>
+              <div>
+                <div class="flex items-center justify-between text-sm mb-1">
+                  <span class="font-medium text-gray-700"><%= status.humanize %></span>
+                  <span class="text-gray-500 tabular-nums"><%= count %> · <%= pct %>%</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-2.5">
+                  <div class="h-2.5 rounded-full <%= case status
+                        when 'delivered', 'opened', 'clicked' then 'bg-green-500'
+                        when 'bounced', 'failed', 'complaint' then 'bg-red-500'
+                        when 'sent' then 'bg-blue-500'
+                        when 'queued' then 'bg-amber-500'
+                        else 'bg-gray-400' end %>" style="width: <%= pct %>%"></div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+      <!-- Daily Send Volume (vertical bars, last 7 days) -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4"><%= t('views.admin.email_logs.index.daily_volume_chart') %></h3>
+        <% by_day = (@stats[:by_day] || {}).transform_keys(&:to_s) %>
+        <% volume_days = (0..6).map { |offset| offset.days.ago.to_date }.reverse %>
+        <% volume_counts = volume_days.map { |day| by_day[day.to_s].to_i } %>
+        <% volume_max = [volume_counts.max || 0, 1].max %>
+        <% if volume_counts.sum.zero? %>
+          <p class="h-64 flex items-center justify-center text-sm text-gray-400"><%= t('views.admin.email_logs.index.no_chart_data') %></p>
+        <% else %>
+          <div class="h-64 flex flex-col">
+            <div class="flex-1 flex items-end justify-between gap-2">
+              <% volume_days.each_with_index do |_day, i| %>
+                <% count = volume_counts[i] %>
+                <% height = (count * 90.0 / volume_max).round %>
+                <div class="flex-1 flex flex-col items-center justify-end h-full">
+                  <span class="text-xs text-gray-500 tabular-nums mb-1"><%= count %></span>
+                  <div class="w-full bg-blue-500 rounded-t" style="height: <%= height %>%"></div>
+                </div>
+              <% end %>
+            </div>
+            <div class="flex justify-between gap-2 mt-2 border-t border-gray-100 pt-2">
+              <% volume_days.each do |day| %>
+                <span class="flex-1 text-center text-xs text-gray-400 whitespace-nowrap"><%= day.strftime('%d.%m') %></span>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+    <div class="bg-white shadow rounded-lg p-6">
+      <%= form_with url: admin_email_logs_path, method: :get, class: "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5" do |f| %>
+        <div>
+          <%= f.label :status, t('views.common.status'), class: "block text-sm font-medium text-gray-700" %>
+          <%= f.select :status,
+              options_for_select([
+                [t('views.admin.email_logs.index.filter_status_all'), ''],
+                [t('views.admin.email_logs.index.filter_status_queued'), 'queued'],
+                [t('views.admin.email_logs.index.filter_status_sent'), 'sent'],
+                [t('views.admin.email_logs.index.filter_status_delivered'), 'delivered'],
+                [t('views.admin.email_logs.index.filter_status_opened'), 'opened'],
+                [t('views.admin.email_logs.index.filter_status_clicked'), 'clicked'],
+                [t('views.admin.email_logs.index.filter_status_bounced'), 'bounced'],
+                [t('views.admin.email_logs.index.filter_status_failed'), 'failed']
+              ], params[:status]),
+              {},
+              class: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %>
+        </div>
+
+        <div>
+          <%= f.label :search, t('views.admin.email_logs.index.recipient_email'), class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :search, value: params[:search],
+              placeholder: t('views.admin.email_logs.index.search_placeholder'),
+              class: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %>
+        </div>
+
+        <div>
+          <%= f.label :date_from, t('views.admin.email_logs.index.from_date'), class: "block text-sm font-medium text-gray-700" %>
+          <%= f.date_field :date_from, value: params[:date_from],
+              class: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %>
+        </div>
+
+        <div>
+          <%= f.label :date_to, t('views.admin.email_logs.index.to_date'), class: "block text-sm font-medium text-gray-700" %>
+          <%= f.date_field :date_to, value: params[:date_to],
+              class: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" %>
+        </div>
+
+        <div class="flex items-end">
+          <%= f.submit t('views.common.filter'), class: "inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" %>
+          <%= link_to t('views.common.clear'), admin_email_logs_path, class: "ml-2 inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Email Logs Table -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <%= t('views.admin.email_logs.index.table_recipient') %>
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <%= t('views.admin.email_logs.index.table_subject') %>
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <%= t('views.admin.email_logs.index.table_organisation') %>
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <%= t('views.admin.email_logs.index.table_status') %>
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <%= t('views.admin.email_logs.index.table_sent_at') %>
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <%= t('views.admin.email_logs.index.table_actions') %>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% @email_logs.each do |log| %>
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <%= log.recipient_email || t('views.common.na') %>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <%= truncate(log.subject || log.metadata&.dig('subject') || t('views.common.no_subject'), length: 50) %>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <%= @organisation_names[log.organisation_id] || t('views.common.na') %>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                <%= case log.status
+                    when 'delivered', 'opened', 'clicked' then 'bg-green-100 text-green-800'
+                    when 'bounced', 'failed', 'complaint' then 'bg-red-100 text-red-800'
+                    when 'sent' then 'bg-blue-100 text-blue-800'
+                    else 'bg-gray-100 text-gray-800'
+                    end %>">
+                <%= log.status.humanize %>
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              <%= log.sent_at&.strftime('%Y-%m-%d %H:%M') || log.created_at.strftime('%Y-%m-%d %H:%M') %>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <button onclick="showEmailPreview('<%= admin_email_log_path(log) %>')"
+                      class="text-blue-600 hover:text-blue-900 mr-3">
+                <i class="bi bi-eye"></i> <%= t('views.common.preview') %>
+              </button>
+              <% if log.can_resend? %>
+              <%= button_to resend_admin_email_log_path(log), method: :post,
+                  class: "inline text-green-600 hover:text-green-900",
+                  data: { turbo_confirm: t('views.confirm.resend_email_short') } do %>
+                <i class="bi bi-arrow-repeat"></i> <%= t('views.common.resend') %>
+              <% end %>
+              <% end %>
+            </td>
+          </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+        <%== pagy_nav(@pagy) if @pagy.pages > 1 %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Email Preview Modal -->
+<div id="emailPreviewModal" class="hidden fixed z-modal inset-0 overflow-y-auto">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+      <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg leading-6 font-medium text-gray-900"><%= t('views.admin.email_logs.index.email_preview') %></h3>
+          <button onclick="closeEmailPreview()" class="text-gray-400 hover:text-gray-500">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div id="emailPreviewContent" class="mt-2">
+          <!-- Preview content will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Wrapped in an IIFE: Turbo Drive re-evaluates body scripts in the SAME realm on every
+// navigation, so top-level `const` declarations throw "already been declared" on the
+// second visit and silently kill the whole block. The two entry points are re-exported
+// on window because they are called from inline onclick attributes.
+(function () {
+// i18n strings (JSON-encoded so erblint's to_json rule is satisfied and the
+// translated text is safely escaped before it lands in innerHTML).
+const I18N_LOADING = <%= t("views.common.loading").to_json %>;
+const I18N_LOAD_FAILED = <%= t("views.admin.email_logs.index.failed_to_load").to_json %>;
+
+// Email Preview Modal Functions
+function showEmailPreview(url) {
+  const modal = document.getElementById('emailPreviewModal');
+  const content = document.getElementById('emailPreviewContent');
+
+  // Show loading
+  content.innerHTML = '<div class="text-center py-8"><i class="bi bi-hourglass-split inline-block text-4xl text-gray-400 animate-spin"></i><p class="mt-2 text-gray-500">' + I18N_LOADING + '</p></div>';
+  modal.classList.remove('hidden');
+
+  // Fetch preview content
+  fetch(url, {
+    headers: {
+      'Accept': 'text/html'
+    }
+  })
+  .then(response => response.text())
+  .then(html => {
+    content.innerHTML = html;
+  })
+  .catch(error => {
+    content.innerHTML = '<div class="text-center py-8 text-red-500"><i class="bi bi-exclamation-triangle text-4xl"></i><p class="mt-2">' + I18N_LOAD_FAILED + '</p></div>';
+  });
+}
+
+function closeEmailPreview() {
+  const modal = document.getElementById('emailPreviewModal');
+  modal.classList.add('hidden');
+}
+
+// Close modal on ESC key
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    closeEmailPreview();
+  }
+});
+
+// Refresh stats button
+document.getElementById('refresh-stats')?.addEventListener('click', function() {
+  window.location.reload();
+});
+
+window.showEmailPreview = showEmailPreview;
+window.closeEmailPreview = closeEmailPreview;
+})();
+</script>

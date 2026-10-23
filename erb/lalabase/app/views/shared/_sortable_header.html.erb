@@ -1,0 +1,44 @@
+<%# Sortable table header %>
+<%
+  # Aktuellen URL-Parameter kopieren und bewahren, inkl. smart_folder_id
+  sort_query_params = { sort: { column: column, direction: sort_direction == "asc" ? "desc" : "asc" } }
+  
+  # WICHTIG: Alle relevanten Kontext-Parameter beibehalten
+  if params[:smart_folder_id].present?
+    sort_query_params[:smart_folder_id] = params[:smart_folder_id]
+  end
+  
+  # Projekt-ID beibehalten, wenn vorhanden
+  if params[:project_id].present?
+    sort_query_params[:project_id] = params[:project_id]
+  end
+  
+  # Paginierungsparameter entfernen, um bei Sortierung immer auf Seite 1 zurückzukehren
+  # aber andere wichtige Parameter (wie search) beibehalten
+  permitted_params = params.permit(:search, :context_type, :filter)
+  sort_query_params.merge!(permitted_params.to_h)
+  
+  # URL generieren
+  sort_url = url_for(request.path_parameters.merge(sort_query_params))
+  
+  # Stelle sicher, dass der Query-String die SmartFolder-ID enthält
+  # (für den Fall, dass url_for die Parameter nicht korrekt hinzufügt)
+  unless sort_url.include?("smart_folder_id=") && params[:smart_folder_id].present?
+    separator = sort_url.include?('?') ? '&' : '?'
+    sort_url = "#{sort_url}#{separator}smart_folder_id=#{params[:smart_folder_id]}"
+  end
+%>
+<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-50">
+  <a href="<%= sort_url %>" class="text-gray-500 no-underline" data-turbo="true">
+    <div class="flex items-center space-x-1">
+      <span><%= title %></span>
+      <span class="sort-icon">
+        <% if sort_column == column %>
+          <%= sort_direction == "asc" ? "↑" : "↓" %>
+        <% else %>
+          <span class="text-gray-400">↕</span>
+        <% end %>
+      </span>
+    </div>
+  </a>
+</th>

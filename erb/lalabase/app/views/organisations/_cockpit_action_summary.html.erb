@@ -1,0 +1,84 @@
+<%# Cross-org "what needs me" roll-up (Phase 2 cockpit). Read-mostly: every row deep-links INTO the
+    org (the org-scoped path sets the tenant from the URL), no triage here. Order = unread
+    notifications FIRST (red dot, the unread marker of the whole app: Neo::UnreadMarkerComponent), then the importance-filtered tickets
+    (checklist icon). Counts are quiet tabular-nums; lime is reserved for actions, not status. Only
+    orgs with actionable items appear; all-clean shows the calm empty state. `summary` is a
+    Dashboard::CrossOrgActionSummary. The cockpit renders WITHOUT a tenant — the service eager-loads
+    every association touched below (actor/notifiable/project), so no row triggers a NoTenantSet
+    lazy load (A9). See doc/cockpit_settings_plan.md §5/§6. %>
+<section class="mb-12" aria-labelledby="cockpit-summary-heading">
+  <% if summary.slices.any? %>
+    <h1 id="cockpit-summary-heading" class="text-2xl md:text-3xl font-bold text-cream-900 mb-1">
+      <%= t('views.organisations.select.cockpit.needs_you', count: summary.total) %>
+    </h1>
+    <p class="text-cream-600 mb-6"><%= t('views.organisations.select.cockpit.subtitle') %></p>
+
+    <div class="space-y-8">
+      <% summary.slices.each do |slice| %>
+        <% org = slice.organisation %>
+        <div>
+          <div class="flex items-baseline justify-between gap-3 mb-2">
+            <h2 class="font-bold text-base text-cream-900 truncate"><%= org.name %></h2>
+            <% unless slice.error %>
+              <span class="inline-flex items-center gap-2 text-xs text-cream-500 tabular-nums whitespace-nowrap flex-shrink-0">
+                <%= render Neo::UnreadMarkerComponent.new(
+                      count: slice.notification_count,
+                      label: t('views.organisations.select.cockpit.unread_count', count: slice.notification_count)) %>
+                <% if slice.ticket_count.positive? %>
+                  <span><%= t('views.organisations.select.cockpit.tasks_count', count: slice.ticket_count) %></span>
+                <% end %>
+              </span>
+            <% end %>
+          </div>
+
+          <% if slice.error %>
+            <p class="text-sm text-cream-500 italic"><%= t('views.organisations.select.cockpit.load_error') %></p>
+          <% else %>
+            <%# ONE merged list: unread notifications first (red unread dot + generic title from
+                NotificationPresenter, the same title the inbox uses), then tickets. %>
+            <ul class="divide-y divide-cream-200 border border-cream-300 rounded-lg bg-cream-50 overflow-hidden">
+              <% slice.notifications.each do |notification| %>
+                <li>
+                  <%# deeplink (open_organisation_notification_path) builds the URL from IDs only — the
+                      target is resolved server-side inside the org's tenant, so no lazy association
+                      load happens here in the tenant-less cockpit (A9). %>
+                  <%= link_to notification_deeplink_path(notification),
+                        class: "flex items-baseline gap-3 px-4 py-2.5 hover:bg-cream-100 transition-colors" do %>
+                    <%= render Neo::UnreadMarkerComponent.new(count: 1, variant: :dot, class: 'mt-1.5') %>
+                    <span class="flex-1 truncate text-sm text-cream-900"><%= NotificationPresenter.new(notification).title %></span>
+                  <% end %>
+                </li>
+              <% end %>
+              <% slice.tickets.each do |ticket| %>
+                <li>
+                  <%= link_to organisation_project_ticket_path(org, ticket.project, ticket),
+                        class: "flex items-baseline gap-3 px-4 py-2.5 hover:bg-cream-100 transition-colors" do %>
+                    <i class="bi bi-card-checklist text-cream-400 flex-shrink-0" aria-hidden="true"></i>
+                    <span class="flex-1 truncate text-sm text-cream-900"><%= ticket.title %></span>
+                    <span class="font-mono text-xs text-cream-500 truncate max-w-[35%]"><%= ticket.project.name %></span>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+
+            <%# Deep-link into the org. Unread is now part of the list above, so no separate ambient
+                count here (the org tiles still carry the per-org unread badge). %>
+            <div class="flex items-center justify-end gap-3 mt-2 text-xs">
+              <%= link_to organisation_root_path(org),
+                    class: "text-cream-700 hover:text-cream-900 font-medium inline-flex items-center gap-1",
+                    aria: { label: t('views.organisations.select.cockpit.open_org_aria', org: org.name) } do %>
+                <%= t('views.organisations.select.cockpit.open_org') %>
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <%= render 'shared/empty_content',
+               icon_class: 'bi bi-check2-circle',
+               title: t('views.organisations.select.cockpit.empty_title'),
+               description: t('views.organisations.select.cockpit.empty_description') %>
+  <% end %>
+</section>

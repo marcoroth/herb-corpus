@@ -1,0 +1,154 @@
+<div class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold mb-2"><%= t('views.organisations.codebase_import_files.preview_time_sessions.title') %></h1>
+      <p class="text-gray-600"><%= t('views.organisations.codebase_import_files.preview_time_sessions.project_label') %> <span class="font-semibold"><%= @target_project.name %></span></p>
+    </div>
+
+    <!-- Summary -->
+    <div class="bg-surface-raised rounded-lg border border-slate-200 p-6 mb-6 shadow-sm">
+      <h2 class="text-xl font-bold mb-4"><%= t('views.organisations.codebase_import_files.preview_time_sessions.summary') %></h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-lime-50 p-4 rounded border border-stroke">
+          <div class="text-2xl font-bold"><%= @time_sessions_count %></div>
+          <div class="text-sm text-gray-600"><%= t('views.organisations.codebase_import_files.preview_time_sessions.time_entries') %></div>
+        </div>
+
+        <div class="bg-cobalt-50 p-4 rounded border border-stroke">
+          <div class="text-2xl font-bold"><%= @total_hours %> h</div>
+          <div class="text-sm text-gray-600"><%= t('views.organisations.codebase_import_files.preview_time_sessions.total_time') %></div>
+        </div>
+
+        <div class="bg-purple-50 p-4 rounded border border-stroke">
+          <div class="text-2xl font-bold"><%= @linked_tickets_count %></div>
+          <div class="text-sm text-gray-600"><%= t('views.organisations.codebase_import_files.preview_time_sessions.linked_to_tickets') %></div>
+        </div>
+      </div>
+
+      <% if @date_range %>
+        <p class="text-sm text-gray-600 mb-4">
+          <%= t('views.organisations.codebase_import_files.preview_time_sessions.date_range', from: @date_range[:from].strftime('%d.%m.%Y'), to: @date_range[:to].strftime('%d.%m.%Y')) %>
+        </p>
+      <% end %>
+
+      <!-- User overview -->
+      <h3 class="text-lg font-semibold mb-3"><%= t('views.organisations.codebase_import_files.preview_time_sessions.time_per_user') %></h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_user') %></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_entries') %></th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_total_time') %></th>
+            </tr>
+          </thead>
+          <tbody class="bg-surface-raised divide-y divide-gray-200">
+            <% @users_summary.sort_by { |_name, data| -data[:total_minutes] }.each do |name, data| %>
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><%= name %></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><%= data[:count] %></td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><%= data[:total_hours] %> h</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Import notes -->
+    <div class="bg-yellow-50 border border-yellow-400 rounded-lg p-6 mb-6">
+      <h3 class="text-lg font-semibold mb-2 flex items-center">
+        <i class="bi bi-exclamation-triangle-fill text-xl mr-2"></i>
+        <%= t('views.organisations.codebase_import_files.preview_time_sessions.important_notes') %>
+      </h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li><%= t('views.organisations.codebase_import_files.preview_time_sessions.note_user_fallback') %></li>
+        <li><%= t('views.organisations.codebase_import_files.preview_time_sessions.note_linked_tickets') %></li>
+        <li><%= t('views.organisations.codebase_import_files.preview_time_sessions.note_unlinked', count: @unlinked_count) %></li>
+        <li><%= t('views.organisations.codebase_import_files.preview_time_sessions.note_groups') %></li>
+      </ul>
+    </div>
+
+    <!-- Actions -->
+    <%= form_with url: execute_time_sessions_import_organisation_codebase_import_file_path(current_organisation, @import_file),
+                  method: :post,
+                  local: true,
+                  class: "bg-surface-raised rounded-lg border border-slate-200 p-6 shadow-sm" do |f| %>
+
+      <%= f.hidden_field :project_id, value: @target_project.id %>
+
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold mb-2"><%= t('views.organisations.codebase_import_files.preview_time_sessions.start_import') %></h3>
+          <p class="text-sm text-gray-600">
+            <%= t('views.organisations.codebase_import_files.preview_time_sessions.import_background_hint') %>
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :large,
+                url: organisation_codebase_import_file_path(current_organisation, @import_file)) do %>
+            <%= t('views.organisations.codebase_import_files.preview_time_sessions.cancel') %>
+          <% end %>
+
+          <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, tag: :button, type: 'submit',
+                data: { turbo_confirm: t('views.confirm.import_time_sessions', count: @time_sessions_count) }) do %>
+            <%= t('views.organisations.codebase_import_files.preview_time_sessions.start_import') %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Sample data -->
+    <% if @parsed_data.any? %>
+      <div class="mt-8 bg-surface-raised rounded-lg border border-slate-200 p-6 shadow-sm">
+        <h3 class="text-lg font-semibold mb-4"><%= t('views.organisations.codebase_import_files.preview_time_sessions.sample_entries') %></h3>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_date') %></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_user') %></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_time') %></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_description') %></th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.organisations.codebase_import_files.preview_time_sessions.th_ticket') %></th>
+              </tr>
+            </thead>
+            <tbody class="bg-surface-raised divide-y divide-gray-200">
+              <% @parsed_data.first(10).each do |session| %>
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <%= Date.parse(session[:occurred_on]).strftime('%d.%m.%Y') rescue session[:occurred_on] %>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <%= session[:cached_name] || t('views.organisations.codebase_import_files.preview_time_sessions.unknown_user') %>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <%= TimeSession.format_duration(session[:minutes]) %>
+                  </td>
+                  <td class="px-6 py-4 text-sm text-gray-500">
+                    <%= truncate(session[:summary], length: 60) %>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <% if session[:ticket_id].present? %>
+                      #<%= session[:ticket_id] %>
+                    <% else %>
+                      <span class="text-gray-400">-</span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if @parsed_data.length > 10 %>
+          <p class="mt-4 text-sm text-gray-500">
+            <%= t('views.organisations.codebase_import_files.preview_time_sessions.more_entries', count: @parsed_data.length - 10) %>
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,182 @@
+<div class="<%= dropdown_classes %>" 
+     data-controller="neo-dropdown"
+     data-neo-dropdown-auto-close-value="<%= mobile ? 'none' : 'outside' %>">
+  
+  <!-- Dropdown Trigger Button -->
+  <%= button_tag class: trigger_classes,
+                 data: { 
+                   neo_dropdown_target: "trigger",
+                   action: "click->neo-dropdown#toggle"
+                 },
+                 "aria-expanded" => "false",
+                 "aria-haspopup" => "true",
+                 "aria-label" => t('notifications.dropdown.open_menu_aria') do %>
+    <i class="bi bi-bell<%= mobile ? '' : '' %>"></i>
+    <% unless mobile %>
+      <%= render NeoNotificationBadgeComponent.new(
+            count: unread_count,
+            variant: :dot
+          ) %>
+    <% else %>
+      <%= render Neo::UnreadMarkerComponent.new(count: unread_count, variant: :dot, class: 'absolute -top-1 -right-1') %>
+    <% end %>
+  <% end %>
+  
+  <!-- Mobile Backdrop -->
+  <% if mobile %>
+    <div data-neo-dropdown-target="backdrop"
+         class="hidden fixed inset-0 bg-ink bg-opacity-50 z-sidebar"
+         data-action="click->neo-dropdown#close"></div>
+  <% end %>
+
+  <!-- Dropdown Menu -->
+  <div class="<%= dropdown_menu_classes %> hidden"
+       data-neo-dropdown-target="menu"
+       role="menu"
+       aria-labelledby="<%= dropdown_id %>-trigger">
+    
+    <!-- Header -->
+    <div class="<%= mobile ? 'px-4 py-3 border-b border-slate-200 flex-shrink-0' : 'notification-dropdown-header' %>">
+      <div class="flex items-center justify-between">
+        <h6 class="<%= mobile ? 'text-lg font-bold' : 'dropdown-header' %>" role="heading" aria-level="3">
+          <%= header_title %>
+          <% if unread_count > 0 %>
+            <%= render NeoNotificationBadgeComponent.new(
+                  count: unread_count,
+                  variant: :small
+                ) %>
+          <% end %>
+        </h6>
+        
+        <div class="<%= mobile ? 'flex gap-2' : 'notification-actions' %>">
+          <% if mobile %>
+            <!-- Close button for mobile -->
+            <button type="button"
+                    data-action="click->neo-dropdown#close"
+                    class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          <% else %>
+            <% if unread_count > 0 %>
+              <%= link_to mark_all_read_path,
+                          class: "btn btn--ghost btn--xs",
+                          title: t('notifications.dropdown.mark_all_read'),
+                          data: { 
+                            controller: "neo-notification-bulk-action",
+                            action: "neo-notification-bulk-action#markAllRead"
+                          } do %>
+                <i class="bi bi-check-all"></i>
+                <span class="btn-text"><%= t('notifications.dropdown.mark_all_read') %></span>
+              <% end %>
+            <% end %>
+            
+            <%= link_to preferences_path,
+                        class: "btn btn--ghost btn--xs",
+                        title: t('notifications.dropdown.preferences') do %>
+              <i class="bi bi-gear"></i>
+              <span class="sr-only"><%= t('navigation.settings') %></span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Notifications List -->
+    <div class="<%= mobile ? 'flex-1 overflow-y-auto px-4 py-3' : 'notification-dropdown-body' %>">
+      <div id="<%= notifications_list_id %>" 
+           class="<%= mobile ? 'space-y-3' : 'notification-list' %>"
+           data-turbo-stream-channel="<%= turbo_stream_channel %>"
+           role="list"
+           aria-label="<%= t('navigation.notifications') %>">
+        
+        <% if show_empty_state? %>
+          <div class="notification-empty" role="listitem">
+            <div class="notification-empty-icon">
+              <i class="bi bi-bell-slash"></i>
+            </div>
+            <p class="notification-empty-text"><%= t('notifications.dropdown.empty_title') %></p>
+            <p class="notification-empty-subtext">
+              <%= t('notifications.dropdown.empty_sub') %>
+            </p>
+          </div>
+        <% else %>
+          <% recent_notifications.each do |notification| %>
+            <div role="listitem">
+              <%= render NeoNotificationComponent.new(
+                    notification: notification,
+                    variant: @variant == :compact ? :compact : :default,
+                    show_actions: true
+                  ) %>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+      
+      <!-- Loading State (for Turbo Streams) -->
+      <div id="<%= notifications_list_id %>-loading" 
+           class="notification-loading"
+           style="display: none;"
+           role="status"
+           aria-live="polite">
+        <div class="notification-loading-spinner">
+          <div class="spinner-border spinner-border-sm" role="presentation">
+            <span class="sr-only">Loading notifications...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <% if mobile %>
+      <!-- Mobile footer with actions -->
+      <div class="px-4 py-3 border-t border-slate-200 flex-shrink-0 bg-gray-50">
+        <div class="flex justify-between items-center">
+          <% if unread_count > 0 %>
+            <%= link_to mark_all_read_path,
+                        class: "text-sm font-medium text-blue-600 hover:text-blue-800",
+                        data: { 
+                          controller: "neo-notification-bulk-action",
+                          action: "neo-notification-bulk-action#markAllRead"
+                        } do %>
+              <i class="bi bi-check-all"></i>
+              <%= t('notifications.dropdown.mark_all_read') %>
+            <% end %>
+          <% end %>
+          
+          <% if show_view_all_button? %>
+            <%= link_to view_all_path, 
+                        class: "text-sm font-medium text-blue-600 hover:text-blue-800" do %>
+              <%= t('notifications.dropdown.view_all') %>
+              <i class="bi bi-arrow-right"></i>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% else %>
+      <!-- Desktop footer -->
+      <div class="notification-dropdown-footer">
+        <div class="notification-footer-actions">
+          <%= link_to view_all_path,
+                      class: "btn btn--primary btn--sm btn--full-width",
+                      role: "menuitem" do %>
+            <span><%= t('notifications.dropdown.view_all') %></span>
+            <% if show_view_all_button? %>
+              <i class="bi bi-arrow-right"></i>
+            <% end %>
+          <% end %>
+        </div>
+        
+        <% if @variant != :compact %>
+          <div class="notification-footer-meta">
+            <div class="notification-shortcuts">
+              <span class="text-xs text-muted">
+                <kbd class="kbd kbd--xs">⌘</kbd> + <kbd class="kbd kbd--xs">N</kbd>
+                <%= t('notifications.dropdown.shortcut_hint') %>
+              </span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

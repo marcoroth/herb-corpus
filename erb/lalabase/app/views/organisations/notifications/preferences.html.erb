@@ -1,0 +1,204 @@
+<% content_for :title, t('views.organisations.notifications.preferences.page_title') %>
+
+<div class="notification-preferences-page max-w-4xl mx-auto px-6 py-8">
+  <!-- Header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-black text-cream-900 uppercase mb-1"><%= t('views.organisations.notifications.preferences.title') %></h1>
+      <p class="text-gray-600 text-sm"><%= t('views.organisations.notifications.preferences.subtitle') %></p>
+    </div>
+    <%= render Neo::Buttons::ButtonComponent.new(
+      variant: :secondary,
+      size: :medium,
+      url: organisation_notifications_path(current_organisation),
+      icon: "arrow-left"
+    ) do %>
+      <span class="whitespace-nowrap"><%= t('views.organisations.notifications.preferences.back') %></span>
+    <% end %>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- Ticket-Benachrichtigungen (neues einfaches System)                -->
+  <!-- ================================================================== -->
+  <%= form_with url: preferences_organisation_notifications_path(current_organisation),
+                method: :patch,
+                local: true,
+                html: { class: "neo-preferences-form" } do |form| %>
+
+    <div class="mb-8">
+      <div class="mb-3">
+        <h2 class="text-lg font-bold text-gray-900"><%= t('views.organisations.notifications.preferences.ticket_notifications') %></h2>
+        <p class="text-sm text-gray-500"><%= t('views.organisations.notifications.preferences.ticket_notifications_desc') %></p>
+      </div>
+
+      <div class="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+        <!-- Status Change -->
+        <div class="px-4 py-3 bg-surface-raised hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-gray-900 text-sm"><%= t('views.organisations.notifications.preferences.on_status_change') %></div>
+              <div class="text-xs text-gray-500"><%= t('views.organisations.notifications.preferences.on_status_change_desc') %></div>
+            </div>
+            <%= render NeoToggleComponent.new(
+              name: "ticket_notifications[on_status_change]",
+              checked: @ticket_settings[:on_status_change],
+              label: "",
+              interactive: true
+            ) %>
+          </div>
+        </div>
+
+        <!-- Priority Change -->
+        <div class="border-t-2 border-gray-200 px-4 py-3 bg-surface-raised hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-gray-900 text-sm"><%= t('views.organisations.notifications.preferences.on_priority_change') %></div>
+              <div class="text-xs text-gray-500"><%= t('views.organisations.notifications.preferences.on_priority_change_desc') %></div>
+            </div>
+            <%= render NeoToggleComponent.new(
+              name: "ticket_notifications[on_priority_change]",
+              checked: @ticket_settings[:on_priority_change],
+              label: "",
+              interactive: true
+            ) %>
+          </div>
+        </div>
+
+        <!-- Comment -->
+        <div class="border-t-2 border-gray-200 px-4 py-3 bg-surface-raised hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-gray-900 text-sm"><%= t('views.organisations.notifications.preferences.on_comment') %></div>
+              <div class="text-xs text-gray-500"><%= t('views.organisations.notifications.preferences.on_comment_desc') %></div>
+            </div>
+            <%= render NeoToggleComponent.new(
+              name: "ticket_notifications[on_comment]",
+              checked: @ticket_settings[:on_comment],
+              label: "",
+              interactive: true
+            ) %>
+          </div>
+        </div>
+
+        <!-- Auto-follow created -->
+        <div class="border-t-2 border-gray-200 px-4 py-3 bg-surface-raised hover:bg-gray-50 transition-colors">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-gray-900 text-sm"><%= t('views.organisations.notifications.preferences.auto_follow_created') %></div>
+              <div class="text-xs text-gray-500"><%= t('views.organisations.notifications.preferences.auto_follow_created_desc') %></div>
+            </div>
+            <%= render NeoToggleComponent.new(
+              name: "ticket_notifications[auto_follow_created]",
+              checked: @ticket_settings[:auto_follow_created],
+              label: "",
+              interactive: true
+            ) %>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-2 text-xs text-gray-400">
+        <%= t('views.organisations.notifications.preferences.assigned_auto_follow') %>
+        <%= t('views.organisations.notifications.preferences.per_ticket_toggle') %>
+      </div>
+    </div>
+
+    <%# ================================================================== %>
+    <%# Projekte & Dokumente (bestehendes System)                         %>
+    <%# ================================================================== %>
+    <% render_section = lambda do |title, description, event_types| %>
+      <div class="mb-8">
+        <div class="mb-3">
+          <h2 class="text-lg font-bold text-gray-900"><%= title %></h2>
+          <p class="text-sm text-gray-500"><%= description %></p>
+        </div>
+
+        <div class="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+          <!-- Table Header -->
+          <div class="hidden sm:grid sm:grid-cols-[1fr_100px_100px] bg-gray-100 border-b border-slate-200 px-4 py-2">
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider"><%= t('views.organisations.notifications.preferences.th_event') %></div>
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider text-center"><%= t('views.organisations.notifications.preferences.th_in_app') %></div>
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider text-center"><%= t('views.organisations.notifications.preferences.th_email') %></div>
+          </div>
+
+          <% event_types.each_with_index do |event_type, idx| %>
+            <% next unless @available_event_types.include?(event_type) %>
+            <div class="<%= 'border-t-2 border-gray-200' if idx > 0 %> px-4 py-3 bg-surface-raised hover:bg-gray-50 transition-colors">
+              <!-- Mobile: stacked layout -->
+              <div class="sm:hidden">
+                <div class="mb-2">
+                  <div class="font-semibold text-gray-900 text-sm">
+                    <%= t("notifications.titles.#{event_type}", default: event_type.humanize) %>
+                  </div>
+                  <div class="text-xs text-gray-500"><%= event_description(event_type) %></div>
+                </div>
+                <div class="flex gap-6">
+                  <% @available_channels.each do |channel| %>
+                    <% existing_pref = @preferences.dig(event_type)&.find { |p| p.channel == channel } %>
+                    <%= render NeoToggleComponent.new(
+                      name: "preferences[#{event_type}][#{channel}][enabled]",
+                      checked: existing_pref&.enabled? || false,
+                      label: channel == 'in_app' ? 'In-App' : 'Email',
+                      interactive: true
+                    ) %>
+                  <% end %>
+                </div>
+              </div>
+
+              <!-- Desktop: table row -->
+              <div class="hidden sm:grid sm:grid-cols-[1fr_100px_100px] items-center">
+                <div>
+                  <div class="font-semibold text-gray-900 text-sm">
+                    <%= t("notifications.titles.#{event_type}", default: event_type.humanize) %>
+                  </div>
+                  <div class="text-xs text-gray-500"><%= event_description(event_type) %></div>
+                </div>
+                <% @available_channels.each do |channel| %>
+                  <% existing_pref = @preferences.dig(event_type)&.find { |p| p.channel == channel } %>
+                  <div class="flex justify-center">
+                    <%= render NeoToggleComponent.new(
+                      name: "preferences[#{event_type}][#{channel}][enabled]",
+                      checked: existing_pref&.enabled? || false,
+                      label: "",
+                      interactive: true
+                    ) %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% render_section.call(
+      t('views.organisations.notifications.preferences.projects_documents'),
+      t('views.organisations.notifications.preferences.projects_documents_desc'),
+      %w[document_added project_announcement]
+    ) %>
+
+    <% render_section.call(
+      t('views.organisations.notifications.preferences.system'),
+      t('views.organisations.notifications.preferences.system_desc'),
+      %w[system_message]
+    ) %>
+
+    <% render_section.call(
+      t('views.organisations.notifications.preferences.code_index'),
+      t('views.organisations.notifications.preferences.code_index_desc'),
+      %w[index_completed index_failed]
+    ) %>
+
+    <!-- Save Button -->
+    <div class="flex justify-end mt-6 pt-4 border-t border-slate-200">
+      <%# P3/AP2: Standard-Submit ohne Deko-Haken. %>
+      <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :primary,
+        size: :large,
+        type: :submit
+      ) do %>
+        <%= t('views.organisations.notifications.preferences.save') %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

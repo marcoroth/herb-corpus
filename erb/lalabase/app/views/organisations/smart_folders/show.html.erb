@@ -1,0 +1,156 @@
+<%# app/views/smart_folders/show.html.erb %>
+<div class="flex items-center gap-4 justify-between">
+  <div>
+    <h2 class="text-2xl md:text-[1.6rem] font-semibold"><%= @smart_folder.name %></h2>
+    <% if @smart_folder.description.present? %>
+      <p class="text-gray-600 mt-1"><%= @smart_folder.description %></p>
+    <% end %>
+  </div>
+  <div class="flex space-x-2">
+    <% if policy(@smart_folder).share? %>
+      <%= link_to share_organisation_smart_folder_path(@current_organisation, @smart_folder), class: 'px-4 py-2 bg-cobalt-100 text-cobalt-800 hover:bg-cobalt-200 rounded-md border border-cobalt-300 flex items-center' do %>
+        <i class="bi bi-share me-1"></i> <%= t('smart_folders.share') %>
+      <% end %>
+    <% end %>
+    <% if policy(@smart_folder).clone? %>
+      <%= button_to clone_organisation_smart_folder_path(@current_organisation, @smart_folder), method: :post, class: 'px-4 py-2 bg-purple-100 text-purple-800 hover:bg-purple-200 rounded-md border border-purple-300 flex items-center' do %>
+        <i class="bi bi-files me-1"></i> <%= t('smart_folders.clone') %>
+      <% end %>
+    <% end %>
+    <% if policy(@smart_folder).edit? %>
+      <%= link_to edit_organisation_smart_folder_path(@current_organisation, @smart_folder), class: 'px-4 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-md border border-gray-300 flex items-center' do %>
+        <i class="bi bi-pencil me-1"></i> <%= t('generic.edit', default: 'Bearbeiten') %>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<div class="bg-gray-100 rounded-lg p-3 mt-4 mb-6 flex flex-wrap gap-4 text-sm">
+  <div class="flex items-center">
+    <i class="bi bi-sort-down me-2 text-gray-500"></i>
+    <span class="font-medium text-gray-700">
+      <%= t("smart_folders.sorting.#{@smart_folder.sort_by}", default: 'Sortierung:') %>
+    </span>
+  </div>
+
+  <div class="flex items-center">
+    <i class="bi bi-person me-2 text-gray-500"></i>
+    <span class="font-medium text-gray-700">
+      <%= @smart_folder.user == current_user ? t('smart_folders.ownership.you', default: 'Sie') : @smart_folder.user.email %>
+    </span>
+  </div>
+
+  <div class="flex items-center">
+    <i class="bi bi-folder me-2 text-gray-500"></i>
+    <span class="font-medium text-gray-700">
+      <%= @smart_folder.project ? @smart_folder.project.name : t('smart_folders.organisation_wide', default: 'Organisationsweit') %>
+    </span>
+  </div>
+
+  <% if @smart_folder.is_public? %>
+    <div class="flex items-center">
+      <i class="bi bi-globe me-2 text-gray-500"></i>
+      <span class="font-medium text-gray-700">
+        <%= t("smart_folders.public_level.#{@smart_folder.public_access_level}", default: 'Öffentlich') %>
+      </span>
+    </div>
+  <% end %>
+</div>
+
+<div class="mt-8">
+  <h3 class="text-xl font-semibold flex items-center mb-4">
+    <%= t('smart_folders.results') %>
+    <span class="ml-2 px-2 py-1 text-sm bg-gray-200 rounded-lg"><%= @results_pagy.count %></span>
+  </h3>
+
+  <div id="smart-folder-results">
+    <% if @items.any? %>
+      <div class="border border-gray-300 rounded-lg overflow-hidden">
+        <% @items.each_with_index do |item, index| %>
+          <div id="<%= dom_id(item) %>" class="<%= index > 0 ? 'border-t border-gray-300' : '' %> p-4 hover:bg-gray-50">
+            <div class="flex items-start">
+              <% icon_class = case item.class.name
+                             when "Note" then "bi-journal-text"
+                             when "Ticket" then "bi-ticket-perforated"
+                             when "Document" then "bi-file-earmark-text"
+                             when "TimeSession" then "bi-clock-history"
+                             when "Meeting" then "bi-chat-quote"
+                             else "bi-file"
+                             end %>
+              <div class="text-2xl text-gray-500 mr-3">
+                <i class="bi <%= icon_class %>"></i>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+                      <%= item.class.model_name.human %>
+                    </span>
+                    <a href="<%= item.is_a?(Meeting) ? organisation_project_meetings_path(@current_organisation, item.project, meeting_id: item.id) : (url_for(item) rescue '#') %>" class="text-cobalt-600 hover:text-cobalt-800 font-medium">
+                      <%= extract_title(item) rescue item.to_s %>
+                    </a>
+                  </div>
+                  <div class="text-xs text-gray-500">
+                    <%= l(item.updated_at, format: :short) %>
+                  </div>
+                </div>
+
+                <div class="mt-1 text-sm text-gray-600">
+                  <% if item.respond_to?(:description) && item.description.present? %>
+                    <%= truncate(item.description, length: 150) %>
+                  <% elsif item.respond_to?(:content) && item.content.present? %>
+                    <%= truncate(strip_tags(item.content.to_s), length: 150) %>
+                  <% end %>
+                </div>
+
+                <% if item.respond_to?(:project) && item.project.present? %>
+                  <div class="mt-2">
+                    <span class="inline-flex items-center gap-x-1.5 py-1 px-2 rounded-full text-xs font-medium border border-green-300 bg-green-100 text-green-800">
+                      <%= item.project.name %>
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <%# Pagination for results %>
+      <% if @results_pagy.pages > 1 %>
+        <div class="mt-4">
+          <%= render 'shared/pagination_nav', pagy: @results_pagy %>
+        </div>
+      <% end %>
+
+    <% else %>
+      <div class="bg-gray-50 border border-gray-300 rounded-lg p-8 text-center">
+        <div class="text-4xl text-gray-400 mb-4">
+          <i class="bi bi-search"></i>
+        </div>
+        <p class="text-gray-600 mb-2"><%= t('smart_folders.no_results') %></p>
+        <p class="text-sm text-gray-500">
+          <%= t('smart_folders.try_editing', default: 'Versuchen Sie die Filterregeln zu bearbeiten, um andere Ergebnisse zu erhalten.') %>
+        </p>
+        <% if policy(@smart_folder).edit? %>
+          <div class="mt-4">
+            <%= link_to edit_organisation_smart_folder_path(@current_organisation, @smart_folder), class: 'text-cobalt-600 hover:text-cobalt-800' do %>
+              <i class="bi bi-pencil me-1"></i> <%= t('smart_folders.edit_rules', default: 'Regeln bearbeiten') %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="mt-6">
+  <% back_path = if @smart_folder.target_object_type == 'Meeting'
+                   @smart_folder.project ? organisation_project_meetings_path(@current_organisation, @smart_folder.project) : organisation_meetings_path(@current_organisation, smart_folder_id: @smart_folder.id)
+                 else
+                   organisation_smart_folders_path(@current_organisation)
+                 end %>
+  <%= link_to back_path, class: 'text-cobalt-600 hover:text-cobalt-800 flex items-center' do %>
+    <i class="bi bi-arrow-left me-1"></i> <%= t('generic.back_to_list', default: 'Zurück zur Übersicht') %>
+  <% end %>
+</div>

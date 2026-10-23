@@ -1,0 +1,114 @@
+<%#
+  The history of a billing (D3 of doc/abrechnung_detail_angleichung_plan.md):
+  quiet lines - a mono date and a sentence - instead of colored icon cards.
+  The details expansion for attribute changes stays: for a billed billing it
+  is the audit trail of what changed AFTER invoicing.
+  Keys fully qualified (P3 lesson).
+  @param activities [ActiveRecord::Relation<Activity>] The activities to display
+%>
+<% ac = 'views.organisations.time_session_groups.activities' %>
+<div class="mt-10 mb-8">
+  <h2 class="mb-2 text-base font-bold text-cream-900"><%= t("#{ac}.activity_feed_title") %></h2>
+
+  <% if activities.any? %>
+    <% activities.each do |activity| %>
+      <div class="flex items-baseline gap-3.5 border-b border-cream-200 px-2 py-2">
+        <span class="w-[86px] shrink-0 font-mono text-sm leading-6 text-cream-600">
+          <%= activity.created_at.strftime('%d.%m.%Y') %>
+        </span>
+        <div class="min-w-0 flex-1 text-sm leading-6 text-cream-800">
+          <span class="font-medium text-cream-900"><%= viewer_display_name(activity.actor) %></span>
+
+          <% case activity.action %>
+          <% when 'created' %>
+            <%= t("#{ac}.activity_created", name: activity.parameters['display_name']) %>
+          <% when 'updated' %>
+            <%= t("#{ac}.activity_updated") %>
+          <% when 'marked_as_billed' %>
+            <%= t("#{ac}.activity_marked_billed") %>
+            <% if activity.parameters['invoice_number'].present? %>
+              <span class="text-cream-600"><%= t("#{ac}.activity_invoice_number", number: activity.parameters['invoice_number']) %></span>
+            <% end %>
+          <% when 'marked_as_unbilled' %>
+            <%= t("#{ac}.activity_marked_unbilled") %>
+          <% when 'billed_data_changed' %>
+            <span class="text-orange-700"><%= t("#{ac}.activity_billed_data_changed") %></span>
+          <% when 'time_sessions_added' %>
+            <%= t("#{ac}.activity_sessions_added", count: activity.parameters['count']) %>
+            <% if activity.parameters['total_duration'].present? %>
+              <span class="text-cream-600"><%= t("#{ac}.activity_duration", duration: activity.parameters['total_duration']) %></span>
+            <% end %>
+          <% when 'deleted' %>
+            <%= t("#{ac}.activity_deleted") %>
+          <% else %>
+            <%= activity.action.humanize.downcase %>
+          <% end %>
+
+          <% if activity.attribute_changes.present? && activity.attribute_changes.any? %>
+            <details class="mt-1">
+              <summary class="cursor-pointer select-none text-xs text-cream-600 hover:text-cream-900">
+                <%= t("#{ac}.activity_show_details") %>
+              </summary>
+              <div class="mt-2 rounded-lg border border-cream-200 bg-cream-50 p-3 text-xs">
+                <% activity.attribute_changes.each do |key, value| %>
+                  <div class="mb-1">
+                    <strong class="font-semibold">
+                      <%= case key
+                          when 'name' then t("#{ac}.activity_attr_name")
+                          when 'description' then t("#{ac}.activity_attr_description")
+                          when 'billed' then t("#{ac}.activity_attr_billing_status")
+                          when 'invoice_number' then t("#{ac}.activity_attr_invoice_number")
+                          when 'billed_at' then t("#{ac}.activity_attr_billing_date")
+                          else key.humanize
+                          end %>:
+                    </strong>
+                    <% if value.is_a?(Array) && value.length == 2 %>
+                      <% if key == 'billed' %>
+                        <span class="rounded bg-red-100 px-1 text-red-700 line-through">
+                          <%= value[0] ? t("#{ac}.activity_billed_value") : t("#{ac}.activity_unbilled_value") %>
+                        </span>
+                        <span class="mx-1">→</span>
+                        <span class="rounded bg-green-100 px-1 text-green-700">
+                          <%= value[1] ? t("#{ac}.activity_billed_value") : t("#{ac}.activity_unbilled_value") %>
+                        </span>
+                      <% elsif key == 'billed_at' && value[0].present? && value[1].present? %>
+                        <span class="rounded bg-red-100 px-1 text-red-700 line-through">
+                          <%= l value[0].to_datetime, format: :short %>
+                        </span>
+                        <span class="mx-1">→</span>
+                        <span class="rounded bg-green-100 px-1 text-green-700">
+                          <%= l value[1].to_datetime, format: :short %>
+                        </span>
+                      <% else %>
+                        <span class="rounded bg-red-100 px-1 text-red-700 line-through">
+                          <%= value[0].presence || t("#{ac}.activity_empty_value") %>
+                        </span>
+                        <span class="mx-1">→</span>
+                        <span class="rounded bg-green-100 px-1 text-green-700">
+                          <%= value[1].presence || t("#{ac}.activity_empty_value") %>
+                        </span>
+                      <% end %>
+                    <% else %>
+                      <%= value %>
+                    <% end %>
+                  </div>
+                <% end %>
+
+                <% if activity.action == 'billed_data_changed' %>
+                  <div class="mt-2 rounded border border-orange-200 bg-orange-50 p-2">
+                    <i class="bi bi-exclamation-triangle text-orange-600"></i>
+                    <span class="font-semibold text-orange-700">
+                      <%= t("#{ac}.activity_warning_billed_change") %>
+                    </span>
+                  </div>
+                <% end %>
+              </div>
+            </details>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  <% else %>
+    <p class="px-2 text-sm text-cream-600"><%= t("#{ac}.no_activities") %></p>
+  <% end %>
+</div>

@@ -1,0 +1,421 @@
+<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+  <div class="px-4 py-6 sm:px-0">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <%= link_to admin_ai_credentials_path, class: "text-gray-500 hover:text-gray-700 mr-4" do %>
+            <i class="bi bi-arrow-left text-xl"></i>
+          <% end %>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+              <%= @ai_credential.name %>
+              <% if @ai_credential.active? %>
+                <span class="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <i class="bi bi-star-fill mr-1"></i>
+                  <%= t('views.admin.ai_credentials.show.badge_active') %>
+                </span>
+              <% end %>
+              <% unless @ai_credential.enabled? %>
+                <span class="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  <i class="bi bi-x-circle mr-1"></i>
+                  <%= t('views.admin.ai_credentials.show.badge_disabled') %>
+                </span>
+              <% end %>
+            </h1>
+            <p class="mt-2 text-sm text-gray-600">
+              <%= @ai_credential.provider_display_name %> •
+              <%= t('views.admin.ai_credentials.show.created_at', date: @ai_credential.created_at.strftime("%d.%m.%Y")) %>
+              <% if @ai_credential.description.present? %>
+                • <%= @ai_credential.description %>
+              <% end %>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <%# button_to (native form POST): data-turbo-method is unreliable in the
+              admin area — same reason as the vertex-availability button. %>
+          <%= button_to test_connection_admin_ai_credential_path(@ai_credential),
+              form_class: "inline-block",
+              class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+            <i class="bi bi-wifi mr-2"></i>
+            <%= t('views.admin.ai_credentials.show.btn_test_connection') %>
+          <% end %>
+
+          <%= link_to edit_admin_ai_credential_path(@ai_credential),
+              class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+            <i class="bi bi-pencil mr-2"></i>
+            <%= t('views.admin.ai_credentials.show.btn_edit') %>
+          <% end %>
+
+          <% unless @ai_credential.active? %>
+            <%# Sets this credential as the provider's default — button_to for the
+                same reason as the test-connection button above. %>
+            <%= button_to activate_admin_ai_credential_path(@ai_credential),
+                method: :patch,
+                form_class: "inline-block",
+                class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-lime-200 hover:bg-lime-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+              <i class="bi bi-star mr-2"></i>
+              <%= t('views.admin.ai_credentials.show.btn_activate') %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-activity text-lime-600 text-2xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.show.stat_status') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  <%= @ai_credential.active? ? t('views.admin.ai_credentials.show.stat_active') : t('views.admin.ai_credentials.show.stat_inactive') %>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-graph-up text-green-600 text-2xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.show.stat_usage_30d') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  <%= number_with_delimiter(@usage_stats[@ai_credential.provider] || 0) %>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-currency-euro text-yellow-600 text-2xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.show.stat_cost_30d') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  &euro;<%= sprintf('%.2f', (@ai_credential.ai_usages.recent(30).sum(:cost_cents) / 100.0)) %>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-clock text-purple-600 text-2xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.show.stat_last_usage') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  <% if @ai_credential.ai_usages.any? %>
+                    <%= t('views.admin.ai_credentials.show.stat_last_usage_ago', time: time_ago_in_words(@ai_credential.ai_usages.maximum(:used_at))) %>
+                  <% else %>
+                    <%= t('views.admin.ai_credentials.show.stat_never') %>
+                  <% end %>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Configuration Details -->
+      <div class="lg:col-span-2">
+        <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+          <div class="px-6 py-4 border-b-2 border-black">
+            <h3 class="text-lg font-medium text-gray-900">
+              <i class="bi bi-gear text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.show.config_title') %>
+            </h3>
+          </div>
+          <div class="px-6 py-4">
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+              <div>
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_provider') %></dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <%= @ai_credential.provider == AiCredential::PROVIDER_OPENAI ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800' %>">
+                    <i class="bi bi-<%= @ai_credential.provider == AiCredential::PROVIDER_OPENAI ? 'cpu' : 'robot' %> mr-1"></i>
+                    <%= @ai_credential.provider_display_name %>
+                  </span>
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_model') %></dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  <%= @ai_credential.default_model || '-' %>
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_api_key') %></dt>
+                <dd class="mt-1 text-sm text-gray-900 font-mono">
+                  <%= @ai_credential.masked_token %>
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_org_id') %></dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  <%= @ai_credential.organization_id.present? ? @ai_credential.organization_id : '-' %>
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_enabled') %></dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  <% if @ai_credential.enabled? %>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <i class="bi bi-check-circle mr-1"></i>
+                      <%= t('views.admin.ai_credentials.show.config_yes') %>
+                    </span>
+                  <% else %>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <i class="bi bi-x-circle mr-1"></i>
+                      <%= t('views.admin.ai_credentials.show.config_no') %>
+                    </span>
+                  <% end %>
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_active') %></dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  <% if @ai_credential.active? %>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <i class="bi bi-star-fill mr-1"></i>
+                      <%= t('views.admin.ai_credentials.show.config_yes') %>
+                    </span>
+                  <% else %>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <i class="bi bi-star mr-1"></i>
+                      <%= t('views.admin.ai_credentials.show.config_no') %>
+                    </span>
+                  <% end %>
+                </dd>
+              </div>
+            </dl>
+
+            <% if @ai_credential.description.present? %>
+              <div class="mt-6">
+                <dt class="text-sm font-medium text-gray-500"><%= t('views.admin.ai_credentials.show.config_description') %></dt>
+                <dd class="mt-1 text-sm text-gray-900">
+                  <%= simple_format(@ai_credential.description) %>
+                </dd>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <!-- Referenced by (KI-Pakete §7b.2): where this credential is actually
+             in use. Same badges as the index column, different surroundings. -->
+        <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] mt-6">
+          <div class="px-6 py-4 border-b-2 border-black">
+            <h3 class="text-lg font-medium text-gray-900">
+              <i class="bi bi-box-seam text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.show.section_packages') %>
+            </h3>
+            <p class="mt-1 text-sm text-gray-500"><%= t('views.admin.ai_credentials.show.section_packages_help') %></p>
+          </div>
+          <div class="px-6 py-4">
+            <% if @package_references.any? %>
+              <div class="flex flex-wrap gap-2">
+                <% @package_references.each do |reference| %>
+                  <%= link_to admin_ai_package_path(reference[:package]),
+                      class: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors" do %>
+                    <i class="bi bi-box-seam mr-1"></i>
+                    <%= t('views.admin.ai_credentials.shared.package_badge',
+                          package: reference[:package].name,
+                          role: reference[:label].presence || t('views.admin.ai_credentials.shared.package_role_embedding')) %>
+                  <% end %>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-sm text-gray-500"><%= t('views.admin.ai_credentials.show.packages_none') %></p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div>
+        <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+          <div class="px-6 py-4 border-b-2 border-black">
+            <h3 class="text-lg font-medium text-gray-900">
+              <i class="bi bi-lightning text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.show.quick_actions_title') %>
+            </h3>
+          </div>
+          <div class="px-6 py-4">
+            <div class="space-y-3">
+              <%# button_to (native form POST): data-turbo-method is unreliable in
+                  the admin area — same reason as the vertex-availability button.
+                  form_class w-full so the full-width button keeps its width. %>
+              <%= button_to test_connection_admin_ai_credential_path(@ai_credential),
+                  form_class: "w-full",
+                  class: "w-full flex items-center justify-center px-4 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+                <i class="bi bi-wifi mr-2"></i>
+                <%= t('views.admin.ai_credentials.show.btn_test_connection') %>
+              <% end %>
+
+              <%= link_to edit_admin_ai_credential_path(@ai_credential),
+                  class: "w-full flex items-center justify-center px-4 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+                <i class="bi bi-pencil mr-2"></i>
+                <%= t('views.admin.ai_credentials.show.btn_edit') %>
+              <% end %>
+
+              <%= link_to toggle_enabled_admin_ai_credential_path(@ai_credential),
+                  data: { turbo_method: :patch },
+                  class: "w-full flex items-center justify-center px-4 py-2 border border-black rounded text-sm font-medium bg-yellow-100 hover:bg-yellow-200 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+                <i class="bi bi-toggle-<%= @ai_credential.enabled? ? 'off' : 'on' %> mr-2"></i>
+                <%= @ai_credential.enabled? ? t('views.admin.ai_credentials.show.btn_deactivate') : t('views.admin.ai_credentials.show.btn_enable') %>
+              <% end %>
+
+              <% unless @ai_credential.active? %>
+                <%# Sets this credential as the provider's default — button_to for
+                    the same reason as the test-connection button above. %>
+                <%= button_to activate_admin_ai_credential_path(@ai_credential),
+                    method: :patch,
+                    form_class: "w-full",
+                    class: "w-full flex items-center justify-center px-4 py-2 border border-black rounded text-sm font-medium bg-lime-200 hover:bg-lime-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+                  <i class="bi bi-star mr-2"></i>
+                  <%= t('views.admin.ai_credentials.show.btn_set_active') %>
+                <% end %>
+              <% end %>
+
+              <% if @package_references.any? %>
+                <%# The destroy callback would refuse this anyway — saying so before the
+                    click beats a red flash after it. Disabled span (not a disabled
+                    button): the live control is a link, same as admin/beusers.
+
+                    The REASON is visible text, not just a title tooltip: a span is
+                    not focusable, so keyboard and screen-reader users never reach a
+                    tooltip, and touch users never see one at all. aria-describedby
+                    ties the two together; text-gray-500 keeps the label above the
+                    4.5:1 contrast floor on bg-gray-100. %>
+                <span class="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded text-sm font-medium bg-gray-100 text-gray-500 cursor-not-allowed"
+                      aria-disabled="true"
+                      aria-describedby="delete-blocked-reason">
+                  <i class="bi bi-lock mr-2"></i>
+                  <%= t('views.admin.ai_credentials.show.btn_delete') %>
+                </span>
+                <p id="delete-blocked-reason" class="mt-2 text-sm text-gray-600">
+                  <%= t('views.admin.ai_credentials.show.btn_delete_blocked_title',
+                        packages: @package_references.map { |reference| reference[:package].name }.uniq.join(', ')) %>
+                </p>
+              <% else %>
+                <%= link_to admin_ai_credential_path(@ai_credential),
+                    data: {
+                      turbo_method: :delete,
+                      turbo_confirm: t('views.confirm.delete_ai_credential')
+                    },
+                    class: "w-full flex items-center justify-center px-4 py-2 border border-black rounded text-sm font-medium bg-red-100 hover:bg-red-200 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+                  <i class="bi bi-trash mr-2"></i>
+                  <%= t('views.admin.ai_credentials.show.btn_delete') %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%# Model availability matrix (Vertex AI) — google credentials only %>
+    <% if @ai_credential.provider == AiCredential::PROVIDER_GOOGLE %>
+      <%= render 'vertex_availability' %>
+    <% end %>
+
+    <!-- Recent Usage -->
+    <% if @recent_usages.any? %>
+      <div class="mt-8">
+        <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+          <div class="px-6 py-4 border-b-2 border-black">
+            <h3 class="text-lg font-medium text-gray-900">
+              <i class="bi bi-clock-history text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.show.usage_title') %>
+            </h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.admin.ai_credentials.show.usage_th_date') %></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.admin.ai_credentials.show.usage_th_organisation') %></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.admin.ai_credentials.show.usage_th_model') %></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.admin.ai_credentials.show.usage_th_tokens') %></th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.admin.ai_credentials.show.usage_th_cost') %></th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <% @recent_usages.each do |usage| %>
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <%= usage.used_at.strftime("%d.%m.%Y %H:%M") %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <%= usage.organisation.name %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <% if usage.model_used.present? %>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          <%= usage.model_used %>
+                        </span>
+                      <% else %>
+                        <span class="text-gray-400">-</span>
+                      <% end %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <%= number_with_delimiter(usage.tokens_used) %>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <%= usage.cost_formatted %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% else %>
+      <div class="mt-8">
+        <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+          <div class="text-center py-12">
+            <i class="bi bi-graph-up text-gray-400 text-4xl mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-2"><%= t('views.admin.ai_credentials.show.usage_empty_title') %></h3>
+            <p class="text-gray-500"><%= t('views.admin.ai_credentials.show.usage_empty_description') %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <%= render 'contract_terms', credential: @ai_credential,
+        documents: @credential_documents, contracts: @credential_contracts,
+        current_contract: @current_contract %>
+  </div>
+</div>

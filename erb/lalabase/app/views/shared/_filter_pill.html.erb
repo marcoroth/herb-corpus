@@ -1,0 +1,135 @@
+<%# locals: (key:, label:, set:, options: [], locked_reason: nil, clearable: true, filterable: false, footer: nil, open: false, notice: nil, handle: 'filter-pill', clear_url: nil, clear_owns: nil, align: :start) %>
+
+<%# ONE choice of a filter line (S7, finding F7): a pill that carries its own
+    name and its value, opening a menu of the values it can take.
+
+    SHARED since P2 of the billings redesign: the time list renders it five
+    times (period, project, subject, billing, display chooser) and the billings
+    list renders its own line from it. Written out per filter, the surfaces had
+    every chance to disagree about what "set" looks like, which is how the
+    period row and the status row came to disagree about the muted tone before
+    S2. What a clearing click CHANGES is the caller's knowledge, not this
+    partial's: the caller passes clear_url (the no-JS fallback address) and
+    clear_owns (the owns pairs for the live rewrite) instead of this file
+    reaching into one page's removal map.
+
+    Three states, and each one says something different (F7):
+      set     -- filled, ink border, bold. Carries the value and a ✕.
+      open    -- outline only. Selectable, nothing selected.
+      locked  -- dampened, not a control at all, and it says why.
+    The tones live in CHOICE_STATES, one map for the four surfaces.
+
+    ⚠️ A <details>, not a JavaScript menu. The period used to be nine links and
+    the project a native select, so the filter worked with no JavaScript at all;
+    a menu that only Stimulus can open would have taken that away. <details>
+    opens on its own, is keyboard-operable on its own, and details-autoclose
+    (the org switcher's controller) only ADDS closing on an outside click and on
+    Escape. The options stay plain links, which is also what lets query-toggle
+    rewrite them against the live address.
+
+    ⚠️ The ✕ sits INSIDE the summary, so clicking it would toggle the menu open
+    on its way to following the link. details-autoclose#stop is exactly the
+    affordance for that (the sidebar's gear does the same). %>
+
+<% if locked_reason.present? %>
+  <%# Dampened instead of dropped (E2). The rule is unchanged and still lives in
+      TimeSessionsHelper#time_billing_choice_locked?; only its answer moved from
+      "gone" to "not now, and here is why". Dropping the control made the row
+      jump and explained nothing, which is the same complaint F7 raises about
+      the subject select appearing on project selection.
+      A <span> with a title, not a disabled <button>: there is nothing to press.
+      The reason travels as text for screen readers, because a title is only
+      reachable with a mouse. %>
+  <span class="<%= time_filter_choice_pill_classes(:empty) %>"
+        title="<%= locked_reason %>"
+        data-<%= handle %>="<%= key %>"
+        data-<%= handle %>-state="locked">
+    <span><%= label %></span>
+    <i class="bi bi-slash-circle text-[10px]" aria-hidden="true"></i>
+    <span class="sr-only"><%= locked_reason %></span>
+  </span>
+<% else %>
+  <%# `open` exists for one case: the custom period. Choosing it is a page visit,
+      and its two date fields live in this menu -- so on the answer the reader
+      would face a closed menu and no way to type the dates they just asked for.
+      Rendered open, the fields are simply there, with or without JavaScript. %>
+  <%# min-w-0 max-w-full on the pill, its summary and its label: a chosen
+      value with a long name ("Internationales Kundenprojekt mit ...") made the
+      pill wider than the whole filter column on a phone, because the label's
+      own cap (15rem) does not count the padding and the ✕. Now the label gives
+      way first and ends in an ellipsis (review of #932). %>
+  <details class="relative inline-block min-w-0 max-w-full"
+           <%= 'open' if open %>
+           data-controller="details-autoclose"
+           data-<%= handle %>="<%= key %>"
+           data-<%= handle %>-state="<%= set ? 'set' : 'open' %>">
+    <summary class="<%= time_filter_choice_pill_classes(set ? :active : :open) %> max-w-full list-none cursor-pointer select-none">
+      <%# Capped and clipped: a ticket or meeting title goes in here, and a long
+          one would push the rest of the line off the screen. %>
+      <span class="min-w-0 max-w-[15rem] truncate"><%= label %></span>
+
+      <% if set && clearable && clear_url.present? %>
+        <%= link_to clear_url,
+                    data: time_filter_owns(clear_owns)
+                            .merge(action: 'click->query-toggle#rewrite click->details-autoclose#stop'),
+                    class: 'inline-flex flex-shrink-0 items-center justify-center -mr-1 rounded-full hover:bg-cream-300' do %>
+          <i class="bi bi-x text-[13px]" aria-hidden="true"></i>
+          <%# The glyph says "remove" to a mouse and nothing to a screen reader. %>
+          <span class="sr-only"><%= t('views.organisations.time_sessions.empty_reason.remove') %></span>
+        <% end %>
+      <% else %>
+        <i class="bi bi-chevron-down flex-shrink-0 text-[10px]" aria-hidden="true"></i>
+      <% end %>
+    </summary>
+
+    <%# ⚠️ The height cap is relative to the VIEWPORT, not a fixed 20rem. Nine
+        period presets plus the custom date panel are taller than that, so the
+        one menu with a KNOWN, small set was the one that scrolled -- and the
+        custom fields, which are the whole point of opening it, sat below the
+        fold. A long menu (subject, billing) still needs a cap; a short one must
+        never get one it can hit.
+
+        ⚠️ Deliberately NOT the brutalist frame the rest of the page wears. A 2px
+        ink border with a hard 4px shadow reads as an object on the page, and this
+        is a layer over it: it is the heaviest thing on screen the moment it opens,
+        for something the reader means to dismiss in a second. Soft border, soft
+        shadow, room to breathe. Design direction of the user, 02.09.2026. %>
+    <%# ⚠️ `align` is about the PAGE, not about taste. The menu is at least 16rem
+        wide and hangs off one edge of its own pill, so a pill that has been
+        pushed to the end of its row (ms-auto, or last in a justify-between row)
+        opens a menu that runs off the right side of the page. Which edge it
+        hangs from is therefore the caller's knowledge - it is the only one that
+        knows where its pill sits - and `align: :end` is the answer for the two
+        that sit at the end: the billing chooser in the time list's filter row
+        and the display chooser in the tool row.
+        Logical properties (start/end), not left/right: the layout carries rtl:
+        variants, and a menu that flips with the text direction is one less
+        thing to remember. %>
+    <%# ⚠️ The width is capped to the screen as well (min() with the viewport
+        less 1rem), and details-autoclose moves the menu sideways into view
+        whenever its size or the screen's changes (the `menu` target): on a
+        phone a pill can sit anywhere in a wrapped row, and a menu hanging from
+        it reached past the edge (reviews of #932). %>
+    <div class="absolute <%= align.to_sym == :end ? 'end-0' : 'start-0' %> top-full mt-2 z-dropdown min-w-[min(16rem,calc(100vw_-_1rem))] max-w-[min(24rem,calc(100vw_-_1rem))] overflow-y-auto bg-cream-50 border border-cream-300 shadow-[0_10px_30px_-8px_rgba(20,17,12,0.28)] rounded-2xl py-2 <%= filterable ? 'max-h-[60vh]' : 'max-h-[75vh]' %>"
+         <%# Mounted on every menu, literally, for two reasons: the wiring census
+             (spec/architecture/stimulus_controller_wiring_spec.rb) reads mounts
+             as literals and cannot see one built from a Ruby condition, and the
+             controller is inert without a query field anyway -- its only entry
+             point is that input's own action. %>
+         data-controller="filter-menu-search"
+         data-details-autoclose-target="menu">
+      <%= render 'shared/filter_pill_options', options: options, filterable: filterable, handle: handle %>
+
+      <% if notice.present? %>
+        <%# A menu showing a WINDOW has to say so, or its silence is a claim that
+            these are all the options there are. Below the options, not above
+            them: it explains what the reader has just failed to find, and the
+            first thing a reader wants is the list itself. %>
+        <p class="px-3 py-1.5 mt-1 border-t border-cream-300 text-xs text-cream-600"><%= notice %></p>
+      <% end %>
+
+      <%= footer %>
+
+    </div>
+  </details>
+<% end %>

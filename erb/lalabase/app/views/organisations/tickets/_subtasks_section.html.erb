@@ -1,0 +1,79 @@
+<%# Sub-tasks section — top-level tickets only (rendered from _ticket_content_for_frame).
+    Two states:
+      - EMPTY (no children): just a compact, right-aligned "+ Unteraufgabe hinzufügen" affordance
+        below the ticket header — no heading, no hint, minimal footprint. The first add replaces the
+        whole #subtasks-<id> section with the populated layout (create_first.turbo_stream).
+      - POPULATED: naked Warm-Editorial region with heading + progress + the children list (lightweight
+        _subtask_row, NOT the heavy dynamic _ticket_row -> N+1) + the always-visible quick-add row.
+        Per-user display mode (detail setting subtasks_display): full = expanded, compact = collapsed
+        behind a native <details>. Subsequent adds use a targeted append, so the input keeps focus.
+    autofocus (local, default false) is passed to the quick-add input only when create_first re-renders
+    this section, so the user keeps typing after the empty->populated swap. %>
+<% org = defined?(current_organisation) && current_organisation ? current_organisation : @current_organisation %>
+<% project = ticket.project %>
+<% children = ticket.children.ordered_by_number.to_a %>
+<% can_add = policy(project).area_access?(:tickets, :write) %>
+<% autofocus = local_assigns.fetch(:autofocus, false) %>
+<%# expanded forces the compact <details> open. Set by create_first so that, right after the FIRST
+    sub-task, the list (and its quick-add input) is visible to add the next one even for users whose
+    saved mode is "compact" — otherwise the input would be hidden behind the collapsed summary. %>
+<% expanded = local_assigns.fetch(:expanded, false) %>
+<% quick_add_url = organisation_project_ticket_subtasks_path(org, project, ticket) %>
+
+<% if children.empty? %>
+  <%# Empty: the quick-add field IS the whole affordance, tucked tight at the right just under the
+      header. -mt-3 cancels the content frame's top padding so it sits close to the header (the
+      header's own mb-4 stays — shared with the populated layout). %>
+  <section id="subtasks-<%= ticket.id %>" class="subtasks-section -mt-3 mb-3 flex justify-end">
+    <% if can_add %>
+      <%= render 'organisations/tickets/subtask_quick_add',
+                 ticket: ticket, url: quick_add_url, variant: :standalone, autofocus: autofocus %>
+    <% end %>
+  </section>
+<% else %>
+  <%# One status definition for the whole list (loaded once, reused per child) so N chips stay one query. %>
+  <% status_def = project.ticket_attribute_definitions.detect { |ad| ad.name == 'status' && ad.active } %>
+  <%# Per-user display mode (second ViewConfiguration lookup; accepted to keep this partial self-contained). %>
+  <% compact = ViewConfiguration.for_user_project(current_user, project, 'tickets').subtasks_compact? %>
+
+  <% heading = capture do %>
+    <h3 class="text-sm font-bold uppercase tracking-wide text-cream-700">
+      <%= t('views.organisations.tickets.shared.subtasks.heading') %>
+    </h3>
+  <% end %>
+
+  <%# Children list + the always-visible quick-add row. Captured once; the only difference between
+      compact and full is the collapsible <details> wrapper. %>
+  <% list_body = capture do %>
+    <ul id="subtasks-list-<%= ticket.id %>" class="divide-y divide-cream-200 overflow-hidden rounded-lg bg-cream-50">
+      <% children.each do |child| %>
+        <%= render 'organisations/tickets/subtask_row', child: child, project: project, org: org, status_def: status_def %>
+      <% end %>
+      <% if can_add %>
+        <%= render 'organisations/tickets/subtask_quick_add',
+                   ticket: ticket, url: quick_add_url, variant: :row, autofocus: autofocus %>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <section id="subtasks-<%= ticket.id %>" class="subtasks-section mb-6">
+    <% if compact %>
+      <details class="subtasks-details" <%= 'open' if expanded %>>
+        <summary class="mb-3 flex cursor-pointer items-center justify-between list-none [&::-webkit-details-marker]:hidden">
+          <div class="flex items-center gap-2">
+            <i class="bi bi-chevron-down text-xs text-cream-500"></i>
+            <%= heading %>
+          </div>
+          <%= render 'organisations/tickets/subtasks_progress', ticket: ticket %>
+        </summary>
+        <%= list_body %>
+      </details>
+    <% else %>
+      <div class="mb-3 flex items-center justify-between">
+        <%= heading %>
+        <%= render 'organisations/tickets/subtasks_progress', ticket: ticket %>
+      </div>
+      <%= list_body %>
+    <% end %>
+  </section>
+<% end %>

@@ -1,0 +1,24 @@
+<%# The three answers of every successful write from the capture popover
+    (create, update, destroy): re-render the popover whole (fresh new-entry
+    form, list and sums), grow only the chip's VALUE span (replacing the whole
+    chip would tear down the open popover), and reload the timeline frame via
+    src — a booking is also a timeline row. The full ticket_display_frame
+    update must never run for this context. Reads the load_subject_popover_data
+    ivars. %>
+<%= turbo_stream.update "subject_time_popover_#{@popover_subject.id}" do %>
+  <%= render 'organisations/time_sessions/subject_popover' %>
+<% end %>
+
+<%= turbo_stream.update "subject_time_chip_value_#{@popover_subject.id}" do %>
+  <%= render 'organisations/time_sessions/subject_time_chip_value',
+             total_minutes: @popover_buckets.values.sum { |bucket| bucket[:minutes] },
+             scope: @popover_scope,
+             shares: @popover_buckets.transform_values { |bucket| bucket[:minutes] } %>
+<% end %>
+
+<% if @popover_subject.is_a?(Ticket) %>
+  <%= turbo_stream.replace "ticket-timeline-#{@popover_subject.id}" do %>
+    <%= turbo_frame_tag "ticket-timeline-#{@popover_subject.id}",
+                        src: timeline_organisation_project_ticket_path(@popover_subject.organisation, @popover_subject.project, @popover_subject) %>
+  <% end %>
+<% end %>

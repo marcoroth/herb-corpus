@@ -1,0 +1,127 @@
+<% content_for :title, t('.meta_title') %>
+
+<%# =========================================================================
+     LALABASE SIGN-IN: "Werkstatt" redesign (Design-Handoff Runde 1, 3a) · Aug 2026
+
+     The split-screen skeleton (brand row, paper column, legal row, dark
+     panel) belongs to the layout application_auth since 20.09.2026. Only
+     what makes up this page is left here.
+
+     Informal "du" throughout (until this rebuild the login was the only page
+     that used the formal "Sie"). The magic-link login proposed in the handoff
+     is DELIBERATELY not implemented: it is marked there as an optional
+     suggestion, not an existing feature; with it the OR divider goes away too. %>
+
+<%# The demo has no sign-up: everybody uses the login shown in the form. Its place
+    holds the way back to the website the visitor came from, if the demo names one. %>
+<% if Lalabase::Demo.enabled? %>
+  <% if (website_link = demo_website_link(class: 'lp-auth-cross-link')) %>
+    <% content_for :auth_cross do %>
+      <p class="lp-auth-cross"><%= website_link %></p>
+    <% end %>
+  <% end %>
+<% else %>
+  <% content_for :auth_cross do %>
+    <p class="lp-auth-cross">
+      <%= t('.no_account') %>
+      <%= link_to t('.register'), new_registration_path(resource_name), class: 'lp-auth-cross-link' %>
+    </p>
+  <% end %>
+<% end %>
+
+<div class="lp-eyebrow"><%= t('.eyebrow') %></div>
+<h1 class="lp-auth-h1"><%= t('.title') %></h1>
+
+<%= form_for(resource, as: resource_name, url: session_path(resource_name),
+             html: { class: 'lp-auth-form', novalidate: true }) do |f| %>
+  <%= render 'devise/sessions/demo_login' if Lalabase::Demo.enabled? %>
+
+  <div class="lp-field">
+    <label for="user_email" class="lp-field-label"><%= t('.email_label') %></label>
+    <%= f.email_field :email,
+          autofocus: true,
+          autocomplete: 'username',
+          required: true,
+          class: 'lp-input' %>
+  </div>
+
+  <% forgot = capture do %>
+    <%= link_to new_password_path(resource_name), class: 'lp-auth-forgot' do %>
+      <span class="lp-auth-forgot-long"><%= t('.forgot_password') %></span>
+      <span class="lp-auth-forgot-short"><%= t('.forgot_password_short') %></span>
+    <% end %>
+  <% end %>
+  <%= render 'devise/shared/password_field',
+             f: f, label: t('.password_label'), autocomplete: 'current-password',
+             aside: forgot %>
+
+  <% if devise_mapping.rememberable? %>
+    <div class="lp-checkline">
+      <%# Default ON (Handoff 3a): whoever signs in here works with the
+          product; the opposite is the special case. %>
+      <%= f.check_box :remember_me, checked: true, class: 'lp-checkbox' %>
+      <%= f.label :remember_me, t('.remember_me'), class: 'lp-checkline-label' %>
+    </div>
+  <% end %>
+
+  <%= f.submit t('.sign_in'),
+        data: { turbo_submits_with: t('.signing_in') },
+        class: 'lp-btn lp-btn--primary lp-btn--block' %>
+
+  <%# The only way into these two pages. Before 20.09.2026 the single partial
+      that linked them (devise/shared/_links) was rendered by nothing, so both
+      were reachable by typing the address only -- while the help page promised
+      the link "on the sign-in page" in both languages. Each line asks first,
+      because somebody who can sign in normally should not have to read them. %>
+  <div class="lp-auth-assure">
+    <% if devise_mapping.confirmable? %>
+      <span>
+        <%= t('.unconfirmed') %>
+        <%= link_to t('.resend_confirmation'), new_confirmation_path(resource_name), class: 'lp-auth-textlink' %>
+      </span>
+    <% end %>
+    <% if devise_mapping.lockable? %>
+      <span>
+        <%= t('.locked') %>
+        <%= link_to t('.unlock_account'), new_unlock_path(resource_name), class: 'lp-auth-textlink' %>
+      </span>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Context panel: the waiting inbox as a static mock, therefore decorative. %>
+<% content_for :auth_panel_decorative, true %>
+<% content_for :auth_panel do %>
+  <div class="lp-auth-panel-kicker">// <%= t('.panel_label') %></div>
+  <h2 class="lp-auth-panel-h2"><%= t('.panel_title') %></h2>
+
+  <div class="lp-auth-win">
+    <div class="lp-auth-win-bar">
+      <span class="lp-auth-win-dot"></span>
+      <span class="lp-auth-win-dot"></span>
+      <span class="lp-auth-win-dot"></span>
+      <%# The instance the visitor is looking at, not ours: this page runs on
+          other people's servers too. %>
+      <span class="lp-auth-win-url"><%= request.host %>/inbox</span>
+    </div>
+    <div class="lp-auth-win-body">
+      <div class="lp-auth-row">
+        <span class="lp-auth-dot"></span>
+        <span class="lp-auth-row-text"><%= t('.inbox_tickets_html') %></span>
+        <span class="lp-auth-row-meta"><%= t('.inbox_now') %></span>
+      </div>
+      <div class="lp-auth-row">
+        <span class="lp-auth-avatar">M</span>
+        <span class="lp-auth-row-text lp-auth-row-text--muted"><%= t('.inbox_comment_html') %></span>
+        <span class="lp-auth-row-meta"><%= t('.inbox_minutes') %></span>
+      </div>
+      <div class="lp-auth-row lp-auth-row--live">
+        <span class="lp-auth-dot"></span>
+        <span class="lp-auth-row-text"><%= t('.inbox_timer_html') %></span>
+        <span class="lp-auth-row-meta lp-auth-row-meta--strong">14:32</span>
+      </div>
+    </div>
+  </div>
+
+  <%= render 'devise/shared/trust_pills' %>
+<% end %>

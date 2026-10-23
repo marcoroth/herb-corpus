@@ -1,0 +1,67 @@
+<%# locals: (tabs:, active:, aria_label:, title:, badge: nil, title_action: nil, right_content: nil) %>
+<%#
+  The ONE area header: title box and tab bar, rendered by one file so they
+  cannot disagree about the left edge.
+
+  ⚠️ That is the whole point of this partial, and it is why the title box is in
+  here rather than at the call site. Before this, the edge had TWO owners in the
+  times area: NeoTitleBoxComponent sets its own margin (none, so it lands on the
+  page edge from `main`), while the tab bar inherited an `mx-4 md:mx-5` from the
+  div its caller wrapped it in. Title at 24px, tabs at 44px, on the same page.
+  Management never had the problem because its subnav already rendered both.
+  A caller that wraps this partial in a margin re-creates the split, which is
+  what spec/views/one_page_edge_guard_spec.rb watches for.
+
+  Tabs are siblings of the title, so nothing here is indented, and the bar holds
+  tabs ONLY - tools belong one row lower.
+
+  The active marker is edge-strong (border-ink), never an accent colour. The
+  management bar used to mark active with border-cobalt-600, and cobalt-600 IS
+  the accent (--accent in application.tailwind.css), so one token carried three
+  meanings: main action, accent, active tab. Owning the marker here is what
+  keeps a caller from picking a colour again.
+
+  A bar with one tab is no bar: there is nothing to switch to. The title box
+  then takes the wider gap, because it is the last thing before the content.
+
+  @param tabs [Array<Hash>] {key:, label:, path:} from NavigationHelper
+  @param active [Symbol] the tab that is current
+  @param aria_label [String] names the nav for screen readers
+  ⚠️ The bar looks the SAME on every page, whatever comes below it. What
+  follows adapts; never the other way round. So the rule and the gap are not
+  negotiable per caller: the active tab's 2px underline sits on the bar's OWN
+  rule via -mb-px, and that is the only line it may dock onto. An earlier build
+  let a full-bleed filter stripe take the rule over and dropped the gap - the
+  underline then ended on the top edge of a foreign element, with two lines of
+  different owners (2px ink, short; 1px hairline, long) meeting in one row of
+  pixels.
+
+  @param title_action / right_content [String] captured blocks from the caller
+%>
+<% has_bar = tabs.size > 1 %>
+<%= render NeoTitleBoxComponent.new(
+      title: title,
+      badge: badge,
+      variant: :organisation,
+      margin_bottom: has_bar ? 'mb-3.5' : 'mb-6'
+    ) do |box| %>
+  <% box.with_title_action { title_action } if title_action.present? %>
+  <% box.with_right_content { right_content } if right_content.present? %>
+<% end %>
+
+<% if has_bar %>
+  <nav class="border-b border-cream-300 mb-3.5" aria-label="<%= aria_label %>">
+    <ul class="flex flex-wrap gap-x-6 gap-y-1 md:gap-x-8 -mb-px">
+      <% tabs.each do |tab| %>
+        <% is_active = (active.to_sym == tab[:key]) %>
+        <li>
+          <%= link_to tab[:path],
+                "aria-current": (is_active ? "page" : nil),
+                class: "inline-block border-b-2 pb-3 pt-1 text-sm whitespace-nowrap transition-colors #{is_active ? 'border-ink text-cream-900 font-bold' : 'border-transparent text-cream-600 font-medium hover:text-cream-900 hover:border-cream-400'}" do %>
+            <%= tab[:label] %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </nav>
+<% end %>

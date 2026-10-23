@@ -1,0 +1,338 @@
+<%# locals: () %>
+<%# The panel for assigning selected times to a billing. Visibility and selection
+    are driven by the surrounding time-session-bulk controller, which lives in
+    index.html.erb AROUND the turbo frame.
+
+    Laid out after the design draft "Tickets Entschlackt" (user, 31.08.2026):
+    a title with the count and the sum under it as a quiet subtitle, two plain
+    radio choices whose field appears indented underneath the chosen one, a rule,
+    and then the list of exactly what is about to be taken over. No boxes around
+    the options: the panel is 420px wide and a card inside a card reads as two
+    frames rather than one choice.
+
+    From lg up it is a LANE beside the list, not a layer over it: as an overlay
+    it covered the filters and the right-hand columns of the very rows the reader
+    had just ticked. lg and not md: the lane is 420px, and on a 768px screen that
+    leaves the list about 300px, where the titles truncate to nothing. Below it
+    the panel is a sheet at the bottom edge, because there is no width to give.
+
+    Which classes mean "closed" is declared ONCE, through the Stimulus classes
+    API on the controller element. They appear in `class` below as well, because
+    the panel has to render closed before any JavaScript runs or it would flash
+    across the page on load. That the two agree is checked, not hoped for: see
+    "the assignment panel" in spec/requests/organisations/time_sessions_table_spec.rb. %>
+<%# z-mobile-nav, not z-modal: the phone's bottom navigation sits at 80 and
+    floats exactly over the stacked Abbrechen/Zuweisen buttons, so at 50 the
+    sheet's own actions were behind it.
+    And a max height on the BASE, not only from md up: without one the sheet
+    grows past the top of the screen and takes the title and the closing cross
+    with it. dvh, because a phone's viewport changes height while the address bar
+    comes and goes.
+
+    The panel is a bounded COLUMN, and the scrolling happens one level in. It used
+    to be a scroll box with three independently capped lists inside
+    (30vh + 40vh + 20vh), and nothing budgeted for the header, the summaries, the
+    total and the buttons on top of that. Every list kept to its cap and the
+    panel still overflowed: measured at 760px viewport, "Zuweisen" left the
+    visible area at the ELEVENTH selected booking, with 75px of the panel below
+    the edge (user, 31.08.2026). Now the header and the buttons are fixed ends and
+    what is between them scrolls, so the button cannot be pushed anywhere. %>
+<div id="bulk-action-bar"
+     class="fixed inset-x-0 bottom-0 z-mobile-nav flex max-h-[85dvh] transform flex-col bg-cream-100 transition-transform duration-300 ease-in-out
+            border-t border-ink shadow-[0_-4px_0_0_#14110c]
+            lg:sticky lg:inset-auto lg:top-4 lg:z-auto lg:w-[420px] lg:shrink-0
+            lg:max-h-[calc(100vh-2rem)] lg:transform-none lg:self-start
+            lg:border-l lg:border-t-0 lg:shadow-none
+            translate-y-full lg:hidden"
+     data-time-session-bulk-target="actionBar"
+     data-time-session-bulk-url="<%= bulk_assign_group_organisation_time_sessions_path(current_organisation) %>">
+  <div class="flex min-h-0 flex-1 flex-col p-4 lg:p-6">
+      <%# Title only. A count belongs here once at most, and the list below says
+          it in the sentence that also says what happens to those rows: "Diese 5
+          Zeiten werden übernommen", with the already-filed ones counted apart.
+          A second count up here could only repeat that or contradict it, and it
+          did contradict it: it named the whole selection (user, 31.08.2026). %>
+      <%# The hairline is what makes the clipped row underneath read as scrolled
+          content rather than as a rendering fault. A fixed header over a moving
+          body needs an edge. %>
+      <div class="mb-4 flex shrink-0 items-center justify-between gap-3 border-b border-cream-300 pb-3">
+        <h3 class="min-w-0 text-lg font-bold leading-tight text-cream-900"
+            tabindex="-1"
+            data-time-session-bulk-target="panelTitle">
+          <%= t('views.organisations.time_sessions.index_table.panel_title') %>
+        </h3>
+        <div class="flex shrink-0 gap-2">
+          <button type="button"
+                  data-time-session-bulk-target="minimizeButton"
+                  data-action="click->time-session-bulk#toggleMinimize"
+                  <%# Only on the phone: a lane does not cover the list it
+                      belongs to, so there is nothing to get out of the way of. %>
+                  class="rounded p-2 text-cream-600 transition-colors hover:bg-cream-200 lg:hidden"
+                  title="<%= t('views.organisations.time_sessions.index_table.minimize_tooltip') %>">
+            <i class="bi bi-chevron-down text-xl"></i>
+          </button>
+          <button type="button"
+                  data-time-session-bulk-target="maximizeButton"
+                  data-action="click->time-session-bulk#toggleMinimize"
+                  class="hidden rounded p-2 text-cream-600 transition-colors hover:bg-cream-200 lg:hidden"
+                  title="<%= t('views.organisations.time_sessions.index_table.maximize_tooltip') %>">
+            <i class="bi bi-chevron-up text-xl"></i>
+          </button>
+          <%# A bare cross, the way every other panel and modal in this app closes
+              (see _cockpit_settings_modal): a plain button
+              with a plain glyph, no Neo button component. It was a red danger
+              button here, which reads as "delete something", and closing a panel
+              destroys nothing. %>
+          <button type="button"
+                  class="p-1 text-cream-500 transition-colors hover:text-cream-700"
+                  data-action="click->time-session-bulk#cancelBulkAssignment"
+                  aria-label="<%= t('views.organisations.time_sessions.index_table.close_tooltip') %>"
+                  title="<%= t('views.organisations.time_sessions.index_table.close_tooltip') %>">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Form Content (collapsible) -->
+      <div class="flex min-h-0 flex-1 flex-col" data-time-session-bulk-target="formContent">
+        <%# Everything between the two fixed ends. ONE scrollbar: the lists inside
+            no longer carry caps of their own, because a cap is an attempt to
+            solve by arithmetic what the column solves by structure. The billings
+            keep theirs, see there. %>
+        <div class="min-h-0 flex-1 overflow-y-auto">
+        <%# ONE list, not a choice of kind followed by a choice of thing. The
+            kind was implied by the answer all along: pick a billing and you have
+            said "an existing one", type a name and you have said "a new one", so
+            asking first made the reader supply the same fact twice. It also cost
+            the common case a click AND hid it: "eine neue Abrechnung" was the
+            preselected option, so the panel opened showing no billings at all
+            (user, 31.08.2026).
+
+            The new-billing row is a member of the same radio group. It carries
+            the same box, so the list has one control and one meaning: this is
+            where the time goes. %>
+          <div>
+            <% if unbilled_time_session_groups.any? %>
+              <%# The one list that keeps a cap. Not to protect the buttons, which
+                  the column does now, but so that a long list of billings does
+                  not have to be scrolled past to reach what is being assigned:
+                  this is the input, the lists below are the evidence. At five
+                  billings it measures 156px against a 228px cap and never
+                  engages. %>
+              <ul class="max-h-[30vh] space-y-1 overflow-y-auto">
+                <% unbilled_time_session_groups.each do |group| %>
+                  <li>
+                    <div class="flex items-center gap-1">
+                    <%# The radio itself is sr-only, so the ROW has to show the focus. Without
+                        this a keyboard reader moves through the billings with nothing
+                        on screen telling them where they are. %>
+                    <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded px-1 py-1.5 transition-colors hover:bg-cream-200 has-[:checked]:bg-cream-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink lg:py-1">
+                      <%# data-minutes so the panel can say what this billing
+                          BECOMES, without asking the server again. %>
+                      <input type="radio"
+                             name="existing_group_id"
+                             value="<%= group.id %>"
+                             class="peer sr-only"
+                             data-minutes="<%= unbilled_time_session_group_minutes.fetch(group.id, 0) %>"
+                             data-time-session-bulk-target="existingGroupOption"
+                             data-action="click->time-session-bulk#togglePick change->time-session-bulk#chooseBilling">
+                      <%# A VISIBLE box in front of every line, empty until one is
+                          picked. It used to be a dot that appeared only once
+                          something was chosen, so an untouched list showed no
+                          control at all: the reader saw a name and never learnt
+                          that a choice was still owed (user, 31.08.2026).
+
+                          The input stays a RADIO, because only one billing can
+                          take the time. The box is the affordance, not the
+                          semantics: a lone radio circle reads as an ornament,
+                          especially with one billing in the list, while a box
+                          reads as something to tick. Screen readers hear the
+                          radio group either way.
+
+                          Two spans rather than one, because peer-checked matches
+                          SIBLINGS of the input: a checkmark nested inside a
+                          single box would never see the state. %>
+                      <span aria-hidden="true"
+                            class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 border-cream-400 bg-surface transition-colors peer-checked:hidden"></span>
+                      <span aria-hidden="true"
+                            class="hidden h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 border-ink bg-ink text-on-fill peer-checked:flex">
+                        <i class="bi bi-check text-sm leading-none"></i>
+                      </span>
+                      <span class="min-w-0 flex-1 truncate font-mono text-sm text-cream-700 peer-checked:font-bold peer-checked:text-cream-900">
+                        <%= group.name %>
+                      </span>
+                      <%# What it holds today, and, once it is the chosen one,
+                          what it becomes. Only on the chosen line: every line
+                          showing its own hypothetical would be a column of
+                          numbers of which at most one can ever happen, and it
+                          would bury the totals you are comparing.
+                          Time, not money: nothing in this app carries a rate, so
+                          a currency here would be invented. %>
+                      <span class="flex shrink-0 items-baseline gap-1 font-mono text-xs">
+                        <span class="text-cream-600">
+                          <%= TimeSession.format_duration(unbilled_time_session_group_minutes.fetch(group.id, 0)) %>
+                        </span>
+                        <span class="hidden font-bold text-cream-900" data-billing-result></span>
+                      </span>
+                    </label>
+                    <%# A control of its OWN, not the row: the row already means
+                        "assign to this one", and one element cannot mean both
+                        "choose" and "let me look first". Same chevron the time
+                        list rows use. %>
+                    <button type="button"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 lg:h-6 lg:w-6"
+                            data-action="click->time-session-bulk#toggleBillingEntries"
+                            aria-controls="billing_entries_<%= group.id %>"
+                            aria-expanded="false"
+                            title="<%= t('views.organisations.time_sessions.index_table.billing_entries_toggle') %>"
+                            aria-label="<%= t('views.organisations.time_sessions.index_table.billing_entries_toggle') %>">
+                      <i class="bi bi-chevron-right text-xs transition-transform duration-200" data-billing-chevron></i>
+                    </button>
+                    </div>
+
+                    <%# loading="lazy" means Turbo fetches this the first time it
+                        becomes VISIBLE, so unhiding the wrapper is the whole
+                        loading mechanism: no fetch of ours, and nothing is
+                        requested for a billing nobody opened. %>
+                    <div class="hidden pl-2" data-billing-entries>
+                      <turbo-frame id="billing_entries_<%= group.id %>"
+                                   src="<%= entries_organisation_time_session_group_path(current_organisation, group) %>"
+                                   loading="lazy">
+                        <p class="py-1 text-xs italic leading-6 text-cream-500">
+                          <%= t('views.organisations.time_sessions.index_table.billing_entries_loading') %>
+                        </p>
+                      </turbo-frame>
+                    </div>
+                  </li>
+                <% end %>
+              </ul>
+            <% else %>
+              <p class="px-1 py-1.5 text-sm text-cream-600"><%= t('views.organisations.time_sessions.index_table.existing_group_none') %></p>
+            <% end %>
+
+            <%# The escape hatch, PINNED under the scrolling list rather than the
+                last row inside it. The list of billings scrolls, and a row at the
+                bottom of a scrolling box is a row you have to find; this one has
+                to be reachable at any number of billings. Same reason the sum
+                hangs under the selection list further down, and the same shape.
+
+                Under and not above: the billings are the likely answer, and a
+                blank field on line one would push them out of first place.
+
+                Sans, not the mono the billing names wear: those are identifiers
+                that exist, this is a thing to do. %>
+            <div class="mt-1 border-t border-cream-300 pt-1">
+              <label class="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 transition-colors hover:bg-cream-200 has-[:checked]:bg-cream-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink lg:py-1">
+                <%# Same radio group as the billings above, which is what makes
+                    the whole thing one choice. The value is never read: the
+                    controller knows this row by its TARGET, and the submit is
+                    built by hand, so no sentinel string has to agree across two
+                    languages. %>
+                <input type="radio"
+                       name="existing_group_id"
+                       value="new"
+                       class="peer sr-only"
+                       data-time-session-bulk-target="newGroupOption"
+                       data-action="click->time-session-bulk#togglePick change->time-session-bulk#chooseBilling">
+                <span aria-hidden="true"
+                      class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 border-cream-400 bg-surface transition-colors peer-checked:hidden"></span>
+                <span aria-hidden="true"
+                      class="hidden h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 border-ink bg-ink text-on-fill peer-checked:flex">
+                  <i class="bi bi-check text-sm leading-none"></i>
+                </span>
+                <span class="min-w-0 flex-1 truncate text-sm text-cream-700 peer-checked:font-bold peer-checked:text-cream-900">
+                  <%= t('views.organisations.time_sessions.index_table.new_group_option') %>
+                </span>
+              </label>
+
+              <%# Indented under its own row and only while that row is picked.
+                  Disabled as well as hidden: a hidden but enabled field still
+                  submits, and validateForm reads the value. %>
+              <div class="hidden pl-7 pt-1" data-time-session-bulk-target="newGroupField">
+                <input type="text"
+                       autocomplete="off"
+                       disabled
+                       placeholder="<%= t('views.organisations.time_sessions.index_table.new_group_placeholder') %>"
+                       class="w-full rounded-lg border border-cream-300 px-3 py-2 font-mono text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                       data-time-session-bulk-target="newGroupName"
+                       data-action="input->time-session-bulk#validateForm">
+              </div>
+            </div>
+          </div>
+
+        <%# What will actually be taken over, one line each, droppable.
+            The rows of the list are folded by default, so ticking a row picks
+            bookings the reader cannot see; this is where they become visible.
+            Rendered by the controller from its selection rather than server-side,
+            because it has to follow every click AND has to keep naming a booking
+            that a filter has since taken off the screen. %>
+        <%# A booking can already be in the billing it is being assigned to: the
+            list lets you pick one out of billing X and hand it to billing X
+            again. It is not an error and there is nothing to forbid, but it is
+            not a transfer either, and counting its minutes into the result would
+            add time the billing already holds. So it is listed apart, under its
+            own heading, and left out of the arithmetic (user, 31.08.2026). %>
+        <div class="mb-4 mt-5 hidden border-t border-cream-300 pt-4" data-time-session-bulk-target="selectionPanel">
+          <%# Heading, list and total appear and disappear together, so they hang
+              on ONE wrapper rather than each carrying the same condition. Its
+              twin is alreadyPanel below, which already had this shape. %>
+          <div data-time-session-bulk-target="takenPanel">
+            <p class="mb-2 text-xs text-cream-600" data-time-session-bulk-target="selectionSummary"></p>
+            <%# No cap. This is the block that grows with the reader's work, and
+                it used to carry one so it could not push "Zuweisen" off the
+                panel. It pushed it off anyway at eleven selections, because the
+                cap only bounded this list and nothing bounded the sum of the
+                parts. The buttons are a fixed end of the column now, so there is
+                nothing left for a cap here to protect. %>
+            <ul class="space-y-0.5" data-time-session-bulk-target="selectionList"></ul>
+
+            <%# The total of what is about to be taken over, in the same 46px slot
+                the single durations use, so it stands under the column it adds up.
+                OUTSIDE the scrolling list on purpose: inside it, the one number
+                the reader came for would scroll away with the rows.
+                It counts this list and nothing else. The bookings under it are
+                already in the billing and bring no minutes, which is why they are
+                listed apart in the first place. %>
+            <div class="mt-1 flex items-center gap-2 border-t border-cream-300 pt-1 text-xs leading-6">
+              <span class="w-[46px] shrink-0 font-mono font-bold text-cream-900"
+                    data-time-session-bulk-target="selectionTotal">00:00</span>
+              <span class="min-w-0 flex-1 truncate text-cream-600">
+                <%= t('views.organisations.time_sessions.index_table.selection_total') %>
+              </span>
+            </div>
+          </div>
+
+          <div class="hidden" data-time-session-bulk-target="alreadyPanel">
+            <p class="mb-2 mt-4 text-xs text-cream-600" data-time-session-bulk-target="alreadySummary"></p>
+            <ul class="space-y-0.5" data-time-session-bulk-target="alreadyList"></ul>
+          </div>
+        </div>
+
+        </div>
+        <%# The other fixed end. mt-4 rather than the old block margins: the
+            scroll region above ends where it ends. %>
+        <div class="mt-4 flex shrink-0 flex-col justify-end gap-2 sm:flex-row">
+          <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :secondary,
+            size: :medium,
+            data: { action: "click->time-session-bulk#cancelBulkAssignment" }
+          ) do %>
+            <%= t('views.organisations.time_sessions.index_table.cancel_button') %>
+          <% end %>
+
+          <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :primary,
+            size: :medium,
+            disabled: true,
+            data: {
+              time_session_bulk_target: "submitButton",
+              action: "click->time-session-bulk#submitBulkAssignment"
+            }
+          ) do %>
+            <%= t('views.organisations.time_sessions.index_table.assign_button') %>
+          <% end %>
+        </div>
+      </div>
+      <!-- End of formContent -->
+  </div>
+</div>

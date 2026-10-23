@@ -1,0 +1,78 @@
+<div data-controller="billing-modal" data-billing-modal-loading-text-value="<%= t('views.organisations.time_session_groups.billing_status.loading') %>">
+  <%= render 'header' %>
+
+  <div>
+    <%= render 'navigation', current_view: :chronological %>
+
+    <% cl = 'views.organisations.time_session_groups.chronological' %>
+    <% if @time_sessions.any? %>
+      <%# The rows in the times language (D2 of
+          doc/abrechnung_detail_angleichung_plan.md): a flex-column grid whose
+          header, rows and sum footer share ONE column set - change one, change
+          all three. Figures mono; the subject carries the description as a
+          subline instead of a column of truncated prose. The project column is
+          gone (the head names the projects once); only a billing that spans
+          SEVERAL projects says the project per row, in the subline, because
+          then the row is ambiguous without it. %>
+      <div class="flex items-center gap-3.5 px-2 pb-1.5 text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600">
+        <span class="w-[62px] shrink-0 text-right"><%= t("#{cl}.th_duration") %></span>
+        <span class="w-[86px] shrink-0"><%= t("#{cl}.th_date") %></span>
+        <span class="w-[56px] shrink-0"><%= t("#{cl}.th_id") %></span>
+        <span class="min-w-0 flex-1"><%= t("#{cl}.th_subject") %></span>
+        <span class="w-[150px] shrink-0 text-right"><%= t("#{cl}.th_user") %></span>
+      </div>
+      <div class="h-px bg-cream-400"></div>
+
+      <% multi_project = @group_figures[:project_names].size > 1 %>
+      <% @time_sessions.each do |time_session| %>
+        <div class="flex items-start gap-3.5 border-b border-cream-200 px-2 py-2.5">
+          <span class="w-[62px] shrink-0 text-right font-mono text-sm font-semibold leading-6 text-cream-900">
+            <%= time_session.duration_string %>
+          </span>
+          <span class="w-[86px] shrink-0 font-mono text-sm leading-6 text-cream-700">
+            <%= time_session.occurred_on.strftime('%d.%m.%Y') %>
+          </span>
+          <span class="w-[56px] shrink-0 font-mono text-sm leading-6 text-cream-700">
+            <% if time_session.subject.is_a?(Ticket) %>
+              #<%= time_session.subject.number %>
+            <% else %>
+              <span class="text-cream-400">-</span>
+            <% end %>
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-[15px] leading-6">
+              <%= render 'organisations/time_sessions/subject_cell',
+                         subject: time_session.subject,
+                         link_access: @subject_link_access,
+                         truncate_length: 60,
+                         link_class: "font-medium text-cream-900 hover:underline",
+                         muted_class: "text-cream-500" %>
+            </div>
+            <% subline = [(multi_project ? time_session.project.name : nil),
+                          time_session.description.presence].compact %>
+            <% if subline.any? %>
+              <div class="truncate text-xs leading-5 text-cream-600"><%= subline.join(' · ') %></div>
+            <% end %>
+          </div>
+          <span class="w-[150px] shrink-0 truncate text-right text-sm leading-6 text-cream-700">
+            <%= viewer_display_name(time_session.creator) %>
+          </span>
+        </div>
+      <% end %>
+
+      <%# The sum footer: every row above, from the controller's one pass. %>
+      <div class="flex items-baseline gap-3.5 px-2 pt-2">
+        <span class="w-[62px] shrink-0 text-right font-mono text-base font-semibold text-cream-900">
+          <%= TimeSession.format_duration(@group_figures[:minutes]) %>
+        </span>
+        <span class="min-w-0 flex-1 text-sm text-cream-600"><%= t('views.organisations.time_session_groups.shared.sum_all') %></span>
+      </div>
+    <% else %>
+      <div class="rounded-lg border border-cream-300 bg-cream-50 p-6 text-center">
+        <p class="text-cream-600"><%= t("#{cl}.no_sessions_in_group") %></p>
+      </div>
+    <% end %>
+
+    <%= render 'organisations/time_session_groups/activities', activities: @activities %>
+  </div>
+</div>

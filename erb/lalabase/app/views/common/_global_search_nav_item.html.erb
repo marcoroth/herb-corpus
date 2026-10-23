@@ -1,0 +1,35 @@
+<%# Global search nav item (+ optional pinned inline bar).
+    A single <li id> so the pin toggle can Turbo-Stream-replace the whole item in place.
+    Unpinned: the row opens the body-level overlay (search_overlay_controller#open).
+    Pinned: a persistent inline search bar renders below; the row / Cmd+K then focus that
+    bar instead of opening the overlay (handled in the controller by detecting the bar).
+    Same access gate as the surrounding nav block; placed first for discoverability. %>
+<% pinned = current_user.sidebar_pins.global_pinned?(current_organisation, 'search') %>
+<li id="global-search-nav" class="group/search">
+  <div class="flex items-center">
+    <button type="button"
+            data-action="search-overlay#open"
+            title="<%= t('navigation.search') %> (⌘K)"
+            class="<%= sidebar_row_classes(active: false, extra: 'flex-1 text-start') %>">
+      <i class="bi bi-search <%= sidebar_row_icon_classes %>"></i>
+      <span><%= t('navigation.search') %></span>
+    </button>
+    <%= button_to organisation_search_pin_path(organisation_id: current_organisation.id),
+          method: :patch,
+          form: { class: 'contents' },
+          class: "flex items-center justify-center w-6 h-6 shrink-0 me-2 text-cream-700 hover:text-heading transition-colors #{'opacity-0 group-hover/search:opacity-100 focus:opacity-100' unless pinned}".strip,
+          title: t(pinned ? 'navigation.unpin_search' : 'navigation.pin_search'),
+          aria: { label: t(pinned ? 'navigation.unpin_search' : 'navigation.pin_search') } do %>
+      <i class="bi bi-pin-angle text-[10px]"></i>
+    <% end %>
+  </div>
+  <% if pinned %>
+    <%# The id "global-search-inline-bar" is a contract: search_overlay_controller#open
+        looks for `#global-search-inline-bar input[type="text"]` and, if present, focuses
+        it INSTEAD of opening the overlay. Renaming this id (or changing the field to
+        type="search") silently breaks the pinned-focus behaviour — keep them in sync. %>
+    <div id="global-search-inline-bar" class="px-4 pb-2 pt-1">
+      <%= render 'common/global_search_form' %>
+    </div>
+  <% end %>
+</li>

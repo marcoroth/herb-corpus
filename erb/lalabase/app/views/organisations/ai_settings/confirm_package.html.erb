@@ -1,0 +1,238 @@
+<%# KI-Pakete P4b (doc/ki_pakete_p4_plan.md §4): the consequence dialog that has
+    to precede a lane-moving package switch.
+
+    A PAGE and not a modal, deliberately. Three reasons, in order of weight:
+      * E7 wants the estimate computed once, when the dialog opens — a panel on
+        #show would run its four aggregate queries on every visit to the settings
+        page, and a modal per card would put N of them into one render.
+      * It is the heaviest decision this screen offers (jurisdiction, a metered
+        re-embedding of the whole corpus, a search index that rebuilds for
+        minutes to hours). A dismissible overlay is the wrong weight for it.
+      * It is fully assertable from a request spec, with no Capybara blindness
+        inside turbo_stream templates and no JS at all.
+
+    The order below is the order the customer decides in: what changes legally,
+    then what it costs, then whether the quota covers it, then what the search
+    does meanwhile. %>
+<div class="max-w-3xl">
+  <%= render 'organisations/shared/ai_area_header', title: t('views.organisations.ai_overview.pages.switch') %>
+
+  <h2 class="mt-6 text-lg font-bold text-cream-900">
+    <i class="bi bi-arrow-left-right mr-2"></i>
+    <%= t('views.organisations.ai_settings.packages.switch.title') %>
+  </h2>
+  <p class="mt-2 text-sm text-cream-800">
+    <%= t('views.organisations.ai_settings.packages.switch.intro',
+          target: @target_package&.name ||
+                  t('views.organisations.ai_settings.packages.custom.title')) %>
+  </p>
+
+  <%# 1 — what changes legally. The two claims side by side, each with the
+      restricting addendum the card shows, so the comparison reads in the same
+      words the customer chose the package in. %>
+  <div class="mt-6 border-2 border-ink rounded-lg bg-surface-raised p-4 shadow-[3px_3px_0_0_#000000]">
+    <h3 class="text-sm font-bold text-cream-900 uppercase tracking-wide">
+      <%= t('views.organisations.ai_settings.packages.switch.legal_heading') %>
+    </h3>
+
+    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <% [[t('views.organisations.ai_settings.packages.switch.side_today'), @current_package,
+           @current_jurisdiction, @current_training, @current_retention],
+          [t('views.organisations.ai_settings.packages.switch.side_after'), @target_package,
+           @target_jurisdiction, @target_training, @target_retention]].each do |label, package, jurisdiction, training_usage, retention| %>
+        <div>
+          <p class="text-xs font-bold text-cream-700 uppercase tracking-wide"><%= label %></p>
+          <p class="mt-1 text-sm font-bold text-cream-900">
+            <%= package&.name || t('views.organisations.ai_settings.packages.custom.title') %>
+          </p>
+          <%# Since T7 the same two badges as on the card, in the same order:
+              the comparison should read in exactly the words in which the
+              customer chose the package. %>
+          <p class="mt-2 flex flex-wrap items-center gap-2">
+            <%= render 'organisations/ai_settings/jurisdiction_badge', jurisdiction: jurisdiction %>
+            <%= render 'organisations/ai_settings/training_badge', training_usage: training_usage %>
+          </p>
+          <%# The third occurrence came with T5 (the card now carries three such
+              addenda), so the idiom was extracted here. The trigger was already
+              noted at this spot. `fallback` is the only difference from the card:
+              "nichts eingestuft" is a statement in a COMPARISON, on the card it
+              stays silent. %>
+          <%= render 'organisations/ai_settings/claim_note',
+                     scope: 'views.organisations.ai_settings.packages.jurisdiction_notes',
+                     value: jurisdiction,
+                     fallback: t('views.organisations.ai_settings.packages.switch.jurisdiction_unstated') %>
+
+          <%# Training addendum and retention sentence WITHOUT a fallback: if a
+              side says nothing about it, it stays silent here too. The reason is
+              in the jurisdiction line above: self_hosted and "Eigene
+              Konfiguration" are already explained there, a second vague sentence
+              would be noise. %>
+          <%= render 'organisations/ai_settings/claim_note',
+                     scope: 'views.organisations.ai_settings.packages.training_notes',
+                     value: training_usage %>
+          <% retention_policy, retention_days = retention %>
+          <%= render 'organisations/ai_settings/claim_note',
+                     scope: 'views.organisations.ai_settings.packages.retention_notes',
+                     value: retention_policy,
+                     args: retention_days ? { count: retention_days } : {} %>
+        </div>
+      <% end %>
+    </div>
+
+    <%# The one-line verdict. Four cases rather than three: a package that claims
+        nothing must not be reported as an improvement OR as a deterioration
+        (see AiSettingsController#jurisdiction_change). %>
+    <p class="mt-4 text-sm font-bold text-cream-900">
+      <%= t("views.organisations.ai_settings.packages.switch.jurisdiction_change.#{@jurisdiction_change}") %>
+    </p>
+
+    <%# T7: the same construction, one axis deeper. nil means NO line: if either
+        side says nothing about training, there is nothing to compare, and the
+        jurisdiction line above already explains why (self_hosted or "Eigene
+        Konfiguration"). This case is deliberately NOT turned into a sentence:
+        that was exactly the defect the #437 review removed from the neighbouring
+        method four times. %>
+    <% if @training_change %>
+      <p class="mt-2 text-sm font-bold text-cream-900">
+        <%= t("views.organisations.ai_settings.packages.switch.training_change.#{@training_change}") %>
+      </p>
+    <% end %>
+  </div>
+
+  <%# The three blocks below exist exactly when there is a migration to describe.
+      Asked as "did the controller compute the consequences?" rather than as a
+      second `ai_enabled?` read: #load_switch_consequences already decides that,
+      and a view re-deciding it is how the page and the queries behind it drift
+      into disagreeing about which case this is. @estimate is nil precisely when
+      the AI opt-in is off — see the else branch. %>
+  <% if @estimate %>
+    <%# 2 — the price. An ESTIMATE and labelled as one (E7): the token count is a
+        characters/4 rule of thumb, and the whole corpus is counted although the
+        run skips what the target space already holds. Both errors point the same
+        way — the real run tends to be smaller. %>
+    <div class="mt-4 border border-cream-300 rounded-lg bg-surface-raised p-4">
+      <h3 class="text-sm font-bold text-cream-900 uppercase tracking-wide">
+        <%= t('views.organisations.ai_settings.packages.switch.cost_heading') %>
+      </h3>
+      <p class="mt-2 text-sm text-cream-800 tabular-nums">
+        <%= t('views.organisations.ai_settings.packages.switch.cost_estimate',
+              records: number_with_delimiter(@estimate.records),
+              credits: number_with_delimiter(@estimate.credits)) %>
+      </p>
+      <p class="mt-1 text-sm text-cream-700">
+        <%= t('views.organisations.ai_settings.packages.switch.cost_estimate_hint') %>
+      </p>
+    </div>
+
+    <%# 3 — the quota pre-check. §9's first hard precondition, and the reason this
+        dialog had to exist before the card doors could open: the gate fires ONCE,
+        at the provider build, so a run that starts inside the budget keeps going
+        until the corpus is done — and can take chat AND semantic search down with
+        it for the rest of the month.
+
+        Two different faults, two different texts:
+          * already exhausted → the run cannot start at all. It is not lost:
+            ReindexOrganisationJob logs "switch paused" and P4d's watcher picks it
+            up once the budget rolls over.
+          * estimate above what is left → the run WILL start and WILL overshoot.
+
+        All of it hangs on @quota_relevant first. The gate that stops a run asks the
+        CREDENTIAL of the target lane, not the organisation — `included_in_quota`
+        defaults to false, so for a lane nobody flagged, every branch below would
+        describe a block that cannot fire (#437 review, blocker 1). Saying nothing is
+        then the honest answer: the run still costs the OPERATOR, and that is not
+        this customer's decision to weigh. %>
+    <% if !@quota_relevant %>
+    <% elsif @quota_exhausted %>
+      <div class="mt-4 border border-red-300 rounded-lg bg-red-50 p-4">
+        <p class="text-sm font-bold text-red-900">
+          <i class="bi bi-x-octagon mr-1"></i><%= t('views.organisations.ai_settings.packages.switch.quota_exhausted_title') %>
+        </p>
+        <p class="mt-1 text-sm text-red-800"><%= t('views.organisations.ai_settings.packages.switch.quota_exhausted_body') %></p>
+      </div>
+    <% elsif @quota_shortfall.positive? %>
+      <div class="mt-4 border border-amber-300 rounded-lg bg-amber-50 p-4">
+        <p class="text-sm font-bold text-amber-900">
+          <i class="bi bi-exclamation-triangle mr-1"></i><%= t('views.organisations.ai_settings.packages.switch.quota_short_title') %>
+        </p>
+        <p class="mt-1 text-sm text-amber-800 tabular-nums">
+          <%= t('views.organisations.ai_settings.packages.switch.quota_short_body',
+                remaining: number_with_delimiter(@quota.remaining),
+                planned: number_with_delimiter(@quota_planned),
+                shortfall: number_with_delimiter(@quota_shortfall)) %>
+        </p>
+      </div>
+    <% else %>
+      <div class="mt-4 border border-cream-300 rounded-lg bg-surface-raised p-4">
+        <p class="text-sm text-cream-800 tabular-nums">
+          <i class="bi bi-speedometer2 mr-1"></i>
+          <%= t('views.organisations.ai_settings.packages.switch.quota_covered',
+                remaining: number_with_delimiter(@quota.remaining)) %>
+        </p>
+      </div>
+    <% end %>
+
+    <%# 4 — what the search does meanwhile (E3, decided as A: name the gap rather
+        than write into both spaces).
+
+        TWO different promises, because two different org states exist:
+          * with a space pointer — the old index keeps serving until the new one is
+            complete, so the BESTAND stays findable throughout; only content created
+            during the window is not, and that gets said out loud.
+          * WITHOUT one — Factory.embedding_space_for(:active) falls back to the
+            CONFIGURED triple, so reads move onto the new, empty space the moment the
+            write lands: search and RAG chat return nothing until the rebuild is done.
+            Printing the reassuring text there is a promise the code does not keep
+            (#437 review, blocker 2). The state is reachable because the pointer is
+            nullable and #431's backfill is fail-soft. %>
+    <div class="mt-4 border rounded-lg p-4 <%= @search_outcome == :search_body ? 'border-cream-300 bg-cream-100' : 'border-amber-300 bg-amber-50' %>">
+      <h3 class="text-sm font-bold text-cream-900 uppercase tracking-wide">
+        <%= t('views.organisations.ai_settings.packages.switch.search_heading') %>
+      </h3>
+      <p class="mt-2 text-sm text-cream-800">
+        <%= t("views.organisations.ai_settings.packages.switch.#{@search_outcome}") %>
+      </p>
+      <%# WHO receives the search input, before and after. The "today" side is the
+          P5 disclosure's own answer — the space that actually SERVES, not the
+          configured lane — so this page cannot name a different recipient than
+          the Art. 13 notice on the chat page does for the same moment. %>
+      <p class="mt-1 text-sm text-cream-800">
+        <%= t('views.organisations.ai_settings.packages.switch.search_recipients',
+              today: @disclosure.embedding_provider_label, after: @target_search_label) %>
+      </p>
+      <p class="mt-1 text-sm text-cream-800"><%= t('views.organisations.ai_settings.packages.switch.search_gap') %></p>
+    </div>
+  <% else %>
+    <%# The org's AI opt-in is off — the DB default, so this is the common case.
+        Actors::SelectAiPackage#enqueue_jobs returns early for such an org: no
+        corpus is re-embedded, nothing is charged, nothing is transmitted. A price
+        and a rebuild notice here would describe events that cannot happen. %>
+    <div class="mt-4 border border-cream-300 rounded-lg bg-cream-100 p-4">
+      <p class="text-sm text-cream-800"><%= t('views.organisations.ai_settings.packages.switch.ai_disabled_note') %></p>
+    </div>
+  <% end %>
+
+  <div class="mt-6 flex flex-wrap items-center gap-3">
+    <%# The SAME write the card used to fire directly, with the same blank-id
+        convention for the way back (E1-C) — the dialog is a step in front of it,
+        not a second code path. %>
+    <%= render Neo::Buttons::ButtonComponent.new(
+      variant: :primary,
+      size: :medium,
+      icon: "arrow-left-right",
+      form: { action: select_package_organisation_ai_settings_path(@organisation),
+              method: :post,
+              params: { ai_package_id: @target_package&.id.to_s } }
+    ) do %>
+      <%= t('views.organisations.ai_settings.packages.switch.confirm_button') %>
+    <% end %>
+
+    <%= render Neo::Buttons::ButtonComponent.new(
+      variant: :secondary,
+      size: :medium,
+      url: organisation_ai_settings_path(@organisation, package_mode: @package_mode)
+    ) do %>
+      <%= t('views.organisations.ai_settings.packages.switch.cancel_button') %>
+    <% end %>
+  </div>
+</div>

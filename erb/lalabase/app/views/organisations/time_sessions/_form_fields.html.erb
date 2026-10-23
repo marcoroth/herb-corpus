@@ -1,0 +1,113 @@
+<%# locals: (f:, time_session:, group_collection: nil, cancel_action: "click->modal#close") %>
+<%# Shared fields of the three TimeSession forms. Rendered as a layout:
+    the wrapper's yield block supplies the ticket/project section.
+    group_collection: nil suppresses the billing block (ticket modal without loaded groups);
+    a collection (even an empty one) shows it, including the "Neue Abrechnung" link. %>
+<% field_classes = "block w-full rounded-lg border border-stroke px-3 py-2 focus:border-stroke focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-sm focus:ring-0 transition-all duration-200 sm:text-sm" %>
+
+<% if time_session.errors.any? %>
+  <div class="rounded-lg bg-red-50 border border-stroke p-4">
+    <div class="flex">
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-red-800">
+          <%= t('.validation_errors', count: time_session.errors.count) %>
+        </h3>
+        <div class="mt-2 text-sm text-red-700">
+          <ul class="list-disc pl-5 space-y-1">
+            <% time_session.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<div class="grid grid-cols-2 gap-4">
+  <div class="text-left">
+    <%= f.label :duration_string, t('.duration_label'), class: "block text-sm font-medium text-gray-700 text-left" %>
+    <div class="mt-1">
+      <%# Leave empty without a duration (placeholder visible); otherwise the getter returns "00:00" %>
+      <%= f.text_field :duration_string,
+                      value: (time_session.duration_string if time_session.duration.present?),
+                      class: field_classes,
+                      placeholder: t('.duration_placeholder'),
+                      data: {
+                        time_session_form_target: "durationInput",
+                        action: "blur->time-session-form#formatDuration"
+                      } %>
+    </div>
+  </div>
+
+  <div class="text-left">
+    <%= f.label :occurred_on, t('.date_label'), class: "block text-sm font-medium text-gray-700 text-left" %>
+    <div class="mt-1">
+      <%= f.date_field :occurred_on,
+                      class: field_classes,
+                      value: time_session.occurred_on&.to_date || Date.current %>
+    </div>
+  </div>
+</div>
+
+<div class="text-left">
+  <%= f.label :description, t('.description_label'), class: "block text-sm font-medium text-gray-700 text-left mb-1" %>
+  <div class="mt-1">
+    <%= f.text_area :description,
+                    rows: 3,
+                    class: field_classes,
+                    placeholder: t('.description_placeholder') %>
+  </div>
+</div>
+
+<%# Ticket/project section of the respective form %>
+<%= yield %>
+
+<% if group_collection %>
+  <div class="text-left">
+    <%= f.label :time_session_group_id, t('.group_label'), class: "block text-sm font-medium text-gray-700 text-left mb-1" %>
+    <div class="mt-1">
+      <%= f.collection_select :time_session_group_id,
+                             group_collection,
+                             :id,
+                             :name,
+                             { include_blank: t('.no_group') },
+                             class: "#{field_classes} bg-surface-raised" %>
+      <p class="mt-0.5 text-xs text-gray-300 text-right">
+        <%= link_to t('.create_new_group'), new_organisation_time_session_group_path(current_organisation),
+                    class: "text-gray-600 hover:text-cream-900 underline",
+                    target: "_blank" %>
+      </p>
+    </div>
+  </div>
+<% end %>
+
+<div class="text-left">
+  <%= f.label :tag_list, t('.tags_label'), class: "block text-sm font-medium text-gray-700 text-left mb-1" %>
+  <div class="mt-1">
+    <%= f.text_field :tag_list,
+                  value: time_session.tag_list.join(', '),
+                  class: field_classes,
+                  placeholder: t('.tags_placeholder'),
+                  data: {
+                    controller: "tag-input",
+                    tag_input_existing_tags_value: (@available_tags || []).to_json
+                  } %>
+    <p class="mt-0.5 text-xs text-gray-300 text-left"><%= t('.tags_help_text') %></p>
+  </div>
+</div>
+
+<div class="flex justify-end space-x-3">
+  <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :secondary, tag: :button, type: "button",
+        data: { action: cancel_action }
+      ) do %>
+    <%= t('.cancel') %>
+  <% end %>
+
+  <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :primary, tag: :button, type: "submit"
+      ) do %>
+    <%= t('.save') %>
+  <% end %>
+</div>

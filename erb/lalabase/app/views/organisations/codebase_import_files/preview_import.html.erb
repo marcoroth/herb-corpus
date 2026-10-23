@@ -1,0 +1,209 @@
+<div class="container mx-auto px-4 py-8" data-controller="user-import">
+  <div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="border-stroke rounded-lg border bg-surface-raised p-6 mb-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold text-cream-900 mb-2"><%= t('views.organisations.codebase_import_files.preview_import.title') %></h1>
+          <p class="text-cream-900">
+            <%= t('views.organisations.codebase_import_files.preview_import.subtitle') %>
+          </p>
+        </div>
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :secondary, size: :large, icon: "arrow-left",
+              url: organisation_codebase_import_file_path(current_organisation, @import_file)
+            ) do %>
+          <%= t('views.organisations.codebase_import_files.preview_import.back') %>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Import Form -->
+    <%= form_with url: execute_import_organisation_codebase_import_file_path(current_organisation, @import_file),
+                  method: :post,
+                  local: true,
+                  data: { turbo_confirm: t('views.confirm.start_import') } do |form| %>
+
+      <!-- Statistics Card -->
+      <div class="border-stroke rounded-lg border bg-surface-raised p-6 mb-8">
+        <h2 class="text-xl font-semibold text-cream-900 mb-4"><%= t('views.organisations.codebase_import_files.preview_import.import_overview') %></h2>
+
+        <!-- Progress Bar -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.progress') %></span>
+            <span class="text-sm font-medium text-cream-900" data-user-import-target="progressText"><%= t('views.organisations.codebase_import_files.preview_import.progress_text', configured: 0, total: @user_mappings.size) %></span>
+          </div>
+          <div class="flex items-center overflow-hidden w-full bg-gray-200 h-4 rounded-full border border-stroke">
+            <div class="flex items-center justify-center bg-lime-300 text-[10px] h-4 font-medium text-center leading-none rounded-full transition-all duration-300"
+                 data-user-import-target="progressBar"
+                 style="width: 0%">
+              <span data-user-import-target="progressPercent">0%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="text-center p-4 border border-stroke rounded bg-gray-100">
+            <div class="text-2xl font-semibold text-cream-900"><%= @user_mappings.size %></div>
+            <div class="text-sm font-medium text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.stat_total') %></div>
+          </div>
+          <div class="text-center p-4 border border-stroke rounded bg-lime-200" data-user-import-target="createCount">
+            <div class="text-2xl font-semibold text-cream-900">0</div>
+            <div class="text-sm font-medium text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.stat_create') %></div>
+          </div>
+          <div class="text-center p-4 border border-stroke rounded bg-cobalt-200" data-user-import-target="mapCount">
+            <div class="text-2xl font-semibold text-cream-900">0</div>
+            <div class="text-sm font-medium text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.stat_map') %></div>
+          </div>
+          <div class="text-center p-4 border border-stroke rounded bg-red-200" data-user-import-target="skipCount">
+            <div class="text-2xl font-semibold text-cream-900">0</div>
+            <div class="text-sm font-medium text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.stat_skip') %></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Table -->
+      <div class="border-stroke rounded-lg border bg-surface-raised overflow-hidden">
+        <div class="px-6 py-4 border-b border-stroke">
+          <h2 class="text-xl font-semibold text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.user_mappings') %></h2>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-gray-200 border-b border-slate-200">
+              <tr>
+                <th class="px-6 py-3 text-left text-sm font-semibold text-cream-900 tracking-[.00714em]"><%= t('views.organisations.codebase_import_files.preview_import.th_codebase_user') %></th>
+                <th class="px-6 py-3 text-left text-sm font-semibold text-cream-900 tracking-[.00714em]"><%= t('views.organisations.codebase_import_files.preview_import.th_action') %></th>
+                <th class="px-6 py-3 text-left text-sm font-semibold text-cream-900 tracking-[.00714em]"><%= t('views.organisations.codebase_import_files.preview_import.th_mapping_role') %></th>
+                <th class="px-6 py-3 text-left text-sm font-semibold text-cream-900 tracking-[.00714em]"><%= t('views.organisations.codebase_import_files.preview_import.th_potential_matches') %></th>
+              </tr>
+            </thead>
+            <tbody class="bg-surface-raised divide-y divide-black">
+              <% @user_mappings.each_with_index do |mapping, index| %>
+                <tr class="user-row hover:bg-gray-100" data-user-id="<%= mapping[:codebase_data][:id] %>" data-user-import-target="userRow">
+                  <!-- CodebaseHQ User Info -->
+                  <td class="px-6 py-4">
+                    <div class="text-sm font-medium text-cream-900">
+                      <%= mapping[:codebase_data][:full_name] || "#{mapping[:codebase_data][:first_name]} #{mapping[:codebase_data][:last_name]}" %>
+                    </div>
+                    <div class="text-sm text-cream-900"><%= mapping[:codebase_data][:email] %></div>
+                    <div class="text-xs text-cream-900">
+                      ID: <%= mapping[:codebase_data][:id] %> |
+                      <%= t('views.organisations.codebase_import_files.preview_import.username_label') %> <%= mapping[:codebase_data][:username] || 'N/A' %> |
+                      <%= t('views.organisations.codebase_import_files.preview_import.role_label') %> <%= mapping[:codebase_data][:role] || 'N/A' %>
+                    </div>
+                  </td>
+
+                  <!-- Action Selection -->
+                  <td class="px-6 py-4">
+                    <select name="user_actions[<%= mapping[:codebase_data][:id] %>]"
+                            class="block w-full px-3 py-2 border border-stroke rounded font-medium text-cream-900 bg-surface-raised focus:outline-none focus:ring-2 focus:ring-lime-200 text-sm"
+                            data-user-id="<%= mapping[:codebase_data][:id] %>"
+                            data-user-import-target="actionSelect"
+                            data-action="change->user-import#actionChanged">
+                      <option value="" selected><%= t('views.organisations.codebase_import_files.preview_import.action_placeholder') %></option>
+                      <% exact_match = mapping[:existing_matches]&.find { |m| m[:match_type] == :exact_email } %>
+                      <% if exact_match %>
+                        <option value="map:<%= exact_match[:user].id %>"><%= t('views.organisations.codebase_import_files.preview_import.action_map_exact') %></option>
+                      <% end %>
+                      <option value="create"><%= t('views.organisations.codebase_import_files.preview_import.action_create') %></option>
+                      <% (mapping[:existing_matches] || []).reject { |m| m[:match_type] == :exact_email }.each do |match| %>
+                        <option value="map:<%= match[:user].id %>"><%= t('views.organisations.codebase_import_files.preview_import.action_map_to', email: match[:user].email) %></option>
+                      <% end %>
+                      <option value="skip"><%= t('views.organisations.codebase_import_files.preview_import.action_skip') %></option>
+                    </select>
+                  </td>
+
+                  <!-- Role/Mapping Details -->
+                  <td class="px-6 py-4">
+                    <!-- Role selection for new users -->
+                    <div class="role-selection" data-user-id="<%= mapping[:codebase_data][:id] %>"
+                         data-user-import-target="roleSelection"
+                         style="display: none;">
+                      <% if current_organisation.roles.any? %>
+                        <select name="user_roles[<%= mapping[:codebase_data][:id] %>]"
+                                class="block w-full px-3 py-2 border border-stroke rounded font-medium text-cream-900 bg-surface-raised focus:outline-none focus:ring-2 focus:ring-lime-200 text-sm">
+                          <% current_organisation.roles.order(:title).each do |role| %>
+                            <option value="<%= role.id %>" <%= 'selected' if role.id == mapping[:suggested_role] %>>
+                              <%= role.title %>
+                            </option>
+                          <% end %>
+                        </select>
+                      <% else %>
+                        <div class="text-sm text-red-600">
+                          <%= t('views.organisations.codebase_import_files.preview_import.no_roles') %>
+                        </div>
+                      <% end %>
+                    </div>
+
+                    <!-- Mapping info for existing users -->
+                    <div class="mapping-info" data-user-id="<%= mapping[:codebase_data][:id] %>"
+                         data-user-import-target="mappingInfo"
+                         style="display: none;">
+                    </div>
+
+                    <!-- Default empty state -->
+                    <div class="empty-state" data-user-id="<%= mapping[:codebase_data][:id] %>"
+                         data-user-import-target="emptyState">
+                      <span class="text-sm text-cream-900/50"><%= t('views.organisations.codebase_import_files.preview_import.no_action_selected') %></span>
+                    </div>
+                  </td>
+
+                  <!-- Potential Matches -->
+                  <td class="px-6 py-4">
+                    <% if exact_match %>
+                      <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-lime-200 text-cream-900 border border-stroke">
+                        <%= t('views.organisations.codebase_import_files.preview_import.exact_match') %>
+                      </span>
+                    <% elsif (mapping[:existing_matches] || []).any? %>
+                      <div class="space-y-1">
+                        <% mapping[:existing_matches].first(3).each do |match| %>
+                          <div class="text-xs text-cream-900">
+                            <%= match[:user].email %>
+                            <span class="text-cream-900 bg-gray-200 border border-stroke rounded px-1 py-0.5 ml-1 text-xs">
+                              <%= match[:confidence].to_s.capitalize %>
+                            </span>
+                          </div>
+                        <% end %>
+                        <% if mapping[:existing_matches].size > 3 %>
+                          <div class="text-xs text-cream-900">
+                            <%= t('views.organisations.codebase_import_files.preview_import.more_matches', count: mapping[:existing_matches].size - 3) %>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <span class="text-xs text-cream-900"><%= t('views.organisations.codebase_import_files.preview_import.no_matches') %></span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="mt-8 flex justify-between items-center">
+        <div class="text-sm font-medium text-cream-900">
+          <%= t('views.organisations.codebase_import_files.preview_import.users_ready', count: @user_mappings.size) %>
+        </div>
+
+        <div class="flex space-x-4">
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :secondary, size: :large, icon: "arrow-left",
+                url: organisation_codebase_import_file_path(current_organisation, @import_file)
+              ) do %>
+            <%= t('views.organisations.codebase_import_files.preview_import.cancel') %>
+          <% end %>
+
+          <%= form.submit t('views.organisations.codebase_import_files.preview_import.start_import'),
+              data: { "user-import-target": "importButton" },
+              disabled: true,
+              class: "py-2.5 px-5 relative inline-flex flex-row items-center justify-center gap-x-2 rounded text-sm tracking-[.00714em] font-medium border border-stroke bg-gray-200 text-cream-900/50 cursor-not-allowed" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

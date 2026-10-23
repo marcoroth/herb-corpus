@@ -1,0 +1,39 @@
+<div>
+  <%# The list and its lane on ONE grid with the ticket page (S1 of
+      doc/wissen_als_bahn_plan.md): NeoTwoColumnGridComponent with lane: true.
+      The list slot holds the head and the frame the filter bar reloads, the
+      content slot the lane (_knowledge_lane). The chrome above the grid is the
+      layout's own top padding and nothing else, so the grid takes the lane
+      height, not the default that assumed a title box and a bar above it.
+      The split remembers itself per context (lane-split storage key
+      "knowledge"), so the knowledge list and the ticket list keep their own
+      widths. No panel slot since S0 (#773). %>
+  <%= render NeoTwoColumnGridComponent.new(
+    selected_item: @selected_item,
+    context_type: :knowledge,
+    css_classes: "#{@selected_item || @new_type ? 'show-content' : 'hide-content'} hide-panel",
+    additional_targets: { "index-page-target" => "layout" },
+    chrome_height: NeoTwoColumnGridComponent::LANE_CHROME_HEIGHT_PX,
+    lane: true
+  ) do |grid| %>
+    <% grid.with_list do %>
+      <%= render 'organisations/knowledge/list_head' %>
+      <%# The partial brings its own <turbo-frame id="knowledge_results">
+          (Turbo Stream replace target). Do NOT wrap it again here. %>
+      <%= render 'knowledge_results',
+                 knowledge_items: @knowledge_items || [],
+                 pagy: @pagy,
+                 selected_item: @selected_item,
+                 type: @type,
+                 smart_folder_id: params[:smart_folder_id] %>
+    <% end %>
+
+    <% grid.with_main_content do %>
+      <%# NO data-turbo-action="advance" on the frame: otherwise every frame navigation
+          (row click, pencil, cancel) promotes the top URL to /documents/ID?frame=content…
+          The clean, reload-safe knowledge URL (…/knowledge?document_id=…) is set by the
+          row controller itself via pushState. %>
+      <%= render 'organisations/knowledge/knowledge_lane', selected_item: @selected_item, new_type: @new_type, preview_version: @preview_version %>
+    <% end %>
+  <% end %>
+</div>

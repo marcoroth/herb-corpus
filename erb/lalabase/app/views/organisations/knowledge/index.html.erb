@@ -1,0 +1,49 @@
+<%# Turbo cache control: disable caching entirely. The reload marker only on a
+    visit of the page: turbo-rails puts content_for :head into frame answers as
+    well, and Turbo obeys the marker there too, so every filter edit, page turn
+    and sort reloaded the whole window (and closed the open filter layer). %>
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+  <% unless turbo_frame_request? %>
+    <meta name="turbo-visit-control" content="reload">
+  <% end %>
+<% end %>
+
+<%# Turbo frame for modal content (smart-folder modal etc.) %>
+<turbo-frame id="modal"></turbo-frame>
+
+<%# Open for a selection AND for a form state (?new=note|document): the form
+    lives in the lane, and a closed lane hid it on a page load. %>
+<div class="labor-layout-view <%= 'show-content' if @selected_item || @new_type %> hide-panel"
+     data-controller="layout-toggle hover-arrows index-page keyboard-navigation viewport"
+     data-hover-arrows-layout-toggle-outlet=".labor-layout-view"
+     data-layout-toggle-list-frame-ids-value="<%= ['knowledge_results'].to_json %>"
+     data-layout-toggle-detail-frame-id-value="knowledge_display_frame"
+     data-layout-toggle-content-selector-value=".note-content, .document-content"
+     data-layout-toggle-selected-row-selector-value=".selected-row[data-item-id]"
+     data-layout-toggle-selection-params-value="<%= knowledge_selection_params.to_json %>"
+     data-index-page-param-name-value="<%= knowledge_selection_params.join(',') %>"
+     data-index-page-frame-id-value="knowledge_display_frame"
+     data-index-page-content-selector-value=".note-content, .document-content"
+     data-index-page-placeholder-id-value="knowledge-display-placeholder"
+     data-index-page-placeholder-class-value="ticket-placeholder px-4"
+     data-index-page-placeholder-title-value="<%= t('views.organisations.knowledge.index.placeholder_title') %>"
+     data-index-page-placeholder-body-value="<%= t('views.organisations.knowledge.index.placeholder_body') %>"
+     data-index-page-selected-row-selector-value=".selected-row[data-item-id]"
+     data-index-page-skip-if-content-visible-value="true"
+     data-viewport-current-mode-value="<%= @viewport_mode %>"
+     <%# The ONE index address of this page, read by list-row (with closest) to
+         build the page address of an open entry from the live query (S2 of
+         doc/wissen_als_bahn_plan.md), as the ticket page does. %>
+     data-index-url="<%= organisation_project_knowledge_index_path(@current_organisation, @project) %>"
+     <%# The page's parameter groups, ONE definition (D9 of doc/dateivorschau_plan.md):
+         the selection, its preview, the form state. Every controller that touches
+         the address reads them here (lib/lane/params). %>
+     data-lane-params="<%= knowledge_lane_params_json %>"
+     data-lane-preview-url="<%= knowledge_preview_url_template(@current_organisation, @project) %>">
+  <% if @viewport_mode == 'mobile' %>
+    <%= render 'organisations/knowledge/index_mobile' %>
+  <% else %>
+    <%= render 'organisations/knowledge/index_desktop' %>
+  <% end %>
+</div>

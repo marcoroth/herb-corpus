@@ -1,0 +1,44 @@
+<%# Wrapper for the complete ticket display with separate frames for header and content %>
+<%# data-assistant-context (S4 T2 step 5b, plan §7.3): the page NAMES the object it
+    is showing, so the assistant panel can offer to take it over without anybody
+    clicking. Deliberately not the Stimulus value the button next door uses -- a
+    click has a receiver that reads its own controller, this has none: the panel
+    has to SEARCH the page for it after a navigation (Rev. 13 reserved the name
+    for exactly this).
+
+    Written by AssistantContextHelper, not by hand here, because this wrapper is
+    not the only root #ticket_display_frame can hold: a generated summary fills
+    the same frame with _ticket_content_for_frame instead, which is why THAT
+    partial asks the same helper. The value, the bound and the gate have one
+    owner; the two call sites are the frame's two roots, not two copies of a rule.
+
+    ⚠️ The previous version counted the render sites in this comment and was
+    wrong twice: it said six, listed seven, and there are eight. The count was
+    never the point -- the frame having more than one root is. %>
+<div data-controller="timeline-filter" data-ticket-id="<%= ticket.id %>"
+     <%= assistant_context_attributes(ticket) %>>
+  <%# Open for 5 seconds = read: every unread notification of the viewer about this
+      ticket (Notifications::MarkTicketRead, user decision 30.09.2026), the same rule
+      and controller as the inbox pane. The pane passes mark_notifications_read: false,
+      it runs its own timer on the selected notification. %>
+  <% if local_assigns.fetch(:mark_notifications_read, true) &&
+        current_user.notifications.channel_in_app.unread.exists?(notifiable: ticket) %>
+    <div hidden data-controller="pane-mark-read-delay"
+         data-pane-mark-read-delay-url-value="<%= organisation_project_ticket_notification_read_path(ticket.organisation_id, ticket.project_id, ticket) %>"></div>
+  <% end %>
+  <%# Header in a container with consistent spacing %>
+  <div class="header-compact">
+    <%= render 'organisations/tickets/ticket_header_show',
+               ticket: ticket,
+               frame_id: 'ticket-header-content',
+               project: defined?(project) ? project : @project,
+               current_organisation: defined?(current_organisation) ? current_organisation : @current_organisation %>
+  </div>
+
+  <%# Content without header (timeline loads lazily via turbo-frame) %>
+  <%= render 'organisations/tickets/ticket_content_for_frame',
+             ticket: ticket,
+             post: post,
+             project: project,
+             current_organisation: current_organisation %>
+</div>

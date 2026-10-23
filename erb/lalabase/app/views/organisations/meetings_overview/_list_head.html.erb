@@ -1,0 +1,90 @@
+<%# locals: () %>
+<%# The head of "Alle Meetings": the title box, the claim hint and the shared
+    filter bar with the column picker's trigger. All of it stays outside #meetings_overview_results, so a filter,
+    a sort or a page reloads only the rows and never the controls that asked for
+    it (the same rule as meetings/_list_head). The sentence frame of the bar is
+    answered from this partial too (MeetingsOverviewController#index). %>
+<%# The shared title box (like "Zeiten" and the other overview pages) keeps the
+    h1 typography consistent app-wide. The "?" carries the contextual meetings
+    help, same wiring as the project page. %>
+<%= render NeoTitleBoxComponent.new(
+  title: t('views.organisations.meetings_overview.index.title'),
+  variant: :organisation
+) do |box| %>
+  <%# Same square primary "+" as the project meetings page and the Zeiten list.
+      Only where this person may write meetings somewhere: a button that leads
+      to an error message is a promise without cover. It opens the project
+      select in the lane (?new=meeting, MeetingsOverviewController#index) as a
+      lane-link: the address bar at click time gives the list state, so a
+      condition set after this head was rendered is kept, and below the lane
+      width the page itself is visited, full width, as a row does. The href
+      is the same state for a new tab or a page without JavaScript. %>
+  <% if can_create_meeting? %>
+    <% box.with_title_action do %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :primary,
+        icon: 'plus-lg',
+        size: :medium,
+        title: t('views.organisations.meetings_overview.index.new_meeting'),
+        url: organisation_meetings_path(@current_organisation, meeting_list_state.merge('new' => 'meeting')),
+        data: {
+          controller: 'lane-link',
+          action: 'click->lane-link#click',
+          lane_link_url_value: organisation_meetings_path(@current_organisation),
+          lane_link_frame_value: Organisations::MeetingsController::DETAIL_FRAME_ID,
+          lane_link_set_value: { new: 'meeting' }.to_json,
+          lane_link_remove_value: %w[meeting_id].to_json,
+          lane_link_focus_value: '#meeting-new-project'
+        }
+      ) %>
+    <% end %>
+  <% end %>
+  <% box.with_right_content do %>
+    <%= render 'common/contextual_help_menu', context: :meetings %>
+  <% end %>
+<% end %>
+
+<%# Claim hint (Nachtrag): outside the results frame so a filter never wipes it. %>
+<%= render 'organisations/meetings/claim_suggestions', matches: meeting_claim_matches %>
+
+<%# The words of the bar are the project page's (i18n_scope): the same list,
+    the same sentence. Only the category "Projekt" is this page's own.
+    Unlike the project page, the bar stands before the first meeting too: a
+    save from the lane replaces only the list frame, never this head, so a bar
+    left out here would stay missing until a full reload.
+    keyboard_navigation: the rows hold no link of their own (they open in the
+    lane), so arrow down from the search field is the keyboard's way in.
+    meeting_id and new in the return context: saving a view or the expert
+    filter comes back with the open meeting or the project select still in the
+    lane, as on the project page. %>
+<%= render NeoFilterBarComponent.new(
+  current_user_id: current_user.id,
+  smart_folders: @meeting_smart_folders,
+  url: organisation_meetings_path(@current_organisation),
+  frame_id: Organisations::MeetingsOverviewController::LIST_FRAME_ID,
+  i18n_scope: 'views.organisations.meetings.index',
+  all_items_label: t('smart_folders.all_meetings'),
+  smart_folder_context_type: 'Meeting',
+  smart_folder_return_to: 'meetings',
+  save_target_object_type: 'Meeting',
+  return_params: meeting_list_state.merge(params.permit(:meeting_id, :new).to_h),
+  return_keys: Meetings::ListState::KEYS + %w[meeting_id new],
+  active_smart_folder: @active_smart_folder,
+  active_view_permissions: filter_bar_view_permissions(@active_smart_folder),
+  dissolver_result: @dissolver_result,
+  ad_hoc_filters: ad_hoc_filter_params,
+  ad_hoc_operators: ad_hoc_filter_op_params,
+  dropped_categories: dropped_filter_categories,
+  filter_categories_json: meeting_filter_categories_json(scope: policy_scope(Meeting), organisation: @current_organisation,
+                                                         projects: meeting_filter_projects),
+  search_value: params[:search],
+  search_mode: @current_search_mode,
+  search_modes: %w[title_only content],
+  keyboard_navigation: true,
+  organisation: @current_organisation
+) do |bar| %>
+  <%# The column picker, at the place the project page has it. %>
+  <% bar.with_view_tool do %>
+    <%= render 'organisations/meetings/column_picker_trigger' %>
+  <% end %>
+<% end %>

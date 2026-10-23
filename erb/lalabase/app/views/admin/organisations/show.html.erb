@@ -1,0 +1,100 @@
+<div class="container mx-auto px-4 py-8">
+  <nav class="mb-4" aria-label="Breadcrumb">
+    <div class="flex items-center text-sm">
+      <%= link_to t('.breadcrumb_organisations'), admin_organisations_path, class: 'text-gray-600 hover:text-black' %>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600"><%= @organisation.name %></span>
+    </div>
+  </nav>
+
+  <div class="mb-8 bg-white border-2 border-black rounded-lg p-6 shadow-[2px_2px_0_0_#000000]">
+    <h1 class="text-3xl font-bold mb-2"><%= @organisation.name %></h1>
+    <p class="text-sm text-gray-600">
+      <%= t('.ai_status') %>:
+      <span class="font-medium"><%= @organisation.ai_enabled? ? t('.ai_on') : t('.ai_off') %></span>
+    </p>
+    <%= admin_extension_slot(:organisation_header, organisation: @organisation) %>
+  </div>
+
+  <% if @organisation.errors.any? %>
+    <div class="mb-6 bg-red-50 border-2 border-red-600 rounded-lg p-4 text-sm text-red-800">
+      <ul class="list-disc pl-5">
+        <% @organisation.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%# Which AI this org actually runs on. Two lanes, because they route
+      independently: chat resolves package rung > BYOK > system credential, the
+      search lane names the space that SERVES queries today (which during a
+      staged model switch is not the configured one). Both come from the seams
+      that also do the routing — never re-derived here. %>
+  <div class="mb-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+      <h2 class="text-lg font-bold"><%= t('.ai_routing_section') %></h2>
+    </div>
+    <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <p class="text-sm font-medium text-gray-700 mb-2"><%= t('.ai_routing_chat') %></p>
+        <%= render 'admin/organisations/ai_routing', summary: @ai_routing %>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-700 mb-2"><%= t('.ai_routing_search') %></p>
+        <div class="text-xs font-medium text-gray-800"><%= @disclosure.embedding_provider_label %></div>
+        <div class="text-xs text-gray-500"><%= @disclosure.embedding_provider_name %></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <%# Quota override editing (S3) — the ONLY admin-editable surface for the org. %>
+    <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+      <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+        <h2 class="text-lg font-bold"><%= t('.quota_section') %></h2>
+      </div>
+      <div class="p-4">
+        <%= form_with model: @organisation, url: admin_organisation_path(@organisation), method: :patch, local: true do |f| %>
+          <div class="mb-4">
+            <%= f.label :ai_quota_credits_override, t('.budget_label'), class: 'block text-sm font-medium text-gray-700 mb-1' %>
+            <%= f.number_field :ai_quota_credits_override, min: 0, class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+          </div>
+          <div class="mb-2">
+            <%= f.label :ai_quota_buffer_override, t('.buffer_label'), class: 'block text-sm font-medium text-gray-700 mb-1' %>
+            <%= f.number_field :ai_quota_buffer_override, min: 0, class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+          </div>
+          <p class="text-xs text-gray-500 mb-4">
+            <%= t('.override_hint', budget: SystemSetting.ai_quota_monthly_credits,
+                  buffer: SystemSetting.ai_quota_grace_buffer_credits) %>
+          </p>
+          <%= f.submit t('.save'), class: 'px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Consumption bar + banners (shared partial). %>
+    <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+      <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+        <h2 class="text-lg font-bold"><%= t('.consumption_section') %></h2>
+      </div>
+      <div class="p-4">
+        <% if @organisation.ai_enabled? %>
+          <%= render 'shared/ai/quota_bar', organisation: @organisation, ledger: @ai_quota_ledger %>
+        <% else %>
+          <p class="text-sm text-gray-500"><%= t('.ai_off') %></p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%# Nachweis-Historie (shared partial) — full width. %>
+  <div class="mt-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+      <h2 class="text-lg font-bold"><%= t('.history_section') %></h2>
+    </div>
+    <div class="p-4">
+      <%= render 'shared/ai/quota_history', organisation: @organisation, ledger: @ai_quota_ledger %>
+    </div>
+  </div>
+</div>

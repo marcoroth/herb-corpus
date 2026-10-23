@@ -1,0 +1,54 @@
+
+<%# Turbo Frame for modal contents %>
+<turbo-frame id="modal"></turbo-frame>
+
+<div class="labor-layout-view">
+  <%# Dashboard region wrapped in a turbo-frame: the gear loads the inline edit mode into this same
+      frame (id matches edit.html.erb), so "man bleibt visuell auf derselben Seite". target="_top"
+      so the WIDGET links (e.g. a ticket row in recent_tickets) navigate the whole page instead of
+      trying to load into this frame (which has no match on the target page → dead link). The gear
+      sets data-turbo-frame="dashboard" explicitly, so it still swaps the frame to edit mode.
+      frame-error prevents a full-page nav on a frame mismatch. %>
+  <turbo-frame id="dashboard" target="_top" data-controller="frame-error">
+    <!-- Project Dashboard Header -->
+    <%= render NeoTitleBoxComponent.new(
+      title: t('.dashboard_title'),
+      subtitle: @project.name,
+      variant: :project
+    ) do |component| %>
+      <% component.with_right_content do %>
+        <%= render Neo::Buttons::IconButtonComponent.new(
+          variant: :secondary,
+          size: :large,
+          icon: 'gear',
+          title: t('views.organisations.projects.show.configure_dashboard'),
+          url: edit_organisation_project_dashboard_configuration_path(@current_organisation, @project),
+          data: { turbo_frame: "dashboard" }
+        ) %>
+      <% end %>
+    <% end %>
+
+    <%# Dynamic widget rows. Slots are permission-aware and branched by layout owner: own config
+        keeps a placeholder in the slot, an inherited default reflows (see dashboard_row_slots).
+        A row is a flexbox track; each widget's width is proportional to its units (flex-grow), so
+        the widgets fill the row without gaps and never fall below their registered minimum. Mobile
+        stacks (flex-col). %>
+    <% @dashboard_layout.each do |row| %>
+      <% slots = dashboard_row_slots(row, project: @project, user: current_user, owned: @dashboard_layout_owned) %>
+      <% next if slots.empty? %>
+      <div class="flex flex-col lg:flex-row gap-4 md:gap-6 mb-4 md:mb-6">
+        <% slots.each do |slot| %>
+          <%# grid grid-rows-1 makes the single child fill the slot's stretched height, preserving
+              the equal-height behaviour across the flex row. %>
+          <div class="grid grid-rows-1 <%= dashboard_unit_flex(slot.units) %>">
+            <% if slot.placeholder %>
+              <%= render 'organisations/projects/dashboard_widget_placeholder' %>
+            <% else %>
+              <%= render slot.component %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </turbo-frame>
+</div> <!-- End of labor-layout-view -->

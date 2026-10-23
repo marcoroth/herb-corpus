@@ -1,0 +1,143 @@
+<%# Org-wide access matrix (read-only): rows = active members, cols = active projects.
+    The cell shows the EFFECTIVE, condensed access + provenance (see AccessCheck::OrgAccessMatrix
+    and doc/zugriffs_matrix_plan.md). Interactivity (filter) is progressive-enhancement via
+    the access-matrix-filter Stimulus controller — the grid is fully usable without JS. %>
+<% areas = ProjectPermission.access_areas %>
+<div id="access-matrix"
+     data-controller="access-matrix-filter"
+     data-access-matrix-filter-hidden-class="am-hidden">
+
+  <%= render NeoTitleBoxComponent.new(
+        title: t('views.organisations.access_matrix.index.title'),
+        variant: :organisation
+      ) do |component| %>
+    <% component.with_right_content do %>
+      <%= render Neo::Buttons::HeaderButtonComponent.new(
+            variant: :secondary,
+            icon: "arrow-left",
+            label: t('views.organisations.access_matrix.index.back_to_members'),
+            url: organisation_memberships_path(current_organisation)
+          ) %>
+    <% end %>
+  <% end %>
+
+  <% if @matrix.projects.empty? %>
+    <div class="am-empty rounded-lg border-2 border-dashed border-cream-300 bg-cream-50 p-10 text-center">
+      <i class="bi bi-diagram-3 text-3xl text-cream-500" aria-hidden="true"></i>
+      <p class="mt-3 font-bold text-ink"><%= t('views.organisations.access_matrix.empty.title') %></p>
+      <p class="mt-1 text-sm text-cream-600"><%= t('views.organisations.access_matrix.empty.body') %></p>
+      <div class="mt-4 flex justify-center">
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :primary,
+              icon: "plus-lg",
+              url: new_organisation_project_path(current_organisation)
+            ) do %>
+          <%= t('views.organisations.access_matrix.empty.cta') %>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <%# Filter row — always visible (never in the title bar; project_search_placement). %>
+    <div class="am-filters mb-4 flex flex-wrap items-center gap-3">
+      <input type="search"
+             autocomplete="off"
+             data-access-matrix-filter-target="search"
+             data-action="input->access-matrix-filter#apply"
+             placeholder="<%= t('views.organisations.access_matrix.filter.search_placeholder') %>"
+             aria-label="<%= t('views.organisations.access_matrix.filter.search_placeholder') %>"
+             class="am-search h-11 w-64 rounded border border-cream-300 bg-cream-50 px-3 text-sm">
+
+      <details class="am-projectfilter relative">
+        <summary class="inline-flex h-11 cursor-pointer items-center gap-2 rounded border border-cream-300 bg-cream-50 px-3 text-sm font-medium">
+          <i class="bi bi-funnel" aria-hidden="true"></i>
+          <%= t('views.organisations.access_matrix.filter.projects_label') %>
+        </summary>
+        <div class="am-projectfilter__pop">
+          <% @matrix.projects.each do |project| %>
+            <label class="flex items-center gap-2 py-1 text-sm">
+              <input type="checkbox" checked
+                     value="<%= project.id %>"
+                     data-access-matrix-filter-target="project"
+                     data-action="change->access-matrix-filter#apply">
+              <span><%= project.name %></span>
+            </label>
+          <% end %>
+        </div>
+      </details>
+    </div>
+
+    <%# Collapsible legend (mirrors the Team page legend pattern). %>
+    <details class="am-legend mb-4 text-sm">
+      <summary class="cursor-pointer font-medium text-cream-600 hover:text-ink">
+        <%= t('views.organisations.access_matrix.legend.title') %>
+      </summary>
+      <ul class="mt-2 space-y-1.5 text-cream-700">
+        <li class="flex items-center gap-2">
+          <span class="am-pill inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-800 border-emerald-300"><i class="bi bi-pencil" aria-hidden="true"></i></span>
+          <%= t('views.organisations.access_matrix.legend.read_write') %>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="am-pill inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border-amber-300"><i class="bi bi-eye" aria-hidden="true"></i></span>
+          <%= t('views.organisations.access_matrix.legend.read_only') %>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="am-pill inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 border-red-300"><i class="bi bi-x-circle" aria-hidden="true"></i></span>
+          <%= t('views.organisations.access_matrix.legend.blocked') %>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="am-pill inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium bg-cream-100 text-cream-500 border-cream-300"><i class="bi bi-dash-lg" aria-hidden="true"></i></span>
+          <%= t('views.organisations.access_matrix.legend.none') %>
+        </li>
+        <li class="flex items-center gap-2">
+          <i class="bi bi-lock-fill text-xs" aria-hidden="true"></i>
+          <%= t('views.organisations.access_matrix.legend.inherited') %>
+        </li>
+      </ul>
+    </details>
+
+    <%# Sticky, horizontally scrollable grid. %>
+    <div class="am-scroll overflow-x-auto">
+      <table class="am-table border-collapse text-sm">
+        <thead>
+          <tr>
+            <th scope="col" class="am-corner">
+              <%= t('views.organisations.access_matrix.index.member_header') %>
+            </th>
+            <% @matrix.projects.each do |project| %>
+              <th scope="col" class="am-colhead"
+                  data-access-matrix-filter-target="colhead"
+                  data-project-id="<%= project.id %>">
+                <%= link_to organisation_project_project_permissions_path(current_organisation, project),
+                      class: "am-colhead__link",
+                      title: t('views.organisations.access_matrix.index.column_link_title', project: project.name) do %>
+                  <%= project.name %>
+                <% end %>
+              </th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% @matrix.users.each do |user| %>
+            <tr data-access-matrix-filter-target="row"
+                data-user-name="<%= user.display_name.downcase %>">
+              <th scope="row" class="am-rowhead"><%= viewer_display_name(user) %></th>
+              <% @matrix.projects.each do |project| %>
+                <td class="am-cell-td"
+                    data-access-matrix-filter-target="cell"
+                    data-project-id="<%= project.id %>">
+                  <%= render Organisations::AccessMatrix::SummaryCellComponent.new(
+                        cell: @matrix.cell(user, project), areas: areas
+                      ) %>
+                </td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="mt-2 text-xs text-cream-500 md:hidden">
+      <%= t('views.organisations.access_matrix.index.wide_screen_hint') %>
+    </p>
+  <% end %>
+</div>

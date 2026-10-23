@@ -1,0 +1,159 @@
+<% content_for :title, t('.meta_title') %>
+
+<%# =========================================================================
+     LALABASE SIGN-UP: "Werkstatt" redesign (design handoff round 1, 3b) · Aug 2026
+
+     Split screen like the login (layout: application_auth, CSS under .lp-auth
+     in auth.css). Five visible fields.
+
+     The new-founder discount stood here until 20.09.2026. It is OUR sales
+     programme, and since W5 this form is only reached by other instances
+     and invited people: production redirects /users/sign_up to the
+     website, and the box was hidden from invited people anyway. The
+     application now comes exclusively via Api::Provisioning from the
+     website, into the same actor. Guard:
+     spec/architecture/app_operator_claims_guard_spec.rb.
+
+     The password confirmation was dropped (handoff 3b): "Anzeigen" +
+     strength meter take over; Devise validates the confirmation only when
+     the field is submitted. The strength meter is purely informative, the
+     binding rule stays on the server (password_length).
+
+     Mechanics unchanged and pinned by specs: the 422 re-render keeps the
+     input, terms_accepted is enforced on the server. With an invitation
+     token the organisation field is dropped (the guest joins an existing
+     organisation). %>
+
+<% content_for :auth_cross do %>
+  <p class="lp-auth-cross">
+    <%= t('.already_registered') %>
+    <%= link_to t('devise.shared.links.log_in'), new_session_path(resource_name), class: 'lp-auth-cross-link' %>
+  </p>
+<% end %>
+
+<%# The eyebrow line names the state, as on the six sibling pages, and
+    makes no promise. Until 20.09.2026 it read "Monatlich kuendbar"; that
+    is OUR notice period, and after W6 this form is only reached by other
+    instances. Deliberately also NOT "kostenlos" (f27c35a9). %>
+<div class="lp-eyebrow"><%= t('.eyebrow') %></div>
+<h1 class="lp-auth-h1 lp-auth-h1--signup"><%= t('.title') %></h1>
+<p class="lp-auth-sub"><%= t('.subtitle') %></p>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name),
+             html: { class: 'lp-auth-form lp-auth-form--signup', novalidate: true }) do |f| %>
+  <%= hidden_field_tag :token, params[:token] if params[:token].present? %>
+
+  <%# Bot trap (BotTrapProtected). Must sit INSIDE the form, otherwise the
+      two parameters are never sent. %>
+  <%= render 'shared/bot_trap_fields' %>
+
+  <div class="lp-field-pair">
+    <div class="lp-field">
+      <%= f.label :first_name, t('.first_name_label'), class: 'lp-field-label' %>
+      <%= f.text_field :first_name, autofocus: true, required: true,
+            autocomplete: 'given-name',
+            class: "lp-input #{'lp-input--error' if resource.errors[:first_name].any?}" %>
+      <% if resource.errors[:first_name].any? %>
+        <p class="lp-field-error" role="alert"><%= resource.errors[:first_name].first %></p>
+      <% end %>
+    </div>
+    <div class="lp-field">
+      <%= f.label :last_name, t('.last_name_label'), class: 'lp-field-label' %>
+      <%= f.text_field :last_name, required: true,
+            autocomplete: 'family-name',
+            class: "lp-input #{'lp-input--error' if resource.errors[:last_name].any?}" %>
+      <% if resource.errors[:last_name].any? %>
+        <p class="lp-field-error" role="alert"><%= resource.errors[:last_name].first %></p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="lp-field">
+    <% if valid_invitation %>
+      <%# With a redeemable invitation the address is fixed: the server always
+          takes the invited one (RegistrationsController#build_resource). An
+          input field would offer a choice the server discards, so only text.
+          The hidden field has NO name and is never sent; it only tells the
+          password manager which login the new password belongs to. %>
+      <span class="lp-field-label"><%= t('.email_label') %></span>
+      <p class="lp-field-static"><%= valid_invitation.normalized_email %></p>
+      <%= tag.input type: 'email', value: valid_invitation.normalized_email,
+                    autocomplete: 'username', hidden: true, 'aria-hidden': 'true' %>
+      <p class="lp-hint"><%= t('.invited_email_hint') %></p>
+    <% else %>
+      <%= f.label :email, t('.email_label'), class: 'lp-field-label' %>
+      <%= f.email_field :email, required: true, autocomplete: 'email',
+            class: "lp-input #{'lp-input--error' if resource.errors[:email].any?}" %>
+    <% end %>
+    <% if resource.errors[:email].any? %>
+      <p class="lp-field-error" role="alert"><%= resource.errors[:email].first %></p>
+    <% end %>
+  </div>
+
+  <%# Organisation: ONLY without an invitation (with a token it comes from
+      the inviting person). Not a User attribute, hence *_tag; the controller
+      reads params directly. %>
+  <% if params[:token].blank? %>
+    <div class="lp-field">
+      <div class="lp-field-row">
+        <%= label_tag 'user_organisation_name', t('.organisation_name_label'), class: 'lp-field-label' %>
+        <span class="lp-field-optional"><%= t('.optional') %></span>
+      </div>
+      <%= text_field_tag 'user[organisation_name]', user_form_scalar(:organisation_name),
+            id: 'user_organisation_name',
+            autocomplete: 'organization',
+            placeholder: t('.organisation_name_placeholder'),
+            'aria-describedby': 'organisation-name-hint',
+            class: 'lp-input' %>
+      <p class="lp-hint" id="organisation-name-hint"><%= t('.organisation_name_hint') %></p>
+    </div>
+  <% end %>
+
+  <%= render 'devise/shared/password_field',
+             f: f, label: t('.password_label'), autocomplete: 'new-password', meter: true %>
+
+  <%# Legal consent incl. business-customer confirmation (§ 14 BGB, B2B-only).
+      Enforced on the server; field name and links pinned by spec. %>
+  <div class="lp-checkline lp-checkline--terms">
+    <%= check_box_tag 'user[terms_accepted]', '1', false,
+          id: 'user_terms_accepted',
+          required: true,
+          class: 'lp-checkbox' %>
+    <%= label_tag 'user_terms_accepted',
+          t('views.shared.consent.accept_terms_business_html',
+            terms_link: legal_page_link(:terms, label: t('views.shared.consent.terms_link_text'), fallback_to_label: true,
+                                        target: '_blank', rel: 'noopener', class: 'lp-auth-textlink'),
+            privacy_link: legal_page_link(:privacy, label: t('views.shared.consent.privacy_link_text'), fallback_to_label: true,
+                                          target: '_blank', rel: 'noopener', class: 'lp-auth-textlink')),
+          class: 'lp-checkline-label' %>
+  </div>
+
+  <%= f.submit t('.register_button'),
+        data: { turbo_submits_with: t('.registering') },
+        class: 'lp-btn lp-btn--primary lp-btn--block' %>
+
+  <div class="lp-auth-assure">
+    <% t('.reassurance').each do |item| %>
+      <span><%= item %></span>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Context panel: onboarding steps and the discount box, both mock. %>
+<% content_for :auth_panel_decorative, true %>
+<% content_for :auth_panel do %>
+<div class="lp-auth-panel-kicker">// <%= t('.panel_label') %></div>
+<h2 class="lp-auth-panel-h2"><%= t('.panel_title_l1') %><br><%= t('.panel_title_l2') %></h2>
+
+<div class="lp-auth-steps">
+  <% [['01', t('.step_account'), t('.step_account_time')],
+      ['02', t('.step_project'), t('.step_project_time')],
+      ['03', t('.step_invite'), t('.step_invite_time')]].each do |number, title, duration| %>
+    <div class="lp-auth-step">
+      <span class="lp-auth-step-no"><%= number %></span>
+      <span class="lp-auth-step-title"><%= title %></span>
+      <span class="lp-auth-step-time"><%= duration %></span>
+    </div>
+  <% end %>
+</div>
+<% end %>

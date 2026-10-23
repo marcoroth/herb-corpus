@@ -1,0 +1,73 @@
+<%# Generalized attachment partial for PostDocument and TicketDocument.
+    Expects: document (the Document object) and file_accessor (Symbol, e.g. :post_document_file or :ticket_document_file) %>
+<% file = document.send(file_accessor) %>
+<div class="w-full">
+  <% if file.variable? || file.previewable? || file.image? %>
+    <!-- Image with hover icons using Stimulus -->
+    <div class="relative group"
+         data-controller="image-lightbox"
+         data-action="mouseenter->image-lightbox#showOverlay mouseleave->image-lightbox#hideOverlay">
+      <%# Click the preview to OPEN the file (new tab) via the authorized proxy, which
+          serves PDFs/images inline. Without this link the thumbnail has no click target,
+          so clicking a PDF preview did nothing (the proxy disposition fix never applied
+          to this path). %>
+      <a href="<%= attachment_download_path(document) %>"
+         target="_blank"
+         rel="noopener"
+         class="block"
+         title="<%= t('views.shared.attachment.open') %>">
+        <% if file.variable? %>
+          <%= image_tag(file.variant(resize_to_limit: [200, 200]),
+                        class: "w-full h-auto rounded block") %>
+        <% elsif file.previewable? %>
+          <%= image_tag(file.preview(resize_to_limit: [200, 200]),
+                        class: "w-full h-auto rounded block") %>
+        <% elsif file.image? %>
+          <%= image_tag(file,
+                        width: 200,
+                        class: "w-full h-auto rounded block") %>
+        <% end %>
+      </a>
+
+      <%# Hover overlay. pointer-events-none lets clicks on the thumbnail fall through to
+          the open-link above; the action buttons re-enable pointer events on hover. %>
+      <div class="absolute inset-0 bg-ink bg-opacity-50 flex items-center justify-center gap-3 rounded opacity-0 transition-opacity duration-200 pointer-events-none"
+           data-image-lightbox-target="overlay">
+        <% if file.image? %>
+          <%# Zoom lightbox renders an <img>, which cannot display a PDF — so it is only
+              offered for real raster images. PDFs open via the preview link above. %>
+          <button class="flex items-center justify-center w-12 h-12 bg-surface-raised bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all duration-200 hover:scale-110 shadow-lg pointer-events-none group-hover:pointer-events-auto"
+                  data-action="click->image-lightbox#openLightbox"
+                  data-image-url="<%= rails_blob_url(file) %>"
+                  data-filename="<%= file.filename %>"
+                  title="<%= t('views.shared.attachment.zoom') %>"
+                  type="button">
+            <i class="bi bi-zoom-in text-gray-800 text-xl"></i>
+          </button>
+        <% end %>
+
+        <!-- Download icon: force an actual download (the open-link above handles inline view) -->
+        <a href="<%= attachment_download_path(document) %>"
+           download
+           class="flex items-center justify-center w-12 h-12 bg-surface-raised bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all duration-200 hover:scale-110 shadow-lg pointer-events-none group-hover:pointer-events-auto"
+           title="<%= t('views.shared.attachment.download') %>">
+          <i class="bi bi-download text-gray-800 text-xl"></i>
+        </a>
+      </div>
+    </div>
+    <div class="text-xs italic mt-1"><%= file.filename.to_s[0...15] %></div>
+  <% else %>
+    <%# Non-previewable file — or a previewable type whose previewer binary is absent
+        (e.g. a PDF without pdftoppm in dev). Rendered as a recognizable file chip:
+        type-aware icon + linked filename. target=_blank opens the file in a new tab via
+        the authorized proxy (inline); WITHOUT it Turbo Drive intercepts the click,
+        fetches a non-HTML body and silently does nothing — the "PDF won't open" bug. %>
+    <%= link_to attachment_download_path(document),
+                target: '_blank', rel: 'noopener',
+                title: t('views.shared.attachment.open'),
+                class: "flex items-center gap-2 p-2 bg-surface-raised border border-gray-200 rounded text-sm text-blue-600 underline hover:bg-gray-50" do %>
+      <i class="bi <%= attachment_file_icon(file) %> text-gray-500 flex-shrink-0"></i>
+      <span class="truncate"><%= file.filename %></span>
+    <% end %>
+  <% end %>
+</div>

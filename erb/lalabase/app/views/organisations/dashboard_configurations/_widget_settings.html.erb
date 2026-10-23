@@ -1,0 +1,103 @@
+<%# Per-widget settings fields — the SINGLE source of the configuration form fields
+    (kills the old JS string-builder duplication, §5.3). Rendered for server-side
+    slots AND cloned into newly added slots, so the markup MUST be identical in both.
+
+    Every field carries data-name-suffix. dashboard_inline_edit_controller rebuilds the
+    full `rows[i][widgets][j]...` name from DOM position before submit (the reindex
+    contract, §6.3) — the server-rendered name is just a placeholder until then.
+
+    Locals: row_idx, slot_idx, widget_data (Hash, may be {}), smart_folders. %>
+<% widget_data ||= {} %>
+<% widget_key = widget_data['key'].to_s %>
+<% prefix = dashboard_widget_field_prefix(row_idx, slot_idx) %>
+<% field_classes = "w-full border-2 border-stroke rounded px-2 py-1 text-sm bg-surface-raised text-ink focus:outline-none focus:ring-2 focus:ring-ink" %>
+<% label_classes = "block text-xs font-bold uppercase tracking-wide text-cream-900/60 mb-1" %>
+
+<%# One branch per settings-bearing widget. These are exactly the WIDGET_REGISTRY keys with
+    :extra_params, which is also what _edit_slot's has_settings gate and the controller's
+    parse_card_settings/parse_layout_from_params switch on — keep all three in sync with the registry. %>
+<% case widget_key %>
+<% when 'smart_folder_tickets' %>
+  <div class="space-y-2">
+    <div class="space-y-1">
+      <label class="<%= label_classes %>"><%= t('dashboard.configuration.select_folder') %></label>
+      <% suffix = '[folder_id]' %>
+      <select name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form" class="<%= field_classes %>">
+        <option value="">-- <%= t('dashboard.configuration.select_folder') %> --</option>
+        <% smart_folders.each do |folder| %>
+          <option value="<%= folder.id %>" <%= 'selected' if widget_data['folder_id'].to_s == folder.id.to_s %>><%= folder.name %></option>
+        <% end %>
+      </select>
+    </div>
+    <%= render 'shared/dashboards/item_limit_field',
+               prefix: prefix, widget_data: widget_data, field_classes: field_classes, label_classes: label_classes %>
+  </div>
+
+<% when 'recent_notes' %>
+  <%= render 'shared/dashboards/item_limit_field',
+             prefix: prefix, widget_data: widget_data, field_classes: field_classes, label_classes: label_classes %>
+
+<% when 'recent_tickets' %>
+  <div class="space-y-2">
+    <div>
+      <label class="<%= label_classes %>"><%= t('dashboard.configuration.display_mode') %></label>
+      <% suffix = '[display]' %>
+      <select name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form" class="<%= field_classes %>">
+        <% { 'cards' => 'display_cards', 'list' => 'display_list', 'grouped_status' => 'display_grouped_status', 'grouped_priority' => 'display_grouped_priority' }.each do |val, label_key| %>
+          <option value="<%= val %>" <%= 'selected' if (widget_data['display'].presence || 'cards') == val %>><%= t("dashboard.configuration.#{label_key}") %></option>
+        <% end %>
+      </select>
+    </div>
+    <div>
+      <label class="<%= label_classes %>"><%= t('dashboard.configuration.period') %></label>
+      <% suffix = '[period]' %>
+      <select name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form" class="<%= field_classes %>">
+        <% DashboardPeriodable::PERIOD_OPTIONS.each do |period_key, label_key| %>
+          <option value="<%= period_key %>" <%= 'selected' if (widget_data['period'].presence || 'all_time') == period_key %>><%= t(label_key) %></option>
+        <% end %>
+      </select>
+    </div>
+    <%= render 'shared/dashboards/item_limit_field',
+               prefix: prefix, widget_data: widget_data, field_classes: field_classes, label_classes: label_classes %>
+  </div>
+
+<% when 'stats_cards' %>
+  <% cards = widget_data['cards'].presence || Dashboard::StatsCardsComponent::DEFAULT_CARDS.map { |k| { 'key' => k } } %>
+  <% cards = cards.select { |c| c.is_a?(Hash) } %>
+  <% enabled_keys = cards.map { |c| c['key'] } %>
+  <% card_periods = cards.each_with_object({}) { |c, h| h[c['key']] = c['period'] } %>
+  <% card_scopes = cards.each_with_object({}) { |c, h| h[c['key']] = c['scope'] } %>
+  <div>
+    <label class="<%= label_classes %>"><%= t('dashboard.configuration.select_cards') %></label>
+    <div class="space-y-0.5">
+      <% Dashboard::StatsCardsComponent::STAT_CARDS.each do |card_key, card_config| %>
+        <% on = enabled_keys.include?(card_key) %>
+        <div class="flex items-center gap-2 p-1 rounded" data-card-row>
+          <% suffix = '[card_keys][]' %>
+          <input type="checkbox" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form" value="<%= card_key %>"
+                 class="w-4 h-4 accent-ink" <%= 'checked' if on %>
+                 data-action="change->dashboard-inline-edit#toggleCardSettings">
+          <span class="text-xs font-medium flex-1 text-ink"><%= t(card_config[:label_key], default: card_key.humanize) %></span>
+          <% if card_config[:supports_period] %>
+            <% suffix = "[card_settings][#{card_key}][period]" %>
+            <select name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form" data-card-setting <%= 'disabled' unless on %>
+                    class="text-xs border-2 border-stroke rounded px-1 py-0.5 bg-surface-raised text-ink <%= 'opacity-40 pointer-events-none' unless on %>">
+              <% DashboardPeriodable::PERIOD_OPTIONS.each do |period_key, label_key| %>
+                <option value="<%= period_key %>" <%= 'selected' if (card_periods[card_key].presence || card_config[:default_period]) == period_key %>><%= t(label_key) %></option>
+              <% end %>
+            </select>
+          <% end %>
+          <% if card_config[:supports_scope] %>
+            <% suffix = "[card_settings][#{card_key}][scope]" %>
+            <select name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form" data-card-setting <%= 'disabled' unless on %>
+                    class="text-xs border-2 border-stroke rounded px-1 py-0.5 bg-surface-raised text-ink <%= 'opacity-40 pointer-events-none' unless on %>">
+              <% Dashboard::StatsCardsComponent::SCOPE_OPTIONS.each do |scope_key, label_key| %>
+                <option value="<%= scope_key %>" <%= 'selected' if (card_scopes[card_key].presence || card_config[:default_scope]) == scope_key %>><%= t(label_key) %></option>
+              <% end %>
+            </select>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

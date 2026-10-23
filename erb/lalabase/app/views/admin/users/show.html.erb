@@ -1,0 +1,453 @@
+<div data-controller="admin-user-delete-modal"
+     data-admin-user-delete-modal-email-value="<%= @user.email %>"
+     data-action="keydown@window->admin-user-delete-modal#closeOnEscape">
+<div class="container mx-auto px-4 py-8">
+  <!-- Breadcrumb -->
+  <nav class="mb-4" aria-label="Breadcrumb">
+    <div class="flex items-center text-sm">
+      <%= link_to admin_users_path, class: "text-blue-600 hover:text-blue-800 font-medium" do %>
+        &larr; <%= t('views.admin.users.show.breadcrumb_users') %>
+      <% end %>
+      <span class="mx-2 text-gray-400">/</span>
+      <span class="text-gray-600"><%= @user.email %></span>
+    </div>
+  </nav>
+
+  <!-- Header -->
+  <div class="mb-8 bg-white border-2 border-black rounded-lg p-6 shadow-[2px_2px_0_0_#000000]">
+    <div class="flex justify-between items-start">
+      <div>
+        <h1 class="text-3xl font-bold mb-2">
+          <%= @user.display_name %>
+        </h1>
+        <p class="text-lg text-gray-600 mb-3"><%= @user.email %></p>
+
+        <!-- Status Badges -->
+        <div class="flex flex-wrap gap-2">
+          <% if @user.active %>
+            <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800 border border-green-300">
+              <%= t('views.common.active') %>
+            </span>
+          <% else %>
+            <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-red-100 text-red-800 border border-red-300">
+              <%= t('views.common.inactive') %>
+            </span>
+          <% end %>
+
+          <% if @user.is_ai? %>
+            <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-purple-100 text-purple-800 border border-purple-300">
+              <%= t('views.admin.users.show.ai_user') %>
+            </span>
+          <% end %>
+
+          <% if @user.deletion_scheduled? %>
+            <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
+              <%= t('views.admin.users.show.deletion_in_days', count: @user.days_until_deletion) %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        <%= button_to toggle_active_admin_user_path(@user),
+              method: :patch,
+              data: { turbo_confirm: t('views.confirm.toggle_user_status', email: @user.email, action: @user.active ? t('views.confirm.toggle_user_deactivate') : t('views.confirm.toggle_user_activate')) },
+              class: "px-4 py-2 rounded-lg font-medium border-2 border-black transition-all #{ @user.active ? 'bg-red-500 text-white hover:shadow-[2px_2px_0_0_#000000]' : 'bg-green-500 text-white hover:shadow-[2px_2px_0_0_#000000]' }" do %>
+          <%= @user.active ? t('views.admin.users.show.deactivate') : t('views.admin.users.show.activate') %>
+        <% end %>
+
+        <button type="button"
+                data-action="admin-user-delete-modal#open"
+                class="px-4 py-2 bg-red-600 text-white rounded-lg font-medium border-2 border-black hover:shadow-[2px_2px_0_0_#000000] transition-all">
+          <%= t('views.admin.users.show.delete_account') %>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('views.common.organisations') %></p>
+          <p class="text-2xl font-bold"><%= @user_stats[:total_organisations] %></p>
+        </div>
+        <i class="bi bi-building-fill text-3xl text-blue-500"></i>
+      </div>
+    </div>
+
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('views.admin.users.show.active_memberships') %></p>
+          <p class="text-2xl font-bold"><%= @user_stats[:active_memberships] %></p>
+        </div>
+        <i class="bi bi-person-check-fill text-3xl text-green-500"></i>
+      </div>
+    </div>
+
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('views.common.projects') %></p>
+          <p class="text-2xl font-bold"><%= @user_stats[:total_projects_with_access] %></p>
+        </div>
+        <i class="bi bi-folder-fill text-3xl text-purple-500"></i>
+      </div>
+    </div>
+
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('views.admin.users.show.member_since') %></p>
+          <p class="text-lg font-bold"><%= @user.created_at.strftime("%d.%m.%Y") %></p>
+        </div>
+        <i class="bi bi-calendar-fill text-3xl text-yellow-500"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Organization Memberships -->
+    <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+      <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+        <h3 class="text-lg font-bold"><%= t('views.admin.users.show.organisations_and_roles') %></h3>
+      </div>
+      <div class="p-4">
+        <% if @memberships.any? %>
+          <div class="space-y-3">
+            <% @memberships.each do |membership| %>
+              <div class="border-2 border-black rounded-lg p-4 <%= membership.active ? 'bg-green-50' : 'bg-gray-50' %>">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <h4 class="font-bold text-gray-900"><%= membership.organisation_name %></h4>
+                    <p class="text-sm text-gray-600 mt-1">
+                      <%= t('views.admin.users.show.role_label') %> <span class="font-medium"><%= membership.role_title %></span>
+                    </p>
+                    <% if membership.organisation.domain.present? %>
+                      <p class="text-sm text-gray-500 mt-1">
+                        <%= t('views.admin.users.show.domain_label') %> <%= membership.organisation.domain %>
+                      </p>
+                    <% end %>
+                  </div>
+                  <div class="ml-4 flex items-center gap-2">
+                    <% if membership.active %>
+                      <span class="px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 border border-green-300">
+                        <%= t('views.common.active') %>
+                      </span>
+                    <% else %>
+                      <span class="px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300">
+                        <%= t('views.common.inactive') %>
+                      </span>
+                    <% end %>
+
+                    <%= button_to membership_admin_user_path(@user, membership),
+                        method: :delete,
+                        data: {
+                          turbo_confirm: t('views.confirm.remove_membership', name: @user.full_name, organisation: membership.organisation_name)
+                        },
+                        class: "px-2 py-1 text-xs font-medium rounded-md bg-red-100 text-red-700 border border-red-300 hover:bg-red-200" do %>
+                      <%= t('views.common.remove') %>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-8 text-gray-500">
+            <i class="bi bi-building text-4xl mb-2"></i>
+            <p><%= t('views.admin.users.show.no_organisation') %></p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Project Permissions -->
+    <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+      <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+        <h3 class="text-lg font-bold"><%= t('views.admin.users.show.project_permissions') %></h3>
+      </div>
+      <div class="p-4">
+        <% if @project_permissions.any? %>
+          <div class="space-y-3">
+            <% @project_permissions.each do |permission| %>
+              <div class="border-2 border-black rounded-lg p-3 bg-gray-50">
+                <h4 class="font-bold text-gray-900 mb-2"><%= permission.project_name %></h4>
+                <%# Every area the model knows, not four picked by hand: the hand-picked
+                    list went stale twice (meetings, processes) and the second time it
+                    was a 500 on this page. Labels and levels reuse the keys the
+                    org-side rights grid already owns. %>
+                <div class="text-sm text-gray-600 space-y-1">
+                  <% permission.access_summary.each do |area, access| %>
+                    <div class="flex justify-between">
+                      <span><%= t("views.organisations.project_permissions.areas.#{area}") %></span>
+                      <span class="font-medium"><%= t("views.organisations.project_permissions.levels.#{access[:level]}") %></span>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="text-center py-8 text-gray-500">
+            <i class="bi bi-folder text-4xl mb-2"></i>
+            <p><%= t('views.admin.users.show.no_permissions') %></p>
+            <p class="text-sm text-gray-400 mt-1"><%= t('views.admin.users.show.access_via_roles') %></p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%= admin_extension_slot(:user_sections, user: @user) %>
+
+  <!-- User Activities -->
+  <div class="mt-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-4 py-3 border-b-2 border-black bg-gray-50 flex justify-between items-center">
+      <h3 class="text-lg font-bold"><%= t('views.admin.users.show.activity_history') %></h3>
+      <%= link_to admin_user_user_activities_path(@user),
+          class: "text-sm text-blue-600 hover:text-blue-800 font-medium" do %>
+        <%= t('views.admin.users.show.show_all_activities') %>
+      <% end %>
+    </div>
+    <div class="p-4">
+      <% if @recent_activities && @recent_activities.any? %>
+        <div class="space-y-3">
+          <% @recent_activities.each do |activity| %>
+            <div class="flex items-start space-x-3 pb-3 <%= 'border-b' unless activity == @recent_activities.last %>">
+              <div class="flex-shrink-0">
+                <div class="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center
+                  <%= case activity.category
+                      when 'auth' then 'bg-blue-100'
+                      when 'profile' then 'bg-purple-100'
+                      when 'permissions' then 'bg-yellow-100'
+                      when 'security' then 'bg-red-100'
+                      else 'bg-gray-100'
+                      end %>">
+                  <i class="<%= activity.icon_class %> text-sm
+                    <%= case activity.category
+                        when 'auth' then 'text-blue-600'
+                        when 'profile' then 'text-purple-600'
+                        when 'permissions' then 'text-yellow-600'
+                        when 'security' then 'text-red-600'
+                        else 'text-gray-600'
+                        end %>"></i>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-bold text-gray-900">
+                    <%= activity.action.humanize %>
+                    <% if activity.status == 'failed' %>
+                      <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+                        <%= t('views.admin.users.show.failed') %>
+                      </span>
+                    <% end %>
+                  </p>
+                  <span class="text-xs text-gray-500">
+                    <%= time_ago_in_words(activity.created_at) %> <%= t('views.common.ago_suffix') %>
+                  </span>
+                </div>
+                <p class="text-sm text-gray-600 mt-1">
+                  <%= activity.description %>
+                </p>
+                <% if activity.ip_address.present? %>
+                  <p class="text-xs text-gray-500 mt-1">
+                    IP: <%= activity.ip_address %>
+                    <% if activity.metadata && activity.metadata['browser'].present? %>
+                      &bull; <%= activity.metadata['browser'] %>
+                    <% end %>
+                  </p>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <!-- Statistics -->
+        <div class="mt-6 pt-4 border-t-2 border-gray-200 grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-xs text-gray-500"><%= t('views.admin.users.show.last_seen') %></p>
+            <p class="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+              <% if @last_seen %>
+                <% if @last_seen > User::Presence::ONLINE_WINDOW.ago %>
+                  <span class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" title="<%= t('views.admin.users.show.online') %>"></span>
+                <% end %>
+                <%= l(@last_seen, format: :short) %>
+              <% else %>
+                <%= t('views.admin.users.show.never') %>
+              <% end %>
+            </p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-xs text-gray-500"><%= t('views.admin.users.show.last_login') %></p>
+            <p class="text-sm font-bold text-gray-900">
+              <%= @last_login ? l(@last_login.created_at, format: :short) : t('views.admin.users.show.never') %>
+            </p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-xs text-gray-500"><%= t('views.admin.users.show.logins_30d') %></p>
+            <p class="text-sm font-bold text-gray-900"><%= @login_count_30d %></p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-xs text-gray-500"><%= t('views.admin.users.show.failed_24h') %></p>
+            <p class="text-sm font-bold <%= @failed_logins_24h > 0 ? 'text-red-600' : 'text-gray-900' %>">
+              <%= @failed_logins_24h %>
+            </p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-xs text-gray-500"><%= t('views.admin.users.show.total_activities') %></p>
+            <p class="text-sm font-bold text-gray-900"><%= @total_activities %></p>
+          </div>
+        </div>
+      <% else %>
+        <div class="text-center py-8 text-gray-500">
+          <i class="bi bi-activity text-4xl mb-2"></i>
+          <p><%= t('views.admin.users.show.no_activities') %></p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Notification Settings -->
+  <%= render 'admin/users/notification_settings' %>
+
+  <!-- Account Information -->
+  <div class="mt-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+      <h3 class="text-lg font-bold"><%= t('views.admin.users.show.account_info') %></h3>
+    </div>
+    <div class="p-4">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-sm font-medium text-gray-500"><%= t('views.common.first_name') %></div>
+          <div class="mt-1 text-sm font-bold text-gray-900"><%= @user.first_name.presence || '-' %></div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-sm font-medium text-gray-500"><%= t('views.common.last_name') %></div>
+          <div class="mt-1 text-sm font-bold text-gray-900"><%= @user.last_name.presence || '-' %></div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-sm font-medium text-gray-500"><%= t('views.common.email') %></div>
+          <div class="mt-1 text-sm font-bold">
+            <a href="mailto:<%= @user.email %>" class="text-blue-600 hover:text-blue-800">
+              <%= @user.email %>
+            </a>
+          </div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-sm font-medium text-gray-500"><%= t('views.admin.users.show.account_status') %></div>
+          <div class="mt-1 text-sm">
+            <% if @user.active %>
+              <span class="text-green-600 font-bold"><%= t('views.common.active') %></span>
+            <% else %>
+              <span class="text-red-600 font-bold"><%= t('views.common.inactive') %></span>
+            <% end %>
+          </div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-sm font-medium text-gray-500"><%= t('views.admin.users.show.account_created') %></div>
+          <div class="mt-1 text-sm font-bold text-gray-900">
+            <%= @user.created_at.strftime("%d.%m.%Y %H:%M") %>
+          </div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-sm font-medium text-gray-500"><%= t('views.common.updated_at') %></div>
+          <div class="mt-1 text-sm font-bold text-gray-900">
+            <%= @user.updated_at.strftime("%d.%m.%Y %H:%M") %>
+          </div>
+        </div>
+        <% if @user.deletion_scheduled? %>
+          <div class="bg-yellow-50 rounded-lg p-3 sm:col-span-2 border-2 border-yellow-300">
+            <div class="text-sm font-medium text-yellow-800"><%= t('views.admin.users.show.deletion_scheduled') %></div>
+            <div class="mt-1 text-sm font-bold text-yellow-900">
+              <%= @user.scheduled_deletion_at.strftime("%d.%m.%Y %H:%M") %>
+              (<%= t('views.admin.users.show.days_remaining', count: @user.days_until_deletion) %>)
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="fixed inset-0 bg-black bg-opacity-60 overflow-y-auto h-full w-full hidden z-modal"
+     data-admin-user-delete-modal-target="modal"
+     data-action="click->admin-user-delete-modal#closeOnBackdrop">
+  <div class="relative top-20 mx-auto p-4 w-96 max-w-[90%]">
+    <div class="bg-white border-2 border-black rounded-lg shadow-[8px_8px_0_0_#000000]">
+      <div class="px-6 py-4 border-b-2 border-black bg-red-50">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-bold text-gray-900"><%= t('views.admin.users.show.confirm_delete_title') %></h3>
+          <button type="button" data-action="admin-user-delete-modal#close" class="text-gray-400 hover:text-gray-600">
+            <i class="bi bi-x-lg text-xl"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-6">
+        <div class="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+          <p class="text-sm font-bold text-red-800 mb-2">
+            <%= t('views.admin.users.show.warning_irreversible') %>
+          </p>
+          <p class="text-sm text-red-700">
+            <%= t('views.admin.users.show.account_will_be_deleted_html', email: @user.email) %>
+          </p>
+        </div>
+
+        <p class="text-sm text-gray-700 mb-4">
+          <%= t('views.admin.users.show.enter_email_to_confirm') %>
+        </p>
+
+        <%= form_with url: admin_user_path(@user), method: :delete, local: true, data: { action: "submit->admin-user-delete-modal#submit" } do |form| %>
+          <div class="mb-4">
+            <label for="email_confirmation" class="block text-sm font-bold text-gray-700 mb-2">
+              <%= t('views.admin.users.show.confirm_email') %>
+            </label>
+            <input type="text"
+                   id="email_confirmation"
+                   name="email_confirmation"
+                   data-admin-user-delete-modal-target="emailInput"
+                   data-action="input->admin-user-delete-modal#validate"
+                   class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                   placeholder="<%= @user.email %>"
+                   autocomplete="off">
+          </div>
+
+          <div class="mb-4">
+            <label for="deletion_reason" class="block text-sm font-bold text-gray-700 mb-2">
+              <%= t('views.admin.users.show.reason_optional') %>
+            </label>
+            <textarea id="deletion_reason"
+                      name="reason"
+                      data-admin-user-delete-modal-target="reasonInput"
+                      rows="3"
+                      class="w-full px-3 py-2 border-2 border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      placeholder="<%= t('views.admin.users.show.reason_placeholder') %>"></textarea>
+          </div>
+
+          <div class="flex justify-end gap-3">
+            <button type="button"
+                    data-action="admin-user-delete-modal#close"
+                    class="px-4 py-2 bg-white border-2 border-black rounded-lg font-medium hover:shadow-[2px_2px_0_0_#000000] transition-all">
+              <%= t('views.common.cancel') %>
+            </button>
+            <button type="submit"
+                    data-admin-user-delete-modal-target="submitButton"
+                    disabled
+                    class="px-4 py-2 bg-red-600 text-white border-2 border-black rounded-lg font-medium disabled:bg-gray-400 disabled:cursor-not-allowed hover:shadow-[2px_2px_0_0_#000000] transition-all">
+              <%= t('views.admin.users.show.delete_permanently') %>
+            </button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+</div>

@@ -1,0 +1,198 @@
+<% content_for :title, t('views.billing_accounts.show.title') %>
+
+<%# Billing hub (B2, doc/billing_stammdaten_plan.md §8), now on the account level
+    (K2, doc/konto_ebene_plan.md). Three sections in the order the customer asks about
+    them: what does it cost, who is counted, where does the invoice go.
+
+    NO "payment method" section and no "coming soon": under R1 the invoice is written by
+    hand outside the application, and an empty placeholder would promise a self-service
+    step that does not exist.
+
+    NO settings subnav any more, and that is a consequence rather than an omission: this
+    page runs without a tenant, so there is no organisation whose settings tabs it could
+    render. The account name plus the way back to the cockpit take over the orientation
+    the tab strip used to provide. Whoever arrives through the "Rechnung" tab of an
+    organisation leaves the settings area at that point, which is what the page always
+    meant: none of it is a statement about one organisation.
+
+    Full i18n keys, not lazy `t('.x')`: lazy lookup would search `billing_accounts.show.*`,
+    and the keys live under `views.billing_accounts.*` (CLAUDE.md key convention).
+
+    Capped and on the page edge (layout.css, "Page widths"): until 10.09.2026 a
+    centred container with its own px-4, a second left edge inside <main>. %>
+<div class="width-capped py-10">
+  <div class="mb-8">
+    <%= link_to select_organisation_path,
+                class: 'text-sm font-bold text-cream-500 hover:text-cream-900 inline-flex items-center gap-1.5' do %>
+      <i class="bi bi-arrow-left" aria-hidden="true"></i>
+      <%= t('views.billing_accounts.show.back') %>
+    <% end %>
+    <h1 class="text-2xl font-black text-cream-900 mt-3"><%= @account.name %></h1>
+    <p class="text-sm text-cream-600 mt-1"><%= t('views.billing_accounts.show.subtitle') %></p>
+  </div>
+
+  <%# Claim banner: only when this user may actually take the account over
+      (AccountPolicy#claim? -- orphan account plus eligibility). Nothing to see for
+      anyone else, so the banner is absent rather than disabled. %>
+  <% if policy(@account).claim? %>
+    <div class="border border-ink rounded-lg bg-lime-50 p-4 mb-8 shadow-[2px_2px_0_0_#14110c]">
+      <h3 class="font-bold text-cream-900 mb-1">
+        <%= t('views.billing_accounts.show.claim_title') %>
+      </h3>
+      <p class="text-sm text-cream-700 mb-3">
+        <%= t('views.billing_accounts.show.claim_hint') %>
+      </p>
+      <%= button_to t('views.billing_accounts.show.claim_button'),
+                    claim_billing_account_path(@account),
+                    method: :post,
+                    class: 'inline-flex items-center px-4 h-10 rounded border border-ink bg-surface-raised font-bold text-sm hover:shadow-[2px_2px_0_0_#14110c] transition-all' %>
+    </div>
+  <% end %>
+
+  <%# ---- Costs (19.4/1 + 19.4/2) ---- %>
+  <h3 class="text-sm font-bold text-cream-900 mb-1">
+    <%= t('views.billing_accounts.show.cost_heading') %>
+  </h3>
+  <p class="text-sm text-cream-600 mb-4">
+    <%= t('views.billing_accounts.show.cost_intro') %>
+  </p>
+
+  <div class="border border-cream-300 rounded-lg bg-surface-raised p-5 mb-3">
+    <%# Stands BEFORE the other two branches: whether this account is billed
+        at all is the more basic statement. An amount at this point reads as
+        an invoice nobody has promised, and under R1 the invoice is created
+        outside the application (plan § 8/E7). %>
+    <% if @amount.billing_start_undecided? %>
+      <p class="text-sm text-cream-700"><%= t('views.billing_accounts.show.not_billed') %></p>
+    <% elsif @amount.no_billable_seats? %>
+      <p class="text-sm text-cream-700"><%= t('views.billing_accounts.show.no_seats') %></p>
+    <% elsif @amount.price_missing? %>
+      <%# Not an error message: a missing price rung is our gap, not the customer's, and
+          wording it as a fault would produce a support ticket the customer cannot resolve. %>
+      <p class="text-sm text-cream-700">
+        <%= t('views.billing_accounts.show.price_pending', count: @amount.seats) %>
+      </p>
+    <% else %>
+      <table class="w-full text-sm">
+        <tbody>
+          <tr>
+            <td class="py-1 text-cream-700">
+              <%= t('views.billing_accounts.show.seats_row', count: @amount.seats) %>
+            </td>
+            <td class="py-1 text-right font-mono text-cream-900">
+              <%= format_price_cents(@amount.subtotal_cents, @amount.currency) %>
+            </td>
+          </tr>
+          <% if @amount.discounted? %>
+            <tr>
+              <td class="py-1 text-cream-700">
+                <%= t('views.billing_accounts.show.discount_row', percent: @amount.discount_percent) %>
+              </td>
+              <td class="py-1 text-right font-mono text-cream-900">
+                &minus; <%= format_price_cents(@amount.discount_cents, @amount.currency) %>
+              </td>
+            </tr>
+          <% end %>
+          <tr class="border-t border-cream-300 font-bold">
+            <td class="py-2 text-cream-900">
+              <%= t('views.billing_accounts.show.total_row') %>
+            </td>
+            <td class="py-2 text-right font-mono text-cream-900">
+              <%= format_price_cents(@amount.total_cents, @amount.currency) %>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <%# The amounts follow the account's own billing interval and plan, so naming both is
+          what keeps a yearly figure from being read as a monthly one, and the price with AI
+          from being read as the price without. spec/locales/billing_interval_keys_spec.rb
+          covers every registry interval and plan in both locales. %>
+      <p class="text-sm text-cream-600 mt-3">
+        <%= t('views.billing_accounts.show.interval_note',
+              interval: t("views.billing_accounts.show.billing_interval.#{@account.billing_interval}")) %>
+      </p>
+      <p class="text-sm text-cream-600 mt-1">
+        <%= t('views.billing_accounts.show.plan_note',
+              plan: t("views.billing_accounts.show.plan.#{@account.plan_key}")) %>
+      </p>
+
+      <% if @active_discount %>
+        <p class="text-sm text-cream-700 mt-4">
+          <%= t('views.billing_accounts.show.discount_note',
+                percent: @active_discount.percent_off,
+                until: @active_discount.ends_on ? l(@active_discount.ends_on) : t('views.billing_accounts.show.discount_open_end')) %>
+        </p>
+      <% end %>
+    <% end %>
+  </div>
+
+  <%# The preview is explicitly NOT a billing forecast (19.4/1): a seat reduction takes
+      effect at the end of the period, so the invoice may legitimately be higher. Saying
+      so here is what keeps the number from reading as a promise.
+
+      Absent when no amount was shown: the sentence talks about "die Vorschau" and "die
+      naechste Rechnung", and directly under the not-billed notice that would contradict
+      the line above it. That is not a corner case but the normal state today, since
+      billing_starts_on is NULL on every account until an operator decides otherwise. %>
+  <%# The margin sits on the wrapper rather than on the paragraph so that hiding the
+      sentence does not also collapse the gap to the next section. %>
+  <div class="mb-10">
+    <% unless @amount.billing_start_undecided? %>
+      <p class="text-xs text-cream-600">
+        <%= t('views.billing_accounts.show.preview_disclaimer') %>
+      </p>
+    <% end %>
+  </div>
+
+  <%# ---- Organisations ---- %>
+  <h3 class="text-sm font-bold text-cream-900 mb-1">
+    <%= t('views.billing_accounts.show.organisations_heading') %>
+  </h3>
+  <p class="text-sm text-cream-600 mb-4">
+    <%= t('views.billing_accounts.show.organisations_intro') %>
+  </p>
+  <%# No "current organisation" marker any more: the page runs without a tenant, so there
+      is no current organisation it could mark. %>
+  <ul class="border-t border-cream-200 mb-10">
+    <% @organisations.each do |organisation| %>
+      <li class="py-3 border-b border-cream-200 text-sm text-cream-900">
+        <%= organisation.name %>
+      </li>
+    <% end %>
+  </ul>
+
+  <%# ---- Billing details (E6: owner only, reading AND writing) ---- %>
+  <% if policy(@account).manage_billing? %>
+    <div class="flex items-start justify-between gap-4 mb-1">
+      <h3 class="text-sm font-bold text-cream-900">
+        <%= t('views.billing_accounts.show.details_heading') %>
+      </h3>
+      <%= link_to t('views.billing_accounts.show.details_edit'),
+                  edit_billing_account_path(@account),
+                  class: 'text-sm font-bold text-cobalt-600 hover:text-cream-900 underline' %>
+    </div>
+    <p class="text-sm text-cream-600 mb-4">
+      <%= t('views.billing_accounts.show.details_intro') %>
+    </p>
+
+    <% unless @account.billing_complete? %>
+      <div class="border border-cream-300 bg-amber-50 rounded-lg p-4 mb-4">
+        <p class="text-sm font-bold text-cream-900">
+          <%= t('views.billing_accounts.show.incomplete_badge') %>
+        </p>
+        <p class="text-sm text-cream-700 mt-1">
+          <%= t('views.billing_accounts.show.incomplete_hint') %>
+        </p>
+      </div>
+    <% end %>
+
+    <%# The customer-side twin of the same gate in admin/accounts/_billing_details: with
+        "address or e-mail" an account carrying nothing but a customer reference renders
+        no block at all, so the value the customer just saved is nowhere on their own page.
+        #billing_details_present? asks about every field they are able to fill in. %>
+    <% if @account.billing_details_present? %>
+      <%= render 'billing_accounts/billing_details', account: @account %>
+    <% end %>
+  <% end %>
+</div>

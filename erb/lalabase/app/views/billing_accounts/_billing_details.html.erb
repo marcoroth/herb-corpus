@@ -1,0 +1,57 @@
+<%# Read-only display of the invoice master data (B3, doc/billing_stammdaten_plan.md §8).
+    Local: account.
+
+    Deliberately NOT shared with the admin display (B4): the admin area follows its own
+    style guide. What IS shared is the value object Accounts::BillingAddress, so the postal
+    ORDER of the lines can never drift between the two surfaces.
+
+    The verification state of the VAT ID is not shown here on purpose: nothing sets it
+    before the Stripe phase, so every row would read "unchecked" and turn a normal field
+    into an apparent problem. It arrives with the webhook that can actually change it.
+
+    Full i18n keys, not lazy `t('.x')`: the keys live under `views.billing_accounts.*`
+    (CLAUDE.md key convention), which lazy lookup would not reach. %>
+<dl class="text-sm border-b border-cream-200">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-8 py-4 border-t border-cream-200">
+    <dt class="font-bold text-cream-900"><%= t('views.billing_accounts.details.address_label') %></dt>
+    <dd class="md:col-span-2 text-cream-700">
+      <%# The partial now also renders for an account carrying only a reference or a cc
+          address (see the gate in show.html.erb), so the rows it always shows need an
+          explicit empty state instead of a silently blank line. %>
+      <% if account.billing_address.present? %>
+        <% account.billing_address.lines.each do |line| %>
+          <div><%= line %></div>
+        <% end %>
+      <% else %>
+        <span class="text-cream-500"><%= t('views.billing_accounts.details.not_set') %></span>
+      <% end %>
+    </dd>
+  </div>
+
+  <% if account.vat_id.present? %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-8 py-4 border-t border-cream-200">
+      <dt class="font-bold text-cream-900"><%= t('views.billing_accounts.details.vat_id_label') %></dt>
+      <dd class="md:col-span-2 text-cream-700 font-mono"><%= account.vat_id %></dd>
+    </div>
+  <% end %>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-8 py-4 border-t border-cream-200">
+    <dt class="font-bold text-cream-900"><%= t('views.billing_accounts.details.email_label') %></dt>
+    <dd class="md:col-span-2 text-cream-700">
+      <%= account.billing_email.presence ||
+          tag.span(t('views.billing_accounts.details.not_set'), class: 'text-cream-500') %>
+      <% if account.billing_email_cc.present? %>
+        <div class="text-cream-600">
+          <%= t('views.billing_accounts.details.email_cc_prefix') %> <%= account.billing_email_cc %>
+        </div>
+      <% end %>
+    </dd>
+  </div>
+
+  <% if account.billing_reference.present? %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-8 py-4 border-t border-cream-200">
+      <dt class="font-bold text-cream-900"><%= t('views.billing_accounts.details.reference_label') %></dt>
+      <dd class="md:col-span-2 text-cream-700"><%= account.billing_reference %></dd>
+    </div>
+  <% end %>
+</dl>

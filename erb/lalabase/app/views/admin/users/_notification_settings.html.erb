@@ -1,0 +1,90 @@
+<%# Read-only Ansicht der Benachrichtigungseinstellungen eines Users %>
+<%# Zeigt: 1) Ticket-Benachrichtigungen (JSONB), 2) Event-Preferences pro Organisation (Org-Level) %>
+
+<div class="mt-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+  <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+    <h3 class="text-lg font-bold"><%= t('views.admin.users.notification_settings.title') %></h3>
+  </div>
+  <div class="p-4 space-y-6">
+
+    <%# === Ticket-Benachrichtigungen (einfaches On/Off-System) === %>
+    <div>
+      <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3"><%= t('views.admin.users.notification_settings.ticket_notifications') %></h4>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <% ticket_notification_labels = {
+          on_status_change: t('views.admin.users.notification_settings.on_status_change'),
+          on_priority_change: t('views.admin.users.notification_settings.on_priority_change'),
+          on_comment: t('views.admin.users.notification_settings.on_comment'),
+          auto_follow_created: t('views.admin.users.notification_settings.auto_follow_created')
+        } %>
+        <% ticket_notification_labels.each do |key, label| %>
+          <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+            <span class="text-sm text-gray-700"><%= label %></span>
+            <% # nil/missing = An (Default), nur explizit false = Aus %>
+            <% enabled = @ticket_notification_settings[key] %>
+            <% if enabled %>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-green-100 text-green-800 border border-green-300"><%= t('views.admin.users.notification_settings.on') %></span>
+            <% else %>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-red-100 text-red-800 border border-red-300"><%= t('views.admin.users.notification_settings.off') %></span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# === Event-Preferences pro Organisation (Org-Level) === %>
+    <div>
+      <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3"><%= t('views.admin.users.notification_settings.event_settings') %> <span class="font-normal text-gray-500"><%= t('views.admin.users.notification_settings.org_level') %></span></h4>
+
+      <% if @notification_preferences_by_org.present? %>
+        <div class="space-y-4">
+          <% @notification_preferences_by_org.each do |organisation, preferences| %>
+            <div class="border-2 border-black rounded-lg overflow-hidden">
+              <div class="px-3 py-2 bg-blue-50 border-b border-black">
+                <h5 class="text-sm font-bold text-gray-900"><%= organisation.name %></h5>
+              </div>
+              <div class="p-3">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-gray-500">
+                      <th class="pb-2 font-medium"><%= t('views.admin.users.notification_settings.th_event') %></th>
+                      <th class="pb-2 font-medium text-center w-20"><%= t('views.admin.users.notification_settings.th_in_app') %></th>
+                      <th class="pb-2 font-medium text-center w-20"><%= t('views.admin.users.notification_settings.th_email') %></th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100">
+                    <% preferences_by_event = preferences.group_by(&:event_type) %>
+                    <% preferences_by_event.each do |event_type, channel_prefs| %>
+                      <tr>
+                        <td class="py-2 text-gray-700"><%= event_description(event_type) %></td>
+                        <% %w[in_app email].each do |channel| %>
+                          <td class="py-2 text-center">
+                            <% pref = channel_prefs.find { |p| p.channel == channel } %>
+                            <% if pref&.enabled? %>
+                              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-green-100 text-green-800 border border-green-300">An</span>
+                            <% elsif pref %>
+                              <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-red-100 text-red-800 border border-red-300">Aus</span>
+                            <% else %>
+                              <span class="text-xs text-gray-400">—</span>
+                            <% end %>
+                          </td>
+                        <% end %>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="text-center py-6 text-gray-500 bg-gray-50 rounded-lg">
+          <i class="bi bi-bell text-3xl mb-2"></i>
+          <p class="text-sm font-medium"><%= t('views.admin.users.notification_settings.no_custom_settings') %></p>
+          <p class="text-xs text-gray-400 mt-1"><%= t('views.admin.users.notification_settings.all_defaults_active') %></p>
+        </div>
+      <% end %>
+    </div>
+
+  </div>
+</div>

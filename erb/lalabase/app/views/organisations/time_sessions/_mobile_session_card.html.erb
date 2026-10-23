@@ -1,0 +1,91 @@
+<%# locals: (time_session:, project: nil, can_bulk_assign_others: false, show_creator: false, show_state_mark: true, show_duration: true) %>
+<%# One booking inside an opened row, on a phone. A LINE, not a card: it used to
+    be a bordered box, and a box around every booking made the border the loudest
+    thing on the screen while it wrapped the least important content. The
+    subordination is the layout now, exactly as on the desktop (_session_line):
+    indented past the row's checkbox column, a step smaller and quieter, no
+    dividers of its own, so the group is one block closed off at the bottom. %>
+<% bucket = TimeSession.billing_bucket_for(billed: time_session.billed?, grouped: time_session.time_session_group_id.present?) %>
+<%# Same rule as the desktop: your own name on every one of your own bookings is
+    noise. It used to print unconditionally here. %>
+<% show_author = show_creator || time_session.creator != current_user %>
+<div class="flex items-start gap-3 py-2 pl-7"
+     id="mobile_<%= dom_id(time_session) %>"
+     data-time-session-bulk-row
+     data-controller="time-session-row"
+     data-time-session-row-url-value="<%= time_session_list_path(time_session, project: project) %>"
+     data-time-session-row-time-session-id-value="<%= time_session.id %>">
+  <div class="no-click flex h-6 w-4 shrink-0 items-center">
+    <% if time_session_selectable?(time_session, can_bulk_assign_others: can_bulk_assign_others) %>
+      <input type="checkbox"
+             value="<%= time_session.id %>"
+             class="<%= TimeSessionsHelper::TIME_LIST_CHECKBOX_CLASSES %>"
+             data-time-session-bulk-target="checkbox"
+             data-action="change->time-session-bulk#toggleSelection click->time-session-bulk#stopPropagation"
+             data-group-id="<%= time_session.time_session_group_id %>"
+             data-duration="<%= time_session.duration %>"
+             data-label="<%= time_session_short_label(time_session) %>">
+    <% end %>
+  </div>
+
+  <div class="min-w-0 flex-1">
+    <div class="flex items-center gap-2 leading-6">
+      <%# The slots stay even when their content does not, so the dates line up
+          down the group whether or not the row above happens to be mixed. %>
+      <span class="w-[46px] shrink-0 font-mono text-xs text-cream-700"><%= time_session.duration_string if show_duration %></span>
+      <span class="flex h-6 w-5 shrink-0 items-center">
+        <% if show_state_mark %>
+          <%= render NeoTimeShareBarComponent.new(shares: { bucket => time_session.duration }, size: :thin) %>
+        <% end %>
+      </span>
+      <%# The short date, as on the desktop: the list is already grouped by month,
+          so the year repeated on every line says nothing. %>
+      <span class="font-mono text-xs text-cream-600"><%= l time_session.occurred_on.to_date, format: :short %></span>
+    </div>
+
+    <% if time_session.description.present? %>
+      <p class="text-xs leading-6 text-cream-700"><%= time_session.description %></p>
+    <% else %>
+      <p class="text-xs italic leading-6 text-cream-500"><%= t('views.organisations.time_sessions.index_table.no_description') %></p>
+    <% end %>
+
+    <div class="flex flex-wrap items-center gap-x-2 text-[11px] leading-6 text-cream-600">
+      <span><%= time_billing_state_label(bucket) %></span>
+      <% if time_session.time_session_group.present? %>
+        <%= link_to time_session.time_session_group.name,
+                    organisation_time_session_group_path(current_organisation, time_session.time_session_group),
+                    class: 'no-click truncate hover:underline',
+                    data: { turbo_frame: '_top' } %>
+      <% end %>
+      <% if show_author %>
+        <span class="inline-flex items-center gap-1"><i class="bi bi-person"></i><%= viewer_display_name(time_session.creator) %></span>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Small, like the desktop's. The variants keep the design system's meaning
+      (danger IS delete); what was wrong was the QUANTITY: six medium red blocks
+      at once, because every booking of every row was open at all times. %>
+  <div class="no-click flex shrink-0 gap-1">
+    <% if time_session.creator == current_user && !time_session.billed? %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :edit, size: :small, tag: :a,
+        href: edit_organisation_project_time_session_path(current_organisation, time_session.project, time_session, context: 'index_page'),
+        icon: 'pencil',
+        title: t('views.organisations.time_sessions.index_table.edit_tooltip')
+      ) %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :danger, size: :small,
+        confirm: t('views.confirm.delete_time_session'),
+        form: { action: time_session_list_path(time_session, project: project, context: 'index_page'), method: :delete },
+        icon: 'trash',
+        title: t('views.organisations.time_sessions.index_table.delete_tooltip')
+      ) %>
+    <% elsif time_session.billed? %>
+      <span class="flex h-6 items-center px-1 text-xs text-cream-500" title="<%= t('views.organisations.time_sessions.index_table.billed_locked_tooltip') %>">
+        <i class="bi bi-lock" aria-hidden="true"></i>
+        <span class="sr-only"><%= t('views.organisations.time_sessions.index_table.billed_locked_tooltip') %></span>
+      </span>
+    <% end %>
+  </div>
+</div>

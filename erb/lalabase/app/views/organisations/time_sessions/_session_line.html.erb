@@ -1,0 +1,104 @@
+<%# locals: (time_session:, project: nil, can_bulk_assign_others: false, show_creator: false, show_state_mark: true, show_duration: true) %>
+<%# One booking under an opened row: what it was, when, in which state, and the
+    two actions that only exist here since the redesign moved them off the row.
+    The bar shows this booking's STATE rather than its share of the row, which the
+    design draft encodes: the share is already legible from the two durations,
+    and a share bar whose only filled colour is the track colour (a loose booking)
+    would show nothing at all. %>
+<% bucket = TimeSession.billing_bucket_for(billed: time_session.billed?, grouped: time_session.time_session_group_id.present?) %>
+<% show_author = show_creator || time_session.creator != current_user %>
+<div class="group relative flex items-start gap-3.5 px-2 py-1.5 pl-14 transition-colors hover:bg-cream-100 data-[selected=true]:bg-cobalt-50"
+     id="<%= dom_id(time_session) %>"
+     data-time-session-bulk-row
+     data-controller="time-session-row"
+     data-time-session-row-url-value="<%= time_session_list_path(time_session, project: project) %>"
+     data-time-session-row-time-session-id-value="<%= time_session.id %>">
+  <%# Every column of the first line is the SAME 24px box, centred. Measured on
+      30.08.2026 the five centres sat between 8px and 16.6px below the line: the
+      checkbox followed a pt-1, the duration a pt-px, the mark an h-5, and the
+      text followed the hover action buttons, which are 26px tall and inflate the
+      line even while invisible. Four columns, four ideas of the middle. Anything
+      that can wrap grows DOWNWARD out of that box, so a long description or a
+      second state line never drags the first line off centre. %>
+  <div class="no-click flex h-6 w-4 shrink-0 items-center">
+    <% if time_session_selectable?(time_session, can_bulk_assign_others: can_bulk_assign_others) %>
+      <input type="checkbox"
+             value="<%= time_session.id %>"
+             class="<%= TimeSessionsHelper::TIME_LIST_CHECKBOX_CLASSES %>"
+             data-time-session-bulk-target="checkbox"
+             data-action="change->time-session-bulk#toggleSelection click->time-session-bulk#stopPropagation"
+             data-group-id="<%= time_session.time_session_group_id %>"
+             data-duration="<%= time_session.duration %>"
+             data-label="<%= time_session_short_label(time_session) %>">
+    <% end %>
+  </div>
+
+  <%# A sole booking carries the row's whole duration, so printing it again says
+      nothing. The slot stays, so the dates line up across rows either way. %>
+  <span class="flex h-6 w-[46px] shrink-0 items-center justify-end font-mono text-xs text-cream-700"><%= time_session.duration_string if show_duration %></span>
+  <%# The slot stays even when the mark does not, so the dates line up whether or
+      not the row above happens to be mixed. %>
+  <span class="flex h-6 w-7 shrink-0 items-center">
+    <% if show_state_mark %>
+      <%= render NeoTimeShareBarComponent.new(shares: { bucket => time_session.duration }, size: :thin) %>
+    <% end %>
+  </span>
+
+  <div class="min-w-0 flex-1">
+    <div class="flex items-start gap-2">
+      <span class="flex h-6 w-10 shrink-0 items-center font-mono text-xs text-cream-600"><%= l time_session.occurred_on.to_date, format: :short %></span>
+      <% if time_session.description.present? %>
+        <p class="min-w-0 flex-1 text-xs leading-6 text-cream-700"><%= time_session.description %></p>
+      <% else %>
+        <p class="min-w-0 flex-1 text-xs italic leading-6 text-cream-500"><%= t('views.organisations.time_sessions.index_table.no_description') %></p>
+      <% end %>
+      <div class="no-click flex h-6 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+        <% if time_session.creator == current_user && !time_session.billed? %>
+          <div data-controller="time-session-popup" data-project-id="<%= time_session.project.id %>" data-context="index_page">
+            <%= render Neo::Buttons::IconButtonComponent.new(
+              variant: :edit, size: :small, icon: 'pencil',
+              title: t('views.organisations.time_sessions.index_table.edit_tooltip'),
+              class: 'no-click',
+              data: { action: 'click->time-session-popup#editTimeSession', time_session_id: time_session.id, context: 'index_page' }
+            ) %>
+          </div>
+          <%= render Neo::Buttons::IconButtonComponent.new(
+            variant: :danger, size: :small, icon: 'trash',
+            title: t('views.organisations.time_sessions.index_table.delete_tooltip'),
+            class: 'no-click', interactive: true,
+            confirm: t('views.confirm.delete_time_session'),
+            form: { action: time_session_list_path(time_session, project: project, context: 'index_page'), method: :delete }
+          ) %>
+        <% elsif time_session.billed? %>
+          <span class="p-1 text-xs text-cream-500" title="<%= t('views.organisations.time_sessions.index_table.billed_locked_tooltip') %>">
+            <i class="bi bi-lock" aria-hidden="true"></i>
+            <span class="sr-only"><%= t('views.organisations.time_sessions.index_table.billed_locked_tooltip') %></span>
+          </span>
+        <% end %>
+      </div>
+    </div>
+
+    <% if show_author || time_session.tag_list.any? %>
+      <div class="mt-1.5 flex items-center gap-3 pl-12 text-xs text-cream-600">
+        <% if show_author %>
+          <span class="flex items-center gap-1"><i class="bi bi-person"></i><%= viewer_display_name(time_session.creator) %></span>
+        <% end %>
+        <% time_session.tag_list.each do |tag| %>
+          <span class="inline-flex items-center rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-700">
+            <i class="bi bi-tag mr-1"></i><%= tag %>
+          </span>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <span class="flex w-[132px] shrink-0 flex-col gap-0.5 whitespace-nowrap text-[11px] text-cream-600">
+    <span class="flex h-6 items-center"><%= time_billing_state_label(bucket) %></span>
+    <% if time_session.time_session_group.present? %>
+      <%= link_to time_session.time_session_group.name,
+                  organisation_time_session_group_path(current_organisation, time_session.time_session_group),
+                  class: 'no-click truncate text-[11px] text-cream-600 hover:underline',
+                  data: { turbo_frame: '_top' } %>
+    <% end %>
+  </span>
+</div>

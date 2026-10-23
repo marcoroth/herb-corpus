@@ -1,0 +1,125 @@
+<%# Individual notification item with Turbo & Stimulus integration %>
+<div id="<%= dom_id(notification) %>"
+     class="notification-item <%= 'notification-item--unread' unless notification.state_read? %> <%= 'notification-item--grouped' if notification.group_count > 1 %>"
+     data-controller="neo-notification"
+     data-neo-notification-url-value="<%= notification_target_path(notification) if notification.notifiable %>"
+     data-neo-notification-mark-read-url-value="<%= organisation_notification_path(notification.organisation, notification) %>"
+     data-neo-notification-archive-url-value="<%= organisation_notification_path(notification.organisation, notification) %>"
+     data-neo-notification-id-value="<%= notification.id %>"
+     data-action="click->neo-notification#navigate keydown->neo-notification#keydown"
+     data-notification-id="<%= notification.id %>"
+     tabindex="<%= notification.notifiable ? '0' : '-1' %>"
+     role="<%= notification.notifiable ? 'button' : 'article' %>"
+     aria-label="<%= notification.notifiable ? t('notifications.item.view', title: (notification.notifiable.try(:title) || notification.event_type.humanize)) : notification.event_type.humanize %>">
+
+  <div class="notification-content">
+    <div class="notification-header">
+      <div class="notification-avatar">
+        <%# Was ui-avatars.com (full_name leaked to a third party on every
+            render) plus unstyled .avatar-* classes. Nil actor = system
+            event, marked with an "S" chip like the component variant. %>
+        <%= render Neo::Users::AvatarComponent.new(user: notification.actor,
+                                                   size: :small, fallback_initials: 'S') %>
+      </div>
+
+      <div class="notification-meta">
+        <div class="notification-type">
+          <%= render 'notifications/type_badge', notification: notification %>
+        </div>
+
+        <div class="notification-time">
+          <%= t('notifications.item.time_ago', time: time_ago_in_words(notification.created_at)) %>
+          <% if notification.group_count > 1 %>
+            <span class="group-indicator">
+              · <%= t('notifications.item.updates', count: notification.group_count) %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="notification-actions">
+        <% unless notification.state_read? %>
+          <%= render Neo::Buttons::IconButtonComponent.new(
+                variant: :ghost, size: :small, icon: "check",
+                title: t('notifications.item.mark_as_read'),
+                'aria-label': t('notifications.item.mark_this_as_read'),
+                data: { turbo_stream: true },
+                form: {
+                  action: organisation_notification_path(notification.organisation, notification),
+                  method: :patch,
+                  params: { notification: { state: 'read' } },
+                  data: { turbo_frame: '_top' }
+                }
+              ) %>
+        <% end %>
+
+        <div class="dropdown"
+             data-controller="neo-dropdown"
+             data-neo-dropdown-auto-close-value="outside">
+          <button class="font-medium border border-stroke rounded inline-flex items-center justify-center transition-all h-6 px-2 text-xs bg-transparent hover:bg-gray-100 hover:shadow-[2px_2px_0_0_#000000] hover:-translate-x-0.5 hover:-translate-y-0.5"
+                  data-neo-dropdown-target="trigger"
+                  data-action="click->neo-dropdown#toggle"
+                  aria-haspopup="true"
+                  aria-expanded="false">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="hidden absolute right-0 mt-1 w-48 bg-surface-raised border-2 border-stroke shadow-[4px_4px_0_0_#000000] z-dropdown py-1"
+              data-neo-dropdown-target="menu"
+              role="menu">
+            <li>
+              <%= button_to t('notifications.item.mark_as_read'),
+                            organisation_notification_path(notification.organisation, notification),
+                            method: :patch,
+                            params: { notification: { state: 'read' } },
+                            data: { turbo_stream: true },
+                            form: { data: { turbo_frame: '_top' } },
+                            class: "block w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-100 transition-colors",
+                            role: "menuitem" %>
+            </li>
+            <li>
+              <%= button_to t('notifications.item.archive'),
+                            organisation_notification_path(notification.organisation, notification),
+                            method: :patch,
+                            params: { notification: { state: 'archived' } },
+                            data: { turbo_stream: true },
+                            form: { data: { turbo_frame: '_top' } },
+                            class: "block w-full text-left px-4 py-2 text-sm font-medium hover:bg-gray-100 transition-colors",
+                            role: "menuitem" %>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="notification-body">
+      <div class="notification-message">
+        <%= render 'notifications/message', notification: notification %>
+      </div>
+
+      <% if notification.notifiable %>
+        <div class="notification-target">
+          <%= link_to notification_target_path(notification),
+                      class: "notification-link" do %>
+            <div class="target-preview">
+              <div class="target-icon">
+                <%= render 'notifications/target_icon', notifiable: notification.notifiable %>
+              </div>
+              <div class="target-info">
+                <div class="target-title">
+                  <%= notification.notifiable.try(:title) ||
+                      notification.notifiable.try(:name) ||
+                      notification.notifiable.class.name %>
+                </div>
+                <% if notification.notifiable.respond_to?(:project) && notification.notifiable.project %>
+                  <div class="target-context">
+                    <%= t('notifications.item.in_project', project: notification.notifiable.project.name) %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

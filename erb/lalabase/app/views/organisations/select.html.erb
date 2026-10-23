@@ -1,0 +1,48 @@
+<%# Cross-Org-Cockpit (organisations#select). Three layouts, chosen per user via the gear settings
+    modal (cockpit_layout): "stacked" (today's order), "rows_compact" (flat table, counts) and
+    "rows_detailed" (accent-block rows with item titles). In a rows layout the rows REPLACE the org
+    tiles (B2). The two area toggles (cockpit_show_actions / cockpit_show_todos) gate each section.
+    Settings are user-global (no tenant) — see doc/cockpit_settings_plan.md §4/§6. %>
+<% layout = current_user.preference_store.cockpit_layout %>
+<% importance = current_user.preference_store.cockpit_importance %>
+<% show_actions = current_user.preference_store.cockpit_show_actions? %>
+<% show_todos = current_user.preference_store.cockpit_show_todos? %>
+<% rows_layout = layout != 'stacked' %>
+
+<div class="container mx-auto px-4 py-10 <%= rows_layout ? 'max-w-4xl' : 'max-w-2xl' %>"
+     data-controller="cockpit-settings-modal">
+
+  <div class="flex justify-end mb-2">
+    <button type="button"
+            class="w-10 h-10 -mr-1 flex items-center justify-center rounded text-cream-400 hover:text-cream-900 hover:bg-cream-200 transition-colors"
+            aria-label="<%= t('views.organisations.select.cockpit_settings.gear_label') %>"
+            data-action="click->cockpit-settings-modal#open">
+      <i class="bi bi-gear text-lg" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <% if rows_layout %>
+    <%= render 'organisations/cockpit_rows',
+               rows: @cockpit_rows.rows, detailed: layout == 'rows_detailed',
+               member_counts: @member_counts, show_actions: show_actions, show_todos: show_todos,
+               total: @action_summary.total %>
+  <% else %>
+    <% if show_actions %>
+      <%= render 'organisations/cockpit_action_summary', summary: @action_summary %>
+    <% end %>
+
+    <% if show_todos %>
+      <%= render 'organisations/personal_todo_rollup', rollup: @personal_task_rollup %>
+    <% end %>
+
+    <%= render 'organisations/organisation_tiles',
+               organisations: @organisations,
+               unread_counts: @unread_counts,
+               member_counts: @member_counts %>
+  <% end %>
+
+  <%= render 'organisations/faq' %>
+
+  <%= render 'organisations/cockpit_settings_modal',
+             layout: layout, importance: importance, show_actions: show_actions, show_todos: show_todos %>
+</div>

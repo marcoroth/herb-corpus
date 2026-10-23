@@ -1,0 +1,165 @@
+<%# Per-widget settings fields for the ORGANISATION OVERVIEW — the surface-specific counterpart of
+    dashboard_configurations/_widget_settings (the project version). Rendered for server-side slots
+    AND cloned into newly added slots, so the markup MUST be identical in both. Every field carries
+    data-name-suffix; dashboard_inline_edit_controller rebuilds the full rows[i][widgets][j]... name
+    from DOM position before submit (the reindex contract). The server-rendered name is a placeholder.
+
+    Only widgets whose registry entry carries :extra_params reach here (the _edit_slot has_settings
+    gate). The list widgets (org_activity_feed / my_open_tickets / my_mentions / recent_notifications)
+    expose just a list-length limit — the SHARED shared/dashboards/_item_limit_field, reused verbatim
+    from the project dashboard. org_stats_cards exposes a card picker (which key figures to show);
+    billing_overview exposes the same kind of picker for its pipeline stages.
+
+    Locals: row_idx, slot_idx, widget_data (Hash, may be {}), smart_folders (unused here — the overview
+    has no smart folders; accepted so the shared _edit_slot can stay surface-agnostic), projects (the
+    org's accessible projects, used by the projects_table "selected projects" picker). %>
+<% widget_data ||= {} %>
+<% widget_key = widget_data['key'].to_s %>
+<% prefix = dashboard_widget_field_prefix(row_idx, slot_idx) %>
+<% field_classes = "w-full border-2 border-stroke rounded px-2 py-1 text-sm bg-surface-raised text-ink focus:outline-none focus:ring-2 focus:ring-ink" %>
+<% label_classes = "block text-xs font-bold uppercase tracking-wide text-cream-900/60 mb-1" %>
+
+<% case widget_key %>
+<% when 'org_activity_feed', 'my_mentions', 'recent_notifications' %>
+  <%= render 'shared/dashboards/item_limit_field',
+             prefix: prefix, widget_data: widget_data, field_classes: field_classes, label_classes: label_classes %>
+
+<% when 'my_open_tickets' %>
+  <%# Settings: list length, display mode (sections | tabs), a bucket picker, and (sections only) a
+      de-duplicate toggle. The buckets turn the plain open-ticket list into a small triage board
+      (overdue / due today / this week / next 7 days), shown either stacked or as switchable pills.
+      Unlike the stats-card pickers there is NO empty guard — an all-unchecked bucket save is a valid
+      choice that falls back to the default "all open" bucket (registry parse drops the empty set), so
+      the [group_keys][] suffix is deliberately NOT one the JS empty-card guard watches. %>
+  <% mot_component = Overview::MyOpenTicketsComponent %>
+  <% selected = widget_data['group_keys'].presence || mot_component::DEFAULT_GROUP_KEYS %>
+  <% deduplicate = ActiveModel::Type::Boolean.new.cast(widget_data['deduplicate']) %>
+  <% current_display_mode = widget_data['display_mode'].presence_in(mot_component::DISPLAY_MODES) || mot_component::DEFAULT_DISPLAY_MODE %>
+  <div class="space-y-2">
+    <%= render 'shared/dashboards/item_limit_field',
+               prefix: prefix, widget_data: widget_data, field_classes: field_classes, label_classes: label_classes %>
+    <%# Display mode: stacked sections (all buckets visible) or switchable pills/tabs (one at a time).
+        Changing it toggles the de-duplicate option below (moot in tabs mode). %>
+    <div>
+      <label class="<%= label_classes %>"><%= t('overview.my_open_tickets.display_mode_label') %></label>
+      <div class="space-y-0.5">
+        <% mot_component::DISPLAY_MODES.each do |mode_val| %>
+          <% suffix = '[display_mode]' %>
+          <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+            <input type="radio" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+                   value="<%= mode_val %>" class="w-4 h-4 accent-ink" <%= 'checked' if current_display_mode == mode_val %>
+                   data-action="change->dashboard-inline-edit#toggleDeduplicate">
+            <span class="text-xs font-medium flex-1 text-ink"><%= t("overview.my_open_tickets.mode_#{mode_val}") %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+    <div>
+      <label class="<%= label_classes %>"><%= t('overview.my_open_tickets.picker_label') %></label>
+      <div class="space-y-0.5">
+        <% mot_component::GROUP_KEYS.each do |group_key| %>
+          <% suffix = '[group_keys][]' %>
+          <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+            <input type="checkbox" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+                   value="<%= group_key %>" class="w-4 h-4 accent-ink" <%= 'checked' if selected.include?(group_key) %>>
+            <span class="text-xs font-medium flex-1 text-ink"><%= t("overview.my_open_tickets.group_#{group_key}") %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+    <%# Opt-in (sections mode only): when several overlapping buckets are shown, display each ticket
+        only once (in its narrowest bucket). Hidden in tabs mode (toggleDeduplicate) since one bucket is
+        visible at a time. Unchecked submits nothing -> not stored -> off (store-only-the-opt-in
+        convention), so no hidden companion field is needed. %>
+    <div data-dedup-option <%= 'hidden' if current_display_mode == 'tabs' %>>
+      <% suffix = '[deduplicate]' %>
+      <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+        <input type="checkbox" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+               value="1" class="w-4 h-4 accent-ink" <%= 'checked' if deduplicate %>>
+        <span class="text-xs font-medium flex-1 text-ink"><%= t('overview.my_open_tickets.deduplicate_label') %></span>
+      </label>
+    </div>
+  </div>
+
+<% when 'projects_table' %>
+  <%# Project selection mode. The radios share [mode] (one radio group); switching to "selected"
+      reveals the project checkbox list (toggleProjectSelection). The checkboxes keep their value
+      while hidden, so toggling modes back and forth never loses the prior selection. %>
+  <% mode_component = Overview::ProjectsTableComponent %>
+  <% current_mode = widget_data['mode'].presence_in(mode_component::SELECTION_MODES) || mode_component::DEFAULT_MODE %>
+  <% selected_ids = Array(widget_data['project_ids']).map(&:to_s) %>
+  <div class="space-y-2">
+    <div>
+      <label class="<%= label_classes %>"><%= t('overview.configuration.projects_table.mode_label') %></label>
+      <div class="space-y-0.5">
+        <% mode_component::EDITOR_MODES.each do |mode_val| %>
+          <% suffix = '[mode]' %>
+          <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+            <input type="radio" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+                   value="<%= mode_val %>" class="w-4 h-4 accent-ink" <%= 'checked' if current_mode == mode_val %>
+                   data-action="change->dashboard-inline-edit#toggleProjectSelection">
+            <span class="text-xs font-medium flex-1 text-ink"><%= t("overview.configuration.projects_table.mode_#{mode_val}") %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+
+    <div data-project-selection <%= 'hidden' unless current_mode == 'selected' %>>
+      <label class="<%= label_classes %>"><%= t('overview.configuration.projects_table.select_projects') %></label>
+      <% if projects.any? %>
+        <div class="space-y-0.5 max-h-48 overflow-y-auto">
+          <% projects.each do |project| %>
+            <% suffix = '[project_ids][]' %>
+            <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+              <input type="checkbox" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+                     value="<%= project.id %>" class="w-4 h-4 accent-ink" <%= 'checked' if selected_ids.include?(project.id.to_s) %>>
+              <span class="text-xs font-medium flex-1 text-ink truncate"><%= project.name %></span>
+            </label>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-xs text-ink/50 p-1"><%= t('overview.configuration.projects_table.no_projects') %></p>
+      <% end %>
+    </div>
+  </div>
+
+<% when 'org_stats_cards' %>
+  <%# Card picker: which key figures to show. Checkboxes use the [card_keys][] suffix the JS empty-card
+      guard (statsWidgetKeys: org_stats_cards) watches, so an all-unchecked save is blocked. Default
+      (nothing stored yet) = all cards checked. No per-card period/scope (unlike the project stats_cards). %>
+  <% selected = widget_data['card_keys'].presence || Overview::OrgStatsCardsComponent::DEFAULT_CARD_KEYS %>
+  <div>
+    <label class="<%= label_classes %>"><%= t('dashboard.configuration.select_cards') %></label>
+    <div class="space-y-0.5">
+      <% Overview::OrgStatsCardsComponent::CARD_KEYS.each do |card_key| %>
+        <% suffix = '[card_keys][]' %>
+        <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+          <input type="checkbox" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+                 value="<%= card_key %>" class="w-4 h-4 accent-ink" <%= 'checked' if selected.include?(card_key) %>>
+          <span class="text-xs font-medium flex-1 text-ink"><%= t("overview.cards.#{card_key}") %></span>
+        </label>
+      <% end %>
+    </div>
+  </div>
+
+<% when 'billing_overview' %>
+  <%# Stage picker: which billing-pipeline stages to show. Same machinery as org_stats_cards — the
+      [stage_keys][] suffix is watched by the JS empty-card guard (stats_widget_keys includes
+      billing_overview), so an all-unchecked save is blocked. Default (nothing stored) = all stages.
+      Labels come from the one owner of the three words, so the picker and the widget read
+      identically. %>
+  <% selected = widget_data['stage_keys'].presence || Overview::BillingOverviewComponent::STAGE_KEYS %>
+  <div>
+    <label class="<%= label_classes %>"><%= t('dashboard.configuration.select_cards') %></label>
+    <div class="space-y-0.5">
+      <% Overview::BillingOverviewComponent::STAGE_KEYS.each do |stage_key| %>
+        <% suffix = '[stage_keys][]' %>
+        <label class="flex items-center gap-2 p-1 rounded cursor-pointer">
+          <input type="checkbox" name="<%= prefix + suffix %>" data-name-suffix="<%= suffix %>" form="dashboard_edit_form"
+                 value="<%= stage_key %>" class="w-4 h-4 accent-ink" <%= 'checked' if selected.include?(stage_key) %>>
+          <span class="text-xs font-medium flex-1 text-ink"><%= time_billing_state_label(stage_key) %></span>
+        </label>
+      <% end %>
+    </div>
+  </div>
+<% end %>

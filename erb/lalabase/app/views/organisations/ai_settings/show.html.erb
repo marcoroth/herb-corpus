@@ -1,0 +1,65 @@
+<div>
+<%= render 'organisations/shared/ai_area_header', title: t('views.organisations.ai_overview.pages.access') %>
+<div class="flex justify-end items-center gap-2 mb-4">
+  <%= render 'common/contextual_help_menu', context: :settings_ai_provider %>
+  <%# No longer behind ai_enabled? — the probe is gate-free since S7 (L6), so the one
+      moment it is most useful (setting up, before switching on) is no longer the one
+      moment the button was hidden. The `provider:` query param went with it: it was
+      never read, the action always resolved the org's own routing. %>
+  <%= render Neo::Buttons::HeaderButtonComponent.new(
+    variant: :primary,
+    icon: "wifi",
+    label: t('views.organisations.ai_settings.show.test_connection'),
+    form: { action: test_connection_organisation_ai_settings_path(@organisation), method: :post }
+  ) %>
+</div>
+
+<%# The switch used to stand here as the largest box on the page (doc/ki_zugang_umbau_plan.md
+    D5). It moved to the hub, and what stays behind is one line of orientation: this page
+    answers "who processes our content, and where", and the switch is a decision about the
+    whole area, not about the processor.
+
+    The inactive line names the intended order explicitly (§3): the access can be set up
+    BEFORE the switch is thrown, which is also why the connection test above is gate-free
+    and why the hub's "Zugang" card stays unlocked while AI is off.
+
+    No second truth here: the line states the boolean and links onwards, it repeats no
+    date and no name (those live on the hub, with the switch). %>
+<p class="mt-2 max-w-4xl text-sm <%= @organisation.ai_enabled? ? 'text-cream-700' : 'text-amber-800' %>">
+  <% unless @organisation.ai_enabled? %><i class="bi bi-exclamation-triangle mr-1.5"></i><% end %>
+  <%= t("views.organisations.ai_settings.show.status_line_#{@organisation.ai_enabled? ? 'active' : 'inactive'}_html",
+        link: link_to(t('views.organisations.ai_settings.show.status_line_overview_link'),
+                      organisation_ai_overview_path(@organisation),
+                      class: 'font-bold underline decoration-2 underline-offset-2')) %>
+</p>
+
+<%# Quota bar, evidence history and token statistics stood here until S6.
+    They moved to "Verbrauch" (doc/ki_bereich_navigation_plan.md S6, L8); because
+    of them the hub card "Verbrauch" pointed to the same page as "Zugang". %>
+
+<%# KI-Pakete §7: the catalogue is the ONLY thing on this page that asks which processor
+    serves the organisation. Until S7 it sat above a second form asking the same question
+    with two axes; the setup screen that replaced that form is behind the custom pane.
+
+    ONE pane per request (doc/ki_zugang_umbau_plan.md D6). The chooser above states the
+    either/or, and exactly one of the two answers is rendered below it. Spelled out as a
+    branch rather than interpolated into the partial name: @package_mode comes off a
+    whitelist, and a render path built from a param is the kind of thing that only stays
+    safe as long as the whitelist stays where somebody remembers it. %>
+<div class="mt-12 max-w-4xl" id="ai_packages">
+  <%= render 'organisations/ai_settings/package_chooser' %>
+  <% if @package_mode == Organisations::AiSettingsController::MODE_CUSTOM %>
+    <%= render 'organisations/ai_settings/package_pane_custom' %>
+  <% else %>
+    <%= render 'organisations/ai_settings/package_pane_packages' %>
+  <% end %>
+</div>
+
+<%# The two-axis form and its inline <script> stood here until S7
+    (doc/ki_bereich_navigation_plan.md, E6 Weg A). They moved to a setup screen of
+    their own, not copied: the catalogue above asks the question "which package?",
+    and the form asked it a second time below, with a provider select AND a
+    system/own radio that a script switched against each other. Five of the
+    thirteen gaps (L3, L5, L6, L7, L10) lived in it.
+    The card "Eigene Konfiguration" in the catalogue is the door there. %>
+</div>

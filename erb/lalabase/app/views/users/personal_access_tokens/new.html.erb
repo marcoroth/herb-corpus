@@ -1,0 +1,241 @@
+<div class="pt-6">
+  <%= render NeoTitleBoxComponent.new(
+    title: t('views.users.personal_access_tokens.new.title'),
+    subtitle: current_user.display_name,
+    variant: :project
+  ) %>
+
+  <div class="max-w-3xl"
+       data-controller="neo-personal-access-token-form"
+       data-neo-personal-access-token-form-organisations-value="<%= @user_organisations.to_json(only: %i[id name]) %>">
+
+    <%= form_with model: @token,
+                  url: users_personal_access_tokens_path,
+                  method: :post,
+                  local: true,
+                  data: { turbo: false },
+                  class: "space-y-6" do |form| %>
+
+      <!-- ================================================================ -->
+      <!-- BLOCK 1 — Basisinfo                                                -->
+      <!-- ================================================================ -->
+      <%= render NeoCardComponent.new(variant: :white, shadow: :always, padding: :medium) do %>
+        <h3 class="text-base font-bold mb-4">
+          <i class="bi bi-1-circle-fill mr-1"></i>
+          <%= t('views.users.personal_access_tokens.new.block_basic') %>
+        </h3>
+
+        <div class="space-y-4">
+          <div>
+            <%= form.label :name, t('views.users.personal_access_tokens.new.name_label'),
+                  class: "block text-sm font-bold mb-1" %>
+            <%= form.text_field :name,
+                  placeholder: t('views.users.personal_access_tokens.new.name_placeholder'),
+                  required: true,
+                  class: "w-full h-10 px-4 rounded border-2 border-stroke focus:outline-none focus:shadow-[2px_2px_0_0_#000000] transition-all bg-surface-raised" %>
+            <p class="text-xs text-gray-500 mt-1">
+              <%= t('views.users.personal_access_tokens.new.name_help') %>
+            </p>
+          </div>
+
+          <div>
+            <label class="flex items-start gap-2 cursor-pointer">
+              <%= form.check_box :read_only,
+                    class: "h-5 w-5 mt-0.5 border-2 border-stroke accent-lime-400" %>
+              <span>
+                <span class="block text-sm font-bold"><%= t('views.users.personal_access_tokens.new.read_only_label') %></span>
+                <span class="block text-xs text-gray-500"><%= t('views.users.personal_access_tokens.new.read_only_help') %></span>
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold mb-1" for="pat_expires_preset">
+              <%= t('views.users.personal_access_tokens.new.expiry_label') %>
+            </label>
+            <select name="personal_access_token[expires_preset]"
+                    id="pat_expires_preset"
+                    data-action="change->neo-personal-access-token-form#toggleCustomExpiry"
+                    data-neo-personal-access-token-form-target="expiryPresetSelect"
+                    class="w-full h-10 px-4 rounded border-2 border-stroke focus:outline-none focus:shadow-[2px_2px_0_0_#000000] transition-all bg-surface-raised">
+              <option value="7"><%= t('views.users.personal_access_tokens.new.expiry_7_days') %></option>
+              <option value="30" selected><%= t('views.users.personal_access_tokens.new.expiry_30_days') %></option>
+              <option value="60"><%= t('views.users.personal_access_tokens.new.expiry_60_days') %></option>
+              <option value="90"><%= t('views.users.personal_access_tokens.new.expiry_90_days') %></option>
+              <option value="custom"><%= t('views.users.personal_access_tokens.new.expiry_custom') %></option>
+            </select>
+            <div class="mt-2 hidden" data-neo-personal-access-token-form-target="customExpiryWrapper">
+              <input type="date"
+                     autocomplete="off"
+                     name="personal_access_token[expires_at]"
+                     data-neo-personal-access-token-form-target="customExpiryInput"
+                     min="<%= Date.tomorrow %>"
+                     max="<%= PersonalAccessToken::MAX_LIFETIME.from_now.to_date %>"
+                     class="w-full h-10 px-4 rounded border-2 border-stroke focus:outline-none focus:shadow-[2px_2px_0_0_#000000] transition-all bg-surface-raised">
+            </div>
+            <p class="text-xs text-gray-500 mt-1">
+              <%= t('views.users.personal_access_tokens.new.expiry_help', days: PersonalAccessToken::MAX_LIFETIME.in_days.to_i) %>
+            </p>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- ================================================================ -->
+      <!-- BLOCK 2 — Organisationen & Projekte                                -->
+      <!-- ================================================================ -->
+      <%= render NeoCardComponent.new(variant: :white, shadow: :always, padding: :medium) do %>
+        <h3 class="text-base font-bold mb-4">
+          <i class="bi bi-2-circle-fill mr-1"></i>
+          <%= t('views.users.personal_access_tokens.new.block_organisations') %>
+        </h3>
+
+        <% if @user_organisations.empty? %>
+          <p class="text-sm text-red-700">
+            <%= t('views.users.personal_access_tokens.new.org_no_orgs') %>
+          </p>
+        <% else %>
+          <fieldset class="flex flex-col gap-2 mb-4">
+            <legend class="text-sm text-gray-700 mb-3">
+              <%= t('views.users.personal_access_tokens.new.org_pick_label') %>
+            </legend>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio"
+                     name="personal_access_token[organisation_mode]"
+                     value="selected"
+                     <%= 'checked' unless @organisation_mode == 'all' %>
+                     data-action="change->neo-personal-access-token-form#toggleOrganisationMode"
+                     data-neo-personal-access-token-form-target="organisationMode"
+                     class="border-2 border-stroke">
+              <span class="font-bold"><%= t('views.users.personal_access_tokens.new.org_mode_selected') %></span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio"
+                     name="personal_access_token[organisation_mode]"
+                     value="all"
+                     <%= 'checked' if @organisation_mode == 'all' %>
+                     aria-describedby="pat-org-mode-all-hint"
+                     data-action="change->neo-personal-access-token-form#toggleOrganisationMode"
+                     data-neo-personal-access-token-form-target="organisationMode"
+                     class="border-2 border-stroke">
+              <span class="font-bold"><%= t('views.users.personal_access_tokens.new.org_mode_all') %></span>
+            </label>
+            <p id="pat-org-mode-all-hint" class="text-xs text-gray-600 ml-6">
+              <%= t('views.users.personal_access_tokens.new.org_mode_all_hint') %>
+            </p>
+          </fieldset>
+
+          <div class="space-y-3 <%= 'hidden' if @organisation_mode == 'all' %>" data-neo-personal-access-token-form-target="organisationList">
+            <% @user_organisations.each do |org| %>
+              <div class="border-2 border-stroke rounded p-3"
+                   data-neo-personal-access-token-form-target="orgBlock"
+                   data-org-id="<%= org.id %>">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox"
+                         name="personal_access_token[organisation_ids][]"
+                         value="<%= org.id %>"
+                         data-action="change->neo-personal-access-token-form#toggleOrg"
+                         data-neo-personal-access-token-form-target="orgCheckbox"
+                         class="h-5 w-5 border-2 border-stroke accent-lime-400">
+                  <span class="font-bold"><%= org.name %></span>
+                </label>
+
+                <div class="hidden ml-7 mt-3 space-y-2"
+                     data-neo-personal-access-token-form-target="projectScopeWrapper">
+                  <div class="flex flex-col gap-1">
+                    <label class="flex items-center gap-2 text-sm">
+                      <input type="radio"
+                             name="personal_access_token[project_mode][<%= org.id %>]"
+                             value="all"
+                             checked
+                             data-action="change->neo-personal-access-token-form#toggleProjectMode"
+                             class="border-2 border-stroke">
+                      <%= t('views.users.personal_access_tokens.new.project_all') %>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm">
+                      <input type="radio"
+                             name="personal_access_token[project_mode][<%= org.id %>]"
+                             value="selected"
+                             data-action="change->neo-personal-access-token-form#toggleProjectMode"
+                             class="border-2 border-stroke">
+                      <%= t('views.users.personal_access_tokens.new.project_selected') %>
+                    </label>
+                  </div>
+
+                  <div class="hidden mt-2 pl-6 space-y-1"
+                       data-neo-personal-access-token-form-target="projectList">
+                    <% (@projects_by_organisation[org] || []).each do |project| %>
+                      <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox"
+                               name="personal_access_token[project_ids][<%= org.id %>][]"
+                               value="<%= project.id %>"
+                               class="h-4 w-4 border-2 border-stroke accent-lime-400">
+                        <%= project.name %>
+                      </label>
+                    <% end %>
+                    <% if (@projects_by_organisation[org] || []).empty? %>
+                      <p class="text-xs text-gray-500 italic">
+                        <%= t('views.users.personal_access_tokens.new.project_no_projects') %>
+                      </p>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+
+      <!-- ================================================================ -->
+      <!-- BLOCK 3 — Zusammenfassung + Submit                                 -->
+      <!-- ================================================================ -->
+      <%= render NeoCardComponent.new(variant: :lime, shadow: :always, padding: :medium) do %>
+        <h3 class="text-base font-bold mb-3">
+          <i class="bi bi-3-circle-fill mr-1"></i>
+          <%= t('views.users.personal_access_tokens.new.block_summary') %>
+        </h3>
+
+        <p class="text-sm text-gray-800 mb-2">
+          <%= t('views.users.personal_access_tokens.new.summary_intro') %>
+        </p>
+        <ul class="list-disc list-inside text-sm font-medium space-y-1"
+            data-neo-personal-access-token-form-target="summaryList">
+          <li class="text-gray-500 italic"
+              data-neo-personal-access-token-form-target="summaryPlaceholder">
+            <%= t('views.users.personal_access_tokens.new.summary_pick_org') %>
+          </li>
+        </ul>
+
+        <p class="text-sm text-gray-700 mt-3"
+           data-neo-personal-access-token-form-target="summaryExpiry">
+          <%= t('views.users.personal_access_tokens.new.summary_valid_until', date: l(30.days.from_now.to_date, format: :short)) %>
+        </p>
+
+        <div class="mt-4">
+          <label class="block text-sm font-bold mb-1" for="pat_current_password">
+            <%= t('views.users.personal_access_tokens.new.password_label') %>
+          </label>
+          <%= password_field_tag :current_password, nil,
+                id: 'pat_current_password',
+                required: true,
+                autocomplete: 'current-password',
+                class: 'w-full h-10 px-4 rounded border-2 border-stroke focus:outline-none focus:shadow-[2px_2px_0_0_#000000] transition-all bg-surface-raised' %>
+          <p class="text-xs text-gray-500 mt-1">
+            <%= t('views.users.personal_access_tokens.new.password_help') %>
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-3 mt-4">
+          <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :secondary,
+            size: :medium,
+            url: users_personal_access_tokens_path
+          ) do %>
+            <%= t('views.users.personal_access_tokens.new.cancel') %>
+          <% end %>
+          <%= form.submit t('views.users.personal_access_tokens.new.submit'),
+                class: "py-2.5 px-5 inline-flex items-center justify-center rounded text-sm font-bold border-2 border-stroke bg-lime-300 hover:shadow-[2px_2px_0_0_#000000] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all text-cream-900 cursor-pointer" %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>

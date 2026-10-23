@@ -1,0 +1,138 @@
+<%# The capture popover behind the hours sum in the ticket/meeting header
+    (designer handoff "Zeiten bearbeiten: ein Ort statt zwei Formulare",
+    05.09.2026): capture on the left, review on the right. No ticket field (the
+    click location is the answer) and no billing field (assigning is a monthly
+    task and lives in the times list).
+
+    Layout is a grid with named areas: two columns from `sm` up (form left,
+    sum + list stacked right), ONE column below with the order sum, form, list
+    — the phone sheet leads with the number. Only OPEN rows are links into
+    edit mode (?edit=<id>, subject_popover_row_editable?); rows in a billing
+    say so in their title instead of pretending to be clickable. Edit mode
+    swaps the tints of the two sides and marks the clicked row.
+
+    Rendered whole by #subject_popover and re-rendered whole by the shared
+    stream partial after every write — that is how, after "Eintragen", the new
+    row appears on top and the sums grow while the popover stays open. Reads
+    its own ivars (load_subject_popover_data). %>
+<% scope_key = 'views.organisations.time_sessions.subject_popover' %>
+<% total_minutes = @popover_buckets.values.sum { |bucket| bucket[:minutes] } %>
+<% editing = @popover_time_session&.persisted? %>
+<%# Without a single booking the review side has nothing to review and is
+    omitted entirely (user, 05.09.2026) — the popover is then just the form. %>
+<% show_review = @popover_sessions.any? %>
+<% review_tint = editing ? 'bg-surface-raised' : 'bg-cream-50' %>
+<%# w-full always: the WIDTH is the frame's (see the component template) so the
+    anchoring is measurable before this content arrives — no jump on load. %>
+<% layout_classes =
+     if @popover_can_write && show_review
+       "grid [grid-template-areas:'summary'_'form'_'list'] " \
+         "sm:grid-cols-[minmax(230px,248fr)_minmax(240px,272fr)] sm:[grid-template-areas:'form_summary'_'form_list'] sm:[grid-template-rows:auto_1fr]"
+     else
+       ''
+     end %>
+<div class="w-full <%= layout_classes %> overflow-hidden rounded-xl border border-cream-400 bg-surface-raised text-left shadow-[0_20px_40px_-20px_rgba(35,34,30,0.45)] max-sm:max-h-[80vh] max-sm:overflow-y-auto max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0">
+  <% if @popover_can_write %>
+    <div class="[grid-area:form] p-3.5 max-sm:border-b max-sm:border-cream-200 <%= 'bg-cream-100' if editing %>">
+      <%= render 'organisations/time_sessions/subject_popover_form' %>
+    </div>
+  <% end %>
+
+  <% if show_review %>
+    <%# A sum of one summand is no information (designer, 05.09.2026): with
+        exactly one booking the head says only "bisher erfasst" and the number
+        appears once, in the row. From two bookings on the sum returns, because
+        it then summarises something. Counted over the buckets, not the capped
+        row list. %>
+    <% single_entry = @popover_buckets.values.sum { |bucket| bucket[:sessions] } == 1 %>
+    <div class="[grid-area:summary] min-w-0 p-3.5 sm:pb-1 <%= review_tint %> border-cream-200 max-sm:border-b <%= 'sm:border-l' if @popover_can_write %>">
+      <% if single_entry %>
+        <span class="text-[12px] text-cream-600">
+          <%= t("#{scope_key}.captured_single") %><%= " #{t('components.subject_time_summary.scope.own', default: '')}" if @popover_scope == :own %>
+        </span>
+      <% else %>
+        <span class="font-mono text-[17px] font-semibold text-cream-900"><%= time_clock_label(total_minutes) %><span class="ml-[3px]">h</span></span>
+        <span class="ml-1.5 text-[12px] text-cream-600">
+          <%= t("#{scope_key}.captured") %><%= " #{t('components.subject_time_summary.scope.own', default: '')}" if @popover_scope == :own %>
+        </span>
+
+        <%# One entry per non-empty bucket, in lifecycle order. The words come
+            through the one owner (time_billing_state_label), never as literals. %>
+        <% breakdown = TimeSession::BILLING_STATUS_FILTERS.filter_map do |bucket|
+             minutes = @popover_buckets.fetch(bucket)[:minutes]
+             next if minutes.zero?
+
+             safe_join([tag.span("#{time_clock_label(minutes)} h", class: 'font-mono'), ' ', time_billing_state_label(bucket)])
+           end %>
+        <% if breakdown.any? %>
+          <p class="mt-0.5 text-[12px] text-cream-600"><%= safe_join(breakdown, ' · ') %></p>
+        <% end %>
+      <% end %>
+    </div>
+
+    <div class="[grid-area:list] min-w-0 p-3.5 sm:pt-2 <%= review_tint %> border-cream-200 <%= 'sm:border-l' if @popover_can_write %>">
+      <ul class="divide-y divide-cream-200">
+        <% @popover_sessions.each do |session| %>
+          <% being_edited = editing && session.id == @popover_time_session.id %>
+          <% row_editable = !being_edited && @popover_can_write && subject_popover_row_editable?(session) %>
+          <% row_inner = capture do %>
+            <span class="w-10 shrink-0 font-mono text-[13px] font-medium text-cream-900"><%= time_clock_label(session.duration) %></span>
+            <span class="min-w-0 flex-1">
+              <%# Line 1: the description alone, full width — it no longer
+                  competes with the billing name for the same pixels (designer,
+                  05.09.2026). "ohne Beschreibung" in placeholder colour, so an
+                  empty field reads as empty at a glance. %>
+              <% if session.description.present? %>
+                <span class="block truncate text-[12px] text-cream-800"><%= session.description %></span>
+              <% else %>
+                <span class="block text-[12px] text-cream-500"><%= t("#{scope_key}.no_description") %></span>
+              <% end %>
+              <%# Line 2: date and state together. The state is the billing's
+                  name once assigned, otherwise "offen" in amber (handoff §9);
+                  "wird bearbeitet" in ink while the form holds this row. %>
+              <span class="flex items-baseline gap-2 text-[11px]">
+                <span class="font-mono text-cream-500"><%= l(session.occurred_on.to_date, format: :default) %></span>
+                <% if being_edited %>
+                  <span class="text-ink"><%= t("#{scope_key}.editing_row") %></span>
+                <% elsif session.grouped? %>
+                  <span class="min-w-0 truncate text-cream-600"><%= session.time_session_group&.name || time_billing_state_label('in_billing') %></span>
+                <% elsif session.billed? %>
+                  <span class="text-cream-600"><%= time_billing_state_label('billed') %></span>
+                <% else %>
+                  <span class="text-amber-700"><%= time_billing_state_label('without_billing') %></span>
+                <% end %>
+              </span>
+            </span>
+          <% end %>
+          <li>
+            <% if row_editable %>
+              <%= link_to subject_popover_path_for(@popover_subject, edit: session.id),
+                          class: '-mx-2 flex items-start gap-3 rounded-lg px-2 py-2 hover:bg-cream-100',
+                          data: { turbo_frame: "subject_time_popover_#{@popover_subject.id}" } do %>
+                <%= row_inner %>
+              <% end %>
+            <% else %>
+              <%# A row that LOOKS clickable and does nothing is worse than a
+                  visibly locked one: no hover, no tabindex, and the title says
+                  where it CAN be changed. tag.span drops the nil title. %>
+              <% locked_title = if !being_edited && session.grouped?
+                                  t("#{scope_key}.locked_row_title",
+                                    name: session.time_session_group&.name || time_billing_state_label('in_billing'))
+                                end %>
+              <%= tag.span row_inner,
+                           class: class_names('flex items-start gap-3 py-2',
+                                              '-mx-2 rounded-lg bg-cream-100 px-2' => being_edited),
+                           title: locked_title %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+
+      <div class="mt-2 border-t border-cream-200 pt-2">
+        <%= link_to t("#{scope_key}.open_in_list"), subject_time_list_path(@popover_subject),
+                    class: 'text-[13px] text-green-700 hover:text-green-800',
+                    data: { turbo_frame: '_top' } %>
+      </div>
+    </div>
+  <% end %>
+</div>

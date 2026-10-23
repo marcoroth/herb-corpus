@@ -1,0 +1,35 @@
+<div class="mobile-ticket-results" data-fb-hits-total="<%= pagy.count %>" data-controller="frame-error">
+  <div class="mobile-list-summary">
+    <span><%= t('mobile.ticket_count', count: pagy.count) %></span>
+    <label><span class="sr-only"><%= t('mobile.sort') %></span>
+      <% current_sort = "#{sort_column.to_s.split('.').last}:#{sort_direction}" %>
+      <select aria-label="<%= t('mobile.sort') %>" data-action="change->mobile-ticket-list#sort">
+        <% unless %w[created_at:desc created_at:asc title:asc].include?(current_sort) %>
+          <option selected value="<%= current_sort %>"><%= t('mobile.current_sort') %></option>
+        <% end %>
+        <% [['created_at:desc', 'newest'], ['created_at:asc', 'oldest'], ['title:asc', 'title_asc']].each do |value, label| %>
+          <option value="<%= value %>" <%= 'selected' if current_sort == value %>><%= t("mobile.#{label}") %></option>
+        <% end %>
+      </select>
+    </label>
+    <% if ticket_list_selectable?(project) %><button class="mobile-icon" type="button" data-action="mobile-ticket-list#beginSelection" aria-label="<%= t('mobile.select_tickets') %>" title="<%= t('mobile.select_tickets') %>"><i class="bi bi-check2-square" aria-hidden="true"></i></button><% end %>
+  </div>
+  <% if tickets.empty? %>
+    <p class="mobile-empty"><%= t(tickets_first_use?(project) ? 'mobile.empty' : 'mobile.no_results') %></p>
+    <%= link_to t('mobile.reset'), organisation_project_tickets_path(@current_organisation, project, viewport: 'mobile'), class: 'mobile-text-action', data: { turbo_frame: '_top' } unless tickets_first_use?(project) %>
+  <% else %>
+    <%# What a phone row shows (the hourglass, the booked time) is counted for the page in one go
+        (TicketsHelper#register_ticket_count_page). %>
+    <% register_ticket_count_page(tickets) %>
+    <ul class="mobile-tickets">
+      <% tickets.each do |ticket| %><%= render 'ticket_row_mobile', ticket: ticket, project: project %><% end %>
+    </ul>
+  <% end %>
+  <% if pagy.pages > 1 %>
+    <nav class="mobile-pagination" aria-label="<%= t('mobile.pages') %>">
+      <% if pagy.prev %><%= link_to t('mobile.previous'), organisation_project_tickets_path(@current_organisation, project, request.query_parameters.merge('page' => pagy.prev, 'viewport' => 'mobile')), data: { turbo_frame: 'tickets_list_frame' } %><% end %>
+      <span><%= pagy.page %> / <%= pagy.pages %></span>
+      <% if pagy.next %><%= link_to t('mobile.next'), organisation_project_tickets_path(@current_organisation, project, request.query_parameters.merge('page' => pagy.next, 'viewport' => 'mobile')), data: { turbo_frame: 'tickets_list_frame' } %><% end %>
+    </nav>
+  <% end %>
+</div>

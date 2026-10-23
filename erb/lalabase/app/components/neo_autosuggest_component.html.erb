@@ -1,0 +1,107 @@
+<% if server? %>
+<%# Server mode (url:): an editable combobox. Options are built in the browser from the
+    template below, as text; the status line carries the hint, "searching", "no results"
+    and a failed search. The client mode below stays as it was. %>
+<div class="<%= component_classes %>"
+     data-controller="neo-autosuggest"
+     data-neo-autosuggest-selected-value="<%= @selected %>"
+     data-neo-autosuggest-name-value="<%= input_name %>"
+     data-neo-autosuggest-url-value="<%= @url %>"
+     data-neo-autosuggest-selected-text-value="<%= selected_text %>"
+     data-neo-autosuggest-hint-text-value="<%= t('components.neo_autosuggest.server.hint') %>"
+     data-neo-autosuggest-empty-text-value="<%= t('components.neo_autosuggest.server.empty') %>"
+     data-neo-autosuggest-error-text-value="<%= t('components.neo_autosuggest.server.error') %>"
+     data-neo-autosuggest-loading-text-value="<%= t('components.neo_autosuggest.server.loading') %>"
+     id="<%= component_id %>">
+
+  <%= hidden_field_tag input_name, @selected, id: "#{component_id}_value",
+        data: { neo_autosuggest_target: "hiddenInput" } %>
+
+  <input type="text"
+         id="<%= input_id %>"
+         class="<%= input_classes %> cursor-text"
+         placeholder="<%= @placeholder %>"
+         value="<%= selected_text %>"
+         autocomplete="off"
+         role="combobox"
+         aria-autocomplete="list"
+         aria-expanded="false"
+         aria-controls="<%= component_id %>_list"
+         data-neo-autosuggest-target="input"
+         data-action="click->neo-autosuggest#show focus->neo-autosuggest#show input->neo-autosuggest#search keydown->neo-autosuggest#handleKeydown">
+
+  <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+    <i class="bi bi-search text-gray-400" data-neo-autosuggest-target="arrow"></i>
+  </div>
+
+  <%# The box holds the status line and the listbox side by side: a listbox may hold options
+      only (review round 4 of #944). %>
+  <div class="<%= dropdown_classes %> hidden" data-neo-autosuggest-target="dropdown">
+    <div class="px-3 py-2 text-xs text-cream-500" role="status" data-neo-autosuggest-target="status"></div>
+    <div id="<%= component_id %>_list" role="listbox" data-neo-autosuggest-target="list"></div>
+  </div>
+
+  <template data-neo-autosuggest-target="optionTemplate">
+    <div class="<%= NeoAutosuggestComponent::OPTION_CLASSES %> flex items-baseline justify-between gap-3"
+         role="option"
+         data-neo-autosuggest-target="option"
+         data-action="click->neo-autosuggest#selectOption">
+      <span class="min-w-0 truncate" data-slot="text"></span>
+      <span class="shrink-0 text-cream-500" data-slot="detail"></span>
+    </div>
+  </template>
+</div>
+<% else %>
+<div class="<%= component_classes %>" 
+     data-controller="neo-autosuggest" 
+     data-neo-autosuggest-selected-value="<%= @selected %>"
+     data-neo-autosuggest-name-value="<%= input_name %>"
+     id="<%= component_id %>">
+  
+  <!-- Hidden input for form submission -->
+  <%= hidden_field_tag input_name, @selected, 
+        data: { neo_autosuggest_target: "hiddenInput" } %>
+  
+  <!-- Visible input field -->
+  <input type="text" 
+         class="<%= input_classes %>"
+         placeholder="<%= @placeholder %>"
+         value="<%= selected_text %>"
+         readonly
+         data-neo-autosuggest-target="input"
+         data-action="click->neo-autosuggest#toggle focus->neo-autosuggest#toggle keydown->neo-autosuggest#handleKeydown">
+  
+  <!-- Dropdown arrow -->
+  <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+    <i class="bi bi-chevron-down text-gray-400" data-neo-autosuggest-target="arrow"></i>
+  </div>
+  
+  <!-- Options dropdown -->
+  <div class="<%= dropdown_classes %> hidden" 
+       data-neo-autosuggest-target="dropdown">
+    
+    <!-- Include blank option if specified -->
+    <% if @include_blank %>
+      <div class="<%= option_classes(value: '', text: @blank_text) %>"
+           data-neo-autosuggest-target="option"
+           data-value=""
+           data-text="<%= @blank_text %>"
+           data-action="click->neo-autosuggest#selectOption">
+        <%= @blank_text %>
+      </div>
+    <% end %>
+    
+    <!-- Regular options -->
+    <% @options.each do |option| %>
+      <div class="<%= option_classes(option) %>"
+           data-neo-autosuggest-target="option"
+           data-value="<%= option[:value] %>"
+           data-text="<%= option[:text] %>"
+           <% (option[:data] || {}).each do |k, v| %>data-<%= k.to_s.dasherize %>="<%= v %>" <% end %>
+           data-action="click->neo-autosuggest#selectOption">
+        <%= option[:text] %>
+      </div>
+    <% end %>
+  </div>
+</div>
+<% end %>

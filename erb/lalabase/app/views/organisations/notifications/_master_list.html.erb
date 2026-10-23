@@ -1,0 +1,116 @@
+<%# Inbox master list — the sole render path for both the initial page AND
+    the Turbo Stream refresh after state changes.
+    Stable ID "inbox_master_list" for targeted Turbo Stream replacements.
+    Locals: presenter (Inbox::MasterListPresenter), selected_notification. %>
+<div id="inbox_master_list"
+     data-controller="neo-endless-scroll"
+     data-neo-endless-scroll-url-value="<%= organisation_notifications_path(current_organisation) %>"
+     data-neo-endless-scroll-page-value="<%= presenter.pagy.page %>"
+     data-neo-endless-scroll-has-more-value="<%= presenter.pagy.next.present? %>">
+  <%# query_context default = nil → component falls back to request.query_parameters
+      (correct for the initial render from Controller#index). %>
+  <% query_context = local_assigns[:query_context] %>
+
+  <% if presenter.empty? %>
+    <%# Empty state — rendered automatically via the presenter property
+        empty?, also after state changes in turbo_stream. %>
+    <div class="text-center py-12 bg-cream-50 border border-cream-300 rounded-lg">
+      <div class="w-16 h-16 mx-auto mb-4 bg-cream-100 border border-cream-300 rounded-full flex items-center justify-center">
+        <i class="bi bi-bell text-2xl text-cream-500"></i>
+      </div>
+      <h3 class="text-lg font-medium text-cream-700 mb-2">
+        <%= t('organisations.notifications.index.no_notifications_found') %>
+      </h3>
+      <p class="text-sm text-cream-600">
+        <% if presenter.has_active_filters? %>
+          <%= t('organisations.notifications.index.try_different_filters') %>
+        <% else %>
+          <%= t('organisations.notifications.index.up_to_date') %>
+        <% end %>
+      </p>
+    </div>
+  <% else %>
+    <%# Items container %>
+    <div data-neo-endless-scroll-target="container"
+         class="bg-cream-50 border border-cream-300 rounded-lg overflow-hidden">
+
+      <%# Select-all row — selects all visible items at once.
+          Stimulus toggleAll iterates over the checkbox targets.
+          data-endless-skip: do NOT re-append when loading further pages
+          (only once at the top). %>
+      <label data-endless-skip="true"
+             class="flex items-center gap-2 px-4 py-2 border-b border-cream-200 bg-cream-100 cursor-pointer hover:bg-cream-200 transition-colors">
+        <input type="checkbox"
+               data-inbox-bulk-select-target="selectAll"
+               data-action="change->inbox-bulk-select#toggleAll"
+               class="w-4 h-4 border-2 border-stroke rounded cursor-pointer"
+               aria-label="<%= t('organisations.notifications.index.select_all', default: 'Alle auswählen') %>">
+        <span class="text-xs font-bold uppercase tracking-wide text-cream-700">
+          <%= t('organisations.notifications.index.select_all', default: 'Alle auswählen') %>
+        </span>
+      </label>
+
+      <% if presenter.grouped? && presenter.grouped_notifications.present? %>
+        <% presenter.grouped_notifications.each do |date, reps| %>
+          <%# data-date-header: lets the endless scroll deduplicate a duplicate
+              leading header of the following page. %>
+          <div class="px-4 py-2 bg-cream-100 border-b border-cream-200"
+               data-date-header="<%= date.iso8601 %>">
+            <h3 class="text-xs font-bold uppercase tracking-wide text-cream-700">
+              <%= l(date, format: '%d. %B %Y') %>
+            </h3>
+          </div>
+          <%# Grouped: one row per ticket (representative = most recent
+              notification). group_count/group_unread control the badge + unread
+              styling of the entire group row. %>
+          <% reps.each do |notification| %>
+            <div id="<%= dom_id(notification) %>"
+                 data-notification-item="<%= notification.id %>">
+              <%= render NeoInboxMasterItemComponent.new(
+                    notification: notification,
+                    selected: local_assigns[:selected_notification]&.id == notification.id,
+                    group_count: presenter.group_total(notification),
+                    group_unread: presenter.group_unread(notification),
+                    query_context: local_assigns[:query_context]
+                  ) %>
+            </div>
+          <% end %>
+        <% end %>
+      <% else %>
+        <% presenter.notifications.each do |notification| %>
+          <div id="<%= dom_id(notification) %>"
+               data-notification-item="<%= notification.id %>">
+            <%= render NeoInboxMasterItemComponent.new(
+                  notification: notification,
+                  selected: local_assigns[:selected_notification]&.id == notification.id
+                ) %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Sentinel — always in the DOM and visible (1px), observed by the
+      IntersectionObserver. The loading indicator is hidden
+      (display:none, no box) and is NOT suitable as an observer target. %>
+  <div data-neo-endless-scroll-target="sentinel" class="h-px w-full"></div>
+
+  <%# Loading / End indicators remain endless-scroll targets. %>
+  <div data-neo-endless-scroll-target="loadingIndicator"
+       class="hidden text-center py-4 sm:py-6">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-cream-50 border border-cream-300 rounded text-xs sm:text-sm">
+      <div class="w-3 h-3 sm:w-4 sm:h-4 border-2 border-cream-300 border-t-ink rounded-full animate-spin"></div>
+      <span class="hidden sm:inline"><%= t('organisations.notifications.index.loading_more') %></span>
+      <span class="sm:hidden"><%= t('organisations.notifications.index.loading_short') %></span>
+    </div>
+  </div>
+
+  <div data-neo-endless-scroll-target="endMessage"
+       class="hidden text-center py-4 sm:py-6">
+    <div class="text-xs text-cream-600">
+      <i class="bi bi-check-circle text-sm mr-1"></i>
+      <span class="hidden sm:inline"><%= t('organisations.notifications.index.all_notifications_loaded') %></span>
+      <span class="sm:hidden"><%= t('organisations.notifications.index.all_loaded_short') %></span>
+    </div>
+  </div>
+</div>

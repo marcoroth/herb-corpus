@@ -1,0 +1,74 @@
+<%# Contextual-help slide-over drawer (doc/kontexthilfe_drawer_plan.md) — rendered
+    ONCE at body level (NOT inside the sidebar, whose transform/overflow would clip
+    position:fixed; same reason as _personal_tasks_drawer). The turbo-frame has NO
+    src: the contextual-help-drawer controller sets it per clicked question (the
+    slug changes per click) and Turbo grafts the matching frame out of the full
+    help page. NOT rendered on the help pages themselves — /hilfe renders the same
+    "contextual_help_content" frame inline, a second one would duplicate the id. %>
+<% if user_signed_in? && controller_path != 'help' %>
+  <%# mousedown tracking lets closeOnBackdrop ignore clicks whose press started
+      inside the panel (text selection drifting onto the backdrop). %>
+  <div data-contextual-help-drawer-target="overlay"
+       data-action="mousedown->contextual-help-drawer#trackPointerDown click->contextual-help-drawer#closeOnBackdrop"
+       class="hidden fixed inset-0 z-modal">
+    <div class="fixed inset-0 bg-scrim bg-opacity-60 backdrop-blur-sm"></div>
+
+    <%# Right-hand panel: mobile full-width sheet, from sm a 480px / from lg a 560px
+        drawer (D6 — wider than the Notizblock, it holds reading content). Off-screen
+        via translate-x-full (to the RIGHT), slid in by the controller. The dialog
+        semantics live HERE (not on the overlay): focus sits inside the panel, so
+        screen readers need the panel to be the announced dialog. %>
+    <div data-contextual-help-drawer-target="panel"
+         tabindex="-1"
+         role="dialog" aria-modal="true"
+         aria-labelledby="contextual-help-drawer-title"
+         class="relative ml-auto h-full w-full sm:max-w-[480px] lg:max-w-[560px] bg-surface-raised border-l-2 border-cream-300 shadow-[-6px_6px_0_0_#000] flex flex-col translate-x-full transition-transform duration-200 ease-out">
+      <div class="flex items-center justify-between gap-2 px-4 py-3 border-b-2 border-cream-300 shrink-0">
+        <h2 id="contextual-help-drawer-title" class="min-w-0 text-sm font-bold text-cream-900 flex items-center gap-2">
+          <i class="bi bi-question-circle shrink-0"></i>
+          <span class="truncate"><%= t('components.contextual_help.drawer_title') %></span>
+        </h2>
+        <div class="flex items-center gap-1 shrink-0">
+          <%# Escape hatch (D5): regular navigation to the full help page incl. tree.
+              The controller re-points the href to the opened question's slug#anchor.
+              Through the helper, so an instance without the handbook sends the
+              reader to the public documentation instead of a page it cannot serve. %>
+          <a href="<%= help_home_url %>"
+             data-contextual-help-drawer-target="fullPageLink"
+             class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-cream-700 hover:text-cream-900 hover:bg-cream-200 rounded transition-all">
+            <i class="bi bi-box-arrow-up-right"></i>
+            <span><%= t('components.contextual_help.open_full_page') %></span>
+          </a>
+          <button type="button"
+                  data-action="click->contextual-help-drawer#close"
+                  aria-label="<%= t('components.contextual_help.close') %>"
+                  class="w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all shrink-0">
+            <i class="bi bi-x-lg text-sm"></i>
+          </button>
+        </div>
+      </div>
+
+      <%# help-scope carries the .help-prose styles (views.css) into the drawer —
+          the grafted frame arrives without the #help-page wrapper (plan §8). %>
+      <div class="flex-1 overflow-y-auto p-4 help-scope"
+           data-contextual-help-drawer-target="scrollContainer">
+        <%# help_base scopes handleFrameClick: only help-internal links browse the
+            frame, everything else navigates top-level (an app page's response
+            would graft this drawer's own empty placeholder into the frame). %>
+        <%= turbo_frame_tag 'contextual_help_content',
+                            data: { 'contextual-help-drawer-target': 'frame',
+                                    # The LOCAL path on purpose: this is what the drawer
+                                    # loads into its frame, and it only opens where the
+                                    # handbook is here. An external address cannot be
+                                    # fetched into a turbo frame.
+                                    'help-base': help_path,
+                                    action: 'turbo:frame-load->contextual-help-drawer#frameLoaded ' \
+                                            'turbo:frame-missing->contextual-help-drawer#frameError ' \
+                                            'turbo:fetch-request-error->contextual-help-drawer#frameError ' \
+                                            'click->contextual-help-drawer#handleFrameClick' } do %>
+          <p class="text-sm text-cream-500"><%= t('components.contextual_help.loading') %></p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% end %>

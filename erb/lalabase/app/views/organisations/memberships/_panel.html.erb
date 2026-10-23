@@ -1,0 +1,26 @@
+<aside class="members-panel" aria-labelledby="membership-panel-title" data-membership-workspace-target="panel">
+  <div class="flex items-center justify-between mb-6">
+    <h2 id="membership-panel-title" class="text-sm text-muted"><%= t('member_management.membership') %></h2>
+    <%= link_to membership_list_path(membership_id: nil), class: 'members-more', title: t('member_management.close'), 'aria-label': t('member_management.close'), data: { membership_workspace_target: 'close' } do %><i class="bi bi-x-lg" aria-hidden="true"></i><% end %>
+  </div>
+  <div class="flex items-center gap-[11px] pb-5 border-b border-cream-200">
+    <%= render Neo::Users::AvatarComponent.new(user: membership.user, size: :detail) %>
+    <div class="min-w-0"><h3 class="text-[17px] font-semibold text-heading truncate"><%= viewer_display_name(membership.user) %></h3><p class="text-xs text-muted truncate"><%= membership.user.email %></p></div>
+  </div>
+  <% if membership.errors.any? %><p class="members-danger py-3 text-sm" role="alert"><%= membership.errors.full_messages.to_sentence %></p><% end %>
+  <div class="members-setting"><span class="text-sm text-muted"><%= t('member_management.role') %></span><%= render 'role', membership: membership, location: 'panel' %></div>
+  <div class="members-setting">
+    <div><label for="membership_access" class="text-sm text-muted"><%= t('member_management.access') %></label><p class="mt-1 text-xs text-muted"><%= t('member_management.access_hint') %></p></div>
+    <%= form_with model: [@current_organisation, membership], data: { action: 'change->membership-workspace#submit', turbo_frame: (membership.user_id == current_user.id ? '_top' : 'members_workspace') } do |form| %>
+      <% membership_list_params.except(:membership_id).each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+      <%= hidden_field_tag :membership_id, membership.id %>
+      <%= form.select :active, [[t('member_management.active'), true], [t('member_management.blocked'), false]], {}, id: 'membership_access', class: 'members-role-select' %>
+      <noscript><button type="submit"><%= t('member_management.apply') %></button></noscript>
+    <% end %>
+  </div>
+  <div class="members-setting"><span class="text-sm text-muted"><%= t('member_management.member_since') %></span><time class="font-mono text-sm text-muted"><%= l(membership.created_at.to_date, format: :default) %></time></div>
+  <div class="members-setting"><p class="text-xs text-muted"><%= t('member_management.immediate') %></p><%= link_to t('member_management.done'), membership_list_path(membership_id: nil), class: 'text-sm text-muted hover:underline' %></div>
+  <% if policy(membership).destroy? %>
+    <div class="pt-4"><p class="mb-3 text-xs text-muted"><%= t('member_management.more_actions') %></p><%= button_to t('member_management.remove'), organisation_membership_path(@current_organisation, membership), method: :delete, class: 'members-danger text-sm text-left', form: { data: { turbo_confirm: t('member_management.confirm_remove', name: membership.user.full_name) } } %></div>
+  <% end %>
+</aside>

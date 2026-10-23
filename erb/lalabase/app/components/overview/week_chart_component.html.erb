@@ -1,0 +1,37 @@
+<%# Per-bucket bar chart for the selected period. Inline style= carries the COMPUTED bar height (a
+    data value, not static CSS — so it is not a forbidden <style> block); everything else is utility
+    classes. Frame target is _top so the card link navigates the whole page; the period tabs override
+    back to the frame. Bars use flex-1 so a 31-bucket month still fits. %>
+<%= turbo_frame_tag frame_id, target: '_top' do %>
+  <div>
+    <%= render Overview::PeriodHeaderComponent.new(
+          organisation: organisation, widget_key: widget_key, period: period,
+          title_key: data[:title_key], subtitle: data[:subtitle], frame_id: frame_id) %>
+
+    <%= link_to drilldown_path,
+                title: t('dashboard.briefing.period.drilldown_title'),
+                class: "block p-5 bg-cream-50 border border-cream-300 rounded-lg hover:border-ink transition-colors" do %>
+      <%# Scale reference: names what the tallest bar represents, so a single high day is readable
+          instead of an unlabelled spike. Per-bar hover tooltips give the exact per-bucket value. %>
+      <div class="flex justify-end mb-1">
+        <span class="font-mono text-[10px] uppercase tracking-wider text-cream-500"><%= t('dashboard.briefing.period.peak', hours: max_hours) %></span>
+      </div>
+      <div class="flex gap-1 items-end h-32">
+        <% buckets.each_with_index do |bucket, idx| %>
+          <div class="flex-1 min-w-0 flex flex-col items-center gap-1 h-full">
+            <div class="flex-1 w-full flex items-end">
+              <%# "today" is a STATE, not money/interactive -> marked by an ink fill + a "heute" label,
+                  NOT the cobalt accent (which is reserved for links + billing figures). %>
+              <div class="w-full border-t border-l border-r border-cream-300 <%= bucket[:current] ? 'bg-cream-900' : 'bg-cream-300' %> rounded-t"
+                   style="height: <%= bar_height_percent(bucket[:hours]) %>%;"
+                   title="<%= bucket[:label] %>: <%= bucket[:hours] %>h"></div>
+            </div>
+            <span class="font-mono text-[10px] uppercase tracking-wider truncate w-full text-center <%= bucket[:current] ? 'text-cream-900 font-bold' : 'text-cream-600' %>">
+              <%= bucket[:current] ? t('dashboard.briefing.period.today') : (show_label?(idx) ? bucket[:label] : '') %>
+            </span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

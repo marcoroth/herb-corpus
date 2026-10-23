@@ -1,0 +1,118 @@
+<%# locals: () %>
+<%# The LIST's head, inside the list column (S1 of doc/wissen_als_bahn_plan.md,
+    the rule the ticket list adopted in #730): the page title, the "+" menu,
+    help, then the filter bar. It reaches as far as the list it belongs to, so
+    the lane beside it starts at the top of the content area, next to the
+    title, not under a page-wide toolbar. Rendered in the desktop list slot
+    and above the mobile list alike (the page used to render it once above
+    both variants; a head only in the desktop slot would leave the phone
+    without title, "+" and filters). OUTSIDE turbo-frame#knowledge_results,
+    or a filter change would replace the control that triggered it. %>
+  <%= render NeoProjectLayoutHeaderComponent.new(
+    title: t('views.organisations.knowledge.index.title'),
+    subtitle: @project.name,
+    project: @project,
+    active_smart_folder: @active_smart_folder,
+    selected_item: @selected_item,
+    content_open: @selected_item.present?,
+    context_type: :knowledge,
+    # One rhythm down the list column, as on the ticket page: the title stands
+    # on the head of its own list, so it keeps the head's gap (mb-3.5), not the
+    # page-wide mb-6 of a title above a page.
+    margin_bottom: 'mb-3.5'
+  ) do |header| %>
+    <%# "New" dropdown with options depending on permission.
+        On the desktop the form loads into the lane's frame. On the phone the
+        mobile page renders list OR detail, so there is no frame to fill: the
+        link leaves the page (_top), notes#new / documents#new answer a plain
+        request with a redirect to this page carrying ?new=note|document, and
+        the page renders the form in its detail (S2 of doc/wissen_als_bahn_plan.md). %>
+    <% new_entry_frame = @viewport_mode == 'mobile' ? '_top' : 'knowledge_display_frame' %>
+    <% if can_write_notes? || can_write_documents? %>
+      <% header.with_title_action do %>
+        <div class="relative" data-controller="dropdown">
+          <%= render Neo::Buttons::IconButtonComponent.new(
+            variant: :primary,
+            icon: "plus-lg",
+            size: :medium,
+            title: t('views.organisations.knowledge.index.title'),
+            data: { action: "dropdown#toggle" }
+          ) %>
+          <%# Opens AGAINST the column's end (end-0), not away from the button
+              (start-0): the head lives inside the list column since S1, and
+              the column clips at its edge (overflow auto), so a menu that
+              hung off the button's start edge ran under the lane and lost its
+              words (seen 10.09.2026, "Notiz schreiben" cut to "Notiz"). The
+              ticket head never met this, its "+" opens no menu. %>
+          <ul data-dropdown-target="menu"
+              class="hidden absolute z-30 end-0 start-auto min-w-[200px] inline-flex flex-col rounded-lg bg-surface-raised border border-cream-300 shadow-sm py-2 mt-1">
+            <% if can_write_notes? %>
+              <li>
+                <%= link_to new_organisation_project_note_path(@current_organisation, @project, frame: 'content', frame_id: 'knowledge_display_frame'),
+                    data: { turbo_frame: new_entry_frame, action: "dropdown#close" },
+                    class: "flex flex-row items-center gap-3 py-2 px-4 hover:bg-cream-100 hover:text-cream-900 text-sm" do %>
+                  <i class="bi bi-pencil-square"></i>
+                  <%= t('views.organisations.knowledge.index.new_note') %>
+                <% end %>
+              </li>
+            <% end %>
+            <% if can_write_documents? %>
+              <li>
+                <%= link_to new_organisation_project_document_path(@current_organisation, @project, frame: 'content', frame_id: 'knowledge_display_frame'),
+                    data: { turbo_frame: new_entry_frame, action: "dropdown#close" },
+                    class: "flex flex-row items-center gap-3 py-2 px-4 hover:bg-cream-100 hover:text-cream-900 text-sm" do %>
+                  <i class="bi bi-file-earmark-arrow-up"></i>
+                  <%= t('views.organisations.knowledge.index.new_document') %>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    <% end %>
+    <% header.with_right_content do %>
+      <div class="flex items-center gap-2">
+        <%# No third lane and no button for one (S0 of doc/wissen_als_bahn_plan.md,
+            10.09.2026). The "Chat" toggle opened a panel whose whole content was
+            "Chat-Funktion in Entwicklung" since the chat per project went (#666), and
+            an open panel flips the grid into the panel focus mode, which no lane
+            rule is written for. The assistant is the one chat, and it docks to
+            the page from the outside. %>
+        <%= render 'common/contextual_help_menu', context: :knowledge %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%# Unified Filter Bar: type pills + SmartFolder pills + ad-hoc filter + search (PE-A/PE-B/PE-C).
+      Hidden on first use (no accessible knowledge at all — style guide "Leerzustände"). %>
+  <% unless knowledge_first_use?(@project) %>
+  <% smart_folder_target = Knowledge::TypeRegistry.smart_folder_target_for(@type) %>
+  <%= render NeoFilterBarComponent.new(
+    current_user_id: current_user&.id,
+    smart_folders: @knowledge_smart_folders,
+    url: organisation_project_knowledge_index_path(@current_organisation, @project, type: @type),
+    frame_id: 'knowledge_results',
+    i18n_scope: 'views.organisations.knowledge.index',
+    all_items_label: t('views.organisations.knowledge.index.all_items'),
+    smart_folder_context_type: smart_folder_target,
+    smart_folder_return_to: 'knowledge',
+    save_target_object_type: smart_folder_target,
+    # A folder is the active view; a ?type= next to it (an address of the old
+    # bar) narrows the list but marks no tab, or two tabs would be active.
+    builtin_views: knowledge_builtin_views((@active_smart_folder ? nil : @type), accessible_type_keys),
+    type_targets: knowledge_type_targets,
+    type_badge_icons: knowledge_type_badge_icons,
+    search_modes: %w[title_only content],
+    active_smart_folder: @active_smart_folder,
+    active_view_permissions: filter_bar_view_permissions(@active_smart_folder),
+    dissolver_result: @dissolver_result,
+    ad_hoc_filters: ad_hoc_filter_params.presence || {},
+    ad_hoc_operators: ad_hoc_filter_op_params.presence || {},
+    dropped_categories: dropped_filter_categories,
+    filter_categories_json: knowledge_filter_categories_json(@project, accessible_type_keys),
+    search_value: params[:search],
+    search_mode: @current_search_mode,
+    project: @project,
+    organisation: @current_organisation
+  ) %>
+  <% end %>

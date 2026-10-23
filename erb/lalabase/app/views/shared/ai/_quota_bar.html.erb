@@ -1,0 +1,56 @@
+<%# Shared KI-Kontingent consumption bar + state banners (plan §4.6). ONE source
+    for the org AI settings AND the admin backend, so the bar/banners never drift
+    from the gate. Locals:
+      organisation       (required)
+      show_settings_link (bool, default false — link to the org AI settings)
+      ledger             (optional, Lalabase::Llm::QuotaLedger — see below)
+    State + colours come from AiQuotaHelper. Nothing renders when AI is off (:off).
+
+    `ledger` exists because a page that shows the bar AND the history would otherwise
+    build one ledger per partial, and each of those re-runs the monthly consumption sum
+    and the two uncached SystemSetting reads behind budget/buffer (they are memoised PER
+    INSTANCE). A caller that renders more than one quota partial passes its own. %>
+<% ledger = local_assigns[:ledger] || organisation.ai_quota_ledger
+   state = ai_quota_state(organisation, ledger) # reuse the one ledger (avoids a 2nd used-sum)
+   show_link = local_assigns.fetch(:show_settings_link, false) %>
+<% if state != :off %>
+  <div class="max-w-4xl">
+    <h3 class="text-sm font-bold text-cream-900 mb-2">
+      <i class="bi bi-speedometer2 mr-2"></i><%= t('shared.ai.quota.heading') %>
+    </h3>
+
+    <div class="w-full bg-cream-200 rounded h-3 overflow-hidden border border-cream-300">
+      <div class="<%= ai_quota_fill_class(state) %> h-3 rounded" style="width: <%= [ledger.usage_percent, 100].min %>%"></div>
+    </div>
+    <p class="mt-1 text-sm text-cream-700 tabular-nums">
+      <%= t('shared.ai.quota.used_of', used: number_with_delimiter(ledger.used),
+            budget: number_with_delimiter(ledger.budget), percent: ledger.usage_percent) %>
+    </p>
+
+    <% if ai_quota_warn?(ledger) %>
+      <div class="mt-3 border border-cream-300 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <i class="bi bi-exclamation-triangle mr-1"></i><%= t('shared.ai.quota.warn_80') %>
+      </div>
+    <% elsif state == :grace %>
+      <div class="mt-3 border border-cream-300 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <i class="bi bi-hourglass-split mr-1"></i><%= t('shared.ai.quota.grace_banner') %>
+      </div>
+    <% elsif state == :exhausted %>
+      <%# 3-way banner (plan §4.6): BYOK / (Credits kaufen = S7, not built) / monthly reset. %>
+      <div class="mt-3 border border-cream-300 rounded-lg bg-red-50 p-4 text-sm text-red-800">
+        <p class="font-bold text-red-900">
+          <i class="bi bi-x-octagon mr-1"></i><%= t('shared.ai.quota.exhausted_title') %>
+        </p>
+        <p class="mt-1"><%= t('shared.ai.quota.exhausted_options_intro') %></p>
+        <ul class="list-disc pl-5 mt-1 space-y-1">
+          <li><%= t('shared.ai.quota.exhausted_byok') %></li>
+          <li><%= t('shared.ai.quota.exhausted_reset') %></li>
+        </ul>
+        <% if show_link %>
+          <%= link_to t('shared.ai.quota.settings_link'), organisation_ai_settings_path(organisation),
+                      class: 'inline-block mt-2 underline decoration-2 underline-offset-2 hover:text-red-900' %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

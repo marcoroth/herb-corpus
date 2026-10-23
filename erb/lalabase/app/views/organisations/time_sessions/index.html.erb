@@ -1,0 +1,237 @@
+<turbo-frame id="modal"></turbo-frame>
+
+<div class="h-full" style="height: 100%;"
+     data-controller="time-sessions-index"
+     data-time-sessions-index-organisation-id-value="<%= @current_organisation.id %>"
+     data-time-sessions-index-current-user-id-value="<%= current_user.id %>"
+     data-time-sessions-index-current-user-name-value="<%= "#{current_user.first_name} #{current_user.last_name}".strip %>"
+     data-time-sessions-index-accessible-projects-value="<%= @accessible_projects.to_json(only: [:id, :name]) %>"
+     data-time-sessions-index-accessible-time-session-groups-value="<%= @accessible_time_session_groups.to_json(only: [:id, :name]) %>"
+     data-time-sessions-index-available-tags-value="<%= @available_tags.to_json %>"
+     id="timeSessions">
+
+  <%# Title box AND tab bar, from one partial: see the note in
+      organisations/shared/_subnav on why the caller must not wrap this. %>
+  <%= render 'title_box' %>
+
+  <!-- Modal for time session -->
+  <div class="fixed z-modal inset-0 overflow-y-auto hidden"
+       data-time-sessions-index-target="modal"
+       data-context="index_page"
+       data-action="keydown.esc->time-sessions-index#closeModal">
+    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center">
+      <div class="fixed inset-0 transition-opacity" aria-hidden="true" data-action="click->time-sessions-index#clickOutside">
+        <div class="absolute inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm"></div>
+      </div>
+
+      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+      <div class="inline-block align-bottom bg-surface-raised rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle" style="max-width: 500px; width: 100%; max-height: 90vh;">
+        <div class="bg-surface-raised px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg leading-6 font-medium text-cream-900">
+                  <%= t('views.organisations.time_sessions.index.modal_title') %>
+                </h3>
+                <button type="button"
+                        class="p-1 ml-auto bg-transparent border-0 text-cream-900 opacity-50 hover:opacity-75 text-lg leading-none font-semibold outline-none focus:outline-none"
+                        data-action="click->time-sessions-index#closeModal">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+
+              <div class="overflow-y-auto" style="max-height: calc(80vh - 100px);">
+                <turbo-frame id="time_session_form_frame">
+                  <div id="time_session_form_container">
+                    <%# With a project filter, that project is the form's project when the
+                        reader may book there (the project page used to fix it). %>
+                    <% preselected = bookable_projects.find { |p| p.id.to_s == params[:project_id_filter].to_s } %>
+                    <% time_session = TimeSession.new(project: preselected) %>
+                    <%= render "organisations/time_sessions/form_organization_wide",
+                              time_session: time_session %>
+                    <%= hidden_field_tag :source, "index_page", id: "time_sessions_source" %>
+                  </div>
+                </turbo-frame>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% if @view == 'overview' %>
+    <%# The overview: the status table of booked time per project, IN PLACE of
+        the list (with thirty projects it is a screen, not a header). It carries
+        its own period (TimeSessions::ListPeriod, default "alles"); a number in
+        it opens the list with project, status AND that period set, plus a trail
+        back here that carries the period too. %>
+    <div class="mt-5 pb-24 lg:pb-0">
+      <div class="bg-cream-50 border border-ink shadow-[2px_2px_0_0_#14110c] rounded-lg p-4">
+        <%= render 'billing_overview_panel' %>
+      </div>
+    </div>
+  <% else %>
+  <!-- Unified responsive layout -->
+  <%# No top margin here. It used to carry an inline `margin-top: 20px`, which
+      sat exactly in the gap the tab bar now owns: the filter stripe is meant to
+      meet the bar's rule, and those 20px held it off - visibly further down
+      than the billings list's stripe, which never had them. %>
+  <div>
+    <%= render 'overview_trail' if params[:from] == 'overview' %>
+    <%# Mobile filter trigger + drawer wrapper. On desktop (lg+) everything is visible inline.
+        Hidden on first use (no time sessions at all — style guide "Leerzustände"):
+        filters/search over nothing only add noise. %>
+    <% unless time_sessions_first_use? %>
+    <div data-controller="mobile-filter-drawer">
+      <%# How many filters narrow the list, for the mobile badge. The number comes
+          from TimeSessionsHelper#time_filter_active_count, the same rule the
+          reset link reads (S7, E5).
+          It was written out here, and #692 had just corrected it in place: it
+          counted neither meeting_id, which S6 turned into a real filter, nor
+          creator_id. That fix is kept whole -- the subject counts as ONE Bezug,
+          whichever id carries it -- and moved behind one owner, because the
+          reset link needs the same answer and this is the third place the rule
+          would otherwise be enforced by hand. %>
+      <% active_filter_count = time_filter_active_count(@filter_state) %>
+      <div class="lg:hidden flex items-center justify-between gap-2 mb-3">
+        <%# data-filter-count: the badge's own handle. The number is printed in a
+            span whose only other mark is its styling, and a spec looking for a
+            "4" in the page body finds every 4 on the page. %>
+        <button type="button"
+                data-action="click->mobile-filter-drawer#toggle"
+                data-filter-count="<%= active_filter_count %>"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-cream-300 bg-cream-50 text-sm font-medium text-cream-900 hover:bg-cream-100 transition-colors">
+          <i class="bi bi-funnel"></i>
+          <span>Filter</span>
+          <% if active_filter_count > 0 %>
+            <span class="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-cobalt-600 text-on-fill rounded-full">
+              <%= active_filter_count %>
+            </span>
+          <% end %>
+        </button>
+      </div>
+
+      <%# Backdrop for the mobile drawer %>
+      <div class="lg:hidden fixed inset-0 bg-scrim/50 z-40 hidden"
+           data-mobile-filter-drawer-target="backdrop"
+           data-action="click->mobile-filter-drawer#close"></div>
+
+      <%# Drawer content: on mobile fixed bottom + hidden, on desktop visible inline %>
+      <div class="hidden lg:block fixed lg:static bottom-0 inset-x-0 lg:inset-auto z-50 lg:z-auto max-h-[85vh] lg:max-h-none overflow-y-auto lg:overflow-visible bg-cream-50 lg:bg-transparent border-t border-cream-300 lg:border-t-0 rounded-t-2xl lg:rounded-t-none"
+           data-mobile-filter-drawer-target="drawer">
+        <%# Mobile drawer header with close button %>
+        <div class="lg:hidden flex items-center justify-between px-4 py-3 border-b border-cream-200 sticky top-0 bg-cream-50 z-10">
+          <h3 class="font-bold text-cream-900">Filter</h3>
+          <button type="button"
+                  data-action="click->mobile-filter-drawer#close"
+                  class="text-cream-600 hover:text-cream-900 p-1">
+            <i class="bi bi-x-lg text-lg"></i>
+          </button>
+        </div>
+
+        <div class="mt-3 lg:mt-0">
+          <%# The filter LINE (S7, finding F7), as a STRIPE.
+              A soft panel, not the brutalist frame it replaced: the 2px ink
+              border and its hard shadow made the filter the heaviest thing above
+              the list it exists only to narrow. The pale card of 02.09.2026 was
+              that step taken once; this is it taken again.
+
+      The filter zone is a STRIPE: a light surface (surface-raised) across the
+      full width, one hairline below it, 14px of gap under the tab bar -
+      deliberately WITHOUT border and radius (that is the language of dropdowns
+      and modals, and the inner padding makes a second left edge) and WITHOUT
+      tint (tinted means "selected" and belongs to the choice pills,
+      CHOICE_STATES).
+      It replaces the pale card of 02.09.2026. That card's REASON - a light
+      ground, with the choice pills as the tinted things on it - still holds and
+      is kept here; only the geometry was doubly booked. Three steps with one
+      meaning each: page `surface`, zone `surface-raised`, selection `selected`.
+      The bottom hairline is the fallback for when the brightness step
+      disappears on a poor monitor, so it must never go quieter than cream-200.
+      ⚠️ No line on TOP, and no docking onto the tab bar's rule: the active
+      tab's underline may only sit on the bar's own line. The gap and the
+      brightness step are what set this zone off.
+              ⚠️ On the light ground the choice pills had to swap their states:
+              a white "narrowing" pill would dissolve into it. See CHOICE_STATES
+              in TimeSessionsHelper.
+              Below lg this is the mobile drawer, not a stripe: it keeps the
+              drawer's own ground and only pads its content. %>
+          <div data-controller="query-toggle"
+               class="px-4 py-3 lg:-mx-6 lg:px-6 lg:bg-surface-raised lg:border-b lg:border-cream-300">
+            <%= form_with url: time_list_path(@current_organisation), method: :get, data: { turbo_frame: "time_sessions_list_frame", controller: "auto-submit" } do |f| %>
+              <%= render 'filter_line', f: f %>
+            <% end %>
+          </div>
+        </div>
+
+        <%# The RESULT row (Handout §4): how much is in the list on the left, the
+            display controls on the right.
+            The search is NOT here -- it moved into the filter panel, where the
+            other things that decide WHAT is in the list live. This row reports
+            the answer and offers ways to look at it. %>
+        <div class="mt-3.5 mb-3.5 flex items-center justify-between gap-4 flex-wrap">
+          <%= render 'organisations/time_sessions/result_summary' %>
+          <%# Its own query-toggle: the chooser's options rewrite the live address
+              the same way the filter surfaces do, and the panel's controller is
+              a different element entirely. %>
+          <div data-controller="query-toggle">
+            <%= render 'display_pills' %>
+          </div>
+        </div>
+
+        <%# Mobile drawer footer: close button %>
+        <div class="lg:hidden flex justify-end px-4 py-3 border-t border-cream-200 sticky bottom-0 bg-cream-50">
+          <button type="button"
+                  data-action="click->mobile-filter-drawer#close"
+                  class="px-4 py-2 rounded-full bg-cobalt-200 border border-cream-300 text-sm font-medium text-cobalt-900 hover:bg-cobalt-300 transition-colors">
+            Anwenden
+          </button>
+        </div>
+      </div>  <%# drawer-target end %>
+    </div>  <%# mobile-filter-drawer controller end %>
+    <% end %>
+
+    <!-- Time Sessions List Container -->
+    <%# Padding-bottom on mobile (lg:pb-0) so that the fixed bottom nav (NeoMobileNav) does not
+        overlap the lower cards. ~80px = nav height + bottom-4 + safety margin. %>
+    <div class="pb-24 lg:pb-0">
+      <%# advance: a filter change updates the frame, and the address has to follow it.
+          Without that the browser still shows the query the page was opened with,
+          which is also what the pills above would rebuild from. %>
+      <%# The bulk controller sits AROUND the frame, not in it. Inside, every
+          filter, page or sort replaced it, so the assignment panel closed and
+          the selection was gone; a reader adjusting a filter to find the rest of
+          what they wanted lost what they already had (user, 31.08.2026). Out
+          here it survives, and the panel closes only when somebody closes it.
+
+          It is also what makes the panel a LANE rather than a layer: the frame
+          and the panel are flex siblings, so the list gives way instead of being
+          covered. On a phone the panel is a sheet at the bottom edge, because
+          there is no width to give. %>
+      <div data-controller="time-session-bulk"
+           <%# Who is looking. sessionStorage outlives a sign-out in the same tab,
+               so the selection is filed under the reader as well as the path. %>
+           data-time-session-bulk-scope-value="<%= current_user.id %>"
+           data-time-session-bulk-closed-class="translate-y-full lg:hidden"
+           class="lg:flex lg:items-start lg:gap-6">
+        <%# A DIV, not a second turbo-frame: _index_table opens and closes a frame
+            with this very id itself, and this file wrapped it in another one with
+            the SAME id. Two elements with one id is invalid HTML, and it is why
+            reasoning about "inside or outside the frame" here gave the wrong
+            answer for so long. The frame is the partial's; this is only the flex
+            column that gives way for the lane. %>
+        <div class="min-w-0 lg:flex-1">
+
+          <%= render 'organisations/time_sessions/index_table', months: @list_months, pagy: @pagy, show_creator: params[:show_creator] == '1', expand_all: params[:expand_all] == '1' %>
+        </div>
+
+        <%# LAST, so the lane sits right of the list without an order utility, and
+            so a screen reader meets the list before the panel that talks about it. %>
+        <%= render 'organisations/time_sessions/bulk_action_bar' %>
+      </div>
+    </div>
+  </div>
+  <% end %>
+</div>

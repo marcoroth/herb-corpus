@@ -1,0 +1,112 @@
+<%= form_with(model: [@current_organisation, project], local: true) do |form| %>
+  <!-- Form container -->
+  <div class="max-w-2xl">
+    <% if project.errors.any? %>
+      <%# D5 Callout (danger): border-stroke, no shadow, icon. Inside the form
+          column, so the box is as wide as the fields it explains. %>
+      <div class="bg-red-50 border border-stroke text-red-800 rounded-lg p-4 mb-4" role="alert">
+        <h2 class="font-bold"><i class="bi bi-exclamation-octagon"></i> <%= t('.errors_prevent_save', count: project.errors.count) %></h2>
+        <ul class="list-disc list-inside mt-2">
+          <% project.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <%# B2: Warm section rows (label+hint on the left, field on the right, divider) instead of border-2-black card. %>
+    <!-- Name field -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 py-6 border-t border-cream-200">
+      <div class="md:col-span-1">
+        <%= form.label :name, t('.project_name'), class: "block text-sm font-medium text-cream-700" %>
+      </div>
+      <div class="md:col-span-2">
+        <%# The field shows its own error state (red border, aria-invalid), not
+            only the callout above; same as the organisation name form. %>
+        <%= form.text_field :name,
+            class: "w-full px-4 py-2 border bg-surface-raised rounded text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all #{project.errors[:name].any? ? 'border-red-500 bg-red-50' : 'border-cream-300'}",
+            placeholder: t('.name_placeholder'),
+            maxlength: Project::NAME_MAX_LENGTH,
+            required: true,
+            aria: { invalid: project.errors[:name].any? || nil } %>
+      </div>
+    </div>
+
+    <!-- Description field: most projects never get one, so a blank description
+         hides behind a disclosure link; an existing description renders expanded
+         (otherwise the saved text would look lost). -->
+    <% description_field = capture do %>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8">
+        <div class="md:col-span-1">
+          <%= form.label :description, t('.description'), class: "block text-sm font-medium text-cream-700" %>
+        </div>
+        <div class="md:col-span-2">
+          <%= form.text_area :description,
+              rows: 4,
+              class: "w-full px-4 py-2 border border-cream-300 bg-surface-raised rounded text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all",
+              placeholder: t('.description_placeholder') %>
+        </div>
+      </div>
+    <% end %>
+    <% if project.description.present? %>
+      <div class="py-6 border-t border-cream-200">
+        <%= description_field %>
+      </div>
+    <% else %>
+      <%# Generic collapse controller: server renders field hidden + trigger
+          visible, connect() re-asserts that state, a click swaps both (one-way
+          reveal — no re-collapse needed for a single optional field). %>
+      <div class="py-6 border-t border-cream-200" data-controller="collapse">
+        <button type="button"
+                class="text-sm font-medium text-cream-600 hover:text-ink transition-colors"
+                data-collapse-target="button"
+                data-action="collapse#toggle">
+          <i class="bi bi-plus-lg"></i> <%= t('.add_description') %>
+        </button>
+        <div class="hidden" data-collapse-target="content">
+          <%= description_field %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if project.new_record? %>
+      <!-- Default attributes -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 py-6 border-t border-cream-200">
+        <div class="md:col-span-1">
+          <span class="block text-sm font-medium text-cream-700"><%= t('.create_default_attributes') %></span>
+        </div>
+        <div class="md:col-span-2">
+          <label class="flex items-start gap-3 cursor-pointer">
+            <%= hidden_field_tag :create_default_attributes, '0' %>
+            <%# Checked on a fresh form; on the 422 re-render it keeps what the
+                user chose (the hidden field before it sends '0' when cleared). %>
+            <%= check_box_tag :create_default_attributes, '1', params[:create_default_attributes] != '0',
+                class: "mt-0.5 w-4 h-4 border border-cream-300 rounded accent-ink cursor-pointer" %>
+            <span class="text-sm">
+              <span class="font-medium text-cream-700"><%= t('.create_default_attributes') %></span>
+              <span class="block text-cream-600 text-xs mt-0.5"><%= t('.create_default_attributes_hint') %></span>
+            </span>
+          </label>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Footer with buttons -->
+    <%# Footer (D1/P7): standalone form → Cancel secondary on the left, Save primary on the right.
+        Both ButtonComponent (P4), size :large (B5). Submit without decorative icon (P3/AP2 → check2 removed).
+        Cancel returns where the user came from: the settings hub for a persisted
+        project (details subpage), the project list for a new one. %>
+    <div class="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-cream-200">
+      <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :secondary,
+            size: :large,
+            url: project.persisted? ? edit_organisation_project_path(@current_organisation, project) : organisation_projects_path(@current_organisation)
+          ) do %>
+        <%= t('.cancel') %>
+      <% end %>
+
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, type: 'submit') do %>
+        <%= t('.save') %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

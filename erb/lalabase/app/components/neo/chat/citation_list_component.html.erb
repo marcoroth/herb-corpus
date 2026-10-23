@@ -1,0 +1,58 @@
+<%# Deliberately quiet (2026-07-18 feedback): right-aligned, faint, no rule
+    above — the citations are secondary to the answer text.
+
+    One row per SOURCE since Feinschliff B, not per citation: a ticket and the
+    comments inside it are one row that says how many places were used. The
+    counter in the summary counts rows, so it agrees with what is listed. %>
+<details class="mt-2 group" data-testid="citation-list">
+  <summary class="text-xs text-faint hover:text-muted cursor-pointer list-none flex items-center justify-end gap-1 select-none transition-colors">
+    <span class="bi bi-chevron-right text-[10px] transition-transform group-open:rotate-90" aria-hidden="true"></span>
+    <%= header %> (<%= groups.size %>)
+  </summary>
+  <ul class="text-xs space-y-1 mt-2">
+    <% groups.each do |group| %>
+      <% cite = group[:lead] %>
+      <li class="flex items-start gap-2" data-testid="citation-row">
+        <span class="bi <%= icon_for(cite['type']) %> mt-0.5 text-gray-500" aria-hidden="true"></span>
+        <span class="flex-1">
+          <%# The [n] the prose references, same numbering as the inline resolver
+              (full persisted list, so the numbers never shift per viewer). A
+              grouped row carries every member's number, lead first. %>
+          <% if (numbers = numbers_label(group)).present? %>
+            <span class="text-gray-500 me-1 tabular-nums" data-testid="citation-numbers"><%= numbers %></span>
+          <% end %>
+          <%# turbo_frame: "_top" is REQUIRED, not cosmetic: this list renders inside
+              <turbo-frame id="chat-show"> (ChatContainerComponent), so without the escape
+              Turbo loads the ticket/note/document page INTO that frame, finds no matching
+              frame in the response and renders its own "Content missing" instead of
+              navigating. Same trap the tickets/meetings link lists already document. %>
+          <%# A source whose object is gone renders as TEXT: the link would end on an
+              error page, and in production not even a designed one (public/ is
+              gitignored, so there is no 404 page there). The label stays — the answer
+              did draw on it. %>
+          <% if (href = link_for(cite)).present? && !gone?(cite) %>
+            <%# data-assistant-artefact (S3c T3): only on sources that HAVE a panel,
+                i.e. today the time report. In the assistant's full view the panel
+                controller intercepts the click and opens the artefact lane; every
+                other surface, and the companion mode, follow the href as before.
+                One link, two behaviours, and the fallback is the working one. %>
+            <%= link_to label_for(cite), href,
+                  class: "font-medium underline decoration-dotted underline-offset-2 hover:text-cobalt-700",
+                  data: { turbo_frame: "_top" }.merge(artefact_data(cite)) %>
+          <% else %>
+            <span class="font-medium"><%= label_for(cite) %></span>
+          <% end %>
+          <% if (loc = location_for(cite)).present? %>
+            <span class="text-gray-500 ms-1"><%= loc %></span>
+          <% end %>
+          <% if (hits = hits_label(group)).present? %>
+            <span class="text-gray-500 ms-1" data-testid="citation-hits">· <%= hits %></span>
+          <% end %>
+          <% if gone?(cite) %>
+            <span class="text-gray-500 ms-1 italic" data-testid="citation-gone">· <%= gone_label %></span>
+          <% end %>
+        </span>
+      </li>
+    <% end %>
+  </ul>
+</details>

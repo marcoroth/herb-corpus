@@ -1,0 +1,96 @@
+<%# locals: (meeting:) %>
+<%# "Verknüpfte Tickets" on the meeting detail (Gespräche
+    Slice 3). Wrapped in its own turbo-frame so create/destroy refresh just this
+    block. Permissions are computed here so the partial renders identically from
+    _meeting_show AND from the controller's turbo_stream replace. %>
+<% project = meeting.project %>
+<% can_write = policy(project).area_access?(:meetings, :write) %>
+<%# Ticket titles are only linked / the picker is only offered to users who may
+    read tickets in THIS project — same gate as the TimeSession subject picker,
+    so a meetings-only user never sees the project's ticket list. %>
+<% can_read_tickets = policy(project).area_access?(:tickets, :read) %>
+<%# includes(:target) → live titles without N+1; a tombstone (target nil) falls
+    back to the stored snapshot. Scoped to Ticket targets (meetings only link to
+    tickets in Slice 3; document links are a deferred slice). %>
+<% references = meeting.outgoing_references
+                       .where(target_type: Ticket.polymorphic_name)
+                       .includes(:target).order(:created_at).to_a %>
+<%# Ids of already-linked tickets, used below to keep them out of the picker.
+    map (not filter_map): target_id is NOT NULL, so it is never nil — even a
+    tombstone keeps the deleted ticket's id. %>
+<% linked_ids = references.map(&:target_id) %>
+
+<%# Frame id is the shared contract with MeetingTicketLinksController (see the
+    helper) — never inline dom_id here, or the two can drift. %>
+<%= turbo_frame_tag meeting_ticket_links_frame_id(meeting) do %>
+  <section class="meeting-content mt-8">
+    <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
+      <i class="bi bi-link-45deg"></i>
+      <%= t('views.organisations.meetings.ticket_links.heading') %>
+    </h3>
+
+    <% if references.any? %>
+      <ul class="divide-y divide-cream-200 border-t border-cream-200">
+        <% references.each do |ref| %>
+          <li class="flex items-center gap-3 py-2 text-sm" id="<%= dom_id(ref, :meeting_ticket_link) %>">
+            <i class="bi bi-card-checklist text-cream-500 shrink-0"></i>
+            <% if ref.target.present? %>
+              <% if can_read_tickets %>
+                <%# _top: this link sits inside the section's turbo-frame, but the
+                    tickets page has no frame with that id — without the escape
+                    Turbo renders "Content missing" instead of navigating. %>
+                <%= link_to ref.target.display_title,
+                            organisation_project_tickets_path(@current_organisation, project, ticket_id: ref.target.id),
+                            class: 'flex-1 min-w-0 truncate text-cream-900 hover:underline',
+                            data: { turbo_frame: '_top' } %>
+              <% else %>
+                <span class="flex-1 min-w-0 truncate text-cream-900"><%= ref.target.display_title %></span>
+              <% end %>
+            <% else %>
+              <%# Tombstone: the linked ticket was hard-deleted — show the snapshot,
+                  never a dead link (plan Slice 3 / D13). %>
+              <span class="flex-1 min-w-0 truncate text-cream-400 line-through"><%= ref.target_title_snapshot %></span>
+              <span class="shrink-0 text-xs italic text-cream-400"><%= t('views.organisations.meetings.ticket_links.deleted_badge') %></span>
+            <% end %>
+            <% if can_write %>
+              <%= button_to organisation_project_meeting_ticket_link_path(@current_organisation, project, meeting, ref),
+                            { method: :delete,
+                              class: 'shrink-0 leading-none text-cream-400 hover:text-red-600',
+                              form: { class: 'shrink-0' },
+                              title: t('views.organisations.meetings.ticket_links.remove'),
+                              'aria-label': t('views.organisations.meetings.ticket_links.remove') } do %>
+                <i class="bi bi-x-lg"></i>
+              <% end %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="border-t border-cream-200 pt-2 text-sm italic text-cream-500">
+        <%= t('views.organisations.meetings.ticket_links.empty') %>
+      </p>
+    <% end %>
+
+    <% if can_write && can_read_tickets %>
+      <% ticket_options = selectable_tickets_for(project)
+                            .reject { |tk| linked_ids.include?(tk.id) }
+                            .map { |tk| { value: tk.id, text: tk.display_title } } %>
+      <%= form_with url: organisation_project_meeting_ticket_links_path(@current_organisation, project, meeting),
+                    method: :post,
+                    class: 'mt-3 flex items-end gap-2' do %>
+        <div class="min-w-0 flex-1">
+          <%= render NeoAutosuggestComponent.new(
+                name: :ticket_id,
+                options: ticket_options,
+                include_blank: true,
+                blank_text: t('views.organisations.meetings.ticket_links.picker_placeholder'),
+                placeholder: t('views.organisations.meetings.ticket_links.picker_placeholder')
+              ) %>
+        </div>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, icon: 'plus-lg', type: :submit) do %>
+          <%= t('views.organisations.meetings.ticket_links.add') %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>

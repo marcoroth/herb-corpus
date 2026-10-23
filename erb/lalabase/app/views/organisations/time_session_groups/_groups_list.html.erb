@@ -1,0 +1,253 @@
+<%# The billings table (P3 of doc/abrechnungen_filterzeile_und_tabelle_plan.md):
+    the time list's visual language - a flex-column grid, one 24px line box,
+    right-aligned mono figures - for rows that ARE billings. Columns: name with
+    a project subline · sessions · duration · status dot + word · invoice ·
+    created · row menu.
+
+    Every figure comes precomputed from the controller (one grouped query
+    each: counts, minutes, project names); nothing in here may ask per row -
+    the query-count guard holds it.
+
+    ⚠️ Keys are FULLY qualified: lazy t('.') in this template resolves under
+    `organisations.time_session_groups.groups_list` (no views prefix), which is
+    exactly where the old keys sat in de.yml - twice, once misnested under
+    devise. They live once now, in zeiterfassung.{de,en}.yml under the views
+    scope, so the path is written out. %>
+<%
+  gl = 'views.organisations.time_session_groups.groups_list'
+  visible_sessions = @time_session_groups.sum { |group| @group_session_counts.fetch(group.id, 0) }
+  visible_minutes = @time_session_groups.sum { |group| @group_session_minutes.fetch(group.id, 0) }
+  menu_link_classes = 'flex items-center gap-3 w-full px-4 py-2 text-sm text-cream-900 hover:bg-cream-100 rounded-lg'
+%>
+
+<!-- Mobile Card View (visible on small screens) -->
+<div class="block md:hidden">
+  <% if @time_session_groups.any? %>
+    <div class="grid gap-4">
+      <% @time_session_groups.each do |group| %>
+        <div class="bg-cream-50 border border-cream-300 rounded-lg p-4 transition-shadow">
+          <div class="flex justify-between items-start">
+            <div class="flex-grow min-w-0">
+              <h3 class="text-lg font-semibold mb-1">
+                <%= link_to group.name, organisation_time_session_group_path(@current_organisation, group),
+                            class: "text-cream-900 hover:underline",
+                            data: { turbo_frame: "_top" } %>
+              </h3>
+              <div class="flex flex-wrap items-center gap-2 text-sm text-cream-600">
+                <%= billing_state_dot(group.billed?) %>
+                <span><%= time_billing_state_label(group.billed? ? 'billed' : 'in_billing') %></span>
+                <% if group.billed? %>
+                  <span class="font-mono">• <%= group.invoice_number %></span>
+                <% else %>
+                  <span>• <%= t("#{gl}.sessions_count", count: @group_session_counts.fetch(group.id, 0)) %></span>
+                  <span class="font-mono">• <%= TimeSession.format_duration(@group_session_minutes[group.id]) %></span>
+                <% end %>
+              </div>
+              <div class="text-xs text-cream-500 mt-1">
+                <%= group.billed? ? t("#{gl}.billed_at", date: group.billed_at.strftime('%d.%m.%Y')) : t("#{gl}.created_at", date: group.created_at.strftime('%d.%m.%Y')) %>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <%= render Neo::Buttons::IconButtonComponent.new(
+                variant: :ghost,
+                size: :medium,
+                tag: :a,
+                href: organisation_time_session_group_path(@current_organisation, group),
+                icon: "eye",
+                data: { turbo_frame: "_top" }
+              ) %>
+              <% unless group.billed? %>
+                <% if policy(group).update? %>
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :edit,
+                    size: :medium,
+                    tag: :a,
+                    href: edit_organisation_time_session_group_path(@current_organisation, group),
+                    icon: "pencil",
+                    data: { turbo_frame: "_top" }
+                  ) %>
+                <% end %>
+                <% if policy(group).destroy? %>
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :danger,
+                    size: :medium,
+                    icon: "trash",
+                    interactive: true,
+                    confirm: t("#{gl}.confirm_delete_with_sessions"),
+                    form: {
+                      action: organisation_time_session_group_path(@current_organisation, group),
+                      method: :delete
+                    }
+                  ) %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="bg-cream-50 border border-cream-300 rounded-lg p-4 text-center">
+      <p class="text-cream-700"><%= billing_filter_narrowed?(@current_billing_status, @effective_date_range) ? t("#{gl}.empty_filtered") : t("#{gl}.no_groups_available") %></p>
+    </div>
+  <% end %>
+</div>
+
+<!-- Desktop list (medium screens and up) -->
+<div class="hidden md:block">
+  <% if @time_session_groups.any? %>
+    <%# Header: the same skeleton as the rows, spacer for spacer. The header,
+        every row and the sum footer draw ONE column set; change one, change
+        all three (the time list's month-header lesson). %>
+    <div class="flex items-center gap-3.5 px-2 pb-1.5 text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600">
+      <span class="min-w-0 flex-1"><%= t("#{gl}.table.name") %></span>
+      <span class="w-[48px] shrink-0 text-right"><%= t("#{gl}.table.sessions") %></span>
+      <span class="w-[62px] shrink-0 text-right"><%= t("#{gl}.table.total_time") %></span>
+      <span class="w-[140px] shrink-0 pl-1"><%= t("#{gl}.table.status") %></span>
+      <span class="w-[120px] shrink-0"><%= t("#{gl}.table.invoice_number") %></span>
+      <span class="w-[86px] shrink-0 text-right"><%= t("#{gl}.table.created_at") %></span>
+      <span class="w-8 shrink-0"></span>
+    </div>
+    <div class="h-px bg-cream-400"></div>
+
+    <% @time_session_groups.each do |group| %>
+      <%# The WHOLE row is the link (user, 02.09.): the name link stretches an
+          invisible overlay across the row, so no JavaScript and no nested
+          anchors. Everything interactive that must stay clickable (the menu)
+          is positioned and painted above it. hover is cream-200, not
+          cream-100: the page ground IS cream-100, so the lighter tone showed
+          nothing at all. %>
+      <div class="group relative flex items-start gap-3.5 border-b border-cream-200 px-2 py-2.5 transition-colors hover:bg-cream-200">
+        <div class="min-w-0 flex-1">
+          <%= link_to group.name, organisation_time_session_group_path(@current_organisation, group),
+                      class: "block truncate text-[15px] font-medium leading-6 text-cream-900 hover:underline after:absolute after:inset-0 after:content-['']",
+                      data: { turbo_frame: "_top" } %>
+          <%# The subline: which projects the billing draws from, at most two
+              names plus how many more; a billing without sessions says so
+              instead. Precomputed (@group_project_names), policy-scoped: the
+              names mean "what you can see in there". %>
+          <% names = @group_project_names.fetch(group.id, []) %>
+          <div class="truncate text-xs leading-5 text-cream-600">
+            <% if names.empty? %>
+              <%= t("#{gl}.no_sessions_yet") %>
+            <% elsif names.size <= 2 %>
+              <%= names.join(' · ') %>
+            <% else %>
+              <%= names.first(2).join(' · ') %> <%= t("#{gl}.projects_more", count: names.size - 2) %>
+            <% end %>
+          </div>
+        </div>
+
+        <span class="w-[48px] shrink-0 text-right font-mono text-sm leading-6 text-cream-900">
+          <%= @group_session_counts.fetch(group.id, 0) %>
+        </span>
+
+        <span class="w-[62px] shrink-0 text-right font-mono text-sm font-semibold leading-6 text-cream-900">
+          <%= TimeSession.format_duration(@group_session_minutes[group.id]) %>
+        </span>
+
+        <span class="flex w-[140px] shrink-0 items-center gap-2 pl-1 leading-6">
+          <%= billing_state_dot(group.billed?) %>
+          <span class="truncate text-[13px] text-cream-800"><%= time_billing_state_label(group.billed? ? 'billed' : 'in_billing') %></span>
+        </span>
+
+        <span class="w-[120px] shrink-0 truncate font-mono text-sm leading-6 <%= group.billed? ? 'text-cream-900' : 'text-cream-500' %>">
+          <%= group.billed? ? group.invoice_number : t("#{gl}.without_number") %>
+        </span>
+
+        <span class="w-[86px] shrink-0 text-right font-mono text-sm leading-6 text-cream-700">
+          <%= group.created_at.strftime('%d.%m.%Y') %>
+        </span>
+
+        <span class="flex w-8 shrink-0 justify-end leading-6">
+          <%# The row menu (mockup, decision D-E): a <details> like every menu
+              of the filter line - keyboard-operable and JavaScript-free,
+              details-autoclose only ADDS outside-click and Escape. Entries
+              respect the policy lines the icon buttons respected before, and
+              the delete link speaks Turbo (turbo_method/turbo_confirm), never
+              the rails-ujs options this app does not load. %>
+          <details class="relative z-10" data-controller="details-autoclose">
+            <summary class="flex h-6 w-6 cursor-pointer select-none list-none items-center justify-center rounded-md text-cream-700 hover:bg-cream-200"
+                     title="<%= t("#{gl}.menu_label") %>">
+              <i class="bi bi-three-dots" aria-hidden="true"></i>
+              <span class="sr-only"><%= t("#{gl}.menu_label") %></span>
+            </summary>
+            <div class="absolute right-0 top-full z-dropdown mt-2 min-w-[14rem] rounded-2xl border border-cream-300 bg-cream-50 py-2 shadow-[0_10px_30px_-8px_rgba(20,17,12,0.28)]">
+              <%= link_to t("#{gl}.menu_view_times"),
+                          organisation_time_session_group_path(@current_organisation, group),
+                          class: menu_link_classes, data: { turbo_frame: '_top' } %>
+              <% if policy(group).update? && !group.billed? %>
+                <%# Opens the edit modal; the href stays the no-JS fallback and
+                    _top keeps that fallback out of the list frame. %>
+                <%= link_to t("#{gl}.menu_edit"),
+                            edit_organisation_time_session_group_path(@current_organisation, group),
+                            class: menu_link_classes,
+                            data: { action: 'click->billing-modal#open',
+                                    billing_modal_url_param: edit_organisation_time_session_group_path(@current_organisation, group),
+                                    turbo_frame: '_top' } %>
+              <% end %>
+              <% if policy(group).mark_as_billed? %>
+                <% group_status_url = billing_status_organisation_time_session_group_path(@current_organisation, group) %>
+                <%= link_to t(group.billed? ? 'views.organisations.time_session_groups.billing_status.submit_unbill' : 'views.organisations.time_session_groups.show_header.bill_button'),
+                            group_status_url,
+                            class: menu_link_classes,
+                            data: { action: 'click->billing-modal#open',
+                                    billing_modal_url_param: group_status_url,
+                                    turbo_frame: '_top' } %>
+              <% end %>
+              <% if policy(group).destroy? %>
+                <div class="mx-3 my-1 h-px bg-cream-300"></div>
+                <%= link_to t("#{gl}.menu_delete"),
+                            organisation_time_session_group_path(@current_organisation, group),
+                            class: "#{menu_link_classes} text-red-700",
+                            data: { turbo_method: :delete,
+                                    turbo_confirm: t("#{gl}.confirm_delete_with_sessions"),
+                                    turbo_frame: '_top' } %>
+              <% end %>
+            </div>
+          </details>
+        </span>
+      </div>
+    <% end %>
+
+    <%# The sum footer: what is ON SCREEN, summed from the rendered rows (the
+        filtered total across pages is the result summary above the list). %>
+    <div class="flex items-center gap-3.5 px-2 pt-2 text-sm">
+      <span class="min-w-0 flex-1 text-cream-600"><%= t("#{gl}.visible_sum") %></span>
+      <span class="w-[48px] shrink-0 text-right font-mono text-sm text-cream-900"><%= visible_sessions %></span>
+      <span class="w-[62px] shrink-0 text-right font-mono text-base font-semibold text-cream-900"><%= TimeSession.format_duration(visible_minutes) %></span>
+      <span class="w-[140px] shrink-0 pl-1"></span>
+      <span class="w-[120px] shrink-0"></span>
+      <span class="w-[86px] shrink-0 text-right"></span>
+      <span class="w-8 shrink-0"></span>
+    </div>
+  <% else %>
+    <div class="rounded-lg border border-cream-300 bg-cream-50 p-6 text-center">
+      <%# Two different silences: nothing exists yet, or the filter emptied the
+          list. The way out of the second is the reset in the filter line,
+          which the frame answer keeps fresh. %>
+      <p class="text-cream-700">
+        <%= billing_filter_narrowed?(@current_billing_status, @effective_date_range) ? t("#{gl}.empty_filtered") : t("#{gl}.no_groups_available") %>
+      </p>
+    </div>
+  <% end %>
+</div>
+
+<% if @pagy && @pagy.pages > 1 %>
+  <%= render 'shared/pagination_nav_compact', pagy: @pagy, frame_id: 'time_session_groups_list_frame' %>
+<% end %>
+
+<%# ⚠️ INSIDE the frame, and that is the whole trick (the time list's
+    FRAME_DEPENDENT_REGIONS pattern, same reasons, same idiom): the result
+    summary and the reset link stand OUTSIDE time_session_groups_list_frame
+    while the search and the auto-submit target it. A <turbo-stream> element is
+    applied document-wide when it arrives in the DOM - but only if it travels
+    INSIDE the frame; after </turbo-frame> Turbo discards it, present in the
+    body and never applied. %>
+<% if turbo_frame_request? || request.format.turbo_stream? %>
+  <% TimeSessionGroupsHelper::BILLING_FRAME_DEPENDENT_REGIONS.each do |region| %>
+    <%= turbo_stream.replace "billing_#{region}" do %>
+      <%= render "organisations/time_session_groups/#{region}" %>
+    <% end %>
+  <% end %>
+<% end %>

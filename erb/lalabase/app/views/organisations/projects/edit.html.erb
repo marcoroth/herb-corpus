@@ -1,0 +1,203 @@
+
+<%# Turbo Frame for modal contents %>
+<turbo-frame id="modal"></turbo-frame>
+
+<div class="labor-layout-view">
+  <!-- heading -->
+  <%= render NeoTitleBoxComponent.new(
+    title: t('views.organisations.projects.edit.settings_title'),
+    subtitle: @project.name,
+    variant: :project
+  ) %>
+
+  <%# Project details card: the settings page is a pure hub of navigation
+      cards — the name + description form lives on the details subpage.
+      Mirrors the card pattern of _custom_fields (title, hint, current state,
+      arrow CTA). Every visitor here passed authorize :update?, so no extra
+      gating. %>
+  <div class="max-w-2xl mt-6">
+    <div class="bg-cream-50 border border-cream-200 rounded-lg p-6">
+      <h3 class="text-sm font-bold uppercase text-cream-600 mb-3"><%= t('views.organisations.projects.edit.details_title') %></h3>
+      <p class="text-sm text-cream-600 mb-3"><%= t('views.organisations.projects.edit.details_description') %></p>
+      <div class="text-sm mb-4 space-y-0.5">
+        <p class="font-medium text-cream-900"><%= @project.name %></p>
+        <% if @project.description.present? %>
+          <p class="text-cream-600"><%= truncate(@project.description, length: 140) %></p>
+        <% else %>
+          <p class="text-cream-500"><%= t('views.organisations.projects.edit.details_no_description') %></p>
+        <% end %>
+      </div>
+      <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :secondary,
+            icon: "arrow-right",
+            icon_position: :right,
+            url: details_organisation_project_path(@current_organisation, @project)
+          ) do %>
+        <%= t('views.organisations.projects.edit.edit_details') %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if policy(@current_organisation).admin? %>
+    <div class="max-w-2xl mt-8">
+      <%# Ticket fields: light warm section (S0/S5), no border-2-black. %>
+      <div class="bg-cream-50 border border-cream-200 rounded-lg p-6">
+        <%= render 'custom_fields', project: @project %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Repository-backed feature cards (code chat + documentation sync) —
+      deliberately OUTSIDE the admin? block above: they must be visible to every
+      settings visitor (not only org admins), with per-user gating handled inside
+      the partial. See plan 1a ("Implementierungsfalle"). %>
+  <%= render 'repository_feature_cards', project: @project %>
+
+  <%# ====== DANGER ZONE ====== %>
+  <% can_archive = policy(@project).archive? %>
+  <% can_unarchive = policy(@project).unarchive? %>
+  <% can_destroy = policy(@project).destroy? %>
+
+  <% if can_archive || can_unarchive || can_destroy %>
+    <div class="max-w-2xl mt-12" data-controller="project-delete-modal"
+         data-action="keydown@window->project-delete-modal#closeOnEscape">
+      <h2 class="text-sm font-bold uppercase tracking-wider text-red-600 mb-3">
+        <i class="bi bi-exclamation-triangle"></i> <%= t('views.organisations.projects.edit.danger_zone') %>
+      </h2>
+      <div class="border border-red-300 rounded-lg bg-red-50 divide-y divide-red-200">
+
+        <% if can_archive %>
+          <div class="p-4 flex items-center justify-between">
+            <div>
+              <p class="text-sm font-bold text-cream-900"><%= t('views.organisations.projects.edit.archive_project') %></p>
+              <p class="text-xs text-cream-600 mt-0.5"><%= t('views.organisations.projects.edit.archive_description') %></p>
+            </div>
+            <%# Archive = reversible state change → warning variant, archive icon. %>
+            <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :warning,
+                  icon: "archive",
+                  url: archive_organisation_project_path(@current_organisation, @project),
+                  class: "shrink-0 ml-4",
+                  interactive: true,
+                  confirm: t('views.confirm.archive_project', name: @project.name),
+                  data: { turbo_method: :patch }
+                ) do %>
+              <%= t('views.organisations.projects.edit.archive_button') %>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if can_unarchive %>
+          <div class="p-4 flex items-center justify-between">
+            <div>
+              <p class="text-sm font-bold text-cream-900"><%= t('views.organisations.projects.edit.restore_project') %></p>
+              <p class="text-xs text-cream-600 mt-0.5"><%= t('views.organisations.projects.edit.restore_description') %></p>
+            </div>
+            <%# Restore = positive reversible action → success variant, ↺ icon. %>
+            <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :success,
+                  icon: "arrow-counterclockwise",
+                  url: unarchive_organisation_project_path(@current_organisation, @project),
+                  class: "shrink-0 ml-4",
+                  interactive: true,
+                  confirm: t('views.confirm.restore_project', name: @project.name),
+                  data: { turbo_method: :patch }
+                ) do %>
+              <%= t('views.organisations.projects.edit.restore_button') %>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if can_destroy %>
+          <div class="p-4 flex items-center justify-between">
+            <div>
+              <p class="text-sm font-bold text-red-800"><%= t('views.organisations.projects.edit.delete_project_title') %></p>
+              <p class="text-xs text-cream-600 mt-0.5"><%= t('views.organisations.projects.edit.delete_project_description') %></p>
+            </div>
+            <%# Irreversible action (delete project permanently) → danger_zone variant (C4/Decision 10):
+                red outline, hover inverts (red/white), warning triangle instead of trash can (P8). Opens
+                confirmation modal with „type the name" (B7). Stimulus target preserved. %>
+            <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :danger_zone,
+                  icon: "exclamation-triangle",
+                  class: "shrink-0 ml-4",
+                  data: {
+                    action: "click->project-delete-modal#open",
+                    project_delete_modal_project_name_param: @project.name,
+                    project_delete_modal_project_id_param: @project.id,
+                    project_delete_modal_delete_url_param: organisation_project_path(@current_organisation, @project)
+                  }
+                ) do %>
+              <%= t('views.organisations.projects.edit.delete_permanently') %>
+            <% end %>
+          </div>
+
+          <%# Delete confirmation modal %>
+          <div class="fixed z-50 inset-0 overflow-y-auto hidden"
+               data-project-delete-modal-target="modal"
+               data-action="click->project-delete-modal#closeOnBackdrop">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm"></div>
+            <div class="flex items-center justify-center min-h-screen p-4">
+              <div class="bg-surface-raised rounded-lg shadow-xl max-w-md w-full relative border border-cream-300">
+                <div class="flex justify-between items-center p-4 border-b border-cream-200 bg-red-50">
+                  <h3 class="text-lg font-bold text-red-800">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <%= t('views.organisations.projects.edit.delete_modal_title') %>
+                  </h3>
+                  <button type="button"
+                          class="text-cream-500 hover:text-cream-700"
+                          data-action="click->project-delete-modal#close">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </div>
+                <div class="p-4">
+                  <p class="text-sm text-red-700 font-medium mb-4">
+                    <%= t('views.organisations.projects.edit.delete_modal_warning') %>
+                  </p>
+                  <p class="text-sm text-cream-600 mb-4">
+                    <%= t('views.organisations.projects.edit.delete_modal_confirm_hint') %>
+                    <strong data-project-delete-modal-target="projectNameDisplay" class="font-bold text-cream-900"></strong>
+                    <%= t('views.organisations.projects.edit.delete_modal_confirm_suffix') %>
+                  </p>
+                  <%# Warm input: white + cream-300 + focus ring (S1 input default). %>
+                  <input type="text"
+                         data-project-delete-modal-target="nameInput"
+                         data-action="input->project-delete-modal#validate"
+                         class="w-full h-10 px-4 border border-cream-300 bg-surface-raised rounded text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all"
+                         placeholder="<%= t('views.organisations.projects.edit.delete_modal_placeholder') %>"
+                         autocomplete="off">
+                  <%# Modal footer (D1/P7): Cancel secondary on the left, final delete confirmation danger on the right.
+                      disabled until the name is typed correctly (B7-compliant: reason visible = the input field). %>
+                  <div class="flex justify-end gap-3 mt-4">
+                    <%= render Neo::Buttons::ButtonComponent.new(
+                          variant: :secondary,
+                          data: { action: "click->project-delete-modal#close" }
+                        ) do %>
+                      <%= t('views.organisations.projects.edit.cancel') %>
+                    <% end %>
+                    <%# Disabled state is controlled CLIENT-side by the project-delete-modal controller
+                        (open() sets disabled=true, validate() unlocks it). Therefore do NOT pass disabled: true
+                        on the component (otherwise the opacity/pointer-events-none classes would stick after
+                        unlocking). The disabled: attribute + Tailwind disabled: utilities take effect automatically. %>
+                    <%= render Neo::Buttons::ButtonComponent.new(
+                          variant: :danger,
+                          icon: "trash",
+                          class: "disabled:opacity-50 disabled:cursor-not-allowed",
+                          data: {
+                            project_delete_modal_target: "submitButton",
+                            action: "click->project-delete-modal#confirmDelete"
+                          }
+                        ) do %>
+                      <%= t('views.organisations.projects.edit.delete_permanently') %>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+
+      </div>
+    </div>
+  <% end %>
+</div>

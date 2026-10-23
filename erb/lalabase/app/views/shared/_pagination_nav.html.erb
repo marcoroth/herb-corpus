@@ -1,0 +1,101 @@
+<%# app/views/shared/_pagination_nav.html.erb %>
+<%# Full pagination navigation with page numbers %>
+<%
+  current_frame_id = pagination_frame_id(frame_id: local_assigns[:frame_id])
+  current_items_per_page = params[:items].present? ? params[:items].to_i : pagy.limit
+  org = @current_organisation || @organisation
+  proj = @project
+  sf_id = local_assigns[:smart_folder_id] || params[:smart_folder_id]
+  sp = local_assigns[:sort_params] || {}
+  url_opts = { organisation: org, project: proj, sort_params: sp, smart_folder_id: sf_id }
+
+  # Warm-Editorial (Teil G/S6): aktive Seite = cream-200 + ink (NICHT lime — lime = Aktion).
+  link_class = "flex items-center justify-center px-4 h-10 leading-tight [&.active]:bg-cream-200 [&.active]:text-cream-900 [&.active]:font-semibold hover:bg-cream-100 bg-cream-50 border border-cream-300"
+%>
+
+<div class="pagination-container my-4"
+     data-controller="neo-pagination"
+     data-neo-pagination-frame-value="<%= current_frame_id %>">
+  <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+    <%# Info text %>
+    <div class="text-sm text-cream-600">
+      <%= pagination_info_text(pagy) %>
+    </div>
+
+    <%# Page numbers %>
+    <% if pagy.pages > 1 %>
+      <nav aria-label="Pagination">
+        <ul class="inline-flex -space-x-px text-base h-10 rounded hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#14110c] transition duration-200">
+          <%# Previous page %>
+          <li>
+            <% if pagy.prev %>
+              <a href="<%= pagy_url_for(pagy, pagy.prev) %>"
+                 class="<%= link_class %> rounded-s"
+                 data-turbo-frame="<%= current_frame_id %>">
+                <i class="bi bi-arrow-left rtl:rotate-180"></i>
+              </a>
+            <% else %>
+              <span class="<%= link_class %> rounded-s opacity-50 cursor-not-allowed">
+                <i class="bi bi-arrow-left rtl:rotate-180"></i>
+              </span>
+            <% end %>
+          </li>
+
+          <%# Page numbers with gaps %>
+          <% pagy.series.each do |item| %>
+            <% if item.is_a?(Integer) %>
+              <li>
+                <a href="<%= pagy_url_for(pagy, item) %>"
+                   class="<%= link_class %> <%= 'active' if item == pagy.page %>"
+                   data-turbo-frame="<%= current_frame_id %>">
+                  <%= item %>
+                </a>
+              </li>
+            <% elsif item.is_a?(String) && item == pagy.page.to_s %>
+              <li>
+                <a href="#" aria-current="page" class="<%= link_class %> active"
+                   data-turbo-frame="<%= current_frame_id %>">
+                  <%= item %>
+                </a>
+              </li>
+            <% elsif item == :gap %>
+              <li>
+                <span class="<%= link_class %>">
+                  &hellip;
+                </span>
+              </li>
+            <% end %>
+          <% end %>
+
+          <%# Next page %>
+          <li>
+            <% if pagy.next %>
+              <a href="<%= pagy_url_for(pagy, pagy.next) %>"
+                 class="<%= link_class %> rounded-e"
+                 data-turbo-frame="<%= current_frame_id %>">
+                <i class="bi bi-arrow-right rtl:rotate-180"></i>
+              </a>
+            <% else %>
+              <span class="<%= link_class %> rounded-e opacity-50 cursor-not-allowed">
+                <i class="bi bi-arrow-right rtl:rotate-180"></i>
+              </span>
+            <% end %>
+          </li>
+        </ul>
+      </nav>
+    <% end %>
+
+    <%# Items-per-page select %>
+    <div class="flex items-center mt-2 md:mt-0">
+      <select class="border border-cream-300 rounded-md px-2 py-1.5 text-sm bg-surface-raised hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#14110c] transition duration-200"
+              data-action="change->neo-pagination#changeItemsPerPage">
+        <% PaginationHelper::ITEMS_OPTIONS_FULL.each do |n| %>
+          <option value="<%= pagination_items_url(n, **url_opts) %>"
+                  <%= "selected" if current_items_per_page == n %>>
+            <%= t('views.shared.pagination.entries', count: n) %>
+          </option>
+        <% end %>
+      </select>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,38 @@
+<%# locals: (ticket:, project:) %>
+<%# "Gespräche" backlinks on the ticket detail
+    (Gespräche Slice 3): meetings that link TO this ticket. Sits between the
+    sub-tasks section and the comment timeline, styled after _subtasks_section.
+
+    GATE (enforced by the caller): rendered ONLY when the user may read meetings in
+    this project — a user without :meetings read must not even learn that meeting
+    links exist (backlink leak = the critical path). This partial renders nothing
+    when there are no backlinks, so the section never appears empty.
+
+    No tombstones on this side: a meeting owns its outgoing link (dependent:
+    :destroy), so a backlink's source meeting always exists. includes(:source)
+    avoids an N+1 across the linking meetings. %>
+<% references = Reference.pointing_to(ticket)
+                        .where(source_type: Meeting.polymorphic_name)
+                        .includes(:source).order(:created_at).to_a %>
+<% if references.any? %>
+  <section id="meeting-references-<%= ticket.id %>" class="meeting-references-section mb-6">
+    <ul class="divide-y divide-cream-200 overflow-hidden rounded-lg bg-cream-50">
+      <% references.each do |ref| %>
+        <% meeting = ref.source %>
+        <li class="flex items-center gap-3 px-3 py-2">
+          <i class="bi bi-chat-quote shrink-0 text-xs text-cream-500"></i>
+          <%# _top: this section renders inside ticket_display_frame (the lane, on
+              the list and on the board), but the meetings page has no frame with that id —
+              without the escape Turbo renders "Content missing" instead of navigating. %>
+          <%= link_to meeting.title,
+                      organisation_project_meetings_path(@current_organisation, project, meeting_id: meeting.id),
+                      class: 'flex-1 truncate text-sm text-cream-900 hover:underline',
+                      data: { turbo_frame: '_top' } %>
+          <span class="shrink-0 font-mono text-xs tabular-nums text-cream-500">
+            <%= l(meeting.occurred_at.to_date, format: :default) %>
+          </span>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>

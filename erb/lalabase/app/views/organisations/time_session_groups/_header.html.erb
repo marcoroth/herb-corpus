@@ -1,0 +1,141 @@
+<%# The detail head of a billing in the times language (D1 of
+    doc/abrechnung_detail_angleichung_plan.md): the area title stays the SAME
+    as the list page (the head must not jump between list and detail), the
+    billing's NAME is the content headline, and the three stat cards are one
+    flat key-figure line. Figures come precomputed from the controller
+    (@group_figures, one pass over the loaded rows - nothing here may query).
+
+    Keys fully qualified - lazy t('.') in this partial resolves under
+    `organisations.time_session_groups.header` without the views prefix
+    (the P3 lesson). %>
+<%
+  sh = 'views.organisations.time_session_groups.show_header'
+  gl = 'views.organisations.time_session_groups.groups_list'
+  figure_label_classes = 'text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600'
+  menu_link_classes = 'flex items-center gap-3 w-full px-4 py-2 text-sm text-cream-900 hover:bg-cream-100 rounded-lg'
+  status_url = billing_status_organisation_time_session_group_path(@current_organisation, @time_session_group)
+%>
+<%# Title box AND tab bar from one partial, on one left edge - the same header
+    the list page renders, so nothing shifts between list and detail. %>
+<% right_content = capture do %>
+  <div class="flex items-center gap-2">
+    <%= render 'common/contextual_help_menu', context: :billing %>
+  </div>
+<% end %>
+<%= render 'organisations/shared/times_subnav',
+      active: :billings,
+      title: t('organisations.time_session_groups.index.title'),
+      right_content: right_content %>
+<div>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <%= link_to organisation_time_session_groups_path(@current_organisation),
+                class: 'text-sm font-medium text-cream-700 hover:text-cream-900 hover:underline' do %>
+      &lsaquo; <%= t("#{sh}.back_to_list") %>
+    <% end %>
+
+    <div class="flex items-center gap-2">
+      <% if !@time_session_group.billed? && policy(@time_session_group).mark_as_billed? %>
+        <%# Opens the billing-status modal; the href is the no-JS fallback. %>
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :primary, size: :medium,
+              url: status_url,
+              data: { action: 'click->billing-modal#open', billing_modal_url_param: status_url }
+            ) do %>
+          <%= t("#{sh}.bill_button") %>
+        <% end %>
+      <% end %>
+
+      <%# The same details+details-autoclose menu as the list rows; entries
+          respect the same policy lines the old header buttons respected. %>
+      <details class="relative" data-controller="details-autoclose">
+        <summary class="flex h-9 w-9 cursor-pointer select-none list-none items-center justify-center rounded-md border border-cream-300 text-cream-700 hover:bg-cream-200"
+                 title="<%= t("#{gl}.menu_label") %>">
+          <i class="bi bi-three-dots" aria-hidden="true"></i>
+          <span class="sr-only"><%= t("#{gl}.menu_label") %></span>
+        </summary>
+        <div class="absolute right-0 top-full z-dropdown mt-2 min-w-[14rem] rounded-2xl border border-cream-300 bg-cream-50 py-2 shadow-[0_10px_30px_-8px_rgba(20,17,12,0.28)]">
+          <% if policy(@time_session_group).update? %>
+            <%# Opens the edit modal (the form itself warns on a billed billing,
+                so the old pre-confirm dialog is gone); href = no-JS fallback. %>
+            <%= link_to t("#{gl}.menu_edit"),
+                        edit_organisation_time_session_group_path(@current_organisation, @time_session_group),
+                        class: menu_link_classes,
+                        data: { action: 'click->billing-modal#open',
+                                billing_modal_url_param: edit_organisation_time_session_group_path(@current_organisation, @time_session_group) } %>
+          <% end %>
+          <% if @time_session_group.billed? && policy(@time_session_group).mark_as_billed? %>
+            <%= link_to t('views.organisations.time_session_groups.billing_status.submit_unbill'),
+                        status_url,
+                        class: menu_link_classes,
+                        data: { action: 'click->billing-modal#open', billing_modal_url_param: status_url } %>
+          <% end %>
+          <% if policy(@time_session_group).destroy? %>
+            <div class="mx-3 my-1 h-px bg-cream-300"></div>
+            <%= link_to t("#{gl}.menu_delete"),
+                        organisation_time_session_group_path(@current_organisation, @time_session_group),
+                        class: "#{menu_link_classes} text-red-700",
+                        data: { turbo_method: :delete,
+                                turbo_confirm: t("#{gl}.confirm_delete_with_sessions") } %>
+          <% end %>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <h1 class="mt-6 text-2xl font-bold text-cream-900"><%= @time_session_group.name %></h1>
+
+  <div class="mt-4 mb-10 flex flex-wrap items-end gap-x-10 gap-y-4">
+    <div>
+      <div class="<%= figure_label_classes %>"><%= t("#{sh}.figure_duration") %></div>
+      <div class="mt-1 font-mono text-2xl font-bold leading-7 text-cream-900"><%= TimeSession.format_duration(@group_figures[:minutes]) %></div>
+    </div>
+    <div>
+      <div class="<%= figure_label_classes %>"><%= t("#{sh}.figure_status") %></div>
+      <div class="mt-1 flex items-center gap-2 text-[15px] leading-7 text-cream-900">
+        <%= billing_state_dot(@time_session_group.billed?) %>
+        <span><%= time_billing_state_label(@time_session_group.billed? ? 'billed' : 'in_billing') %></span>
+      </div>
+    </div>
+    <div>
+      <div class="<%= figure_label_classes %>"><%= t("#{sh}.figure_period") %></div>
+      <% first_day, last_day = @group_figures[:date_range] %>
+      <% if first_day %>
+        <div class="mt-1 font-mono text-[15px] leading-7 text-cream-900">
+          <%= first_day.strftime('%d.%m.%Y') %> - <%= last_day.strftime('%d.%m.%Y') %>
+        </div>
+      <% else %>
+        <div class="mt-1 text-[15px] leading-7 text-cream-500"><%= t("#{gl}.no_sessions_yet") %></div>
+      <% end %>
+    </div>
+    <div>
+      <div class="<%= figure_label_classes %>"><%= t("#{sh}.figure_scope") %></div>
+      <div class="mt-1 text-[15px] leading-7 text-cream-900"><%= t("#{sh}.times_count", count: @group_figures[:count]) %></div>
+    </div>
+    <div class="min-w-0 max-w-xs">
+      <div class="<%= figure_label_classes %>"><%= t("#{sh}.figure_projects") %></div>
+      <% names = @group_figures[:project_names] %>
+      <div class="mt-1 truncate text-[15px] leading-7 <%= names.any? ? 'text-cream-900' : 'text-cream-500' %>">
+        <% if names.empty? %>
+          <%= t("#{gl}.no_sessions_yet") %>
+        <% elsif names.size <= 2 %>
+          <%= names.join(' · ') %>
+        <% else %>
+          <%= names.first(2).join(' · ') %> <%= t("#{gl}.projects_more", count: names.size - 2) %>
+        <% end %>
+      </div>
+    </div>
+    <div>
+      <div class="<%= figure_label_classes %>"><%= t("#{sh}.figure_invoice") %></div>
+      <% if @time_session_group.billed? %>
+        <div class="mt-1 font-mono text-[15px] leading-7 text-cream-900"><%= @time_session_group.invoice_number %></div>
+        <% if @time_session_group.billed_at %>
+          <div class="text-xs leading-5 text-cream-600"><%= t("#{gl}.billed_at", date: @time_session_group.billed_at.strftime('%d.%m.%Y')) %></div>
+        <% end %>
+      <% else %>
+        <div class="mt-1 font-mono text-[15px] leading-7 text-cream-500"><%= t("#{gl}.without_number") %></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%= render 'organisations/time_session_groups/billing_modal' %>

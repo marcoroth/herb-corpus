@@ -1,0 +1,55 @@
+<%# The assistant's settings, served INTO the panel frame (the gear in the header).
+
+    Same frame element as show.html.erb and history.html.erb, and deliberately
+    WITHOUT the chat container: the settings replace the transcript rather than
+    joining it. Rendering both would put two chatposts containers in the panel and
+    a streaming broadcast would land in whichever Turbo found first. %>
+<%= turbo_frame_tag 'assistant_panel_body', class: 'flex-1 min-h-0 flex flex-col' do %>
+  <%# data-assistant-settings: how the panel controller sees that the settings are
+      ALREADY showing, so a second press on the gear does not rebuild the address
+      from a chat frame that is no longer in the document and lose the ?current=
+      that the way back below depends on. Same guard the history list carries, and
+      for the same failure it had. %>
+  <div data-assistant-settings class="flex-1 min-h-0 flex flex-col">
+    <div class="flex items-center gap-2 px-4 py-3 border-b-2 border-cream-300 shrink-0">
+      <%# Targets the panel frame, never the page the panel rides on. The address
+          carries the thread the gear was pressed on, so this returns to THAT
+          conversation rather than to the panel default, which would be the newest
+          thread and would switch the conversation under somebody who pressed a
+          button twice. %>
+      <%= link_to organisation_assistant_panel_path(organisation_id: current_organisation.id,
+                                                    chat_id: @current_chat&.id),
+                  data: { turbo_frame: 'assistant_panel_body' },
+                  title: t('views.organisations.assistant_panels.settings.back'),
+                  aria: { label: t('views.organisations.assistant_panels.settings.back') },
+                  class: 'w-7 h-7 shrink-0 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all' do %>
+        <i class="bi bi-arrow-left text-sm" aria-hidden="true"></i>
+      <% end %>
+      <h3 class="min-w-0 truncate text-sm font-bold text-cream-900">
+        <%= t('views.organisations.assistant_panels.settings.title') %>
+      </h3>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      <%# render? is false exactly when the pool is empty, so this else-branch says
+          why instead of showing a select with nothing in it. The link is offered
+          only to somebody who can act on it -- pointing an ordinary member at a
+          page they may not open would turn an explanation into a dead end. %>
+      <% if (persona_control = Neo::Chat::PersonaControlComponent.new(
+               current_user: current_user, current_organisation: current_organisation
+             )).render? %>
+        <%= render persona_control %>
+      <% else %>
+        <p class="text-xs text-muted">
+          <%= t('views.organisations.assistant_panels.settings.no_personas') %>
+        </p>
+        <% if policy(PromptPersona).index? %>
+          <%= link_to t('views.organisations.assistant_panels.settings.manage_personas'),
+                      organisation_prompt_personas_path(current_organisation),
+                      data: { turbo_frame: '_top' },
+                      class: 'mt-2 inline-block text-xs font-semibold text-cream-900 underline' %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

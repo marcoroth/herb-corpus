@@ -1,0 +1,97 @@
+<%# Inline acknowledgements after the timestamp. A reaction is content
+    metadata, not another timeline event. Locals: post, current_user,
+    current_organisation, can_react, reactions. %>
+<% reactions_by_emoji = reactions.group_by(&:emoji) %>
+<% create_path = organisation_project_ticket_post_reactions_path(
+     current_organisation, post.ticket.project, post.ticket, post
+   ) %>
+
+<% unless reactions.empty? && !can_react %>
+  <div class="post-reactions"
+       data-post-reactions-for="<%= post.id %>">
+  <div class="post-reaction-chips">
+  <% PostReaction::EMOJIS.each do |emoji| %>
+    <% emoji_reactions = reactions_by_emoji.fetch(emoji, []) %>
+    <% next if emoji_reactions.empty? %>
+    <% own_reaction = emoji_reactions.find { |reaction| reaction.user_id == current_user.id } %>
+    <% names = emoji_reactions.map { |reaction| viewer_display_name(reaction.user) }.join(', ') %>
+    <% tooltip_names = emoji_reactions.map { |reaction| reaction.user_id == current_user.id ? t('views.organisations.tickets.timeline.reactions.you') : viewer_display_name(reaction.user) }.join(', ') %>
+    <% chip_classes = 'post-reaction-chip' %>
+    <% chip_classes += ' post-reaction-chip--selected' if own_reaction %>
+    <% reaction_details = t('views.organisations.tickets.timeline.reactions.details',
+                            emoji: emoji, count: emoji_reactions.size, names: names) %>
+
+    <div class="inline-flex shrink-0" data-controller="post-reaction-tooltip"
+         data-post-reaction-tooltip-text-value="<%= tooltip_names %>"
+         data-action="mouseenter->post-reaction-tooltip#show mouseleave->post-reaction-tooltip#hide focusin->post-reaction-tooltip#show focusout->post-reaction-tooltip#hide pointerdown->post-reaction-tooltip#startPress pointermove->post-reaction-tooltip#movePress pointerup->post-reaction-tooltip#endPress pointercancel->post-reaction-tooltip#cancelPress contextmenu->post-reaction-tooltip#contextMenu click->post-reaction-tooltip#click:capture keydown.esc->post-reaction-tooltip#hide">
+    <% if can_react %>
+      <%= button_to(
+            own_reaction ? organisation_project_ticket_post_reaction_path(
+              current_organisation, post.ticket.project, post.ticket, post, own_reaction
+            ) : create_path,
+            method: own_reaction ? :delete : :post,
+            params: own_reaction ? {} : { emoji: emoji },
+            form: { class: 'inline-flex' },
+            class: chip_classes,
+            aria: {
+              label: "#{own_reaction ? t('views.organisations.tickets.timeline.reactions.remove', emoji: emoji) : t('views.organisations.tickets.timeline.reactions.add', emoji: emoji)}. #{reaction_details}",
+              pressed: own_reaction.present?
+            }
+          ) do %>
+        <span aria-hidden="true"><%= emoji %></span>
+        <span class="font-mono text-[11px]"><%= emoji_reactions.size %></span>
+      <% end %>
+    <% else %>
+      <span class="<%= chip_classes %>" tabindex="0" aria-label="<%= reaction_details %>">
+        <span aria-hidden="true"><%= emoji %></span>
+        <span class="font-mono text-[11px]"><%= emoji_reactions.size %></span>
+      </span>
+    <% end %>
+    </div>
+  <% end %>
+  </div>
+
+  <% if can_react %>
+    <div class="post-reaction-picker post-tool relative inline-flex" data-controller="neo-dropdown"
+         data-neo-dropdown-auto-close-value="outside"
+         data-neo-dropdown-placement-value="top-end">
+      <button type="button"
+              class="post-reaction-trigger"
+              title="<%= t('views.organisations.tickets.timeline.reactions.choose') %>"
+              aria-label="<%= t('views.organisations.tickets.timeline.reactions.choose') %>"
+              aria-expanded="false"
+              data-neo-dropdown-target="trigger"
+              data-action="click->neo-dropdown#toggle">
+        <i class="bi bi-emoji-smile" aria-hidden="true"></i>
+      </button>
+      <div class="post-reaction-menu hidden absolute right-0 bottom-full z-dropdown mb-1 rounded-lg border border-cream-400 bg-surface-raised p-1.5 shadow-md"
+           popover="manual"
+           aria-hidden="true"
+           data-neo-dropdown-target="menu">
+        <div class="flex items-center gap-1">
+          <% PostReaction::EMOJIS.each do |emoji| %>
+            <% own_reaction = reactions_by_emoji.fetch(emoji, []).find { |reaction| reaction.user_id == current_user.id } %>
+            <% if own_reaction %>
+              <%= button_to organisation_project_ticket_post_reaction_path(
+                    current_organisation, post.ticket.project, post.ticket, post, own_reaction
+                  ), method: :delete, form: { class: 'inline-flex' },
+                  class: 'post-reaction-option post-reaction-option--selected',
+                  title: t('views.organisations.tickets.timeline.reactions.remove', emoji: emoji),
+                  aria: { label: t('views.organisations.tickets.timeline.reactions.remove', emoji: emoji), pressed: true } do %>
+                <span aria-hidden="true"><%= emoji %></span>
+              <% end %>
+            <% else %>
+              <%= button_to create_path, params: { emoji: emoji }, form: { class: 'inline-flex' },
+                  class: 'post-reaction-option',
+                  title: t('views.organisations.tickets.timeline.reactions.add', emoji: emoji),
+                  aria: { label: t('views.organisations.tickets.timeline.reactions.add', emoji: emoji), pressed: false } do %>
+                <span aria-hidden="true"><%= emoji %></span>
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  </div>
+<% end %>

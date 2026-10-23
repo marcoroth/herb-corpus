@@ -1,0 +1,73 @@
+<%# Shared Nachweis-Historie (~6 months) — org AI settings AND admin backend.
+    Locals: organisation (required), months (default 6), ledger (optional — the
+    caller's own QuotaLedger; see the note in shared/ai/_quota_bar for why a page that
+    renders both partials should hand the SAME instance to both). Values come from the
+    QuotaLedger, so "why is the quota empty?" is answered with real numbers.
+
+    Each month with usage carries a native <details> drill-down (no Stimulus: the
+    disclosure is pure HTML) listing the per-action breakdown, biggest consumer
+    first. Its numbers come from the SAME aggregate as the month total, so the
+    detail rows always add up to the row above them. %>
+<% months = local_assigns.fetch(:months, 6)
+   history = (local_assigns[:ledger] || organisation.ai_quota_ledger).history(months: months)
+   has_usage = history.any? { |row| row[:used].positive? } %>
+<div class="max-w-4xl mt-8">
+  <h3 class="text-sm font-bold text-cream-900 mb-3">
+    <i class="bi bi-clock-history mr-2"></i><%= t('shared.ai.quota.history_heading') %>
+  </h3>
+  <% if has_usage %>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-cream-600 border-b border-cream-300">
+            <th class="py-2 pr-4 font-medium"><%= t('shared.ai.quota.history_month') %></th>
+            <th class="py-2 pr-4 font-medium text-right"><%= t('shared.ai.quota.history_used') %></th>
+            <th class="py-2 font-medium text-right"><%= t('shared.ai.quota.history_limit') %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% history.each do |row| %>
+            <% drilldown = row[:used].positive? %>
+            <%# A month without usage keeps the plain bordered row — there is nothing to unfold.
+                With usage the bottom border moves to the drill-down row so both read as one block. %>
+            <tr class="<%= 'border-b border-cream-200' unless drilldown %>">
+              <td class="py-2 pr-4 text-cream-900"><%= row[:month].strftime('%m/%Y') %></td>
+              <td class="py-2 pr-4 text-right tabular-nums text-cream-900"><%= number_with_delimiter(row[:used]) %></td>
+              <td class="py-2 text-right tabular-nums text-cream-700"><%= number_with_delimiter(row[:hard_limit]) %></td>
+            </tr>
+            <% if drilldown %>
+              <tr class="border-b border-cream-200">
+                <td colspan="3" class="pb-2">
+                  <details class="group">
+                    <summary class="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-cream-600 hover:text-cream-900 list-none [&::-webkit-details-marker]:hidden">
+                      <i class="bi bi-chevron-right text-[0.625rem] transition-transform group-open:rotate-90"></i>
+                      <%= t('shared.ai.quota.history_detail_toggle') %>
+                    </summary>
+                    <ul class="mt-2 space-y-1">
+                      <% row[:by_action].each do |entry| %>
+                        <li class="flex items-baseline justify-between gap-4 border-l-2 border-cream-300 py-0.5 pl-3 text-xs">
+                          <span class="text-cream-900">
+                            <%= entry[:action] ? Lalabase::Llm::ActionRegistry.label(entry[:action]) : t('shared.ai.quota.action_unknown') %>
+                          </span>
+                          <span class="whitespace-nowrap tabular-nums text-cream-700">
+                            <%= t('shared.ai.quota.history_detail_credits',
+                                  count: entry[:credits], formatted: number_with_delimiter(entry[:credits])) %>
+                            &middot;
+                            <%= t('shared.ai.quota.history_detail_calls',
+                                  count: entry[:count], formatted: number_with_delimiter(entry[:count])) %>
+                          </span>
+                        </li>
+                      <% end %>
+                    </ul>
+                  </details>
+                </td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="text-sm text-cream-600"><%= t('shared.ai.quota.history_empty') %></p>
+  <% end %>
+</div>

@@ -1,0 +1,96 @@
+<% content_for :title, t('views.organisations.notifications.ticket_exceptions.title') %>
+
+<div class="max-w-4xl mx-auto px-6 py-8">
+  <!-- Header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-black text-cream-900 uppercase mb-1"><%= t('views.organisations.notifications.ticket_exceptions.title') %></h1>
+      <p class="text-gray-600 text-sm"><%= t('views.organisations.notifications.ticket_exceptions.subtitle') %></p>
+    </div>
+    <%= render Neo::Buttons::ButtonComponent.new(
+      variant: :secondary,
+      size: :medium,
+      url: organisation_notifications_path(current_organisation),
+      icon: "arrow-left"
+    ) do %>
+      <span class="whitespace-nowrap"><%= t('views.organisations.notifications.ticket_exceptions.back') %></span>
+    <% end %>
+  </div>
+
+  <% if @exceptions.any? %>
+    <%# Zusammenfassung %>
+    <div class="flex gap-3 mb-6">
+      <% muted_count = @exceptions.count { |e| e[:reason] == :muted } %>
+      <% follow_count = @exceptions.count { |e| e[:reason] == :manual_follow } %>
+      <% if muted_count > 0 %>
+        <div class="px-3 py-1.5 bg-red-50 border-2 border-red-300 rounded-lg text-sm">
+          <span class="font-bold text-red-800"><%= muted_count %></span>
+          <span class="text-red-700"><%= t('views.organisations.notifications.ticket_exceptions.muted') %></span>
+        </div>
+      <% end %>
+      <% if follow_count > 0 %>
+        <div class="px-3 py-1.5 bg-blue-50 border-2 border-blue-300 rounded-lg text-sm">
+          <span class="font-bold text-blue-800"><%= follow_count %></span>
+          <span class="text-blue-700"><%= t('views.organisations.notifications.ticket_exceptions.manually_followed') %></span>
+        </div>
+      <% end %>
+    </div>
+
+    <%# Ticket-Liste %>
+    <div class="space-y-3">
+      <% @exceptions.each do |exception| %>
+        <% ticket = exception[:ticket] %>
+        <% reason = exception[:reason] %>
+        <% sub = exception[:subscription] %>
+        <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm flex items-center justify-between gap-4">
+          <% project = ticket.project %>
+          <% card_body = capture do %>
+            <div class="flex items-center gap-2 mb-1">
+              <% if reason == :muted %>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-red-100 text-red-800 border border-red-300"><%= t('views.organisations.notifications.ticket_exceptions.badge_muted') %></span>
+              <% else %>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300"><%= t('views.organisations.notifications.ticket_exceptions.badge_manually_followed') %></span>
+              <% end %>
+              <span class="text-sm text-gray-500">#<%= ticket.number %></span>
+            </div>
+            <h3 class="font-bold text-gray-900 truncate group-hover:underline"><%= ticket.title %></h3>
+            <p class="text-sm text-gray-500 mt-0.5">
+              <%= project&.name %>
+              <span class="text-gray-400 mx-1">&middot;</span>
+              <span class="text-gray-400"><%= t('views.organisations.notifications.ticket_exceptions.since') %> <%= l(sub.updated_at, format: :short) %></span>
+            </p>
+          <% end %>
+          <div class="flex-1 min-w-0">
+            <% if project %>
+              <%= link_to organisation_project_ticket_path(current_organisation, project, ticket),
+                    class: "group block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded-md",
+                    title: t('views.organisations.notifications.ticket_exceptions.open_ticket', number: ticket.number) do %>
+                <%= card_body %>
+              <% end %>
+            <% else %>
+              <%= card_body %>
+            <% end %>
+          </div>
+          <div class="flex-shrink-0">
+            <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: (reason == :muted ? :success : :secondary), size: :small,
+                  form: {
+                    action: remove_ticket_exception_organisation_notifications_path(current_organisation),
+                    method: :delete,
+                    params: { subscription_id: sub.id },
+                    data: { turbo_confirm: (reason == :muted ? t('views.confirm.unmute_ticket', number: ticket.number) : t('views.confirm.unfollow_ticket', number: ticket.number)) }
+                  }) do %>
+              <%= reason == :muted ? t('views.organisations.notifications.ticket_exceptions.activate') : t('views.organisations.notifications.ticket_exceptions.unfollow') %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="bg-surface-raised border border-slate-200 rounded-lg p-8 shadow-sm text-center">
+      <i class="bi bi-check-circle text-4xl text-green-500 mb-3"></i>
+      <h3 class="text-lg font-bold text-gray-900 mb-1"><%= t('views.organisations.notifications.ticket_exceptions.no_exceptions') %></h3>
+      <p class="text-sm text-gray-500"><%= t('views.organisations.notifications.ticket_exceptions.all_default') %></p>
+    </div>
+  <% end %>
+</div>

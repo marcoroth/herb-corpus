@@ -1,0 +1,63 @@
+<%# Kanban Card — einzelnes Ticket im Board (soft-flat, 2026-09-04):
+    number and assignee initials share the quiet mono top row, the title carries
+    the card. Due date and tags only appear as a third row when present.
+    Mounts list-row, the controller the table row and the knowledge row mount too
+    (doc/kanban_ticket_als_bahn_plan.md, A1): click and Enter open the
+    ticket into the lane, and the card marks itself from the address on
+    connect. NOT Space: on the board Space carries the card
+    (kanban_board_controller, doc/kanban_keyboard_plan.md D1); the table row
+    keeps its Space. A native drag fires no click, and Sortable's fallback
+    swallows the click after a drag itself; no guard of our own. ⚠️ The
+    data-controller is a LITERAL: the wiring census greps the markup for it.
+    Local `selected`: the open ticket's card, toned from the first paint.
+    tabindex -1: one tab stop per board, the board's controller sets 0 on
+    its cursor (S2). data-ticket-number: the announcement for screen readers. %>
+<div id="kanban-card-<%= ticket.id %>"
+     class="kanban-card<%= ' selected-row' if local_assigns[:selected] %>"
+     role="button" tabindex="-1"
+     data-controller="list-row"
+     data-list-row-url-value="<%= organisation_project_ticket_path(organisation, project, ticket) %>"
+     data-list-row-id-value="<%= ticket.id %>"
+     data-list-row-param-value="ticket_id"
+     data-list-row-frame-value="ticket_display_frame"
+     data-ticket-id="<%= ticket.id %>"
+     data-ticket-number="<%= ticket.number %>"
+     data-action="click->list-row#click keydown.enter->list-row#click">
+
+  <div class="flex items-start justify-between gap-2 mb-1.5">
+    <span class="inline-flex items-center gap-1.5 text-[11px] font-mono text-cream-500">
+      #<%= ticket.number %>
+      <%# Only the sign on the board, the number is on the ticket page and in the list's column. %>
+      <%= ticket_waiting_mark(ticket) %>
+    </span>
+    <div class="flex items-center gap-1.5">
+      <%= render Neo::UnreadMarkerComponent.new(count: @unread_notifications_per_ticket&.fetch(ticket.id, 0).to_i,
+                                                variant: :dot, label: t('tickets.has_unread_notifications')) %>
+      <%# Priority as Linear-style signal bars (level by fill, color only an accent) %>
+      <%= ticket_priority_bars(ticket) %>
+      <%# Assignees as quiet initials: first assignee + "+" marker for more %>
+      <% if (first_assignee = ticket.assignees.first) %>
+        <span class="text-[11px] font-mono text-cream-500"
+              title="<%= ticket.assignees.map(&:display_name).join(', ') %>">
+          <%= first_assignee.initials %><% if ticket.assignees.size > 1 %>+<% end %>
+        </span>
+      <% end %>
+    </div>
+  </div>
+
+  <p class="text-sm font-medium leading-snug line-clamp-2"><%= ticket.title %></p>
+
+  <%# Due date chip (red calendar-x when overdue) + tags — one quiet bottom row, only when present %>
+  <% due_badge = ticket_due_badge(ticket, context: :board) %>
+  <% tags = ticket.tags.first(2) %>
+  <% if due_badge || tags.any? %>
+    <div class="flex items-center gap-2 mt-2">
+      <%= due_badge %>
+      <div class="flex gap-1 overflow-hidden max-w-[120px] ml-auto">
+        <% tags.each do |tag| %>
+          <span class="text-[10px] px-1.5 py-0.5 bg-cream-100 text-cream-700 rounded truncate"><%= tag.name %></span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

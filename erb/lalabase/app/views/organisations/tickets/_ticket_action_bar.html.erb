@@ -1,0 +1,116 @@
+<%# Action bar: edit, assistant, and the "..." menu (settings / move ticket /
+    delete ticket). Quiet cluster in the header's top chrome row since T1
+    (doc/tickets_detail_entschlackt_plan.md); since the menu mock (user,
+    03.09.) the settings gear, the move action and DELETE live behind one
+    menu, so the ds['action_bar'] setting has no surface here any more.
+    Locals: ticket, view_config, project, project_for_policy, current_organisation, show_time %>
+
+<%# One rank for the whole cluster (designer round 8a, 05.09.2026): three
+    identical frameless 32x32 surfaces with the 6px radius - pencil, spark,
+    dots - so the row reads the same in every detail view. Icon only, words
+    above the title would compete with the title, so every surface carries a
+    title attribute. Rest cream-500; hover AND keyboard focus share the
+    darker text on a cream-200 surface. Never a border, never a filled
+    surface: the only filled one in this view is "Kommentar senden". Icons
+    are font glyphs and inherit currentColor by themselves. %>
+<% icon_button = "flex h-8 w-8 items-center justify-center rounded-md text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 focus-visible:bg-cream-200 focus-visible:text-cream-900" %>
+
+<div class="flex items-center gap-1">
+  <% if project_for_policy && policy(project_for_policy).area_access?(:tickets, :write) %>
+    <a href="<%= edit_organisation_project_ticket_path(current_organisation, ticket.project, ticket) %>"
+       class="<%= icon_button %>"
+       title="<%= t('views.organisations.tickets.ticket_header_show.edit_ticket') %>"
+       data-turbo-frame="writing_surface">
+      <i class="bi bi-pencil"></i>
+    </a>
+  <% end %>
+
+  <%# "Assistent" (S4 T2 step 5, §7.3): opens the companion lane and hands it
+      THIS ticket as the reference. A button and not a link: the panel is a
+      permanent node at body level, so the page cannot address it with a
+      Stimulus action; assistant-trigger is the window-event seam. The
+      hidden lg:block wrapper mirrors the panel node itself - below that
+      breakpoint there IS no companion lane, so a button that opens one is a
+      door to nowhere (ticket_assistant_seams_spec pins the wrapper). %>
+  <%# Type AND id since the Bezugs-Sammlung (S1, §8.3): the trigger composes
+      the composite key "Ticket:<uuid>" from the two. The four attributes come
+      from AssistantContextHelper#assistant_trigger_attributes, the same owner
+      as the page's marker, shared with the knowledge lane's head; nil where
+      the assistant is not available, which is the gate. %>
+  <% if (trigger = assistant_trigger_attributes(ticket)) %>
+    <div class="hidden lg:block">
+    <button type="button"
+            class="<%= icon_button %>"
+            title="<%= t('views.organisations.tickets.ticket_header_show.ask_assistant') %>"
+            <%= trigger %>>
+      <%# Icon-only since 03.09. (user request) - the title carries the words. %>
+      <i class="bi bi-stars"></i>
+    </button>
+    </div>
+  <% end %>
+
+  <%# The "..." menu. render layout: puts the whole dropdown INSIDE the
+      detail-settings-modal controller scope (the partial yields the block),
+      so the settings item can open that modal; the move item reaches
+      move-ticket-modal on #ticket-header the same way it always did. %>
+  <%= render layout: 'organisations/tickets/detail_settings_modal',
+             locals: { current_organisation: current_organisation,
+                       project: project,
+                       view_config: view_config,
+                       show_time: show_time,
+                       hide_trigger: true } do %>
+    <div class="relative" data-controller="neo-dropdown"
+         data-neo-dropdown-auto-close-value="outside"
+         data-neo-dropdown-placement-value="css">
+      <%# The id is where the "Link" modal returns the focus (TicketRelationsHelper). %>
+      <button type="button"
+              id="<%= ticket_more_actions_id(ticket) %>"
+              class="<%= icon_button %>"
+              title="<%= t('views.organisations.tickets.ticket_header_show.more_actions') %>"
+              aria-expanded="false"
+              data-neo-dropdown-target="trigger"
+              data-action="click->neo-dropdown#toggle">
+        <i class="bi bi-three-dots"></i>
+      </button>
+      <div class="hidden absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-cream-300 bg-surface-raised py-1 shadow-md"
+           aria-hidden="true"
+           data-neo-dropdown-target="menu">
+        <button type="button"
+                class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-cream-800 transition-colors hover:bg-cream-100"
+                data-action="click->neo-dropdown#close click->detail-settings-modal#open">
+          <i class="bi bi-gear"></i>
+          <%= t('views.organisations.tickets.ticket_header_show.menu_settings') %>
+        </button>
+        <% if policy(ticket).update? %>
+          <%# A link into the modal's frame beside the relations section (relations#new):
+              no controller scope to share with the menu, unlike the move item below. %>
+          <a href="<%= new_organisation_project_ticket_relation_path(current_organisation, ticket.project, ticket) %>"
+             class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-cream-800 transition-colors hover:bg-cream-100"
+             data-turbo-frame="<%= ticket_relation_modal_id(ticket) %>"
+             data-action="click->neo-dropdown#close">
+            <%= t('views.organisations.tickets.shared.relations.menu_link') %>
+          </a>
+        <% end %>
+        <% if policy(ticket).move? %>
+          <button type="button"
+                  class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-cream-800 transition-colors hover:bg-cream-100"
+                  data-action="click->neo-dropdown#close click->move-ticket-modal#open">
+            <%= t('views.organisations.tickets.ticket_header_show.menu_move') %>
+          </button>
+        <% end %>
+        <% if policy(ticket).destroy? %>
+          <div class="my-1 border-t border-cream-200"></div>
+          <%# A link with turbo_method (Turbo idiom, no rails-ujs here) and a
+              turbo_confirm - destructive, red, below the divider (mock). The
+              destroy stream closes the detail column itself (_destroy_close). %>
+          <a href="<%= organisation_project_ticket_path(current_organisation, ticket.project, ticket) %>"
+             class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-700 transition-colors hover:bg-red-50"
+             data-turbo-method="delete"
+             data-turbo-confirm="<%= t('views.confirm.are_you_sure') %>">
+            <%= t('views.organisations.tickets.ticket_header_show.menu_delete') %>
+          </a>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

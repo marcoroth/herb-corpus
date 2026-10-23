@@ -1,0 +1,180 @@
+<%# Shared new/edit fields. Notes and transcript are presented as equals — both
+    optional (a meeting may be a pure time/context anchor). The meeting-participants
+    controller drives the chips field AND the transcript's offline parser (Slice 1b)
+    plus the LLM detection leg (Slice 5), so it must wrap both.
+
+    LLM detection gate trio (plan D3, decided SERVER-SIDE — no "offer, then
+    refuse"): no org opt-in → no button, no hint, no detect URL in the DOM;
+    opt-in without config → disabled button + setup hint; available → active.
+    The user's AI mode only takes effect when the org gate allows it. %>
+<% org_ai_enabled = @current_organisation.ai_enabled? %>
+<%# R2: :meeting_participant_detection, not a generic chat key — everything this
+    variable drives is the detection leg and nothing else: the detect URL in the
+    DOM, the detect button's disabled state and the ai/offline mode below. Same key
+    as MeetingsController#detect_participants, which the button posts to. Was
+    ai_available_for_chat?, before that ai_available?('openai'). %>
+<% org_ai_available = org_ai_enabled && @current_organisation.ai_available_for?(:meeting_participant_detection).available? %>
+<% ai_detection_mode = org_ai_available && current_user.preference_store.meeting_detection_mode_preference == 'ai' %>
+<div class="flex flex-col gap-4"
+     data-controller="meeting-participants"
+     data-meeting-participants-placeholder-text-value="<%= t('views.organisations.meetings.form.participants_placeholder') %>"
+     data-meeting-participants-addable-text-value="<%= t('views.organisations.meetings.form.participants_addable') %>"
+     data-meeting-participants-search-empty-text-value="<%= t('views.organisations.meetings.form.participants_search_empty') %>"
+     data-meeting-participants-no-speakers-text-value="<%= t('views.organisations.meetings.form.participants_no_speakers') %>"
+     data-meeting-participants-detected-text-value="<%= t('views.organisations.meetings.form.participants_detected') %>"
+     <% if org_ai_available %>
+     data-meeting-participants-detect-url-value="<%= detect_participants_organisation_project_meetings_path(@current_organisation, @project) %>"
+     <% end %>
+     data-meeting-participants-detection-mode-value="<%= ai_detection_mode ? 'ai' : 'offline' %>"
+     data-meeting-participants-ai-available-value="<%= org_ai_available %>"
+     data-meeting-participants-detecting-text-value="<%= t('views.organisations.meetings.form.detecting') %>"
+     data-meeting-participants-detect-failed-text-value="<%= t('views.organisations.meetings.form.detect_failed') %>"
+     data-meeting-participants-detect-rate-limited-text-value="<%= t('views.organisations.meetings.form.detect_rate_limited') %>"
+     data-meeting-participants-detect-too-large-text-value="<%= t('views.organisations.meetings.form.detect_too_large') %>"
+     data-meeting-participants-max-bytes-value="<%= Organisations::MeetingsController::MAX_DETECT_BYTES %>"
+     data-meeting-participants-ai-detected-text-value="<%= t('views.organisations.meetings.form.ai_detected') %>"
+     data-meeting-participants-ai-none-detected-text-value="<%= t('views.organisations.meetings.form.ai_none_detected') %>">
+  <% if meeting.errors.any? %>
+    <div class="p-3 bg-red-50 text-red-800 border border-red-200 rounded text-sm">
+      <ul class="list-disc list-inside">
+        <% meeting.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :title, t('views.organisations.meetings.form.title_label'), class: 'block text-sm font-medium text-cream-700 mb-1' %>
+    <%= form.text_field :title,
+        autofocus: true,
+        placeholder: t('views.organisations.meetings.form.title_placeholder'),
+        class: 'w-full py-3 px-4 text-lg font-bold border border-cream-300 rounded focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink bg-surface-raised' %>
+  </div>
+
+  <div>
+    <%= form.label :occurred_at, t('views.organisations.meetings.form.occurred_at_label'), class: 'block text-sm font-medium text-cream-700 mb-1' %>
+    <%= form.datetime_local_field :occurred_at,
+        value: meeting.occurred_at&.strftime('%Y-%m-%dT%H:%M'),
+        class: 'py-2 px-4 border border-cream-300 rounded focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink bg-surface-raised' %>
+    <p class="text-xs text-cream-500 mt-1"><%= t('views.organisations.meetings.form.occurred_at_hint') %></p>
+  </div>
+
+  <div>
+    <%= form.label :duration_minutes, t('views.organisations.meetings.form.duration_label'), class: 'block text-sm font-medium text-cream-700 mb-1' %>
+    <%= form.number_field :duration_minutes, min: 0,
+        placeholder: t('views.organisations.meetings.form.duration_placeholder'),
+        class: 'w-40 py-2 px-4 border border-cream-300 rounded focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink bg-surface-raised' %>
+  </div>
+
+  <%# Participants: native <select multiple> + SlimSelect (like the ticket-assignee
+      field) — Safari never overlays macOS Contacts on a <select> widget, unlike a
+      name-like text input where autocomplete="off"/type="search" are both ignored.
+      SlimSelect is PRESENTATIONAL only: the <select> carries NO participants name;
+      meeting_participants_controller mirrors the current selection into indexed
+      hidden inputs meeting[participants][i][display_name|user_id] (Option C), so the
+      server / Actors::SaveMeeting / meeting_params stay byte-for-byte unchanged.
+      Option value encodes the link: "user:<uuid>" for a project/org member, the raw
+      name for an external (addable) participant. %>
+  <div>
+    <label for="meeting-participants-select" class="block text-sm font-medium text-cream-700 mb-1">
+      <%= t('views.organisations.meetings.form.participants_label') %>
+    </label>
+    <select multiple id="meeting-participants-select" class="select w-full"
+            data-meeting-participants-target="select">
+      <% meeting_participant_options(meeting).each do |opt| %>
+        <option value="<%= opt[:value] %>" <%= 'selected' if opt[:selected] %>
+                data-html="<%= meeting_participant_option_html(opt[:type], opt[:label]) %>"><%= opt[:label] %></option>
+      <% end %>
+    </select>
+    <%# Empty sentinel: keeps meeting[participants] present even with nothing selected
+        so "removed everyone" reconciles to zero (extract_participants drops this blank
+        index-0 row; the controller mirrors real selections into indices ≥ 1). Mirrors
+        the ticket-assignee field's empty-array sentinel. %>
+    <input type="hidden" name="meeting[participants][0][display_name]" value="">
+    <div data-meeting-participants-target="hiddenInputs"></div>
+    <p class="text-xs text-cream-500 mt-1" role="status" aria-live="polite"
+       data-meeting-participants-target="announcer"></p>
+    <%# LLM detection button (Slice 5): the offline-mode manual trigger. In AI
+        mode the auto-detection replaces it (plan §5 flow); without org opt-in
+        this block does not exist at all. %>
+    <% if org_ai_enabled && !ai_detection_mode %>
+      <div class="mt-2">
+        <%# variant :ai + icon magic = the app-wide AI-action identity, same as the
+            Slice-4 summary button (_summary_section) in this feature. %>
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :ai,
+              size: :small,
+              icon: 'magic',
+              disabled: !org_ai_available || meeting.transcript.blank?,
+              data: { meeting_participants_target: 'detectButton',
+                      action: 'click->meeting-participants#detectParticipants' }
+            ) do %>
+          <%= t('views.organisations.meetings.form.detect_button') %>
+        <% end %>
+        <% unless org_ai_available %>
+          <p class="text-xs text-amber-700 mt-1"><%= t('views.organisations.meetings.form.detect_setup_hint') %></p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div>
+    <%= form.label :notes, t('views.organisations.meetings.form.notes_label'), class: 'block text-sm font-medium text-cream-700 mb-1' %>
+    <%= form.text_area :notes, rows: 6,
+        placeholder: t('views.organisations.meetings.form.notes_placeholder'),
+        class: 'w-full py-3 px-4 border border-cream-300 rounded focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink bg-surface-raised' %>
+  </div>
+
+  <div>
+    <%= form.label :transcript, t('views.organisations.meetings.form.transcript_label'), class: 'block text-sm font-medium text-cream-700 mb-1' %>
+    <%= form.text_area :transcript, rows: 10,
+        placeholder: t('views.organisations.meetings.form.transcript_placeholder'),
+        class: 'w-full py-3 px-4 border border-cream-300 rounded focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink bg-surface-raised font-mono text-sm',
+        data: { meeting_participants_target: 'transcript',
+                action: 'paste->meeting-participants#onTranscriptPaste input->meeting-participants#onTranscriptInput' } %>
+    <%# PERMANENT transmission notice in AI mode (plan decision 12/14: the LLM
+        transfer must never be silent) — shown whenever the auto-detection is
+        active, not only during a request, with a link to the setting. %>
+    <% if ai_detection_mode %>
+      <p class="text-xs text-cream-500 mt-1">
+        <i class="bi bi-stars" aria-hidden="true"></i>
+        <%= t('views.organisations.meetings.form.ai_mode_hint') %>
+        <%= link_to t('views.organisations.meetings.form.ai_mode_hint_settings'), meetings_user_preferences_path,
+                    class: 'underline hover:text-ink' %>
+      </p>
+    <% end %>
+    <%# Quiet consent hint (no checkbox): recording consent is the customer's
+        (Verantwortlicher) responsibility — Lalabase is the processor. %>
+    <p class="text-xs text-cream-500 mt-1"><%= t('views.organisations.meetings.form.consent_hint') %></p>
+  </div>
+
+  <%# Search & chat opt-in (Gespräche Slice 6). ONE toggle governs BOTH data
+      classes: notes AND transcript are concatenated into plain_text_version and
+      indexed together (plan decision 11 — the most conservative rule). Disabled
+      until the meeting HAS indexable content (a persisted plain_text_version):
+      releasing is a deliberate second step, so a brand-new meeting is always
+      disabled (plan A3). Rails propagates `disabled` onto the check_box's hidden
+      field too, so a disabled toggle sends NO param and never silently flips the
+      stored value. %>
+  <% embeddings_disabled = meeting.plain_text_version.blank? %>
+  <div class="pt-4 border-t border-cream-200">
+    <label class="flex items-start gap-3 <%= 'opacity-60 cursor-not-allowed' if embeddings_disabled %>">
+      <%= form.check_box :create_embeddings, disabled: embeddings_disabled,
+          class: 'mt-1 h-4 w-4 rounded border-cream-400 text-ink focus:ring-ink' %>
+      <span>
+        <span class="block text-sm font-medium text-cream-700">
+          <%= t('views.organisations.meetings.form.create_embeddings_label') %>
+        </span>
+        <span class="block text-xs text-cream-500 mt-1">
+          <%= t('views.organisations.meetings.form.create_embeddings_hint') %>
+        </span>
+        <% if embeddings_disabled %>
+          <span class="block text-xs text-cream-400 mt-1">
+            <%= t('views.organisations.meetings.form.create_embeddings_disabled_hint') %>
+          </span>
+        <% end %>
+      </span>
+    </label>
+  </div>
+</div>

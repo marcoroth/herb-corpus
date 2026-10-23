@@ -1,0 +1,35 @@
+<%# locals: (ticket:) %>
+<%# "Wartet auf …" with an hourglass in the ticket header (doc/ticket_relations_plan.md, revision 4, §8.1).
+
+    ⚠️ The <span> always renders, hidden while the ticket waits on nothing: the relations
+    streams replace it, and the first relation needs a target.
+
+    Whether the ticket waits counts every open blocker (Tickets::Waiting.for), readable or not.
+    What it names is only the readable ones: a blocker without read access is a count "without
+    access", never a title, number or project (plan §4). One readable blocker is a link to it;
+    several are a jump to the section: a button, not an #anchor, which would push a history
+    entry that Back turns into a lane reload (review round 4 of #944). %>
+<% hint = ticket_relation_section(ticket).hint %>
+<% rs = 'views.organisations.tickets.shared.relations.hint' %>
+<span id="<%= ticket_waiting_hint_id(ticket) %>"
+      class="<%= hint ? 'inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900' : 'hidden' %>"
+      data-waiting-hint>
+  <% if hint %>
+    <i class="bi bi-hourglass-split text-[11px]" aria-hidden="true"></i>
+    <% jump = { type: 'button', class: 'underline decoration-amber-400 hover:no-underline',
+                data: { controller: 'scroll-into-view', scroll_into_view_target_value: ticket_relations_section_id(ticket),
+                        action: 'scroll-into-view#scroll' } } %>
+    <% case hint.state %>
+    <% when :single %>
+      <% blocker = hint.blockers.first %>
+      <%= t("#{rs}.single_html",
+            ticket: ticket_relation_link(blocker, from: ticket, class: 'underline decoration-amber-400 hover:no-underline') { blocker.display_title }) %>
+    <% when :several %>
+      <%= tag.button(t("#{rs}.several", count: hint.total), **jump) %>
+    <% when :hidden %>
+      <span><%= t("#{rs}.hidden", count: hint.hidden) %></span>
+    <% when :mixed %>
+      <%= tag.button(t("#{rs}.mixed", count: hint.total, hidden: hint.hidden), **jump) %>
+    <% end %>
+  <% end %>
+</span>

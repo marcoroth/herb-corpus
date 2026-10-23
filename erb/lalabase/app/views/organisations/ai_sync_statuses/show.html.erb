@@ -1,0 +1,322 @@
+<!-- AI Sync Status Page -->
+<div>
+  <%= render 'organisations/shared/ai_area_header', title: t('views.organisations.ai_overview.pages.index') %>
+  <div class="flex justify-end mb-4">
+    <%= render 'common/contextual_help_menu', context: :settings_ai_sync %>
+  </div>
+
+  <div class="space-y-6 mt-6">
+
+  <%# The answer first, the raw numbers after (§3.5 of doc/ki_bereich_navigation_plan.md).
+      Everything below this partial is DETAIL and stays as it was. %>
+  <%= render 'organisations/ai_sync_statuses/summary' %>
+
+  <!-- Overall Statistics -->
+  <div class="bg-cream-50 rounded-lg border border-cream-300">
+    <div class="px-6 py-4 border-b border-cream-200">
+      <h2 class="text-xl font-semibold text-cream-900 flex items-center">
+        <i class="bi bi-graph-up-arrow mr-2"></i>
+        <%= t('views.organisations.ai_sync_statuses.show.overview') %>
+      </h2>
+    </div>
+    <div class="p-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center p-4 bg-cream-100 rounded-lg border border-cream-200">
+          <div class="text-2xl font-bold text-cream-900"><%= @sync_statistics[:overview][:total_content] %></div>
+          <div class="text-sm text-cream-600"><%= t('views.organisations.ai_sync_statuses.show.total_content') %></div>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+          <div class="text-2xl font-bold text-green-700"><%= @sync_statistics[:overview][:with_embeddings] %></div>
+          <div class="text-sm text-green-600"><%= t('views.organisations.ai_sync_statuses.show.with_embeddings') %></div>
+        </div>
+        <div class="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div class="text-2xl font-bold text-yellow-700"><%= @sync_statistics[:overview][:pending_embeddings] %></div>
+          <div class="text-sm text-yellow-600"><%= t('views.organisations.ai_sync_statuses.show.pending') %></div>
+        </div>
+        <div class="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+          <div class="text-2xl font-bold text-red-700"><%= @sync_statistics[:overview][:embedding_errors] %></div>
+          <div class="text-sm text-red-600"><%= t('views.organisations.ai_sync_statuses.show.errors') %></div>
+        </div>
+      </div>
+
+      <!-- Fragment Statistics -->
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="text-center p-4 bg-cream-100 rounded-lg border border-cream-200">
+          <div class="text-2xl font-bold text-cream-900"><%= @sync_statistics[:overview][:total_fragments] %></div>
+          <div class="text-sm text-cream-600"><%= t('views.organisations.ai_sync_statuses.show.total_fragments') %></div>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+          <div class="text-2xl font-bold text-green-700"><%= @sync_statistics[:overview][:fragments_with_embeddings] %></div>
+          <div class="text-sm text-green-600"><%= t('views.organisations.ai_sync_statuses.show.fragments_with_embeddings') %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Statistics -->
+  <div class="bg-cream-50 rounded-lg border border-cream-300">
+    <div class="px-6 py-4 border-b border-cream-200">
+      <h2 class="text-xl font-semibold text-cream-900 flex items-center">
+        <i class="bi bi-folder2-open mr-2"></i>
+        <%= t('views.organisations.ai_sync_statuses.show.projects') %>
+      </h2>
+    </div>
+    <div class="p-6">
+      <% if @sync_statistics[:projects].any? %>
+        <div class="space-y-4">
+          <% @sync_statistics[:projects].each_with_index do |project_stats, index| %>
+            <div class="border border-cream-200 rounded-lg overflow-hidden"
+                 data-controller="toggle">
+
+              <!-- Project Header mit Grafik -->
+              <div class="p-4 bg-cream-100 cursor-pointer hover:bg-cream-200 transition-colors"
+                   data-action="click->toggle#toggle">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-4">
+                    <h3 class="text-lg font-semibold text-cream-900">
+                      <i class="bi bi-folder mr-2"></i>
+                      <%= project_stats[:project].name %>
+                    </h3>
+                    <span class="text-sm text-cream-600" data-project-content-count>
+                      <%= t('views.organisations.ai_sync_statuses.show.content_count', count: project_stats[:totals][:total]) %>
+                    </span>
+                  </div>
+
+                  <div class="flex items-center space-x-4">
+                    <!-- Progress Ring -->
+                    <div class="relative w-16 h-16">
+                      <%
+                        total = project_stats[:totals][:embeddings_enabled]
+                        processed = project_stats[:totals][:embeddings_processed]
+                        percentage = total > 0 ? (processed.to_f / total * 100).round : 0
+                        circumference = 2 * Math::PI * 22
+                        dash_offset = circumference - (percentage / 100.0 * circumference)
+                      %>
+                      <svg class="w-16 h-16 transform -rotate-90" viewBox="0 0 50 50">
+                        <!-- Background circle -->
+                        <circle cx="25" cy="25" r="22" stroke="#ebe3d4" stroke-width="4" fill="transparent" />
+                        <!-- Progress circle -->
+                        <circle cx="25" cy="25" r="22"
+                                stroke="<%= percentage >= 80 ? '#10b981' : percentage >= 50 ? '#f59e0b' : '#ef4444' %>"
+                                stroke-width="4"
+                                fill="transparent"
+                                stroke-linecap="round"
+                                stroke-dasharray="<%= circumference %>"
+                                stroke-dashoffset="<%= dash_offset %>" />
+                      </svg>
+                      <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-xs font-bold text-cream-700"><%= percentage %>%</span>
+                      </div>
+                    </div>
+
+                    <!-- Status Indicators -->
+                    <div class="grid grid-cols-1 gap-1 text-xs">
+                      <div class="flex items-center justify-between bg-green-50 px-2 py-1 rounded border border-green-200">
+                        <div class="flex items-center space-x-1">
+                          <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span class="text-green-700 font-medium"><%= t('views.organisations.ai_sync_statuses.show.processed') %></span>
+                        </div>
+                        <span class="text-green-800 font-bold ml-3"><%= project_stats[:totals][:embeddings_processed] %></span>
+                      </div>
+                      <div class="flex items-center justify-between bg-yellow-50 px-2 py-1 rounded border border-yellow-200">
+                        <div class="flex items-center space-x-1">
+                          <div class="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                          <span class="text-yellow-700 font-medium"><%= t('views.organisations.ai_sync_statuses.show.pending') %></span>
+                        </div>
+                        <span class="text-yellow-800 font-bold ml-3"><%= project_stats[:totals][:pending_embeddings] %></span>
+                      </div>
+                      <% if project_stats[:totals][:with_errors] > 0 %>
+                        <div class="flex items-center justify-between bg-red-50 px-2 py-1 rounded border border-red-200">
+                          <div class="flex items-center space-x-1">
+                            <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                            <span class="text-red-700 font-medium"><%= t('views.organisations.ai_sync_statuses.show.errors') %></span>
+                          </div>
+                          <span class="text-red-800 font-bold ml-3"><%= project_stats[:totals][:with_errors] %></span>
+                        </div>
+                      <% end %>
+                    </div>
+
+                    <!-- Expand/Collapse Icon -->
+                    <i class="bi bi-chevron-down text-cream-500 transition-transform duration-200"
+                       data-toggle-target="icon"></i>
+                  </div>
+                </div>
+
+                <!-- Mini Content Type Bars -->
+                <%# One bar per registered content type, in registry order. The list is NOT
+                    written here: Embeddings::ContentTypes owns it, the service keys its
+                    rows by it, and AiSyncStatusHelper says how to draw each key. Four
+                    hand-written entries used to stand here, the fourth copy of a list that
+                    had nine members. %>
+                <div class="mt-3 grid grid-cols-3 md:grid-cols-5 gap-2">
+                  <% project_stats[:by_type].each do |key, data| %>
+                    <div class="text-center">
+                      <div class="text-xs text-cream-600 mb-1"><%= ai_sync_type_label(key) %></div>
+                      <div class="h-2 bg-cream-200 rounded-full overflow-hidden">
+                        <%
+                          type_total = data[:embeddings_enabled]
+                          type_processed = data[:embeddings_processed]
+                          type_percentage = type_total > 0 ? (type_processed.to_f / type_total * 100) : 0
+                        %>
+                        <div class="h-full <%= ai_sync_type_presentation(key)[:bar] %> transition-all duration-300"
+                             style="width: <%= type_percentage %>%"></div>
+                      </div>
+                      <div class="text-xs text-cream-500 mt-1">
+                        <%= type_processed %>/<%= type_total %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <!-- Collapsible Details -->
+              <div class="hidden" data-toggle-target="content">
+                <div class="p-4 border-t border-cream-200">
+                  <!-- Project Summary -->
+                  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                    <div class="text-center p-3 bg-cream-100 rounded border border-cream-200">
+                      <div class="font-bold text-cream-900" data-project-total><%= project_stats[:totals][:total] %></div>
+                      <div class="text-xs text-cream-600"><%= t('views.organisations.ai_sync_statuses.show.total') %></div>
+                    </div>
+                    <div class="text-center p-3 bg-green-50 rounded border">
+                      <div class="font-bold text-green-700"><%= project_stats[:totals][:embeddings_enabled] %></div>
+                      <div class="text-xs text-green-600"><%= t('views.organisations.ai_sync_statuses.show.enabled') %></div>
+                    </div>
+                    <div class="text-center p-3 bg-cobalt-50 rounded border">
+                      <div class="font-bold text-cobalt-700"><%= project_stats[:totals][:embeddings_processed] %></div>
+                      <div class="text-xs text-cobalt-600"><%= t('views.organisations.ai_sync_statuses.show.processed') %></div>
+                    </div>
+                    <div class="text-center p-3 bg-yellow-50 rounded border">
+                      <div class="font-bold text-yellow-700"><%= project_stats[:totals][:pending_embeddings] %></div>
+                      <div class="text-xs text-yellow-600"><%= t('views.organisations.ai_sync_statuses.show.pending') %></div>
+                    </div>
+                    <div class="text-center p-3 bg-red-50 rounded border">
+                      <div class="font-bold text-red-700"><%= project_stats[:totals][:with_errors] %></div>
+                      <div class="text-xs text-red-600"><%= t('views.organisations.ai_sync_statuses.show.errors') %></div>
+                    </div>
+                  </div>
+
+                  <!-- Content Type Breakdown -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <% project_stats[:by_type].each do |key, data| %>
+                      <% presentation = ai_sync_type_presentation(key) %>
+                      <div class="rounded-lg p-3 border <%= presentation[:card] %>" data-type-card="<%= key %>">
+                        <h4 class="font-semibold mb-2 flex items-center <%= presentation[:heading] %>">
+                          <i class="bi bi-<%= presentation[:icon] %> mr-1"></i>
+                          <%= ai_sync_type_label(key) %>
+                        </h4>
+                        <div class="space-y-1 text-sm">
+                          <div class="flex justify-between">
+                            <span><%= t('views.organisations.ai_sync_statuses.show.total') %>:</span>
+                            <span class="font-medium"><%= data[:total] %></span>
+                          </div>
+                          <div class="flex justify-between">
+                            <span><%= t('views.organisations.ai_sync_statuses.show.enabled') %>:</span>
+                            <span class="font-medium text-green-600"><%= data[:embeddings_enabled] %></span>
+                          </div>
+                          <div class="flex justify-between">
+                            <span><%= t('views.organisations.ai_sync_statuses.show.processed') %>:</span>
+                            <span class="font-medium text-cobalt-600"><%= data[:embeddings_processed] %></span>
+                          </div>
+                          <div class="flex justify-between">
+                            <span><%= t('views.organisations.ai_sync_statuses.show.pending') %>:</span>
+                            <span class="font-medium text-yellow-600"><%= data[:pending_embeddings] %></span>
+                          </div>
+                          <%# Only when there is one, like the project header above: an
+                              always-visible "Fehler: 0" would read as a warning on a
+                              healthy page. Without the row the card does not add up,
+                              because "Wartend" stopped counting failed records. %>
+                          <% if data[:with_errors].positive? %>
+                            <div class="flex justify-between">
+                              <span><%= t('views.organisations.ai_sync_statuses.show.errors') %>:</span>
+                              <span class="font-medium text-red-600"><%= data[:with_errors] %></span>
+                            </div>
+                          <% end %>
+                          <div class="flex justify-between">
+                            <span><%= t('views.organisations.ai_sync_statuses.show.fragments') %>:</span>
+                            <span class="font-medium text-green-600"><%= data[:fragments_with_embeddings] %>/<%= data[:fragments_count] %></span>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="text-center py-8 text-cream-500">
+          <i class="bi bi-folder-x text-4xl mb-2"></i>
+          <p><%= t('views.organisations.ai_sync_statuses.show.no_projects') %></p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Fragment Type Statistics -->
+  <div class="bg-cream-50 rounded-lg border border-cream-300">
+    <div class="px-6 py-4 border-b border-cream-200">
+      <h2 class="text-xl font-semibold text-cream-900 flex items-center">
+        <i class="bi bi-puzzle mr-2"></i>
+        <%= t('views.organisations.ai_sync_statuses.show.fragment_statistics') %>
+      </h2>
+    </div>
+    <div class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Fragment Types -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3"><%= t('views.organisations.ai_sync_statuses.show.by_content_type') %></h3>
+          <div class="space-y-2">
+            <% @sync_statistics[:fragments][:by_type].each do |type, count| %>
+              <div class="flex justify-between items-center p-2 bg-cream-100 rounded">
+                <span class="font-medium"><%= type %></span>
+                <div class="flex items-center space-x-2">
+                  <span class="text-cream-600"><%= t('views.organisations.ai_sync_statuses.show.count_total', count: count) %></span>
+                  <span class="text-green-600">(<%= t('views.organisations.ai_sync_statuses.show.count_with_embeddings', count: @sync_statistics[:fragments][:with_embeddings_by_type][type] || 0) %>)</span>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <!-- Recent Fragments -->
+        <div>
+          <h3 class="text-lg font-semibold mb-3"><%= t('views.organisations.ai_sync_statuses.show.recent_fragments') %></h3>
+          <div class="space-y-2">
+            <% if @sync_statistics[:fragments][:recent_fragments].any? %>
+              <% @sync_statistics[:fragments][:recent_fragments].each do |fragment| %>
+                <%# Embedded = has a sidecar row (see the service): the inline column %>
+                <%# only ever holds 1536-dim vectors and is NULL for a 768/1024 org. %>
+                <% embedded = @sync_statistics[:fragments][:recent_fragment_ids_with_embedding].include?(fragment.id) %>
+                <div class="p-2 bg-cream-100 rounded text-sm">
+                  <div class="flex justify-between items-center">
+                    <span class="font-medium"><%= fragment.fragmentable_type %></span>
+                    <span class="text-cream-500"><%= fragment.created_at.strftime("%d.%m.%Y %H:%M") %></span>
+                  </div>
+                  <div class="text-cream-600 mt-1">
+                    <span class="<%= embedded ? 'text-green-600' : 'text-red-600' %>">
+                      <i class="bi bi-<%= embedded ? 'check-circle' : 'x-circle' %>"></i>
+                      <%= embedded ? t('views.organisations.ai_sync_statuses.show.with_embedding') : t('views.organisations.ai_sync_statuses.show.without_embedding') %>
+                    </span>
+                  </div>
+                </div>
+              <% end %>
+            <% else %>
+              <p class="text-cream-500 text-sm"><%= t('views.organisations.ai_sync_statuses.show.no_fragments') %></p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# The two buttons that stood here have moved INTO the summary at the top of the page
+      (S4, §3.5): the action belongs next to the sentence that motivates it, and after
+      the move a second pair at the foot of a 400-line page would be the same action
+      offered twice. Their labels and their behaviour are unchanged.
+      Off-palette blue/green-500 + handgebaut → ButtonComponent (P4/AP5). Refresh =
+      neutrale Aktion (secondary, ↻-Icon trägt Bedeutung). Reprocess =
+      konsequenzbehaftete Aktion (primary, ▶-Icon, P3-Ausnahme: löst Massen-Job aus). %>
+  </div>
+</div>

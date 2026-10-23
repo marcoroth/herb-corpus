@@ -1,0 +1,32 @@
+<%# Contextual-help "?" trigger for a page area (doc/kontexthilfe_plan.md).
+    Local: context (Symbol) — looked up in Docs::ContextualHelp::QUESTIONS.
+    Renders nothing if the context has no curated questions (OverflowMenuComponent#render?).
+    Each question opens the answer in the body-level slide-over drawer
+    (doc/kontexthilfe_drawer_plan.md, D4): the Stimulus action carries the frame
+    URL (page WITHOUT anchor) + the locale-resolved anchor as action params; the
+    href stays the full slug#anchor deep link as no-JS fallback. %>
+<%= render Neo::OverflowMenuComponent.new(
+      icon: 'question-lg',
+      trigger_label_key: 'components.contextual_help.label',
+      size: :large
+    ) do |menu| %>
+  <% Docs::ContextualHelp.for(context).each do |question| %>
+    <% slug   = question[:slug] %>
+    <% anchor = Docs::ContextualHelp.anchor_for(question, I18n.locale) %>
+    <%# The drawer can only show a page this instance has. Without a catalogue
+        the question still helps: it links straight into the public
+        documentation instead of opening a drawer onto nothing. %>
+    <% menu.with_item(
+         label: t(question[:label_key]),
+         url: help_page_url(slug, anchor: anchor),
+         icon: 'question-circle',
+         data: (if help_available?
+                  { action: 'contextual-help-drawer#open',
+                    contextual_help_drawer_url_param: help_page_path(slug: slug),
+                    contextual_help_drawer_anchor_param: anchor }
+                else
+                  { turbo: false }
+                end)
+       ) %>
+  <% end %>
+<% end %>

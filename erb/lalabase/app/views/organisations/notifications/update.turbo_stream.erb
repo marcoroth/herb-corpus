@@ -1,0 +1,90 @@
+<%# Turbo Stream responses for notification updates %>
+
+<% action_type = @action_type || params[:action_type] || params.dig(:notification, :state) %>
+
+<% view_variant = params[:view_variant].presence || params[:view_mode].presence %>
+<% view_variant ||= @action_type == 'mark_group_read' || params[:action_type] == 'mark_group_read' ? 'grouped' : nil %>
+
+<%# If the affected notification is currently open in the inbox pane,
+    swap ONLY the status pills in the pane header — NOT the whole
+    pane (which would break an open reply form or timeline scrolling).
+    Stable ID for this: inbox_pane_status_pills. %>
+<% if @pane_state == :ticket && @selected_notification&.id == @notification.id %>
+  <%= turbo_stream.replace 'inbox_pane_status_pills' do %>
+    <%= render 'pane_status_pills',
+               notification: @selected_notification,
+               current_organisation: @current_organisation,
+               project: @project,
+               ticket: @ticket %>
+  <% end %>
+<% end %>
+
+<%# Re-render the master list entirely via the presenter — date headers
+    disappear automatically when the last item of a group is removed,
+    the empty state appears as soon as nothing is left.
+    For legacy callers (dropdown, briefing lane) the
+    single item-replace is still used — recognizable by view_variant. %>
+<% if view_variant.in?(%w[grouped card]) %>
+  <%# Legacy: single item-replace for external callers. %>
+  <%= turbo_stream.replace dom_id(@notification) do %>
+    <% if view_variant == 'grouped' %>
+      <div id="<%= dom_id(@notification) %>" data-notification-item="<%= @notification.id %>" class="px-4 py-2 hover:bg-gray-50 transition-colors">
+        <%= render NeoNotificationGroupedItemComponent.new(notification: @notification, view_variant: 'grouped') %>
+      </div>
+    <% else %>
+      <div id="<%= dom_id(@notification) %>" data-notification-item="<%= @notification.id %>">
+        <%= render NeoNotificationCardComponent.new(notification: @notification, show_project: true, view_variant: 'card') %>
+      </div>
+    <% end %>
+  <% end %>
+<% else %>
+  <%# Inbox default: re-render the entire master via the presenter. %>
+  <% presenter = build_master_list_presenter %>
+  <% query_ctx = presenter_query_context(presenter) %>
+  <%= turbo_stream.replace 'inbox_master_list' do %>
+    <%= render 'master_list',
+               presenter: presenter,
+               selected_notification: @selected_notification,
+               query_context: query_ctx %>
+  <% end %>
+<% end %>
+
+<%# Update the unread-count banner above the master list. %>
+<%= turbo_stream.replace 'inbox_unread_count_banner' do %>
+  <div id="inbox_unread_count_banner">
+    <% if @unread_count.to_i > 0 && show_unread_banner? %>
+      <div class="mb-4 p-3 bg-lime-50 border border-lime-200 rounded-lg">
+        <p class="text-sm text-lime-800 font-medium">
+          <%= t('organisations.notifications.index.unread_notifications', count: @unread_count) %>
+        </p>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Unread count: sidebar frame + count-data frame, one owner. %>
+<%= render 'notifications/unread_count_streams', unread_count: @unread_count.to_i %>
+
+<%# Note: the old "remove on archive" logic is now covered by the
+    filter-aware removal further above. %>
+
+<%# Show success toast message %>
+<%= turbo_stream.prepend "flash_messages" do %>
+  <div class="notification-toast notification-toast--success"
+       data-controller="auto-dismiss"
+       data-auto-dismiss-delay-value="3000">
+    <div class="notification-toast-content">
+      <% case action_type %>
+      <% when 'archive' %>
+        <i class="bi bi-archive-fill"></i>
+        <span><%= t('views.organisations.notifications.update.notification_archived') %></span>
+      <% when 'read', 'mark_read' %>
+        <i class="bi bi-check-circle-fill"></i>
+        <span><%= t('views.organisations.notifications.update.marked_as_read') %></span>
+      <% else %>
+        <i class="bi bi-check-circle-fill"></i>
+        <span><%= t('views.organisations.notifications.update.notification_updated') %></span>
+      <% end %>
+    </div>
+  </div>
+<% end %>

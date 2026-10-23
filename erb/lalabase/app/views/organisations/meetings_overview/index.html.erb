@@ -1,0 +1,44 @@
+<%# Org-wide meetings index ("Alle Meetings", Gespräche Slice 1c): "all
+    conversations with person X" across project boundaries. Since 17.10.2026 the
+    same page as the project meetings page
+    (doc/meetings_uebersicht_vereinheitlichen_plan.md): the shared filter bar
+    above a list frame that the bar, the column heads and the pages reload
+    (PR 1), the column picker (PR 2), a row opens the meeting in the lane
+    beside the list (PR 3), and the "+" opens a project select in the lane with
+    the form of the chosen project below it (PR 4). The wrapper and the grid
+    are the project page's (meeting_list_page_data, meetings/_index_desktop and
+    _index_mobile), with this page's list and lane form in them.
+
+    The detail in the lane is project-nested (MeetingsController) and carries
+    list_context=organisation, so a save there redraws THIS list. layout-toggle
+    is the one writer of the address, as on the project page: the list state
+    after every list reload or stream, the lane part from the row and the ✕. %>
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
+
+<%# The expert filter of the bar's view menu opens into this frame. %>
+<turbo-frame id="modal"></turbo-frame>
+
+<div class="labor-layout-view <%= 'show-content' if @selected_meeting || @new_meeting_lane %> hide-panel"
+     <%= tag.attributes(data: meeting_list_page_data(index_url: organisation_meetings_path(@current_organisation),
+                                                     list_frame_id: Organisations::MeetingsOverviewController::LIST_FRAME_ID,
+                                                     viewport_mode: @viewport_mode, selected: @selected_meeting,
+                                                     lane_forms: %w[new], new_form_open: @new_meeting_lane)
+                                .merge(meeting_column_picker_data(organisation: @current_organisation, project: nil, active_view: @active_smart_folder,
+                                                                  frame_id: Organisations::MeetingsOverviewController::LIST_FRAME_ID))) %>>
+  <% list = capture do %>
+    <%= render 'organisations/meetings_overview/list_head' %>
+    <%= render 'organisations/meetings_overview/results', meetings: @meetings, selected_meeting: @selected_meeting,
+                                                          first_use: meetings_overview_first_use? %>
+  <% end %>
+
+  <%# "+" (?new=meeting): the project select, the form of the chosen project below it. %>
+  <% lane_form = (render 'organisations/meetings_overview/new_meeting_lane', projects: writable_meeting_projects if @new_meeting_lane) %>
+
+  <% if @viewport_mode == 'mobile' %>
+    <%= render 'organisations/meetings/index_mobile', list: list, lane_form: lane_form %>
+  <% else %>
+    <%= render 'organisations/meetings/index_desktop', list: list, lane_form: lane_form %>
+  <% end %>
+</div>

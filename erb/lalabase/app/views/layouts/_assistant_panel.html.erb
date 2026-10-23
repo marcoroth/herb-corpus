@@ -1,0 +1,274 @@
+<%# S3a T4 — the assistant's companion lane (plan §7.1, §7.7, L11/L12).
+
+    Rendered ONCE at body level (like _personal_tasks_drawer and the search
+    overlay, and for the same reason: the sidebar's transform/overflow would clip
+    a position:fixed child). The outer node carries a stable id plus
+    data-turbo-permanent, so Turbo transplants the LIVING element into every page
+    it visits: no re-render, no server roundtrip, no flicker. Typed draft, scroll
+    position and the loaded transcript all stay put across navigation.
+
+    STATE THAT MUST SURVIVE BELONGS ON THE NODE, not in the controller instance
+    — the node is what data-turbo-permanent guarantees. Stimulus values give us
+    exactly that for free (they live in data attributes on this element).
+
+    Three of the four entry points from §7.1 are wired here (the fourth, the
+    context button at an object, is S4):
+      1. the sidebar row (outside this controller's scope -> custom event),
+      2. Cmd/Ctrl+J from anywhere,
+      3. the capsule, i.e. the panel's own collapsed state.
+
+    Server-rendered open/width come from the cookie (AssistantPanelState) so a
+    hard reload paints the correct geometry immediately instead of jumping once
+    the controller connects. %>
+<% if assistant_available? %>
+  <% panel_state = assistant_panel_state %>
+  <div id="assistant_panel"
+       data-turbo-permanent
+       data-controller="assistant-panel"
+       data-assistant-panel-src-value="<%= organisation_assistant_panel_path(organisation_id: current_organisation.id) %>"
+       data-assistant-panel-open-value="<%= panel_state.open? %>"
+       data-assistant-panel-width-value="<%= panel_state.width %>"
+       data-assistant-panel-min-width-value="<%= AssistantPanelState::MIN_WIDTH %>"
+       data-assistant-panel-max-width-value="<%= AssistantPanelState::MAX_WIDTH %>"
+       data-assistant-panel-sidebar-width-value="<%= AssistantPanelState::SIDEBAR_WIDTH %>"
+       data-assistant-panel-cookie-name-value="<%= AssistantPanelState::COOKIE_NAME %>"
+       data-assistant-panel-mode-value="<%= panel_state.mode %>"
+       data-assistant-panel-artefact-src-value="<%= organisation_assistant_artefact_path(organisation_id: current_organisation.id) %>"
+       data-assistant-panel-artefact-value=""
+       data-assistant-panel-thread-url-value="<%= organisation_assistant_chats_path(organisation_id: current_organisation.id) %>"
+       data-assistant-panel-panel-mode-value="<%= AssistantPanelState::MODE_PANEL %>"
+       data-assistant-panel-full-mode-value="<%= AssistantPanelState::MODE_FULL %>"
+       data-assistant-panel-open-class="assistant-panel-open"
+       data-assistant-panel-full-class="assistant-panel-full"
+       class="hidden lg:block">
+
+    <button type="button" class="mobile-assistant-scrim" data-action="assistant-panel#close" tabindex="-1" aria-label="<%= t('mobile.close') %>"></button>
+    <%# The panel proper. start-64 docks it against the sidebar; the width is set
+        by the controller from the node state (the inline value here is only the
+        first paint). %>
+    <%# assistant-panel is the hook for components/assistant_panel.css; the full
+        view is a CLASS on this same element, never a second element and never a
+        page of its own (L11). The inline width is the first paint of the
+        companion mode only -- in the full view the CSS ignores it, because the
+        width belongs to the layout there (§7.7).
+
+        ⚠️ The outer edge is deliberately QUIETER than the house style
+        (27.08.2026, on sight): a 2px black border plus a hard 6px shadow made the
+        panel read as a wall against the page it accompanies. It now uses the same
+        1px cream-300 line its own lanes use inside (assistant_panel.css), plus a
+        soft shadow that only says "this floats" -- the panel travels WITH the app,
+        so it should not look bolted onto it. %>
+    <div data-assistant-panel-target="panel" aria-label="<%= t('navigation.assistant') %>"
+         data-action="keydown->assistant-panel#closeOnEscape keydown->assistant-panel#trapMobileFocus"
+         style="<%= "width: #{panel_state.width}px" unless panel_state.full? %>"
+         class="assistant-panel <%= 'assistant-panel--full' if panel_state.full? %> <%= 'hidden' unless panel_state.open? %> fixed inset-y-0 start-64 z-drawer flex flex-col bg-surface-raised border-e border-cream-300 shadow-[4px_0_12px_-6px_rgba(0,0,0,0.25)]">
+
+      <div class="flex items-center justify-between gap-2 px-4 py-3 border-b-2 border-cream-300 shrink-0">
+        <h2 class="min-w-0 text-sm font-bold text-cream-900 flex items-center gap-2">
+          <i class="bi bi-stars shrink-0"></i>
+          <span class="truncate"><%= t('views.organisations.assistant_panels.shell.title') %></span>
+        </h2>
+        <div class="flex items-center gap-1 shrink-0">
+          <%# S3c T2: up to the full view and back down (§4). TWO buttons rather
+              than one that rewrites its own label: this header sits in a
+              permanent node, so the server can never correct it, and a button
+              whose accessible name is patched by JavaScript is the kind of thing
+              that ends up announcing the wrong action. Each button says one
+              thing, the controller only decides which of them is visible. %>
+          <button type="button"
+                  data-assistant-panel-target="expandButton"
+                  data-action="assistant-panel#expandToFull"
+                  class="<%= 'hidden' if panel_state.full? %> w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all"
+                  title="<%= t('views.organisations.assistant_panels.shell.expand') %>"
+                  aria-label="<%= t('views.organisations.assistant_panels.shell.expand') %>">
+            <i class="bi bi-arrows-angle-expand text-sm"></i>
+          </button>
+          <button type="button"
+                  data-assistant-panel-target="collapseButton"
+                  data-action="assistant-panel#collapseToPanel"
+                  class="<%= 'hidden' unless panel_state.full? %> w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all"
+                  title="<%= t('views.organisations.assistant_panels.shell.collapse') %>"
+                  aria-label="<%= t('views.organisations.assistant_panels.shell.collapse') %>">
+            <i class="bi bi-arrows-angle-contract text-sm"></i>
+          </button>
+          <%# NOT a link, unlike its neighbour: this one needs to know which
+              thread the frame is showing so the list can mark it and offer the
+              way back, and a permanent node never learns that (the server can
+              never re-render it). The controller reads it off the transcript. %>
+          <button type="button"
+                  data-assistant-panel-target="historyButton"
+                  data-action="assistant-panel#showHistory"
+                  title="<%= t('views.organisations.assistant_panels.history.open') %>"
+                  aria-label="<%= t('views.organisations.assistant_panels.history.open') %>"
+                  class="<%= 'hidden' if panel_state.full? %> w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all">
+            <i class="bi bi-clock-history text-sm"></i>
+          </button>
+          <%# The gear, for the same reason the history button next to it is a
+              button and not a link: the way back out of the settings has to land
+              on the conversation this was pressed on, and only the browser knows
+              which one that is (the header is permanent, the server never
+              re-renders it). A plain link would return to the panel default, i.e.
+              the newest thread, and switch the conversation under somebody who
+              pressed a button twice. %>
+          <button type="button"
+                  data-assistant-panel-target="settingsButton"
+                  data-action="assistant-panel#showSettings"
+                  title="<%= t('views.organisations.assistant_panels.settings.open') %>"
+                  aria-label="<%= t('views.organisations.assistant_panels.settings.open') %>"
+                  class="w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all">
+            <i class="bi bi-gear text-sm"></i>
+          </button>
+          <%# Targets the frame from OUTSIDE it: the header is part of the
+              permanent shell, only the body below is exchanged. %>
+          <%# The one ACTION in a header of otherwise quiet controls, so it wears the
+              primary token rather than the faint treatment of its neighbours.
+              Deliberately WITHOUT the design system's lift shadow: the header row is
+              28px tall and a 3px offset shadow would collide with the border below it.
+
+              ⚠️ And deliberately BELOW the house style's border-2 black (27.08.2026,
+              on sight): in this header it was the only bordered surface at all, which
+              made a 28px button shout louder than the panel title. A hairline in a
+              muted tone plus a softened fill keeps it recognisable as the action; the
+              full token comes back on hover, where the pointer already says the same
+              thing. %>
+          <%= link_to organisation_assistant_panel_path(organisation_id: current_organisation.id, new: 1),
+                      data: { turbo_frame: 'assistant_panel_body' },
+                      title: t('views.organisations.assistant_panels.shell.new_chat'),
+                      aria: { label: t('views.organisations.assistant_panels.shell.new_chat') },
+                      class: 'w-7 h-7 flex items-center justify-center border border-stroke/30 rounded ' \
+                             'bg-btn-primary/60 text-ink hover:bg-btn-primary transition-all' do %>
+            <i class="bi bi-plus-lg text-sm"></i>
+          <% end %>
+          <button type="button"
+                  data-action="assistant-panel#close"
+                  title="<%= t('views.organisations.assistant_panels.shell.close') %>"
+                  aria-label="<%= t('views.organisations.assistant_panels.shell.close') %>"
+                  class="w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all">
+            <i class="bi bi-x-lg text-sm"></i>
+          </button>
+        </div>
+      </div>
+
+      <%# The lanes of §7.2, as a grid INSIDE the panel rather than the page-level
+          .layout grid: that one lives in <main>, gets its height from
+          layout_toggle_controller and is addressed via `main:has(.layout)`, none
+          of which a fixed body-level element can join. In the companion mode the
+          grid has ONE track (the chat) and the history lane is display:none; the
+          full view adds the lane back. Rules in components/assistant_panel.css.
+
+          The consequence that matters: switching modes is pure CSS. The chat
+          frame is never re-fetched, so a typed draft, the scroll position and a
+          streaming answer all survive the way up and back down -- which is the
+          whole reason the full view is a state of this node and not a page. %>
+      <div class="assistant-lanes flex-1 min-h-0">
+        <%# The history lane: same component as the overlay list from T1, loaded
+            into a frame of its OWN. Lazy like the body -- somebody who never
+            expands never pays for it. %>
+        <%= turbo_frame_tag 'assistant_panel_history',
+                            class: 'assistant-lane-history min-h-0',
+                            data: { assistant_panel_target: 'historyFrame' } do %>
+          <p class="p-4 text-sm text-cream-500"><%= t('views.organisations.assistant_panels.shell.loading') %></p>
+        <% end %>
+
+        <%# No src attribute: the controller sets one on first open (from its own
+            src value above), so a user who never opens the panel never pays for the
+            transcript. Deliberately NOT a second copy of the address in a data-src
+            here -- the controller never read it, and the same URL in two places is
+            the kind of pair that drifts. %>
+        <%= turbo_frame_tag 'assistant_panel_body',
+                            class: 'assistant-lane-chat min-h-0 flex flex-col',
+                            data: { assistant_panel_target: 'frame' } do %>
+          <p class="p-4 text-sm text-cream-500"><%= t('views.organisations.assistant_panels.shell.loading') %></p>
+        <% end %>
+
+        <%# The form the "Assistent" button in an object's header ends up
+            submitting (Bezugs-Sammlung S1, §8.3). It lives HERE and not on the
+            page for the same reason the panel is a permanent node: the page
+            cannot know which thread the panel is showing, and the address of this
+            write carries that thread's id. The controller fills in both the
+            action and the key before it submits.
+
+            POST to .../assistant_chats/:id/references since S1: adding a
+            reference is a write to a COLLECTION, not a patch of a column, and
+            the field carries the composite key ("Ticket:<uuid>") that is the same
+            value everywhere (§7.1).
+
+            A real form and not fetch(): Turbo then applies the returned stream
+            the way it applies every other one. ⚠️ What carries the CSRF check is
+            the GLOBAL token Turbo sends as X-CSRF-Token from csrf_meta_tags, not
+            the hidden field form_with mints here: per_form_csrf_tokens binds that
+            field to the address rendered HERE, and the controller rewrites the
+            action before submitting. So this form must stay a Turbo submission.
+            Same move as the composer submit the capsule performs. %>
+        <%= form_with url: organisation_assistant_chats_path(organisation_id: current_organisation.id),
+                      method: :post, class: 'hidden',
+                      data: { assistant_panel_target: 'contextForm' } do %>
+          <%= hidden_field_tag 'key', '', id: nil,
+                               data: { assistant_panel_target: 'contextField' } %>
+        <% end %>
+
+        <%# The artefact lane (S3c T3, §4, §8.1): empty and hidden until something
+            opens it, then exchanged like any frame.
+
+            ⚠️ target="_top" belongs HERE, on the shell's frame, not on the frame
+            in the response: Turbo keeps this element and only swaps its children,
+            so attributes the server sends on the response frame never arrive.
+            Without the escape every link inside a panel (a row's billing badge,
+            the way out into the time list) would load a whole page INTO this
+            frame and render "Content missing" -- the same trap the citation list
+            documents. The controller answers such a navigation by stepping down
+            to the companion mode, so the page it opens is actually visible. %>
+        <%= turbo_frame_tag 'assistant_panel_artefact',
+                            target: '_top',
+                            class: 'assistant-lane-artefact min-h-0',
+                            data: { assistant_panel_target: 'artefactFrame' } do %>
+        <% end %>
+      </div>
+
+      <%# The context offer used to sit HERE, a strip pinned to the panel's
+          bottom edge. It moved into the chat frame on 27.08.2026
+          (Neo::Chat::ContextOfferComponent), above the row that shows the
+          reference it offers to set: down here, under the field, the style row
+          and the transparency line, it was where nobody looked. What kept it in
+          this shell was that a frame load wipes anything the client wrote into
+          the frame -- answered at the load itself, in handleChatFrameLoad. %>
+      <%# Resize handle straddling the panel's right edge. Focusable and driven by
+          the arrow keys as well as the pointer: role="separator" is a promise,
+          and a separator that only answers a mouse does not keep it. %>
+      <div data-action="pointerdown->assistant-panel#startResize keydown->assistant-panel#resizeByKey"
+           data-assistant-panel-target="resizeHandle"
+           role="separator"
+           tabindex="0"
+           aria-orientation="vertical"
+           aria-label="<%= t('views.organisations.assistant_panels.shell.resize') %>"
+           aria-valuemin="<%= AssistantPanelState::MIN_WIDTH %>"
+           aria-valuemax="<%= AssistantPanelState::MAX_WIDTH %>"
+           aria-valuenow="<%= panel_state.width %>"
+           class="<%= 'hidden' if panel_state.full? %> absolute inset-y-0 -end-1 w-2 cursor-col-resize hover:bg-cream-300 focus:bg-cream-300 focus:outline-none"></div>
+    </div>
+
+    <%# The capsule: the panel's COLLAPSED state, not a second thing. It hovers
+        where the panel would be; typing plus Enter unfolds the panel in place and
+        hands the text over. While the page scrolls it shrinks to the icon so it
+        stops covering the last row; scrolling up, hover or a click bring it back,
+        and it never shrinks while somebody is typing in it. %>
+    <div data-assistant-panel-target="capsule"
+         class="<%= 'hidden' if panel_state.open? %> fixed bottom-4 start-72 z-drawer w-64 focus-within:w-96 transition-all duration-200">
+      <input type="text"
+             autocomplete="off"
+             data-assistant-panel-target="capsuleInput"
+             data-action="keydown.enter->assistant-panel#submitCapsule"
+             placeholder="<%= t('views.organisations.assistant_panels.shell.capsule_placeholder') %>"
+             aria-label="<%= t('views.organisations.assistant_panels.shell.capsule_label') %>"
+             class="w-full text-sm border-2 border-black rounded-full px-4 py-2 bg-surface-raised text-cream-900 shadow-[3px_3px_0_0_#000] placeholder:text-cream-500">
+      <button type="button"
+              data-assistant-panel-target="capsuleMini"
+              data-action="click->assistant-panel#openFromMini mouseenter->assistant-panel#expandCapsule"
+              title="<%= t('views.organisations.assistant_panels.shell.capsule_label') %>"
+              aria-label="<%= t('views.organisations.assistant_panels.shell.capsule_label') %>"
+              class="hidden w-10 h-10 rounded-full border-2 border-black bg-surface-raised shadow-[3px_3px_0_0_#000] items-center justify-center text-cream-900">
+        <i class="bi bi-stars"></i>
+      </button>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,116 @@
+<%# Reference chip (Bezugs-Sammlung S2, §8.1). Same shape as the scope chip
+    beside it -- a small faint label, then the value -- because the two answer
+    neighbouring questions ("what is this about", "where do we look") and two
+    different shapes would read as two unrelated controls. `contents` puts it into
+    the shared row (see ChatContainerComponent's template).
+
+    Always the SET state: the chip does not exist without a reference, so there is
+    no empty pill and no placeholder.
+
+    THREE states, and only the WRAPPER tells them apart: nothing (render? is
+    false), one pill, and from two entries on a <details> whose summary counts
+    them by type. The entries themselves are captured ONCE below -- a pill for one
+    and a differently built row for many would be two shapes to keep in step,
+    while they carry the same three things either way (icon, capped title, own
+    remove address). The collapsing pattern is not new: citation_list_component
+    does exactly this with <details>/<summary> and no JavaScript. %>
+<%# data-reference-keys: the chip says WHICH objects it stands for, so the panel
+    can tell the offer of step 5b apart from a reference that already points at
+    the page you are on. The panel reads the DOM here because it is the only
+    channel it has: its own node is permanent, the server never re-renders it,
+    and the chip is what the server said LAST. A second copy of the keys on the
+    permanent node would be a copy that drifts.
+
+    On the OUTER element, and it stays there in both states: it is the turbo
+    anchor and the panel's channel, and neither may depend on how many entries
+    there happen to be. %>
+<% entries = capture do %>
+  <% references.each do |record| %>
+    <% title = title_for(record) %>
+    <%# The pill carries the value AND the remove button, so the two read as one
+        object rather than as a label with a stray x next to it. max-w + truncate
+        for the 380px panel: the title is free text and the row must not push the
+        style pills off the line -- and inside the open list the same cap keeps a
+        pasted stacktrace from turning one entry into three lines. %>
+    <%# div and not span: the pill contains a form (the remove button), and a form
+        inside phrasing content is invalid nesting. %>
+    <div class="inline-flex max-w-[13rem] items-center gap-1 rounded-full border border-ink bg-cream-200 px-2.5 py-0.5 text-xs font-semibold text-cream-900">
+      <%# The type's own glyph, from the citation map (see #icon_for). Decorative:
+          the title beside it already says what this is, and from S3 on the KIND is
+          what tells two entries of one collection apart at a glance. %>
+      <i class="bi <%= icon_for(record) %> shrink-0 text-[10px] text-cream-700" aria-hidden="true"></i>
+      <span class="truncate" title="<%= title %>"><%= title %></span>
+      <%# The only write this chip has: taking ONE entry back out, by a DELETE on
+          that entry's own address (§7.1). Removal now NAMES what it removes
+          instead of clearing a column. `contents` again, so the button sits
+          inside the pill instead of below it. Same turbo_frame as the scope
+          chip's form -- both answer with the same stream, which replaces the
+          whole row.
+
+          Nothing here touches the scope chip, and since E3 nothing anywhere
+          does: the reference names the SUBJECT, the chip is the user's own
+          narrowing, and only the user writes it. The old chip asked for both
+          columns through two hidden fields, back when removing the last
+          reference also cleared the project. %>
+      <%= form_with url: remove_url(record), method: :delete,
+                    data: { turbo_frame: 'assistant_panel_body' },
+                    class: 'contents' do %>
+        <%# focus-visible ring like the house contract (Neo::Buttons::Base): this is
+            the only destructive control in the row, and `focus:outline-none` alone
+            was pure removal -- the select's reason for it does not carry over,
+            @tailwindcss/forms rings form fields, not buttons. Without ring-offset:
+            the button sits INSIDE a filled pill, and the offset would paint a
+            white halo on the cream fill.
+
+            w-6 h-6: a 10px glyph with 4px of side padding was an 18x10 target,
+            the same shape the offer strip's dismiss button grew a 24x24 hit box
+            for. The negative vertical margin keeps the pill at its height. %>
+        <button type="submit"
+                class="-my-1 -mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-cream-700 transition-colors hover:text-cream-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                aria-label="<%= t('views.organisations.assistant_panels.reference.remove', title: title) %>">
+          <i class="bi bi-x-lg text-[10px]" aria-hidden="true"></i>
+        </button>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+<div id="<%= dom_id %>" class="contents" data-reference-keys="<%= reference_keys %>">
+  <% if collection? %>
+    <%# ⚠️ open:basis-full, and it has to sit on the element that carries the
+        `open` attribute: the Tailwind variant is `&[open]`, so it reaches no
+        ancestor. Without it the open list does not break out of the context row,
+        it grows INSIDE it -- and the scope chip, vertically centred beside it,
+        ends up wedged between the label and the list. With it the whole block
+        takes its own line of the wrapping row and "Sucht in" drops below it,
+        which is where the layout spec measures it.
+
+        min-w-0 so the summary's truncation has something to truncate against;
+        `group` for the chevron below. %>
+    <details class="group min-w-0 open:basis-full" <%= tag.attributes(open: expanded?) %>>
+      <%# list-none: the native marker is a triangle at the start of the line,
+          which would sit to the LEFT of the "Bezug" label and read as a bullet.
+          The chevron below says the same thing at the end, where the eye is after
+          reading the count. cursor-pointer because a summary is a control that
+          does not otherwise look like one. %>
+      <summary class="flex cursor-pointer list-none select-none items-center gap-1.5">
+        <span class="text-xs text-faint"><%= t('views.organisations.assistant_panels.reference.label') %></span>
+        <span class="inline-flex max-w-[13rem] items-center gap-1 rounded-full border border-ink bg-cream-200 px-2.5 py-0.5 text-xs font-semibold text-cream-900">
+          <span class="truncate"><%= summary_label %></span>
+          <i class="bi bi-chevron-down shrink-0 text-[10px] transition-transform group-open:rotate-180" aria-hidden="true"></i>
+        </span>
+      </summary>
+      <%# One line per object (§8.1), not a wrapped band of pills: at ten entries a
+          wrapped band is a block whose height nobody can predict, and an eye
+          looking for the one to remove has no column to run down. mt-1.5 lines up
+          with the row's own gap-y. %>
+      <div class="mt-1.5 flex flex-col items-start gap-1">
+        <%= entries %>
+      </div>
+    </details>
+  <% else %>
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs text-faint"><%= t('views.organisations.assistant_panels.reference.label') %></span>
+      <%= entries %>
+    </div>
+  <% end %>
+</div>

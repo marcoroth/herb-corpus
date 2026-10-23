@@ -1,0 +1,256 @@
+<%# "Eigene Konfiguration" — the setup screen behind the catalogue card
+    (doc/ki_bereich_navigation_plan.md S7, E6-A; §3.4 asked for it from the start).
+
+    ONE axis. There is no "System-Credentials verwenden" choice here, because that choice
+    is the catalogue on "Zugang": picking a package — or the own-configuration card — is
+    the SELECTION, and this page only answers "with which access". That is L4, which
+    asked for navigation instead of a form state, and it is why the inline <script> that
+    used to switch two axes against each other does not come along.
+
+    Fields are per provider (L7). Two of them, ai_api_base and preferred_chat_model, get
+    their first rendering in this application at all — both existed as columns, both were
+    read by the Factory, neither was reachable from anywhere but a console. %>
+<div>
+  <%= render 'organisations/shared/ai_area_header',
+             title: t('views.organisations.ai_overview.configuration.title') %>
+
+  <p class="mb-6 max-w-3xl text-sm text-cream-700">
+    <%= t('views.organisations.ai_overview.configuration.intro') %>
+  </p>
+
+  <% unless @organisation.ai_enabled? %>
+    <%# Deliberately NOT a blocker. "Erst konfigurieren, dann anschalten" is the natural
+        order (L6) and since S7 even the connection test follows it, so the box states a
+        fact instead of standing in the way. %>
+    <div class="mb-8">
+      <%= render 'organisations/shared/ai_disabled_notice' %>
+    </div>
+  <% end %>
+
+  <%# The stored state, as a sentence rather than as pre-filled fields — the key is the
+      one thing this page must never echo back, so it names what is there and how it last
+      answered instead. §3.2 wants exactly this line on the access card. %>
+  <div class="mb-8 max-w-4xl rounded-lg border border-cream-300 bg-cream-100 p-4">
+    <% if @has_own_access %>
+      <p class="text-sm font-bold text-cream-900">
+        <%= t('views.organisations.ai_overview.configuration.current',
+              provider: AiCredential.provider_display_names[@selected_provider] || @selected_provider,
+              token: @masked_token) %>
+      </p>
+      <p class="mt-1 text-sm text-cream-700">
+        <%# ⚠️ :long, NOT :short. `time.formats.short` is "%d %b %H:%M" — no year, so a
+            verdict from 2024 renders "05 Mär 14:32" and reads like this afternoon. On
+            this line that is not a formatting detail, it IS the statement: L10 persists
+            the verdict precisely so its AGE can be judged. :long matches the AI protocol
+            page one click away, which shows the same kind of timestamp. %>
+        <% if @organisation.ai_connection_never_tested? %>
+          <%= t('views.organisations.ai_overview.configuration.check_never') %>
+        <% elsif @organisation.ai_connection_ok? %>
+          <i class="bi bi-check-circle mr-1 text-green-700"></i><%= t('views.organisations.ai_overview.configuration.check_ok',
+                date: l(@organisation.ai_connection_checked_at, format: :long)) %>
+        <% else %>
+          <i class="bi bi-exclamation-triangle mr-1 text-red-700"></i><%= t('views.organisations.ai_overview.configuration.check_failed',
+                date: l(@organisation.ai_connection_checked_at, format: :long)) %>
+        <% end %>
+      </p>
+    <% else %>
+      <p class="text-sm font-bold text-cream-900">
+        <%= t('views.organisations.ai_overview.configuration.none_title') %>
+      </p>
+      <p class="mt-1 text-sm text-cream-700">
+        <%= t('views.organisations.ai_overview.configuration.none_body') %>
+      </p>
+    <% end %>
+  </div>
+
+  <%= form_with url: organisation_ai_configuration_path(@organisation), method: :patch,
+                id: 'ai_configuration_form',
+                data: { controller: 'ai-configuration-fields' } do %>
+    <%# The three optional columns are submitted BLANK first and then overwritten by the
+        enabled field further down — the same last-one-wins mechanism Rails relies on for
+        an unchecked check_box. It is what makes "what the form shows for this provider is
+        what is stored" true: without it, a field the selected provider does not use would
+        keep whatever an earlier provider left behind, invisibly. That matters most for
+        ai_api_base, where a leftover endpoint would keep receiving the key.
+
+        ai_access_token gets NO blank default, on purpose: blank means "keep the stored
+        one" there (the field is empty on every visit because the secret is never echoed),
+        so a default would be indistinguishable from the normal case. %>
+    <%= hidden_field_tag :ai_organization_id, '', id: nil %>
+    <%= hidden_field_tag :ai_api_base, '', id: nil %>
+    <%= hidden_field_tag :preferred_chat_model, '', id: nil %>
+
+    <div class="max-w-4xl divide-y divide-cream-200 border-t border-cream-200">
+      <%# ── Provider ───────────────────────────────────────────────────────── %>
+      <div class="grid grid-cols-1 gap-2 py-6 md:grid-cols-3 md:gap-8">
+        <div class="md:col-span-1">
+          <label for="ai_provider" class="block text-sm font-bold text-cream-900">
+            <%= t('views.organisations.ai_overview.configuration.provider_label') %>
+          </label>
+          <p class="mt-1 text-xs text-cream-600"><%= t('views.organisations.ai_overview.configuration.provider_hint') %></p>
+        </div>
+        <div class="md:col-span-2">
+          <%= select_tag :ai_provider,
+                options_for_select(@provider_options, @selected_provider),
+                include_blank: false,
+                class: 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-cream-900 transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                data: { ai_configuration_fields_target: 'provider',
+                        action: 'change->ai-configuration-fields#sync' } %>
+        </div>
+      </div>
+
+      <%# ── Key: single line ───────────────────────────────────────────────────
+          Every provider but google. `hidden` and `disabled` are rendered SERVER-side
+          from the stored provider, so the page is right before any JavaScript runs —
+          the Stimulus controller only re-syncs (see its header). %>
+      <% key_providers = [AiCredential::PROVIDER_OPENAI, AiCredential::PROVIDER_ANTHROPIC,
+                          AiCredential::PROVIDER_OPENAI_COMPATIBLE] %>
+      <% key_shown = key_providers.include?(@selected_provider) %>
+      <div class="grid grid-cols-1 gap-2 py-6 md:grid-cols-3 md:gap-8"
+           data-ai-configuration-fields-target="group"
+           data-providers="<%= key_providers.join(' ') %>" <%= 'hidden' unless key_shown %>>
+        <div class="md:col-span-1">
+          <label for="ai_access_token" class="block text-sm font-bold text-cream-900">
+            <%= t('views.organisations.ai_overview.configuration.key_label') %>
+          </label>
+          <p class="mt-1 text-xs text-cream-600"><%= t('views.organisations.ai_overview.configuration.key_hint') %></p>
+        </div>
+        <div class="md:col-span-2">
+          <%# autocomplete off is not lint appeasement: this is a provider API key, and a
+              password manager offering to save or refill it would put a secret somewhere
+              nobody chose. %>
+          <%= password_field_tag :ai_access_token, '',
+                disabled: !key_shown,
+                autocomplete: 'off',
+                class: 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-cream-900 transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+        </div>
+      </div>
+
+      <%# ── Key: service-account JSON (google) ───────────────────────────────────
+          A textarea, not a password field with an "sk-…" placeholder. Vertex is
+          service-account-only — an API key would silently use the GLOBAL endpoint and
+          void EU data residency, which is why Organisation#own_ai_token_usable? refuses
+          anything that is not service-account JSON here. %>
+      <% sa_shown = @selected_provider == AiCredential::PROVIDER_GOOGLE %>
+      <div class="grid grid-cols-1 gap-2 py-6 md:grid-cols-3 md:gap-8"
+           data-ai-configuration-fields-target="group"
+           data-providers="<%= AiCredential::PROVIDER_GOOGLE %>" <%= 'hidden' unless sa_shown %>>
+        <div class="md:col-span-1">
+          <label for="ai_access_token_json" class="block text-sm font-bold text-cream-900">
+            <%= t('views.organisations.ai_overview.configuration.service_account_label') %>
+          </label>
+          <p class="mt-1 text-xs text-cream-600"><%= t('views.organisations.ai_overview.configuration.service_account_hint') %></p>
+        </div>
+        <div class="md:col-span-2">
+          <%# Same NAME as the single-line field above — exactly one of the two is ever
+              enabled, so exactly one value is posted. %>
+          <%= text_area_tag :ai_access_token, '',
+                id: 'ai_access_token_json',
+                disabled: !sa_shown,
+                rows: 8,
+                autocomplete: 'off',
+                spellcheck: 'false',
+                class: 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 font-mono text-xs text-cream-900 transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+        </div>
+      </div>
+
+      <%# ── Organisation ID (OpenAI only) ─────────────────────────────────────── %>
+      <% org_id_shown = @selected_provider == AiCredential::PROVIDER_OPENAI %>
+      <div class="grid grid-cols-1 gap-2 py-6 md:grid-cols-3 md:gap-8"
+           data-ai-configuration-fields-target="group"
+           data-providers="<%= AiCredential::PROVIDER_OPENAI %>" <%= 'hidden' unless org_id_shown %>>
+        <div class="md:col-span-1">
+          <label for="ai_organization_id_field" class="block text-sm font-bold text-cream-900">
+            <%= t('views.organisations.ai_overview.configuration.organization_id_label') %>
+          </label>
+          <p class="mt-1 text-xs text-cream-600"><%= t('views.organisations.ai_overview.configuration.organization_id_hint') %></p>
+        </div>
+        <div class="md:col-span-2">
+          <%= text_field_tag :ai_organization_id, @organisation.ai_organization_id,
+                id: 'ai_organization_id_field',
+                disabled: !org_id_shown,
+                autocomplete: 'off',
+                placeholder: 'org-...',
+                class: 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-cream-900 transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+        </div>
+      </div>
+
+      <%# ── Endpoint + model (openai_compatible only) ──────────────────────────
+          Both are REQUIRED there, not optional extras: Organisation#own_ai_token_usable?
+          returns true for openai_compatible only when both are set, and BYOK is terminal
+          — so a key stored without them leaves the organisation counting as "KI nicht
+          konfiguriert" with nothing on screen saying why. That is the whole of L7. %>
+      <% compatible_shown = @selected_provider == AiCredential::PROVIDER_OPENAI_COMPATIBLE %>
+      <div class="grid grid-cols-1 gap-2 py-6 md:grid-cols-3 md:gap-8"
+           data-ai-configuration-fields-target="group"
+           data-providers="<%= AiCredential::PROVIDER_OPENAI_COMPATIBLE %>" <%= 'hidden' unless compatible_shown %>>
+        <div class="md:col-span-1">
+          <label for="ai_api_base_field" class="block text-sm font-bold text-cream-900">
+            <%= t('views.organisations.ai_overview.configuration.api_base_label') %>
+          </label>
+          <p class="mt-1 text-xs text-cream-600"><%= t('views.organisations.ai_overview.configuration.api_base_hint') %></p>
+        </div>
+        <div class="space-y-4 md:col-span-2">
+          <%= text_field_tag :ai_api_base, @organisation.ai_api_base,
+                id: 'ai_api_base_field',
+                disabled: !compatible_shown,
+                autocomplete: 'off',
+                placeholder: 'https://api.example.eu/v1',
+                class: 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-cream-900 transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+          <div>
+            <label for="preferred_chat_model_field" class="mb-1 block text-sm font-bold text-cream-900">
+              <%= t('views.organisations.ai_overview.configuration.model_label') %>
+            </label>
+            <%= text_field_tag :preferred_chat_model, @organisation.preferred_chat_model,
+                  id: 'preferred_chat_model_field',
+                  disabled: !compatible_shown,
+                  autocomplete: 'off',
+                  class: 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-cream-900 transition-all focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+            <p class="mt-1 text-xs text-cream-600"><%= t('views.organisations.ai_overview.configuration.model_hint') %></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%# TWO buttons, ONE action and one write — the answer to L9, which counted two save
+        buttons with unclear semantics. Both save. "Speichern und prüfen" is E3-A and the
+        primary path: it probes AFTER the write, so it can no longer report success for a
+        key other than the one in the field (L5). The plain save is there because the
+        probe is a network call to a stranger's endpoint, and a save must not depend on
+        whether that endpoint feels like answering. %>
+    <div class="flex max-w-4xl flex-wrap items-center justify-end gap-3 border-t border-cream-200 pt-6">
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :large, type: 'submit') do %>
+        <%= t('views.organisations.ai_overview.configuration.save') %>
+      <% end %>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, icon: 'wifi',
+                                                   type: 'submit', name: 'check', value: '1') do %>
+        <%= t('views.organisations.ai_overview.configuration.save_and_check') %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# ── Remove access ───────────────────────────────────────────────────────────
+      Its own form and its own verb (E2a). The save deliberately cannot do this: a blank
+      key field means "keep the stored one", so removal has to be asked for. Shown only
+      when there is something to remove — a destructive button for an empty state is an
+      invitation to find out what it does. %>
+  <% if @has_own_access %>
+    <div class="mt-12 max-w-4xl rounded-lg border border-red-300 bg-red-50 p-5">
+      <h3 class="text-sm font-bold text-red-900">
+        <i class="bi bi-trash mr-2"></i><%= t('views.organisations.ai_overview.configuration.remove_title') %>
+      </h3>
+      <p class="mt-2 text-sm text-red-900"><%= t('views.organisations.ai_overview.configuration.remove_body') %></p>
+      <div class="mt-4">
+        <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :danger,
+          size: :medium,
+          icon: 'trash',
+          confirm: t('views.confirm.ai_configuration_remove'),
+          form: { action: organisation_ai_configuration_path(@organisation), method: :delete }
+        ) do %>
+          <%= t('views.organisations.ai_overview.configuration.remove_button') %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

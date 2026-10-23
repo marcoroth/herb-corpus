@@ -1,0 +1,167 @@
+<%# The action summary of the "Indexierung" page (doc/ki_bereich_navigation_plan.md §3.5).
+
+    What this replaces: a page that opened with eight raw counters and left the admin to
+    work out from them whether anything was broken. The table below is unchanged and
+    still the detail; this says in words what the numbers add up to, and carries the one
+    action that helps.
+
+    Three things it must get right, all three learned rather than invented:
+
+    * The figures come from Embeddings::IndexHealth, the SAME source as the hub card, so
+      the two surfaces can never disagree about a backlog. Not from @sync_statistics,
+      which counts per project and would be a second derivation of the same rule.
+    * The state is asked through IndexHealth::Result#clear? / #working? — the predicates
+      that already carry the rule. Re-deriving :ok/:working/:alert from pending/failed
+      here would put it in a third place, and the copy in a view is the one nobody tests.
+    * A running staged switch is stated SEPARATELY rather than instead of the backlog
+      (§3.5 Fortschreibung). It explains why numbers move; it does not excuse failures,
+      and hiding a failure behind "ein Wechsel läuft" is exactly how this page would go
+      back to being unreadable.
+
+    ⚠️ #working? is a claim about the BACKLOG, never about the queue serving it. It reads
+    a positive pending count with no failures as progress, which is only true while a job
+    worker exists — and IndexHealth cannot know that (it counts content columns, and the
+    queue tables carry no organisation, so it must not learn to). A dead queue therefore
+    rendered as "wird verarbeitet" for as long as it stayed dead. Embeddings::IndexingPipeline
+    is the missing second input: it DEMOTES a working state to :alert and says why. That is
+    a new input, not the forbidden re-derivation above — the pending/failed rules still live
+    in exactly one place, this only refuses to call an unattended backlog progress.
+
+    Locals: none — reads @index_health, @switch_progress, @indexing_pipeline,
+    @current_organisation. %>
+<%# paused FIRST: over an AI-off organisation neither "alles verarbeitet" nor
+    "Verarbeitung läuft" is true, and no button on this page changes it. A stall is not
+    news there either — nobody is supposed to be working. %>
+<% paused = @index_health.paused? %>
+<% stalled = !paused && @index_health.pending.positive? && @indexing_pipeline.stalled? %>
+<% state = if paused then :paused
+           elsif @index_health.clear? then :ok
+           elsif @index_health.working? && !stalled then :working
+           else :alert
+           end %>
+<% tone = { ok: 'bg-green-500', working: 'bg-cobalt-500', alert: 'bg-red-500', paused: 'bg-cream-400' }[state] %>
+<%# A stall reaches :alert with nothing failed, and "Es sind Fehler aufgetreten" would then
+    name a defect the counts do not show. Its own heading, so the red dot keeps meaning
+    "act on this" without the sentence claiming the wrong reason. %>
+<% heading_key = { ok: 'clear', working: 'pending', alert: 'failed', paused: 'paused' }[state] %>
+<% heading_key = 'stalled' if state == :alert && @index_health.failed.zero? && stalled %>
+<% heading = t("views.organisations.ai_overview.index_summary.heading_#{heading_key}") %>
+<% switch_running = @switch_progress.present? && @switch_progress.in_progress? %>
+
+<div class="rounded-lg border-2 border-ink bg-white p-5 shadow-[3px_3px_0_0_#000000]"
+     data-index-summary-state="<%= state %>">
+  <div class="flex items-start gap-3">
+    <span class="mt-1.5 h-3 w-3 shrink-0 rounded-full <%= tone %>" aria-hidden="true"></span>
+    <div class="min-w-0 flex-1">
+      <h2 class="text-lg font-bold leading-tight text-cream-900"><%= heading %></h2>
+
+      <div class="mt-2 space-y-1 text-sm text-cream-700">
+        <%# The counts stay VISIBLE while paused — they are true, they are just not a
+            backlog anybody owes. Hiding them would trade one wrong impression for
+            another, namely that there is nothing here at all. %>
+        <% if paused %>
+          <p><%= t('views.organisations.ai_overview.index_summary.body_paused') %></p>
+        <% end %>
+        <% if @index_health.clear? && !paused %>
+          <p><%= t('views.organisations.ai_overview.index_summary.body_clear') %></p>
+        <% end %>
+        <% if @index_health.failed.positive? %>
+          <p class="font-medium text-red-700">
+            <%= t('views.organisations.ai_overview.index_summary.failed', count: @index_health.failed) %>
+          </p>
+        <% end %>
+        <% if @index_health.pending.positive? %>
+          <p><%= t('views.organisations.ai_overview.index_summary.pending', count: @index_health.pending) %></p>
+        <% end %>
+        <%# The sentence that stops "vorgemerkt" from reading as "under way". Placed right
+            after the pending count it qualifies, because apart it is just another warning
+            and the admin would still press the button that enqueues into a dead queue. %>
+        <% if stalled %>
+          <p class="font-medium text-red-700">
+            <i class="bi bi-pause-circle mr-1"></i>
+            <%= t('views.organisations.ai_overview.index_summary.stalled') %>
+          </p>
+        <% end %>
+      </div>
+
+      <%# Which space the counts describe. nil covers "no credential" as well as a
+          broken pin — both are operator findings (embeddings:check_alignment), and both
+          are worth saying out loud here rather than leaving the numbers unqualified. %>
+      <p class="mt-3 text-xs text-cream-500">
+        <% if @index_health.space %>
+          <i class="bi bi-diagram-3 mr-1"></i>
+          <%= t('views.organisations.ai_overview.index_summary.space',
+                provider: @index_health.space[:embedding_provider],
+                model: @index_health.space[:embedding_model],
+                dims: @index_health.space[:embedding_dims]) %>
+        <% else %>
+          <i class="bi bi-exclamation-triangle mr-1"></i>
+          <%= t('views.organisations.ai_overview.index_summary.space_unknown') %>
+        <% end %>
+      </p>
+
+      <% if switch_running %>
+        <div class="mt-4 rounded-md border border-cobalt-300 bg-cobalt-50 p-3"
+             data-switch-state="<%= @switch_progress.state %>">
+          <p class="text-sm font-bold text-cobalt-900">
+            <i class="bi bi-arrow-left-right mr-1.5"></i>
+            <%= t('views.organisations.ai_overview.index_summary.switch.heading') %>
+          </p>
+          <p class="mt-1 text-sm text-cobalt-900">
+            <%= t("views.organisations.ai_overview.index_summary.switch.#{@switch_progress.state}",
+                  completed: number_with_delimiter(@switch_progress.completed),
+                  total: number_with_delimiter(@switch_progress.total),
+                  percent: @switch_progress.percent) %>
+          </p>
+        </div>
+      <% end %>
+
+      <%# The action, next to the sentence that motivates it — that pairing is the whole
+          point of the summary. "Neu verarbeiten" is a catch-up run, so it is offered
+          whenever something is outstanding or failed, and replaced by a plain statement
+          when there is genuinely nothing to press.
+
+          Off-palette handmade buttons are what the P4/AP5 pass removed from this page;
+          both keep going through ButtonComponent. Reprocess stays the consequential
+          action (primary, confirm: it enqueues a mass job), refresh the neutral one. %>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <%# No catch-up run while paused: it would extract for the full-text index and
+            embed nothing, so the button would keep offering itself forever. The way out
+            of this state is the switch, not this page. %>
+        <% unless @index_health.clear? || paused %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :primary,
+                size: :medium,
+                icon: 'play-fill',
+                confirm: t('views.confirm.reprocess_embeddings'),
+                form: {
+                  action: reprocess_embeddings_organisation_ai_sync_status_path(@current_organisation),
+                  method: :post
+                }
+              ) do %>
+            <%= t('views.organisations.ai_sync_statuses.show.reprocess_embeddings') %>
+          <% end %>
+        <% end %>
+
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :secondary,
+              size: :medium,
+              icon: 'arrow-clockwise',
+              url: organisation_ai_sync_status_path(@current_organisation)
+            ) do %>
+          <%= t('views.organisations.ai_sync_statuses.show.refresh_status') %>
+        <% end %>
+      </div>
+
+      <p class="mt-2 text-xs text-cream-500">
+        <%= if paused
+              t('views.organisations.ai_overview.index_summary.paused_hint')
+            elsif @index_health.clear?
+              t('views.organisations.ai_overview.index_summary.nothing_to_do')
+            else
+              t('views.organisations.ai_overview.index_summary.action_hint')
+            end %>
+      </p>
+    </div>
+  </div>
+</div>

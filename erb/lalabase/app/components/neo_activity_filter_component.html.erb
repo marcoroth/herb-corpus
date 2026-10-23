@@ -1,0 +1,209 @@
+<div class="filter-bar relative z-sticky mb-3.5 flex flex-col border-b border-cream-300 bg-surface-raised pt-2"
+     data-controller="neo-activity-filter"
+     data-testid="activity-filter-bar">
+  <div class="flex min-h-[40px] items-end gap-2 border-b border-divider" data-fb-tabrow>
+    <nav class="flex min-w-0 items-end gap-0.5 overflow-x-auto scrollbar-hide -mb-px"
+         role="tablist"
+         aria-label="<%= t('components.neo_activity_filter.tabs.label') %>">
+      <% tabs.each do |tab| %>
+        <%= link_to tab[:url],
+                    role: 'tab',
+                    data: { turbo_stream: true },
+                    aria: { selected: active_tab?(tab[:key]), current: (active_tab?(tab[:key]) ? 'page' : nil) },
+                    class: tab_classes(tab[:key]) do %>
+          <%= tab[:label] %>
+        <% end %>
+      <% end %>
+    </nav>
+
+    <div class="ms-auto flex items-center gap-1 self-center" data-fb-tools>
+      <details class="relative flex-shrink-0"
+               data-controller="details-autoclose"
+               data-activity-filter-menu>
+        <summary class="inline-flex h-7 cursor-pointer list-none items-center gap-1.5 rounded-md px-2 text-[13px] font-normal text-body transition-colors hover:bg-cream-100 hover:text-heading focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+                 data-fb-add
+                 aria-label="<%= filter_sign_title %>"
+                 title="<%= filter_sign_title %>">
+          <i class="bi bi-plus-lg text-xs" aria-hidden="true" data-fb-add-plus></i>
+          <span data-fb-add-label><%= t('components.neo_activity_filter.add_filter') %></span>
+          <i class="bi bi-funnel text-sm" aria-hidden="true" data-fb-add-sign></i>
+        </summary>
+
+        <div class="absolute right-0 top-full z-dropdown mt-1 w-56 rounded-lg border border-cream-300 bg-surface-raised p-1 shadow-md">
+          <% filter_categories.each do |category| %>
+            <details class="group/filter">
+              <summary class="<%= NeoFilterBarComponent::MENU_ROW_CLASSES %> cursor-pointer list-none"
+                       data-filter-category>
+                <%= category[:label] %>
+                <i class="bi bi-chevron-right ms-auto text-[10px] transition-transform group-open/filter:rotate-90" aria-hidden="true"></i>
+              </summary>
+              <div class="mb-1 ms-2 border-s border-cream-200 ps-1">
+                <% category[:options].each do |option| %>
+                  <%= link_to option[:url],
+                              data: { turbo_stream: true },
+                              aria: { current: (option[:selected] ? 'true' : nil) },
+                              class: "#{NeoFilterBarComponent::MENU_ROW_CLASSES} #{'font-semibold text-heading' if option[:selected]}" do %>
+                    <i class="bi bi-check-lg w-3 text-[10px] <%= 'invisible' unless option[:selected] %>" aria-hidden="true"></i>
+                    <span class="truncate"><%= option[:label] %></span>
+                  <% end %>
+                <% end %>
+
+                <% if category[:key] == :period %>
+                  <%= form_with url: filter_url, method: :get, data: { turbo_frame: '_top' }, class: 'mt-1 border-t border-cream-200 px-2 pt-2' do |form| %>
+                    <% period_form_hidden_filters.each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+                    <%= hidden_field_tag :period, 'custom' %>
+                    <div class="grid grid-cols-[2rem_1fr] items-center gap-1.5">
+                      <%= form.label :date_from, t('components.neo_activity_filter.periods.from'), class: 'text-[11px] text-muted' %>
+                      <%= form.date_field :date_from, value: current_filters[:date_from], class: 'h-7 rounded-md border border-cream-300 bg-surface-raised px-2 font-mono text-[11px] focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10' %>
+                      <%= form.label :date_to, t('components.neo_activity_filter.periods.until'), class: 'text-[11px] text-muted' %>
+                      <%= form.date_field :date_to, value: current_filters[:date_to], class: 'h-7 rounded-md border border-cream-300 bg-surface-raised px-2 font-mono text-[11px] focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10' %>
+                    </div>
+                    <%= form.submit t('components.neo_activity_filter.periods.apply'), class: "mt-2 #{NeoFilterBarComponent::TEXT_ACTION_CLASSES}" %>
+                  <% end %>
+                <% end %>
+              </div>
+            </details>
+          <% end %>
+        </div>
+      </details>
+
+      <div class="relative flex-shrink-0"
+           data-neo-activity-filter-target="search"
+           data-fb-search<%= ' data-fb-search-open' if current_filters[:q].present? %>>
+        <button type="button"
+                data-action="click->neo-activity-filter#openSearch"
+                data-fb-search-open-button
+                aria-label="<%= t('components.neo_activity_filter.search_label') %>"
+                title="<%= t('components.neo_activity_filter.search_label') %>"
+                class="grid h-7 w-7 place-items-center rounded-md text-muted transition-colors hover:bg-cream-100 hover:text-heading focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+          <i class="bi bi-search text-xs" aria-hidden="true"></i>
+        </button>
+
+        <%= form_with url: filter_url, method: :get, data: { controller: 'auto-submit', turbo_frame: '_top' } do |form| %>
+          <% search_hidden_filters.each do |key, value| %>
+            <%= hidden_field_tag key, value %>
+          <% end %>
+          <span class="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-2.5 pr-1 text-faint">
+            <i class="bi bi-search text-xs" aria-hidden="true"></i>
+          </span>
+          <%= form.search_field :q,
+                                value: current_filters[:q],
+                                placeholder: t('components.neo_activity_filter.search_placeholder'),
+                                aria: { label: t('components.neo_activity_filter.search_label') },
+                                autocomplete: 'off',
+                                data: {
+                                  neo_activity_filter_target: 'searchInput',
+                                  action: 'keydown.esc->neo-activity-filter#closeSearch focusout->neo-activity-filter#searchBlur'
+                                },
+                                class: 'h-7 w-full rounded-md border border-cream-300 bg-surface-raised pl-7 pr-2 text-[13px] text-body placeholder:text-faint focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10' %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div data-neo-activity-filter-target="sentenceRow">
+    <div class="flex min-w-0 items-start">
+      <p class="<%= NeoFilterBarComponent::SENTENCE_PROSE_CLASSES %> min-w-0 flex-1">
+        <% if active_chips.any? %>
+          <%= t('components.neo_activity_filter.sentence.filtered') %>
+          <% active_chips.each_with_index do |chip, index| %><%= t('components.neo_activity_filter.sentence.and') if index.positive? %>
+            <button type="button"
+                    data-action="click->neo-activity-filter#startEditing"
+                    class="<%= NeoFilterBarComponent::SENTENCE_VALUE_CLASSES %>">
+              <span class="text-muted"><%= chip[:category_label] %>:</span>
+              <%= chip[:label] %>
+            </button><% end %>.
+          <button type="button"
+                  data-action="click->neo-activity-filter#startEditing"
+                  class="<%= NeoFilterBarComponent::TEXT_ACTION_CLASSES %> whitespace-nowrap">
+            <%= t('components.filter_bar.edit_conditions') %>
+          </button>
+        <% else %>
+          <%= t('components.neo_activity_filter.sentence.all') %>
+        <% end %>
+      </p>
+
+      <% if result_count %>
+        <span class="shrink-0 pe-3 pb-1 pt-2 font-mono text-xs tabular-nums text-muted">
+          <strong class="font-medium text-heading"><%= result_count %></strong>
+          <%= t('components.neo_activity_filter.result_count', count: result_count) %>
+        </span>
+      <% end %>
+    </div>
+  </div>
+
+  <% if active_chips.any? %>
+    <div class="hidden" data-neo-activity-filter-target="editorRow">
+      <div class="flex min-w-0 flex-wrap items-center gap-2 ps-3 pe-3 pb-1 pt-2">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <% active_chips.each do |chip| %>
+            <div class="<%= PILL_CLASSES %>">
+              <details class="relative min-w-0" data-controller="details-autoclose">
+                <summary class="<%= PILL_BODY_CLASSES %>">
+                  <span class="font-normal text-muted"><%= chip[:category_label] %>:</span>
+                  <span class="inline-flex items-center rounded-[5px] bg-cream-200 px-[7px] py-px text-[12.5px] text-body"><%= chip[:label] %></span>
+                  <i class="bi bi-chevron-down -me-1 text-[10px] text-cream-400" aria-hidden="true"></i>
+                </summary>
+
+                <div class="absolute left-0 top-full z-dropdown mt-1 min-w-56 rounded-lg border border-cream-300 bg-surface-raised p-1 shadow-md">
+                  <% chip[:options].each do |option| %>
+                    <%= link_to option[:url],
+                                data: { turbo_stream: true },
+                                class: "#{NeoFilterBarComponent::MENU_ROW_CLASSES} #{'font-semibold text-heading' if option[:selected]}" do %>
+                      <i class="bi bi-check-lg w-3 text-[10px] <%= 'invisible' unless option[:selected] %>" aria-hidden="true"></i>
+                      <span class="truncate"><%= option[:label] %></span>
+                    <% end %>
+                  <% end %>
+
+                  <% if chip[:key] == :period %>
+                    <%= form_with url: filter_url, method: :get, data: { turbo_frame: '_top' }, class: 'mt-1 border-t border-cream-200 px-2 pt-2' do |form| %>
+                      <% period_form_hidden_filters.each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+                      <%= hidden_field_tag :period, 'custom' %>
+                      <div class="grid grid-cols-[2rem_1fr] items-center gap-1.5">
+                        <%= form.label :date_from, t('components.neo_activity_filter.periods.from'), class: 'text-[11px] text-muted' %>
+                        <%= form.date_field :date_from, value: current_filters[:date_from], class: 'h-7 rounded-md border border-cream-300 bg-surface-raised px-2 font-mono text-[11px]' %>
+                        <%= form.label :date_to, t('components.neo_activity_filter.periods.until'), class: 'text-[11px] text-muted' %>
+                        <%= form.date_field :date_to, value: current_filters[:date_to], class: 'h-7 rounded-md border border-cream-300 bg-surface-raised px-2 font-mono text-[11px]' %>
+                      </div>
+                      <%= form.submit t('components.neo_activity_filter.periods.apply'), class: "mt-2 #{NeoFilterBarComponent::TEXT_ACTION_CLASSES}" %>
+                    <% end %>
+                  <% end %>
+                </div>
+              </details>
+
+              <%= link_to chip[:clear_url],
+                          data: { turbo_stream: true },
+                          class: PILL_REMOVE_CLASSES,
+                          aria: { label: t('components.neo_activity_filter.remove_filter', label: chip[:label]) } do %>
+                <i class="bi bi-x text-[10px]" aria-hidden="true"></i>
+              <% end %>
+            </div>
+          <% end %>
+
+          <button type="button"
+                  data-action="click->neo-activity-filter#openFilterMenu"
+                  class="inline-flex h-7 items-center gap-1.5 rounded-full border border-dashed border-cream-400 px-2.5 text-[13px] font-normal text-body transition-colors hover:border-ink hover:text-heading focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+            <span aria-hidden="true">+</span> <%= t('components.filter_bar.add_condition') %>
+          </button>
+          <button type="button"
+                  data-action="click->neo-activity-filter#stopEditing"
+                  class="<%= NeoFilterBarComponent::TEXT_ACTION_CLASSES %> whitespace-nowrap">
+            <%= t('components.filter_bar.done_editing') %>
+          </button>
+
+          <%= link_to t('components.neo_activity_filter.reset_button'),
+                      clear_filters_url,
+                      data: { turbo_stream: true },
+                      class: "#{NeoFilterBarComponent::TEXT_ACTION_CLASSES} ms-1 whitespace-nowrap" %>
+        </div>
+
+        <% if result_count %>
+          <span class="shrink-0 font-mono text-xs tabular-nums text-muted">
+            <strong class="font-medium text-heading"><%= result_count %></strong>
+            <%= t('components.neo_activity_filter.result_count', count: result_count) %>
+          </span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

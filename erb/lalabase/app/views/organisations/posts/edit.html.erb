@@ -1,0 +1,117 @@
+
+
+<turbo-frame id="post_<%= @post.id %>">
+    <div class="post-card post-edit-form bg-gray-100 py-6 px-4 md:px-5 lg:px-8 mb-4 rounded-lg border border-stroke hover:shadow-sm hover:-translate-x-0.5 hover:-translate-y-0.5 duration-300 ease-in-out relative w-full overflow-hidden">
+
+    <%= form_with(model: [@current_organisation, @ticket.project, @ticket, @post], local: true, html: { multipart: true }) do |form| %>
+      <% if params[:frame] == 'content' %>
+        <%= hidden_field_tag 'frame', 'content' %>
+      <% end %>
+
+    <div class="mb-6">
+      <%= form.lexxy_rich_text_area :content,
+        **lexxy_embed_editor_options(attachment_field: "post[post_document_files][]"),
+        placeholder: t('views.organisations.posts.edit_view.content_placeholder'),
+        class: "lexxy-content w-full px-3 py-2 mt-1 bg-surface-raised border border-cream-300 rounded-md focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink min-h-[200px] text-sm" %>
+    </div>
+
+
+
+    <div class="mb-3">
+    <% if @post.post_documents.present? %>
+      <div class="mb-3">
+
+      <div class="grid grid-cols-3 gap-4">
+      <%= form.fields_for :post_documents do |pd_form| %>
+        <% pd_file = pd_form.object.post_document_file %>
+        <% if pd_file.present? %>
+
+          <div class="relative p-4 border rounded-lg bg-surface-raised h-[200px] flex flex-col">
+            <div class="flex-grow flex items-center justify-center">
+              <% if pd_file.variable? %>
+                <%= link_to image_tag(pd_file.variant(resize_to_fit: [150, 150]), class: "max-w-full max-h-[120px] object-contain"), rails_blob_path(pd_file, disposition: :attachment) %>
+              <% elsif pd_file.previewable? %>
+                <%= link_to image_tag(pd_file.preview(resize_to_limit: [100, 100]), class: "w-full h-auto object-cover"), rails_blob_path(pd_file, disposition: :attachment) %>
+              <% elsif pd_file.image? %>
+                <%= link_to image_tag(pd_file, width: 100, class: "w-full h-auto object-cover"), document %>
+              <% else %>
+                <%= link_to pd_file.filename, rails_blob_path(pd_file, disposition: :attachment), class: "block text-center" %>
+              <% end %>
+            </div>
+
+            <div class="flex items-center justify-center mt-auto">
+              <%= pd_form.check_box :_destroy, class: "remove_attachment mr-2" %>
+              <%= pd_form.label :_destroy, t('views.organisations.posts.edit_view.remove_attachment'), class: "text-sm" %>
+            </div>
+          </div>
+
+        <% end %>
+      <% end %>
+      </div>
+
+
+
+      </div>
+
+
+    <div class="mb-6">
+      <label class="block text-sm font-medium text-gray-700 mb-2">
+        <i class="bi bi-paperclip mr-1"></i>
+        <%= t('views.organisations.posts.edit_view.attach_files') %>
+      </label>
+      <%= form.file_field :post_document_files,
+        multiple: true,
+        direct_upload: true,
+        class: "w-full text-sm border border-gray-300 rounded-md p-2 bg-surface-raised" %>
+    </div>
+  <% end %>
+    <% # Check whether a valid AI configuration is present %>
+    <% # AI surfaces only for opted-in orgs with usable config (GDPR gate + setup) %>
+    <%# R2: :ask_ai_post — the registry row whose seam is Actors::CreateAiPost, the
+        actor behind this checkbox. Unpinned since S2/#391 (same gate as
+        posts/_form.html.erb — change both together). Was ai_available_for_chat?,
+        before S2 ai_available?('openai'). %>
+        <% if @current_organisation&.ai_available_for?(:ask_ai_post)&.available? %>
+      <div class="mb-6">
+        <label class="flex items-center gap-2">
+          <%= check_box_tag :ask_ai, '1', false,
+            class: 'w-4 h-4 rounded border-gray-300 text-lime-500 focus:ring-lime-500' %>
+          <span class="text-sm">
+            <i class="bi bi-robot mr-1"></i>
+            <%= t('views.organisations.posts.edit_view.ask_ai') %>
+          </span>
+        </label>
+      </div>
+    <% end %>
+
+    <!-- Button Container -->
+    <div class="flex justify-between items-center mt-4">
+      <div>
+        <% if policy(@project).area_access?(:tickets, :write) %>
+          <!-- Delete Button -->
+          <%= render Neo::Buttons::ButtonComponent.new(variant: :danger, icon: "trash-fill",
+                url: organisation_project_ticket_post_path(@current_organisation, @ticket.project, @ticket, @post),
+                data: { turbo_method: :delete, turbo_confirm: t('views.confirm.are_you_sure') }) do %>
+            <%= t('views.organisations.posts.edit_view.delete') %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="flex gap-2">
+        <!-- Cancel Button -->
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary,
+              url: organisation_project_ticket_post_path(@current_organisation, @ticket.project, @ticket, @post),
+              data: { turbo_frame: "post_#{@post.id}" }) do %>
+          <%= t('views.organisations.posts.edit_view.cancel') %>
+        <% end %>
+
+        <!-- Update Button -->
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, tag: :button, type: 'submit') do %>
+          <%= t('views.organisations.posts.edit_view.update') %>
+        <% end %>
+      </div>
+    </div>
+
+  <% end %>
+    </div>
+</turbo-frame>

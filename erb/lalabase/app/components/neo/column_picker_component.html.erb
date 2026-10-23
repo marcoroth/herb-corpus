@@ -1,0 +1,121 @@
+<%# Hidden until the trigger in the table header opens it (column_picker_controller#open).
+    A <div>, not an <aside>: the grid's own aside is the list, and the lane guard
+    counts asides. Each row is F37 (grip, tick, name), the separator F38. Every
+    tick and move is saved at once; the footer names the view it went into. %>
+<div id="<%= Neo::ColumnPickerComponent::ELEMENT_ID %>"
+     class="column-picker"
+     role="region"
+     aria-labelledby="column-picker-title"
+     hidden
+     data-column-picker-target="panel">
+  <div class="column-picker__head">
+    <h2 id="column-picker-title" class="text-sm font-semibold text-heading"><%= t('components.column_picker.title') %></h2>
+    <button type="button"
+            class="text-sm font-medium text-body underline underline-offset-2 hover:text-heading focus:outline-none focus-visible:ring-1 focus-visible:ring-ink rounded"
+            data-action="click->column-picker#close"><%= t('components.column_picker.done') %></button>
+  </div>
+  <p class="column-picker__hint text-xs text-muted"><%= t('components.column_picker.hint') %></p>
+  <% unless editable? %>
+    <p class="column-picker__hint text-xs text-muted"><%= t('components.column_picker.read_only') %></p>
+  <% end %>
+
+  <ul class="column-picker__list" data-column-picker-target="list">
+    <% ticked_index = 0 %>
+    <% rows.each do |row| %>
+      <% if row[:fixed] %>
+        <%# Number and title: always there. No grip, no tick to take, no target for
+            the controller (the fit counts ranked rows only), and the word says why. %>
+        <li class="column-picker__row column-picker__row--fixed" aria-disabled="true"
+            data-column-key="<%= row[:key] %>"
+            data-action="mouseenter->column-picker#highlight mouseleave->column-picker#unhighlight">
+          <span class="column-picker__grip column-picker__grip--none" aria-hidden="true"></span>
+          <input type="checkbox" class="<%= Neo::ColumnPickerComponent::CHECKBOX_CLASSES %>" id="column-picker-<%= row[:key] %>" tabindex="-1" checked disabled>
+          <label class="column-picker__label" for="column-picker-<%= row[:key] %>"><%= row[:label] %></label>
+          <%# Pinned by definition. A sign and not a control: no hover, no
+              focus, nothing to press - the word in the title says why. %>
+          <span class="column-picker__pin column-picker__pin--fixed"
+                title="<%= pin_title(row) %>" role="img"
+                aria-label="<%= pin_title(row) %>">
+            <i class="bi bi-pin-fill" aria-hidden="true"></i>
+          </span>
+        </li>
+        <% next %>
+      <% end %>
+      <% if row[:checked] && boundary_before_index == ticked_index %>
+        <li class="column-picker__boundary" role="separator" data-column-picker-target="boundary"><span><%= t('components.column_picker.boundary') %></span></li>
+      <% end %>
+      <li class="column-picker__row"
+          tabindex="<%= editable? ? 0 : -1 %>"
+          aria-disabled="<%= editable? ? 'false' : 'true' %>"
+          data-key="<%= row[:key] %>"
+          data-column-key="<%= row[:key] %>"
+          data-min="<%= row[:min_width] %>"
+          data-column-picker-target="row"
+          data-action="keydown->column-picker#rowKeydown mouseenter->column-picker#highlight mouseleave->column-picker#unhighlight focusin->column-picker#highlight focusout->column-picker#unhighlight">
+        <%# TWO hit areas, and that is not decoration: one click decides
+            whether the column is shown at all, the other only what happens to
+            it when the width runs out. Sharing one target would mean a miss on
+            the pin switches the whole column off. Same mechanic as the filter
+            chip (17a). %>
+        <span class="column-picker__zone">
+          <span class="column-picker__grip" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
+          <input type="checkbox"
+                 class="<%= Neo::ColumnPickerComponent::CHECKBOX_CLASSES %>"
+                 id="column-picker-<%= row[:key] %>"
+                 tabindex="-1"
+                 <%= 'checked' if row[:checked] %>
+                 <%= 'disabled' unless editable? %>
+                 data-action="change->column-picker#changed">
+          <label class="column-picker__label" for="column-picker-<%= row[:key] %>"><%= row[:label] %></label>
+        </span>
+        <%# The sign is rendered on EVERY row and hidden by the stylesheet while
+            the row is unticked (column_picker.css, :has(:not(:checked))): a
+            column that is not shown cannot fail to fit, so the question is not
+            asked. Rendering it only for ticked rows meant a row that was just
+            ticked had no sign until the panel came back from the server.
+            ⚠️ Its state is still read for an unticked row when saving - a pin
+            survives unticking on purpose. %>
+        <button type="button"
+                  class="column-picker__pin"
+                  data-column-picker-target="pin"
+                  data-key="<%= row[:key] %>"
+                  data-action="click->column-picker#togglePin"
+                  aria-pressed="<%= row[:pinned] %>"
+                  aria-label="<%= pin_label(row) %>"
+                  title="<%= pin_title(row) %>"
+                  tabindex="<%= editable? ? 0 : -1 %>"
+                  <%= 'disabled' unless editable? %>>
+            <i class="bi bi-pin column-picker__pin-icon--off" aria-hidden="true"></i><i class="bi bi-pin-fill column-picker__pin-icon--on" aria-hidden="true"></i>
+          </button>
+      </li>
+      <% ticked_index += 1 if row[:checked] %>
+    <% end %>
+    <% if boundary_before_index.nil? %>
+      <li class="column-picker__boundary" role="separator" data-column-picker-target="boundary" hidden><span><%= t('components.column_picker.boundary') %></span></li>
+    <% end %>
+  </ul>
+
+  <div class="column-picker__foot">
+    <%# What the pins are FOR, in one sentence, right where the reader has just
+        set them. The panel keeps the list narrow while it is open, so the
+        sentence and its effect are visible at the same time. %>
+    <p class="column-picker__hint text-xs text-muted"><%= t('components.column_picker.pin_hint') %></p>
+    <span><%= t('components.column_picker.applies_to_html', name: tag.strong(view_name, class: 'font-semibold text-body')) %></span>
+    <span class="column-picker__status text-red-700" data-column-picker-target="status" role="alert" hidden></span>
+    <%# The exception (plan D5): the list as it stands goes into the base view and
+        every view of the reader's own in this project. A form, not a fetch: the
+        answer is a page with a flash that names the count. The controller fills
+        the list in on submit (column_picker_controller#fillApplyForm). %>
+    <% if apply_all_url %>
+      <%# data-turbo=false, as the bar's own save modal: Turbo would follow the redirect
+          with its stream Accept header, and the list answers that with the frame alone,
+          no page and no flash. A plain post gets the page. %>
+      <%= form_with url: apply_all_url, method: :patch, class: 'column-picker__apply w-full',
+                    data: { turbo: false, column_picker_target: 'applyForm', action: 'submit->column-picker#fillApplyForm' } do %>
+        <button type="submit"
+                class="text-xs font-medium text-body underline underline-offset-2 hover:text-heading focus:outline-none focus-visible:ring-1 focus-visible:ring-ink rounded"><%= t('components.column_picker.apply_to_all') %></button>
+      <% end %>
+    <% end %>
+  </div>
+  <p class="sr-only" aria-live="polite" data-column-picker-target="live"></p>
+</div>

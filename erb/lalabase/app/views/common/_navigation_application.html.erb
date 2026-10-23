@@ -1,0 +1,201 @@
+<% if current_organisation.present? %>
+  <%# Org header = a switcher menu: lists the user's organisations for a one-click tenant
+      switch (POST set_organisation, cockpit-row pattern) plus an invite action. Settings
+      moved out to a dedicated "Verwaltung" sidebar entry below the org content block.
+      Gates live in NavigationHelper now (can_invite is a strict subset of can_manage_org). %>
+  <% can_manage_org = can_manage_organisation?(current_organisation) %>
+  <% can_invite = can_invite_to_organisation?(current_organisation) %>
+  <div class="w-full mt-2 border-b border-cream-300">
+    <%# menu_orgs = the switcher list (query + ordering + cap live in NavigationHelper#switcher_
+        organisations). "more than one loaded" is the multi-org signal that decides whether the org
+        LIST renders at all (a single-org user gets, at most, just the invite footer below). %>
+    <% if user_signed_in? %>
+      <% menu_orgs = switcher_organisations(current_user).to_a %>
+      <% multi_org = menu_orgs.many? %>
+      <%# Unread notifications in the OTHER organisations: the dot on the header and the
+          number per menu row. Live via the org's badge stream (Notifications::UnreadSignals). %>
+      <% other_org_counts = multi_org ? Notifications::UnreadSignals.counts_for(current_user, except: current_organisation) : {} %>
+    <% end %>
+    <% if user_signed_in? && (multi_org || can_invite) %>
+      <details class="group" data-controller="details-autoclose" data-action="toggle->details-autoclose#onToggle">
+        <summary class="flex items-center justify-between gap-2 px-6 py-2 cursor-pointer hover:bg-white/55 rounded transition-colors list-none"
+                 title="<%= t('navigation.organisation') %>">
+          <h3 class="flex-1 min-w-0">
+            <span class="block truncate text-sm font-bold text-cream-700 group-hover:text-cream-900 transition-colors"><%= current_organisation.name %></span>
+          </h3>
+          <% if multi_org %>
+            <%= render 'notifications/other_orgs_dot', counts: other_org_counts %>
+          <% end %>
+          <% if can_manage_org %>
+            <%# Manage THIS org — a gear next to the org identity (where org settings belong),
+                replacing the former permanent sidebar entry: rarely used, so it earns an icon in the
+                header, not a divider-set-apart nav row. stopPropagation so a click NAVIGATES without
+                toggling the disclosure; ink-filled when on any of the 8 management tabs. Its own
+                hover (not group-hover) so it highlights independently of the summary. %>
+            <% gear_classes = if management_section_active?
+                 'border-ink bg-cream-200 text-cream-900 shadow-[1px_1px_0_0_#14110c]'
+               else
+                 'border-cream-300 bg-cream-50 text-cream-600 hover:border-ink hover:text-cream-900 hover:shadow-[1px_1px_0_0_#14110c]'
+               end %>
+            <%= link_to organisation_settings_path(current_organisation),
+                  title: t('navigation.management'), aria: { label: t('navigation.management') },
+                  data: { action: 'click->details-autoclose#stop' },
+                  class: "flex items-center justify-center w-6 h-6 rounded border shrink-0 transition-all #{gear_classes}" do %>
+              <i class="bi bi-gear text-xs"></i>
+            <% end %>
+          <% end %>
+          <span class="flex items-center justify-center w-6 h-6 rounded border border-cream-300 bg-cream-50 text-cream-600 shrink-0 group-hover:border-ink group-hover:text-cream-900 group-hover:shadow-[1px_1px_0_0_#14110c] transition-all">
+            <i class="bi bi-chevron-down text-xs group-open:rotate-180 transition-transform"></i>
+          </span>
+        </summary>
+        <%# Open menu = a raised Neo "drawer" card (cream-50 + ink border + hard shadow, like the
+            dashboard KENNZAHLEN cards) that floats as an OVERLAY: positioned absolutely and anchored
+            to the #sidebar aside by details_autoclose (#reposition), NOT left in the scroll flow.
+            That stops opening it from growing the sidebar's overflow-y-auto column — no scrollbar,
+            no content jump — while the absolute panel escapes that column's clipping (its containing
+            block is the aside, an ancestor of the column) yet stays within the sidebar. overflow-y-
+            auto + a JS max-height let a long list scroll INSIDE the panel; opacity-0-until-positioned
+            avoids a one-frame flash at the corner. %>
+        <ul data-details-autoclose-target="panel"
+            class="absolute z-30 flex flex-col py-1 bg-cream-50 border border-ink rounded-md shadow-[2px_2px_0_0_#14110c] overflow-y-auto opacity-0">
+          <%# Shared menu-row style — the switch buttons AND both footer links use it; each row
+              appends only its delta (full-width button + touch height, a top divider, …). Single
+              source so the rows can never drift visually. px-3 (not px-6): the card is already
+              inset, so tighter padding keeps the rows aligned under the header. %>
+          <% row_base = 'flex items-center gap-2 text-sm px-3 py-2 hover:bg-cream-200 transition-colors' %>
+          <% if multi_org %>
+            <% menu_orgs.each do |org| %>
+              <% is_current = org.id == current_organisation.id %>
+              <% org_color = current_user.org_colors.effective_color(org) %>
+              <li>
+                <%# One-click tenant switch — same POST + data-turbo=false pattern as _cockpit_row.
+                    min-h-[44px] keeps the whole row a comfortable touch target. %>
+                <%= form_with url: set_organisation_path, method: :post, data: { turbo: false } do %>
+                  <%= hidden_field_tag :organisation_id, org.id %>
+                  <%= button_tag type: :submit,
+                        "aria-current": (is_current ? 'true' : nil),
+                        class: [row_base, 'w-full text-left min-h-[44px]', ('font-bold text-cream-900' if is_current)] do %>
+                    <span class="shrink-0 w-4 h-4 rounded border border-cream-300 <%= 'bg-cream-200' unless org_color %>" aria-hidden="true"
+                          <% if org_color %> style="background-color: <%= org_color %>;"<% end %>></span>
+                    <span class="flex-1 min-w-0 truncate"><%= org.name %></span>
+                    <% unless is_current %>
+                      <%= render 'notifications/org_attention_count', target_id: "org_attention_count_#{org.id}", count: other_org_counts[org.id].to_i %>
+                    <% end %>
+                    <% if is_current %>
+                      <i class="bi bi-check-lg text-cream-900 shrink-0" aria-hidden="true"></i>
+                    <% end %>
+                  <% end %>
+                <% end %>
+              </li>
+            <% end %>
+            <li>
+              <%# Takes over the former "Überblick" sidebar entry: the full org list / cockpit. %>
+              <%= link_to select_organisation_path,
+                  class: "#{row_base} border-t border-cream-200" do %>
+                <i class="bi bi-grid"></i><span class="flex-1 min-w-0"><%= t('navigation.all_organisations') %></span>
+                <%# Hits in organisations beyond the menu's cap (Notifications::UnreadSignals.overflow_count). %>
+                <%= render 'notifications/org_attention_count', target_id: 'org_attention_count_overflow',
+                           count: Notifications::UnreadSignals.overflow_count(other_org_counts, menu_orgs.map(&:id)) %>
+              <% end %>
+            </li>
+          <% end %>
+          <% if can_invite %>
+            <%# Divider above the invite row only when an org list precedes it (multi-org). %>
+            <% invite_classes = row_base %>
+            <% invite_classes += ' border-t border-cream-200' if multi_org %>
+            <li>
+              <%= link_to new_organisation_invitation_path(organisation_id: current_organisation.id),
+                  class: invite_classes do %>
+                <i class="bi bi-person-plus"></i><span><%= t('navigation.invite_member') %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </details>
+    <% else %>
+      <%# Single-org member without invite rights (or signed out): plain org name, no chevron. %>
+      <div class="px-6 py-2">
+        <h3 class="min-w-0">
+          <span class="block truncate text-sm font-bold text-cream-700"><%= current_organisation.name %></span>
+        </h3>
+      </div>
+    <% end %>
+  </div>
+
+  <%# This gate governs the WHOLE org navigation (search + assistant + dashboard +
+      inbox + times). It USED to share the same policy combo as
+      global_search_available? by coincidence rather than by meaning, and the
+      comment here asked for them to be pulled apart before that coincidence
+      mattered. S3a T4 is the moment: the assistant has its OWN gate (§13-2, the
+      operator flag plus use_assistant) which has nothing to do with reading
+      projects, so the block now opens for it too — and the search row carries the
+      gate that actually belongs to it. That predicate is exactly the old block
+      condition, so nothing changes for anybody who had the block before. %>
+  <% if user_signed_in? && (policy(Project).index? || policy(TimeSession).index? || assistant_available?) %>
+    <div class="w-full px-4 pt-3">
+      <div class="mb-2">
+        <% can_view_times = TimeSessionNavigationService.new(current_user, current_organisation).can_show_all_time_sessions_menu? %>
+        <%# Org-wide meetings index (Gespräche Slice 1c): visible with :meetings read
+            access in at least one project. A single .any? check (covers
+            admin/global-role/per-project) does not warrant its own service. %>
+        <% can_view_meetings = AccessCheck::ProjectAccessService.accessible_project_ids(current_user, current_organisation, action: :read, area: :meetings).any? %>
+
+        <%# "Zeiten" is a fixed entry (user, 01.09.2026: the times entry is
+            always visible). It stands for the whole times area, the list and the
+            billings behind it; times_section_active? lights it on every page of
+            that area. "Alle Meetings" follows inline. The "mehr …" reveal that
+            used to fold the two away is gone: with one candidate left it had no
+            case (a single extra entry always stayed inline). %>
+
+        <ul class="flex flex-col gap-1">
+          <%= render 'common/global_search_nav_item' if global_search_available? %>
+
+          <%# Assistant (S3a T4, plan §7.1 entry 1). Directly under the search
+              because it is the SECOND row of that interaction class: it opens a
+              layer, it does not navigate. There is deliberately no href -- the
+              assistant is a companion lane, not a page (L11).
+
+              The row sits outside the panel controller's scope (that controller
+              lives on the permanent body-level node), so it asks over a custom
+              event on window; the active look is synced back from there. %>
+          <% if assistant_available? %>
+            <li>
+              <button type="button" id="assistant-panel-trigger"
+                      data-action="click->assistant-trigger#toggle"
+                      data-controller="assistant-trigger"
+                      aria-expanded="<%= assistant_panel_state.open? %>"
+                      title="<%= t('navigation.assistant') %> (⌘J)"
+                      class="<%= sidebar_row_classes(active: assistant_panel_state.open?, extra: 'w-full text-start') %>">
+                <i class="bi bi-stars <%= sidebar_row_icon_classes %>"></i>
+                <span><%= t('navigation.assistant') %></span>
+              </button>
+            </li>
+          <% end %>
+
+          <%# Org dashboard (briefing) only for users with time access — otherwise no meaningful dashboard, they land in the inbox. %>
+          <% if can_view_times %>
+            <%= render 'common/navigation_item', name: t('navigation.org_dashboard'), path: organisation_root_path(organisation_id: current_organisation.id), icon: 'bi bi-speedometer2', active: controller_name == 'briefings' %>
+          <% end %>
+
+          <!-- Notifications Link -->
+          <% unread_count = current_user.unread_notifications_count(current_organisation) %>
+          <%= render 'notifications/nav_link', organisation: current_organisation, unread_count: unread_count %>
+
+          <% if can_view_times %>
+            <%= render 'common/navigation_item', name: t('navigation.times'), path: organisation_time_sessions_path(organisation_id: current_organisation.id), icon: 'bi bi-clock-history', active: times_section_active? %>
+          <% end %>
+          <% if can_view_meetings %>
+            <%= render 'common/navigation_item', name: t('navigation.all_meetings'), path: organisation_meetings_path(organisation_id: current_organisation.id), icon: 'bi bi-chat-quote', active: controller_name == 'meetings_overview' %>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  <% end %>
+  <%# Organisation management is reached via the gear in the org header (see the summary above),
+      not a permanent sidebar entry — a rarely-used, admin-only destination should not hold a
+      divider-emphasised primary-nav slot. management_section_active? drives the gear's active state. %>
+<% else %>
+  <div class="w-full px-4 pt-4">
+    <p class="text-xs text-cream-600 px-2 italic"><%= t('navigation.select_organisation_prompt') %></p>
+  </div>
+<% end %>

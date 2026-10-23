@@ -1,0 +1,62 @@
+<%# Search & chat release status + one-click toggle (Meeting-Such-Status).
+    Shows honestly whether this meeting's content (notes + transcript) is
+    findable in global search & chat, and lets writers flip the opt-in without
+    opening the edit form. v1 renders at request time only (plan D-3: no
+    broadcast) — from _meeting_show and from MeetingsController#
+    search_status_stream — so it MAY read params: the active list filters
+    (search/participant) are forwarded through the toggle POST exactly like the
+    edit form does (_meeting_edit:9-10), because search_status_stream re-renders
+    the list frame via filtered_meetings (which reads those params). Without the
+    forwarding, a toggle from a filtered list would silently reset the filter.
+    The CALLER gates the whole render on organisation.ai_enabled? (plan D-2,
+    mirrors _summary_section: without org AI nothing can be indexed). %>
+<% can_write = local_assigns.fetch(:can_write, false) %>
+<% org = meeting.organisation %>
+<%# The EMBEDDING lane, asked as such (R3). :content_indexing is the registry entry
+    for EmbeddingProcessingService — the service that actually indexes this meeting —
+    so the badge now reads the embedding_* configuration instead of the chat one.
+    Until R3 this line called ai_available? with no argument at all, whose default
+    parameter is 'openai': a seventh pin no grep for the literal could find, and an
+    honest answer to the wrong question (doc/ai_feature_registry_plan.md §2.2/§2.3).
+    Used only to tell "wird vorbereitet" from "wartet auf KI-Konfiguration". %>
+<% ai_available = org&.ai_available_for?(:content_indexing)&.available? %>
+<% status = meeting_search_status(meeting, ai_available: ai_available) %>
+<% style = meeting_search_status_style(status) %>
+<% filter_params = meeting_lane_state %>
+
+<div id="<%= dom_id(meeting) %>_search_status" class="flex flex-wrap items-center gap-2 mt-2">
+  <%= render NeoInfoTagComponent.new(
+        text: t("views.organisations.meetings.search_status.label_#{status}"),
+        variant: style[:variant],
+        icon: style[:icon],
+        animated: style.fetch(:animated, false),
+        size: :small,
+        title: (t('views.organisations.meetings.search_status.error_title', error: meeting.embedding_creation_error) if status == :failed)
+      ) %>
+
+  <% if can_write %>
+    <% if status == :off %>
+      <% if meeting.plain_text_version.present? %>
+        <%# Optik mirrors the analysis search toggle (_analysis.html.erb:73) —
+            same domain, same look, no drift. %>
+        <%= button_to t('views.organisations.meetings.search_status.action_release'),
+                      toggle_search_organisation_project_meeting_path(org, meeting.project, meeting),
+                      params: filter_params.merge(create_embeddings: '1'),
+                      class: 'text-xs px-2 py-1 rounded border border-cobalt-400 text-cobalt-700 hover:bg-cobalt-50',
+                      form: { class: 'shrink-0' } %>
+      <% else %>
+        <%# Same wording as the form's disabled toggle — the form key stays the
+            ONE owner (no_duplicate_keys locale guard). %>
+        <span class="text-xs italic text-cream-500"><%= t('views.organisations.meetings.form.create_embeddings_disabled_hint') %></span>
+      <% end %>
+    <% else %>
+      <%# De-indexing purges the fragments synchronously in the actor (PII
+          removal) — confirm before, reversible via re-release (plan D-4). %>
+      <%= button_to t('views.organisations.meetings.search_status.action_unrelease'),
+                    toggle_search_organisation_project_meeting_path(org, meeting.project, meeting),
+                    params: filter_params.merge(create_embeddings: '0'),
+                    class: 'text-xs px-2 py-1 rounded border border-cream-300 text-cream-700 hover:bg-cream-100',
+                    form: { class: 'shrink-0', data: { turbo_confirm: t('views.organisations.meetings.search_status.confirm_unrelease') } } %>
+    <% end %>
+  <% end %>
+</div>

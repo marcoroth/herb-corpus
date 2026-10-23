@@ -1,0 +1,51 @@
+<%# Reminder for an account whose address is not confirmed yet (registration
+    hardening). Shaped like layouts/_deletion_warning and rendered at the same
+    place: the top of the main column, IN the document flow.
+
+    It used to be `fixed top-0` at body level. Out of the flow and with nothing
+    compensating its height, it covered the first ~60px of every page — on a
+    ticket exactly the row carrying the time-tracking actions, so those buttons
+    could be neither seen nor clicked. Do not put the positioning back without
+    also reserving the space.
+
+    Not dismissible on purpose: unlike the onboarding banner this one states a
+    deadline, and hiding it would let the account expire silently. It disappears
+    the moment the address is confirmed. %>
+<div class="bg-amber-400 text-black border-2 border-black shadow-lg"
+     data-testid="email-confirmation-banner">
+  <div class="px-4 py-3">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <i class="bi bi-envelope-exclamation-fill text-xl"></i>
+        <div class="text-sm">
+          <strong><%= t('views.layouts.email_confirmation.title') %></strong>
+          <span class="ms-2">
+            <%= t('views.layouts.email_confirmation.body', email: current_user.email) %>
+            <% if (days = current_user.confirmation_grace_days_left) %>
+              <strong><%= t('views.layouts.email_confirmation.days_left', count: days) %></strong>
+            <% end %>
+          </span>
+        </div>
+      </div>
+
+      <%# The banner is where the confusion starts ("what mail?", "which
+          address?"), so the answer is one click away right here — same page the
+          account form's contextual help opens. %>
+      <div class="flex items-center gap-3 shrink-0">
+        <%= link_to t('views.layouts.email_confirmation.why'),
+              help_page_url('guides/basics/confirm-email'),
+              class: 'text-sm font-semibold underline decoration-2 underline-offset-2 hover:no-underline' %>
+
+        <%= form_with url: user_confirmation_path, method: :post do %>
+          <%= hidden_field_tag 'user[email]', current_user.email %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :secondary, size: :medium, tag: :button, type: 'submit',
+                icon: 'arrow-repeat'
+              ) do %>
+            <%= t('views.layouts.email_confirmation.resend') %>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

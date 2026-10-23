@@ -1,0 +1,106 @@
+<%# Kanban Board — gruppiert Tickets nach @kanban_attribute %>
+<% update_url_template = update_kanban_attribute_organisation_project_ticket_path(@current_organisation, @project, ':ticket_id') %>
+<% readonly = !policy(@project).area_access?(:tickets, :write) %>
+<%# The hourglass of every card, counted once for the whole board, not per column
+    (doc/ticket_relations_plan.md §8.4). A card re-rendered on its own counts itself. %>
+<% register_ticket_count_page(@kanban_columns.flat_map { |column| column[:tickets] }) %>
+
+<%# The keys (doc/kanban_keyboard_plan.md): one keydown listener on the board,
+    the stops (column head, card, "+ Ticket") let it bubble up. The texts are
+    what the live line below says; interpolated by the controller. %>
+<div data-controller="kanban-board"
+     data-kanban-board-update-url-value="<%= update_url_template %>"
+     data-kanban-board-attribute-name-value="<%= @kanban_attribute.name %>"
+     data-kanban-board-readonly-value="<%= readonly %>"
+     data-kanban-board-list-url-value="<%= organisation_project_tickets_path(@current_organisation, @project) %>"
+     data-kanban-board-texts-value="<%= %w[card head picked_up dropped put_back].index_with { |key| t("kanban.keys.#{key}") }.to_json %>"
+     data-action="keydown->kanban-board#key">
+
+  <%# What the keyboard did, for screen readers (37a, section 6): a ring
+      without a word helps only the sighted. %>
+  <div class="sr-only" role="status" aria-live="polite" data-kanban-board-target="live"></div>
+
+  <%# Mobile-Hinweis (client-seitig via JS eingeblendet) %>
+  <div class="hidden p-4 text-center text-sm text-gray-600" data-kanban-board-target="mobileHint">
+    <p class="mb-2"><%= t('kanban.mobile_hint') %></p>
+    <a href="<%= organisation_project_tickets_path(@current_organisation, @project) %>"
+       class="text-cobalt-600 underline"><%= t('kanban.switch_to_list') %></a>
+  </div>
+
+  <%# Memory-Cap Hinweis %>
+  <% if @kanban_capped %>
+    <div class="mb-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+      <%= t('kanban.capped_hint', shown: KanbanBoardPresenter::MAX_TOTAL_TICKETS, total: @kanban_total) %>
+    </div>
+  <% end %>
+
+  <%# Navigation oberhalb der Lanes %>
+  <div class="kanban-nav" data-kanban-board-target="nav">
+    <button type="button" class="kanban-nav-btn" data-kanban-board-target="prevBtn" data-action="kanban-board#scrollLeft" aria-label="<%= t('kanban.scroll_left') %>">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+    <button type="button" class="kanban-nav-btn" data-kanban-board-target="nextBtn" data-action="kanban-board#scrollRight" aria-label="<%= t('kanban.scroll_right') %>">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+
+  <div class="kanban-board" data-kanban-board-target="board">
+    <% @kanban_columns.each do |column| %>
+      <% col_color = column[:color] %>
+      <div class="kanban-column"
+           data-kanban-board-target="column"
+           data-column-label="<%= column[:label] %>">
+        <%# Soft-flat header (2026-09-04): the status color lives in a small dot,
+            the column has no colored frame/background anymore. A stop for the
+            keyboard (tabindex -1, the board's cursor sets 0): the target above
+            the first card, from which the arrows cross the columns without
+            choosing a card. No role yet, a menu is not here (D5). %>
+        <div class="kanban-column-header" tabindex="-1">
+          <%= tag.span class: "kanban-column-dot", style: (col_color ? "background-color: #{col_color};" : nil), "aria-hidden": true %>
+          <span class="truncate"><%= column[:label] %></span>
+          <span class="kanban-count"><%= column[:tickets].size %><% if column[:has_more] %>+<% end %></span>
+        </div>
+
+        <%# Scroll wrapper holds cards + add link, so the link follows the cards
+            directly while the header above stays put on overflow. %>
+        <div class="kanban-scroll">
+          <div class="kanban-card-list"
+               data-kanban-board-target="cardList"
+               data-column-value="<%= column[:value] %>">
+            <% column[:tickets].each do |ticket| %>
+              <%= render 'kanban_card', ticket: ticket, project: @project, organisation: @current_organisation,
+                                        selected: @selected_ticket&.id == ticket.id %>
+            <% end %>
+            <% unless readonly %>
+              <%# Always rendered; CSS (:has) hides it while cards are present, so it
+                  reappears live when the last card is dragged out. %>
+              <div class="kanban-empty-hint"><%= t('kanban.empty_column_hint') %></div>
+            <% end %>
+          </div>
+
+          <%# hidden_count is what the presenter did NOT render, not "total minus
+              the cap": the open ticket's card may be appended beyond the cap
+              (D3), and then the cap is not the count. %>
+          <% if column[:has_more] %>
+            <div class="px-3 py-1.5 text-[10px] text-cream-500 text-center border-t border-cream-200">
+              <%= t('kanban.more_tickets', count: column[:hidden_count]) %>
+            </div>
+          <% end %>
+
+          <% unless readonly %>
+            <%# Opens the writing surface with this column's value preselected
+                (source: kanban -> create answers with a board reload). %>
+            <%= link_to new_organisation_project_ticket_path(@current_organisation, @project,
+                          source: 'kanban', preset_attribute: @kanban_attribute.name, preset_value: column[:value]),
+                        class: "kanban-add-ticket",
+                        title: t('kanban.add_ticket_title'),
+                        tabindex: -1,
+                        data: { turbo_frame: "writing_surface" } do %>
+              <i class="bi bi-plus-lg" aria-hidden="true"></i><span><%= t('kanban.add_ticket') %></span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

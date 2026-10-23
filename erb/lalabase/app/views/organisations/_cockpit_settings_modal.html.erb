@@ -1,0 +1,105 @@
+<%# Cockpit settings modal (T5). Mirrors the new-organisation-modal already on this page
+    (surface-raised white = G5, S3 shadow, header + x-lg close). Form = H1 two-column rows (label +
+    help left, control right) on thin dividers — no card stacking. Submits PATCH /cockpit_settings;
+    the controller redirects back to select. The importance radios disable when "show actions" is
+    off (cockpit_settings_modal_controller#syncImportanceEnabled). Caller passes the current values:
+    `layout`, `importance`, `show_actions`, `show_todos`. %>
+<div class="fixed z-50 inset-0 overflow-y-auto hidden"
+     data-cockpit-settings-modal-target="modal"
+     data-action="click->cockpit-settings-modal#closeOnBackdrop keydown->cockpit-settings-modal#closeOnEscape keydown->cockpit-settings-modal#trapFocus">
+  <div class="fixed inset-0 bg-ink bg-opacity-60 backdrop-blur-sm"></div>
+
+  <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-surface-raised rounded-lg shadow-[6px_6px_0_0_#14110c] border border-cream-300 max-w-md w-full relative">
+      <div class="flex justify-between items-center p-4 border-b border-cream-200">
+        <h3 class="text-lg font-bold text-cream-900"><%= t('views.organisations.select.cockpit_settings.title') %></h3>
+        <button type="button" class="text-cream-500 hover:text-cream-700"
+                data-action="click->cockpit-settings-modal#close"
+                aria-label="<%= t('views.organisations.select.cockpit_settings.gear_label') %>">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <%= form_with url: cockpit_settings_path, method: :patch do %>
+        <div class="p-5 divide-y divide-cream-200">
+          <%# Row 1: show actions %>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-6 py-4 first:pt-0">
+            <div class="md:col-span-1">
+              <div class="font-bold text-sm text-cream-900"><%= t('views.organisations.select.cockpit_settings.actions_label') %></div>
+              <div class="text-xs text-cream-500"><%= t('views.organisations.select.cockpit_settings.actions_help') %></div>
+            </div>
+            <div class="md:col-span-2 flex items-center">
+              <label class="inline-flex items-center gap-2 text-sm text-cream-900">
+                <%= check_box_tag 'cockpit[show_actions]', '1', show_actions,
+                      class: 'accent-cobalt-500 w-4 h-4',
+                      data: { 'cockpit-settings-modal-target': 'showActions', action: 'change->cockpit-settings-modal#syncImportanceEnabled' } %>
+                <%= t('views.organisations.select.cockpit_settings.show') %>
+              </label>
+            </div>
+          </div>
+
+          <%# Row 2: importance (disabled when actions off) %>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-6 py-4" data-importance-row>
+            <div class="md:col-span-1">
+              <div class="font-bold text-sm text-cream-900"><%= t('views.organisations.select.cockpit_settings.importance_label') %></div>
+              <div class="text-xs text-cream-500"><%= t('views.organisations.select.cockpit_settings.importance_help') %></div>
+            </div>
+            <div class="md:col-span-2 space-y-2">
+              <% User::PreferenceStore::COCKPIT_IMPORTANCE_LEVELS.each do |level| %>
+                <label class="flex items-start gap-2 text-sm text-cream-900">
+                  <%= radio_button_tag 'cockpit[importance]', level, importance == level,
+                        class: 'accent-cobalt-500 mt-0.5',
+                        data: { 'cockpit-settings-modal-target': 'importance' } %>
+                  <span>
+                    <span class="font-medium"><%= t("views.organisations.select.cockpit_settings.importance.#{level}") %></span>
+                    <span class="block text-xs text-cream-500"><%= t("views.organisations.select.cockpit_settings.importance.#{level}_help") %></span>
+                  </span>
+                </label>
+              <% end %>
+            </div>
+          </div>
+
+          <%# Row 3: show todos %>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-6 py-4">
+            <div class="md:col-span-1">
+              <div class="font-bold text-sm text-cream-900"><%= t('views.organisations.select.cockpit_settings.todos_label') %></div>
+              <div class="text-xs text-cream-500"><%= t('views.organisations.select.cockpit_settings.todos_help') %></div>
+            </div>
+            <div class="md:col-span-2 flex items-center">
+              <label class="inline-flex items-center gap-2 text-sm text-cream-900">
+                <%= check_box_tag 'cockpit[show_todos]', '1', show_todos, class: 'accent-cobalt-500 w-4 h-4' %>
+                <%= t('views.organisations.select.cockpit_settings.show') %>
+              </label>
+            </div>
+          </div>
+
+          <%# Row 4: layout %>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-6 py-4">
+            <div class="md:col-span-1">
+              <div class="font-bold text-sm text-cream-900"><%= t('views.organisations.select.cockpit_settings.layout_label') %></div>
+              <div class="text-xs text-cream-500"><%= t('views.organisations.select.cockpit_settings.layout_help') %></div>
+            </div>
+            <div class="md:col-span-2 space-y-2">
+              <% User::PreferenceStore::COCKPIT_LAYOUTS.each do |layout_option| %>
+                <label class="flex items-center gap-2 text-sm text-cream-900">
+                  <%= radio_button_tag 'cockpit[layout]', layout_option, layout == layout_option, class: 'accent-cobalt-500' %>
+                  <%= t("views.organisations.select.cockpit_settings.layout.#{layout_option}") %>
+                </label>
+              <% end %>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center gap-3 p-4 border-t border-cream-200">
+          <button type="button" class="text-sm font-medium text-cream-700 hover:text-cream-900 px-3 py-2"
+                  data-action="click->cockpit-settings-modal#close">
+            <%= t('views.organisations.select.cockpit_settings.cancel') %>
+          </button>
+          <button type="submit" class="text-sm font-bold text-cream-900 bg-lime-300 hover:bg-lime-400 border border-ink rounded px-4 py-2 shadow-[1px_1px_0_0_#14110c]">
+            <%= t('views.organisations.select.cockpit_settings.save') %>
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

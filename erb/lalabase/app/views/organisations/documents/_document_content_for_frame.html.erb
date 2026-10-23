@@ -1,0 +1,121 @@
+<%# This partial is used specifically for display in the layout content frame %>
+<% can_write = policy(document.project).area_access?(:documents, :write) %>
+<% current = document.current_version %>
+<% file = current&.document_version_file %>
+<% frame_id = local_assigns[:detail_frame_id].presence || 'document_display_frame' %>
+<% dc = 'views.organisations.documents.document_content_for_frame' %>
+<% path_args = { organisation_id: document.project.organisation_id, project_id: document.project.id, id: document.id } %>
+<% edit_href = edit_organisation_project_document_path(**path_args, frame: 'content', frame_id: frame_id) %>
+
+<%# The document's one root (see notes/_note_show for the rule): no surface,
+    border, radius or sideways padding, the lane column carries the inset.
+    assistant_context_attributes names the document to the assistant panel
+    (doc/assistent_wissen_kontext_plan.md, step 3); the preview root carries
+    the same marker, it is a second root of the same document. %>
+<div class="document-content" <%= assistant_context_attributes(document) %>>
+  <div class="mb-4" id="document-card">
+    <%# The head: type word, pencil, the "···" for the rare and consequential
+        (S3 of doc/dokumentansicht_plan.md): rename opens the pencil's form
+        (D5, the document's title is the current version's), delete takes the
+        document with every version, the old danger zone's one action with the
+        same confirm. document-edit-button stays as the pencil's hook. %>
+    <%= render 'organisations/knowledge/lane_head',
+               type_word: t('views.organisations.knowledge.knowledge_row.document_type'),
+               assistant_record: document,
+               edit: (can_write ? { href: edit_href, title: t("#{dc}.edit_document"), frame: frame_id, hook: 'document-edit-button' } : nil),
+               menu: (can_write ? [
+                 { label: t("#{dc}.rename"), url: edit_href, icon: 'pencil', data: { turbo_frame: frame_id } },
+                 { label: t("#{dc}.delete_document"), url: organisation_project_document_path(**path_args, frame: 'content'),
+                   icon: 'trash', danger: true,
+                   data: { turbo_method: :delete, turbo_confirm: t('views.confirm.delete_all_document_versions') } }
+               ] : nil) %>
+    <h2 class="text-[22px] leading-snug font-bold tracking-tight text-cream-900" data-lane-title><%= current.title %></h2>
+
+    <%# The attribute row (42a, 1.2), the ticket's form (tickets/_ticket_metadata_row):
+        type from the file, the versions, the creator as the identity pair, the
+        date in the reader's format, the AI status; numbers in mono, an empty
+        value is not shown. The tags sit here too, as chips, as the note's do. %>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-cream-700" data-document-attributes>
+      <% if file.present? %>
+        <span class="inline-flex items-center gap-1.5" title="<%= t("#{dc}.type") %>" data-document-kind>
+          <i class="bi <%= attachment_file_icon(file) %> text-[12px]" aria-hidden="true"></i>
+          <%= attachment_file_kind_word(file) %>
+        </span>
+      <% end %>
+      <span class="inline-flex items-center gap-1.5" data-document-version-count>
+        <span class="font-mono text-[13px]"><%= versions.size %></span>
+        <%= t("#{dc}.versions_count", count: versions.size) %>
+      </span>
+      <% if document.creator %>
+        <span class="inline-flex items-center" title="<%= t("#{dc}.created_by") %>" data-document-creator><%= viewer_user_chip(document.creator, size: :xs) %></span>
+      <% end %>
+      <span class="inline-flex items-center gap-1.5 font-mono text-[13px]" title="<%= t("#{dc}.created_at") %>" data-document-created-at>
+        <i class="bi bi-calendar3 text-[10px]" aria-hidden="true"></i>
+        <%= viewer_display_time(document.created_at) %>
+      </span>
+      <%# The AI status (D3), its own partial because the version row's
+          broadcast replaces it along with the row (review of #783). %>
+      <%= render 'organisations/documents/ai_state', document: document, organisation: @current_organisation || document.organisation %>
+      <% document.tags.each do |tag| %>
+        <%= render NeoTagComponent.new(text: tag.name, variant: :warning, size: :small) %>
+      <% end %>
+    </div>
+
+    <div class="py-6 space-y-4 text-cream-800">
+      <%# Two descriptions, told apart (42a, 1.3): the writer's as a plain
+          paragraph without a label, the AI's as a quiet block with the spark,
+          each only when there is one. %>
+      <% if document.description.present? %>
+        <p class="max-w-[70ch] text-[15px] leading-relaxed" data-document-description><%= document.description %></p>
+      <% end %>
+      <% if current.summary_creation_flag == true && current.generated_summary.present? %>
+        <div class="max-w-[70ch] rounded-xl bg-cream-100 px-4 py-3.5" data-document-summary>
+          <div class="mb-1.5 flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-cream-900">
+            <i class="bi bi-stars" aria-hidden="true"></i>
+            <%= t("#{dc}.summary_heading") %>
+          </div>
+          <%# The LLM answers in Markdown, like the ticket's summary: the same component. %>
+          <%= render Neo::MarkdownPreviewComponent.new(markdown: current.generated_summary, size: :md, clamp: :short,
+                                                       more_label: t("#{dc}.summary_show_full"), less_label: t("#{dc}.summary_collapse")) %>
+        </div>
+      <% end %>
+
+      <div class="mt-8" data-controller="toggle">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <h3 class="text-lg font-semibold text-cream-900"><%= t("#{dc}.versions") %></h3>
+          <% if can_write %>
+            <%# The add-version action lives on the list it fills (section header), not floating
+                above it. The form toggles open right below this header. %>
+            <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, icon: "plus-lg",
+                  tag: :button, type: "button", data: { action: "toggle#toggle" }) do %>
+              <%= t("#{dc}.new_version") %>
+            <% end %>
+          <% end %>
+        </div>
+
+        <% if can_write %>
+          <%# No card around the form (S4): the drop zone carries the one frame
+              this section needs; the list stays visible below it (43a, 2.2). %>
+          <div data-toggle-target="content" class="hidden mb-6">
+            <%= render 'organisations/documents/version_form', document: document, version: new_version %>
+          </div>
+          <%# Hidden field that scopes the version form to the content frame. %>
+          <input type="hidden" id="current-frame-context" value="content">
+        <% end %>
+
+        <%= turbo_stream_from "#{dom_id(document)}_document_versions" %>
+        <%# No shell (S2 of doc/dokumentansicht_plan.md): the rows sit on the
+            lane, thin dividers between them. One fact every row needs,
+            computed once: whether this is the last version (the delete item
+            names the consequence). %>
+        <% only_version = versions.size == 1 %>
+        <div id="<%= dom_id(document) %>_document_versions" class="divide-y divide-cream-200">
+          <% versions.each do |version| %>
+            <%= render 'organisations/documents/version_row', version: version, project: @project, document: document,
+                       can_write: can_write, only_version: only_version, frame_id: frame_id %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

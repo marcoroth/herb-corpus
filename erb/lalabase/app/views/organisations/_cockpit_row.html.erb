@@ -1,0 +1,100 @@
+<%# One cockpit org row, shared by rows_compact + rows_detailed via the `detailed` flag. The org
+    cell is a set-tenant POST (like the org tiles); actions + to-dos beside it are read-only
+    deep-links. Reads ONLY associations the service eager-loaded (project / actor / notifiable) plus
+    query-free attributes (ticket.due_on, task.priority) — the cockpit renders WITHOUT a tenant, so a
+    lazy load or a status-definition lookup (done?/overdue?) would raise NoTenantSet (A9). Shown
+    tickets are already active, so "overdue" here is simply due_on < today.
+    Locals: row, detailed, member_counts, show_actions, show_todos. %>
+<% org = row.organisation %>
+<% org_color = current_user.org_colors.effective_color(org) %>
+<% slice = row.action_slice %>
+<div class="flex flex-col md:flex-row md:items-start gap-3 md:gap-6">
+  <%= form_with url: set_organisation_path, method: :post, data: { turbo: false }, class: "md:w-1/3 flex-shrink-0" do %>
+    <%= hidden_field_tag :organisation_id, org.id %>
+    <button type="submit" class="w-full flex items-center gap-3 text-left group min-h-[44px]">
+      <span class="flex-shrink-0 <%= detailed ? 'w-12 h-12 text-xl' : 'w-10 h-10 text-base' %> rounded-lg border border-cream-300 flex items-center justify-center font-black text-cream-900 <%= 'bg-cream-200' unless org_color %>"
+            <% if org_color %> style="background-color: <%= org_color %>;"<% end %>>
+        <%= org.name.first.upcase %>
+      </span>
+      <span class="min-w-0">
+        <%# The whole cell is the set-tenant submit; the name underlines on hover to signal it — no
+            persistent "öffnen" label (too repetitive, matches the org tiles which use no label). %>
+        <span class="block font-bold <%= 'text-lg' if detailed %> text-cream-900 truncate group-hover:underline"><%= org.name %></span>
+        <span class="block text-xs text-cream-500"><%= t('views.organisations.select.cockpit.rows.members', count: member_counts[org.id].to_i) %></span>
+      </span>
+    </button>
+  <% end %>
+
+  <% if show_actions %>
+    <div class="md:flex-1 min-w-0">
+      <% if row.error? %>
+        <%# Be honest: a failed per-org aggregation is "couldn't load", not "all quiet". %>
+        <span class="text-sm text-cream-500 italic"><%= t('views.organisations.select.cockpit.load_error') %></span>
+      <% elsif !row.actions? %>
+        <span class="text-sm text-cream-500 italic"><%= t('views.organisations.select.cockpit.rows.quiet') %></span>
+      <% elsif detailed %>
+        <ul class="space-y-1.5">
+          <% slice.notifications.each do |notification| %>
+            <li class="flex items-baseline gap-2 text-sm">
+              <%= render Neo::UnreadMarkerComponent.new(count: 1, variant: :dot, class: 'translate-y-1') %>
+              <%# deeplink resolves server-side inside the org tenant -> no lazy load here (A9). %>
+              <%= link_to NotificationPresenter.new(notification).title, notification_deeplink_path(notification),
+                    class: "text-cream-900 hover:underline truncate" %>
+            </li>
+          <% end %>
+          <% slice.tickets.each do |ticket| %>
+            <li class="flex items-baseline gap-2 text-sm">
+              <i class="bi bi-card-checklist text-cream-400 flex-shrink-0" aria-hidden="true"></i>
+              <%= link_to ticket.title, organisation_project_ticket_path(org, ticket.project, ticket),
+                    class: "text-cream-900 hover:underline truncate" %>
+              <% if ticket.due_on && ticket.due_on < Date.current %>
+                <span class="text-[11px] text-danger flex-shrink-0"><%= t('views.organisations.select.cockpit.rows.overdue') %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <%# Unread = the sidebar's red pill (Neo::UnreadMarkerComponent). Red means only that
+            here, so the task count carries the checklist icon of the detailed rows. %>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm tabular-nums">
+          <%= render Neo::UnreadMarkerComponent.new(
+                count: slice.notification_count,
+                label: t('views.organisations.select.cockpit.unread_count', count: slice.notification_count)) %>
+          <% if slice.ticket_count.positive? %>
+            <span class="inline-flex items-center gap-1.5 text-cream-800">
+              <i class="bi bi-card-checklist text-cream-400" aria-hidden="true"></i>
+              <%= t('views.organisations.select.cockpit.rows.tasks') %>: <%= slice.ticket_count %>
+            </span>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if show_todos %>
+    <div class="md:flex-1 min-w-0">
+      <% if row.todos.any? %>
+        <ul class="space-y-1">
+          <% row.todos.first(Dashboard::CrossOrgActionSummary::TOP_N).each do |task| %>
+            <li class="flex items-center gap-2 text-sm text-cream-900">
+              <%# ONE leading marker so every row aligns (same icons as the stacked Notizblock roll-up):
+                  a filled coloured circle for a prioritised to-do, a hollow ring otherwise. We use
+                  bi-circle(-fill) icons, NOT a coloured <span> — personal_task_priority_classes returns
+                  a TEXT colour (text-red-500), which only paints an icon/glyph, not a span background
+                  (the earlier span rendered invisible, so prioritised rows looked indented-but-empty). %>
+              <% if personal_task_priority_filled?(task) %>
+                <i class="bi bi-circle-fill text-[0.625rem] <%= personal_task_priority_classes(task) %> flex-shrink-0"
+                   title="<%= t("views.organisations.select.todos.priority.#{task.priority}") %>"></i>
+              <% else %>
+                <i class="bi bi-circle text-[0.625rem] text-cream-300 flex-shrink-0" aria-hidden="true"></i>
+              <% end %>
+              <span class="truncate"><%= task.title %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <span class="text-sm text-cream-400">—</span>
+      <% end %>
+    </div>
+  <% end %>
+</div>

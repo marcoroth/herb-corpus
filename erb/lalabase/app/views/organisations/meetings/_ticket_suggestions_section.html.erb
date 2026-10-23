@@ -1,0 +1,104 @@
+<%# locals: (meeting:, announce: false, announce_links: false, lane_state: {}) %>
+<%# "Ticket-Vorschläge" on the meeting detail (Gespräche
+    Slice 8, E22). Rendered ONLY in request context (from _meeting_show AND the
+    controller's turbo_stream replace — NO broadcast, E21), so policy/current_user
+    are safe here. Wrapped in its own turbo-frame so run/accept/dismiss refresh just
+    this block. Permissions are computed here so it renders identically either way.
+    lane_state: the list state and context of the lane (meeting_lane_state), given
+    by _meeting_show only, so the refresh link reloads the detail for the list it
+    was opened from; the controller's replace has none and reloads for the project.
+    NB: do NOT start this comment with "locals:" — Rails reads it as the strict
+    locals signature and chokes on the prose. %>
+<% project = meeting.project %>
+<% can_write = policy(project).area_access?(:meetings, :write) %>
+
+<% org = meeting.organisation %>
+<%# The run starts from the assistant composer since #817, which is a :chat surface. The
+    entry is live only when BOTH rungs say yes; the feature key alone would open a composer
+    that cannot send. %>
+<% ai_available = org&.ai_available_for?(:meeting_ticket_suggestions)&.available? && org.ai_available_for?(:chat).available? %>
+<% has_source = meeting.summary_source.present? %>
+<% in_progress = meeting.suggestions_generation_running? %>
+<% error = meeting.suggestions_creation_error %>
+<% suggestions = meeting.meeting_ticket_suggestions.open.includes(similar_ticket: :project).order(:created_at).to_a %>
+<% assistant = can_write && assistant_trigger_data(meeting, intent: :'ticket-suggestions') %>
+<%# Rollout decision A: creation is assistant-only, but never silently gone. A writer in an
+    AI org whose assistant gate is closed keeps the section and is told where creation went. %>
+<% assistant_blocked = can_write && !assistant_available? && org&.ai_enabled? %>
+<% generate_disabled = !ai_available || !has_source %>
+<%# At most ONE reason creation is off. Shown next to existing suggestions too: a disabled
+    "Neu ableiten" without a visible why is exactly the silent state this section avoids. %>
+<% creation_hint, creation_hint_class = if assistant_blocked
+                                          [t('views.organisations.meetings.ticket_suggestions.assistant_not_enabled'), 'text-amber-700']
+                                        elsif assistant && !ai_available
+                                          [t('views.organisations.meetings.ticket_suggestions.assistant_unavailable'), 'text-amber-700']
+                                        elsif assistant && !has_source
+                                          [t('views.organisations.meetings.ticket_suggestions.no_content_hint'), 'italic text-cream-600']
+                                        end %>
+<% hint_id = "#{meeting_ticket_suggestions_frame_id(meeting)}_creation_hint" %>
+
+<%= turbo_frame_tag meeting_ticket_suggestions_frame_id(meeting), data: {
+      controller: 'meeting-section-sync',
+      meeting_section_sync_meeting_value: meeting.id,
+      meeting_section_sync_url_value: organisation_project_meeting_path(org, project, meeting, frame: 'content'),
+      meeting_section_sync_links_frame_value: meeting_ticket_links_frame_id(meeting),
+      meeting_section_sync_announce_value: announce,
+      meeting_section_sync_announce_links_value: announce_links
+    } do %>
+  <% if suggestions.any? || assistant || assistant_blocked || in_progress %>
+    <section class="meeting-content mt-8">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <h3 class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-cream-600">
+          <i class="bi bi-lightbulb text-sm" aria-hidden="true"></i>
+          <%= t('views.organisations.meetings.ticket_suggestions.heading') %>
+        </h3>
+
+        <% if assistant && !in_progress %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :ai, size: :small, icon: 'magic', disabled: generate_disabled,
+                **(generate_disabled ? { aria: { describedby: hint_id } } : { title: t('views.organisations.meetings.ticket_suggestions.assistant_hint'), data: assistant })
+              ) do %>
+            <% if suggestions.any? %>
+              <%= t('views.organisations.meetings.ticket_suggestions.regenerate') %>
+            <% else %>
+              <%= t('views.organisations.meetings.ticket_suggestions.generate') %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <% if in_progress %>
+        <%# role=status so screen readers hear the run started; refresh link is the
+            fallback since there is no broadcast (E21). %>
+        <p role="status" class="flex flex-wrap items-center gap-2 text-sm italic text-cream-600">
+          <i class="bi bi-arrow-repeat inline-block animate-spin" aria-hidden="true"></i>
+          <%= t('views.organisations.meetings.ticket_suggestions.in_progress') %>
+          <%= link_to t('views.organisations.meetings.ticket_suggestions.refresh'),
+                organisation_project_meeting_path(org, project, meeting, frame: 'content', **lane_state.symbolize_keys),
+                data: { turbo_frame: 'meeting_display_frame' },
+                class: 'not-italic underline hover:text-ink' %>
+        </p>
+      <% elsif suggestions.any? %>
+        <% if creation_hint %>
+          <p id="<%= hint_id %>" class="mb-2 text-sm <%= creation_hint_class %>"><%= creation_hint %></p>
+        <% end %>
+        <p class="mb-2 text-xs text-cream-500"><%= t('views.organisations.meetings.ticket_suggestions.intro') %></p>
+        <ul class="divide-y divide-cream-200 border-t border-cream-200">
+          <% suggestions.each do |suggestion| %>
+            <%= render 'organisations/meetings/ticket_suggestion', suggestion: suggestion, meeting: meeting, user: current_user %>
+          <% end %>
+        </ul>
+      <% else %>
+        <% if error.present? %>
+          <%# text-red-700, not -600: only 700/800/900 are dark-theme remapped. %>
+          <p class="border-t border-cream-200 pt-2 text-sm text-red-700"><%= error %></p>
+        <% end %>
+        <% if creation_hint %>
+          <p id="<%= hint_id %>" class="<%= class_names('text-sm', creation_hint_class, error.present? ? 'mt-1' : 'border-t border-cream-200 pt-2') %>"><%= creation_hint %></p>
+        <% elsif error.blank? %>
+          <p class="border-t border-cream-200 pt-2 text-sm italic text-cream-600"><%= t('views.organisations.meetings.ticket_suggestions.empty') %></p>
+        <% end %>
+      <% end %>
+    </section>
+  <% end %>
+<% end %>

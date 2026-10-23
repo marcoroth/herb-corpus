@@ -1,0 +1,62 @@
+<%# "Verbrauch" — the AI area's consumption page (doc/ki_bereich_navigation_plan.md S6,
+    gap L8).
+
+    The order of this page IS the fix. On the settings page the same three displays sat
+    between an activation banner, a package catalogue and a provider form, with the token
+    figure last and unexplained. L8's complaint was never that the numbers were wrong but
+    that they put the wrong one first: tokens are our purchasing unit, credits are what
+    the customer is measured against and what the gate enforces.
+
+    So: credits (bar + banners), then the six-month Nachweis — which the Kontingent
+    decision makes an obligation, not an ornament — and only then tokens, with the one
+    sentence that says what they are for. %>
+<div>
+  <%= render 'organisations/shared/ai_area_header',
+             title: t('views.organisations.ai_overview.usage.title') %>
+
+  <p class="mb-8 max-w-3xl text-sm text-cream-700">
+    <%= t('views.organisations.ai_overview.usage.intro') %>
+  </p>
+
+  <% if @organisation.ai_enabled? %>
+    <%# ONE ledger for both partials — see AiUsagesController#show for why. %>
+    <%= render 'shared/ai/quota_bar', organisation: @organisation, ledger: @ledger %>
+    <%= render 'shared/ai/quota_history', organisation: @organisation, ledger: @ledger %>
+  <% else %>
+    <%# Not a blank page: the route is reachable by URL even while the hub locks its
+        card, and "nothing here" would read as a defect rather than as a state. %>
+    <%= render 'organisations/shared/ai_disabled_notice' %>
+  <% end %>
+
+  <%# Deliberately OUTSIDE the opt-in branch, exactly as it was on the settings page:
+      these are calls that already happened. Switching AI off does not unmake them, and
+      hiding them the moment the switch flips would lose the answer to "wofür ging das
+      Kontingent drauf" precisely when somebody asks. %>
+  <% if @usage_stats.any? %>
+    <div class="mt-12 max-w-4xl">
+      <h3 class="text-sm font-bold text-cream-900">
+        <i class="bi bi-bar-chart mr-2"></i>
+        <%= t('views.organisations.ai_overview.usage.tokens_heading') %>
+      </h3>
+      <p class="mb-4 mt-1 text-sm text-cream-600">
+        <%= t('views.organisations.ai_overview.usage.tokens_hint') %>
+      </p>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <% @usage_stats.each do |provider, tokens| %>
+          <div class="flex items-center justify-between rounded border border-cream-300 bg-cream-50 px-4 py-3">
+            <div class="flex items-center space-x-3">
+              <i class="bi bi-<%= provider == AiCredential::PROVIDER_OPENAI ? 'cpu' : 'robot' %> text-cream-700"></i>
+              <span class="text-sm font-medium text-cream-900">
+                <%= AiCredential.provider_display_names[provider] %>
+              </span>
+            </div>
+            <div class="text-sm font-semibold tabular-nums text-cream-900">
+              <%= t('views.organisations.ai_overview.usage.tokens_value',
+                    formatted: number_with_delimiter(tokens)) %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

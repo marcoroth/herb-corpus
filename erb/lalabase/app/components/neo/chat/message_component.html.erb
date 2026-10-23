@@ -1,0 +1,146 @@
+<%# Minimal message layout (2026-07-18, reshaped 2026-08-28): no avatar column, no
+    timeline, and no author line either — the question is always yours and the
+    answer is always the assistant's, so naming them every three lines said
+    nothing. The roles are told apart by SURFACE: a question is a tinted bubble
+    pushed to the right edge, an answer is plain prose across the full column.
+    data-hover-reveal-target="row" makes this the unit the pointer can be "on";
+    the owner that decides which one that is sits on the log (hover-reveal).
+    scroll-mt-6: breathing room when chat-scroll scrolls a fresh post to the top
+    of the viewport (scrollIntoView block: "start"). %>
+<%# data-chat-role / data-answer-pending answer ONE question for
+    assistant_panel_controller: is an answer still outstanding? The companion
+    panel needs it because turbo-cable-stream-source unsubscribes in its
+    disconnectedCallback, so the panel's subscription is dropped and re-created on
+    every Turbo transplant, and a broadcast landing in that window is lost with no
+    replay. Re-fetching the transcript on every navigation would defeat the whole
+    permanent node, so the panel re-fetches only while it is actually waiting.
+    Derived from the record, never from a CSS class. %>
+<%# data-controller="clipboard" scopes the copy affordance to THIS message, which
+    is how the controller finds the one source node it should read. %>
+<div id="<%= dom_id %>"
+     data-chat-role="<%= chat_role %>"
+     data-answer-pending="<%= answer_pending? %>"
+     data-controller="clipboard"
+     data-clipboard-success-text-value="<%= t('views.organisations.chats.message.copied') %>"
+     data-hover-reveal-target="row"
+     class="scroll-mt-6 pb-6">
+  <% if @chatpost.analysis_context.to_h['ticket_suggestion_run_id'].present? && @chatpost.meeting_ticket_suggestion_run %>
+    <%= render 'neo/chat/ticket_suggestion_run', run: @chatpost.meeting_ticket_suggestion_run, user: @current_user %>
+  <% else %>
+  <% if show_meta_row? %>
+    <%# ONE quiet row above the message: when it happened, and what you can do
+        with it. The time lives in here rather than in a standing line because it
+        only matters at the moment you are reaching for these icons anyway
+        (2026-08-28 feedback). Hover-reveal keeps the log calm; where there is no
+        hover the row stays visible (touch cannot reach it otherwise).
+        Deliberately bare faint affordances, not buttons — per-message actions
+        are quiet and secondary here (2026-07-18 feedback).
+
+        ⚠️ The reveal is data-hover-reveal-target, NOT a group-hover class chain
+        (29.08.2026). "At most one message shows its actions" is a rule about all
+        the messages together, and a CSS class on one row cannot hold a rule about
+        the others: every row decided for itself and nothing could correct a wrong
+        answer. Measured from a screen recording in Safari: rows switched on as the
+        pointer passed and then STAYED, seven lit at once while the pointer sat on
+        one, until a window resize forced a full style recalculation and cleared
+        five of them in a single frame. The rule now lives in one variable
+        (lib/hover_reveal.js) and the class lands on this node itself, which is the
+        invalidation path no engine gets wrong. Keyboard reveal is unchanged in
+        meaning: focus-VISIBLE, so tabbing here shows the row while clicking the
+        trash does not leave it lit behind a pointer that moved on (26.08.2026).
+
+        The opacity and the transition live in components/hover_reveal.css, not in
+        classes here — nine call sites carrying their own copy of the same three
+        utilities is what this replaced. %>
+    <div data-hover-reveal-target="actions" class="flex flex-row items-center justify-end gap-3">
+      <% if time_ago %>
+        <span class="text-xs text-muted"><%= time_ago %></span>
+      <% end %>
+      <% if show_regenerate? %>
+        <%# Re-runs THIS answer with the style currently set in the pills under
+            the composer — the pure action, separate from the style state.
+            CSRF note: when this renders inside the ChatResponseJob Turbo
+            broadcast there is no request/session, so button_to embeds no
+            authenticity_token — Turbo supplies it from the page's
+            csrf_meta_tags as the X-CSRF-Token header instead. Don't "fix" by
+            forcing an embedded token; a non-Turbo submit would be what breaks. %>
+        <%= button_to regenerate_path,
+            method: :post,
+            form_class: "inline-block",
+            class: "inline-flex items-center gap-1 text-xs text-faint hover:text-muted transition-colors disabled:opacity-50",
+            data: { turbo_submits_with: t('views.organisations.chats.message.regenerating') } do %>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+          <%= t('views.organisations.chats.message.regenerate') %>
+        <% end %>
+      <% end %>
+      <% if show_copy? %>
+        <%# Left of the trash, on purpose (2026-08-28 feedback): asking the same
+            thing again is a copy away instead of a re-type. It reads the message
+            as the reader sees it, so a question comes back exactly as it was
+            typed. type: "button" — this sits inside the regenerate form's
+            neighbourhood, and a bare <button> would submit something. %>
+        <%= tag.button type: "button",
+            class: "text-faint hover:text-muted transition-colors",
+            title: t('views.organisations.chats.message.copy'),
+            aria: { label: t('views.organisations.chats.message.copy') },
+            data: { action: "click->clipboard#copy", clipboard_target: "button" } do %>
+          <i class="bi bi-clipboard" aria-hidden="true" data-clipboard-target="icon"></i>
+        <% end %>
+      <% end %>
+      <% if show_delete? %>
+        <%= link_to delete_path,
+            class: "text-faint hover:text-muted transition-colors",
+            title: t('views.organisations.chats.message.delete'),
+            aria: { label: t('views.organisations.chats.message.delete') },
+            data: { turbo_method: :delete, turbo_confirm: t('views.confirm.delete_post') } do %>
+          <i class="bi bi-trash" aria-hidden="true"></i>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+  <%# ⚠️ The clipboard source is the WHOLE answer, not its prose. The coverage
+      notice below is a caveat ON the answer ("Durchsucht: nur Nordlicht"), and
+      #coverage_notice says in its own header why it is a sentence rather than a
+      chip: the chip is gone once the answer is copied into a ticket, so the
+      scope has to travel with the text. The in-app help promises exactly that
+      ("Das bleibt auch dann noch unter der Antwort, wenn du sie später
+      woandershin kopierst", 15-ai/09-assistant.md). A source that stops at the
+      prose would hand over a narrowed answer that reads like a complete one —
+      the one failure L7 exists to prevent. The sources ride along for the same
+      reason; the list is a closed <details>, so an unopened one contributes only
+      its summary line. %>
+  <div data-clipboard-target="source">
+    <% if redacted? %>
+      <%# Render gate (Plan §4.4): the viewer is not allowed to read a touched content area
+          → prose redacted all-or-nothing, foreign citations removed via visible_citations. %>
+      <div class="mt-2 text-sm text-gray-500 italic flex items-start gap-2" data-testid="redacted-notice">
+        <i class="bi bi-shield-lock mt-0.5" aria-hidden="true"></i>
+        <span><%= redacted_notice %></span>
+      </div>
+    <% else %>
+      <div class="<%= content_row_classes %>">
+        <div class="<%= content_classes %>"><%= sanitized_content %></div>
+      </div>
+    <% end %>
+    <% if @chatpost.assistant? %>
+      <%# org + project from the chatpost (not @current_*) → links also work in the
+          streaming broadcast, where Current.* is nil.
+
+          Stays OUTSIDE the redaction branch on purpose: a redacted answer can
+          still carry code citations, which have no area and are visible to every
+          reader of the chat. %>
+      <%= render Neo::Chat::CitationListComponent.new(citations: visible_citations,
+                                                      organisation: @chatpost.organisation,
+                                                      targets: citation_targets,
+                                                      numbering: source_numbering) %>
+      <% if coverage_notice %>
+        <%# L7: deterministic narrowing label from the contract field, not model prose. %>
+        <div class="mt-1 text-xs text-faint" data-testid="coverage-notice"><%= coverage_notice %></div>
+      <% end %>
+    <% end %>
+  </div>
+  <% unless redacted? %>
+    <%= render Neo::Chat::SaveAnalysisComponent.new(chatpost: @chatpost, current_user: @current_user, eligibility: @analysis_eligibility) %>
+  <% end %>
+  <% end %>
+</div>

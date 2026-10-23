@@ -1,0 +1,96 @@
+<%# chat-scroll: after this tab's own composer submit (turbo:submit-end bubbles
+    up from the form), the next post appended to the log below is scrolled into
+    view — see chat_scroll_controller.js for why broadcasts must not arm it. %>
+<%# data-chat-id: the frame says which thread it is showing. Plain self-
+    description, and the assistant panel depends on it: its header lives in a
+    data-turbo-permanent node, so the server can never re-render it and it has no
+    other way of learning which thread the frame ended up holding (the "Frühere
+    Verläufe" button needs exactly that). Deliberately on the frame rather than a
+    wrapper — a wrapper here, even display:contents, breaks the panel's flex
+    column (measured: the transcript stops scrolling in its own container). %>
+<turbo-frame id="<%= frame_id %>" data-chat-id="<%= @chat.id %>" data-controller="chat-scroll" data-action="turbo:submit-end->chat-scroll#arm">
+  <%# persisted? guard: turbo_stream_from raises on a record without a Global ID. No
+      caller renders an unsaved chat since S4-T1 (chats/show finds a persisted one, the
+      assistant panel gates on persisted? itself and shows the bare composer otherwise),
+      so this is a fail-soft for a future empty-state render, not a path walked today. %>
+  <%= turbo_stream_from chatposts_stream_name if @chat.persisted? %>
+  <%# a1 (Plan §6): the asker also listens on their own stream for the live token deltas;
+      the shared stream above carries the placeholder + the completion page-refresh. %>
+  <%= turbo_stream_from viewer_stream if @current_user && @chat.persisted? %>
+
+  <%# hover-reveal sits on the LOG, not on the message: "at most one message
+      shows its actions" is a rule about all of them together, and only the list
+      can hold it. This is also the element that scrolls inside the assistant
+      panel, which the controller listens to -- scrolling moves rows under a
+      pointer that never moved. See hover_reveal_controller.js. %>
+  <div id="<%= chatposts_frame_id %>" role="log" aria-live="polite" aria-atomic="false" data-chat-scroll-target="log" data-controller="hover-reveal">
+    <% @chat.chatposts.each do |chatpost| %>
+      <%= render message_for(chatpost) %>
+    <% end %>
+  </div>
+
+  <% if can_write? && chat_available? %>
+    <%# The writing zone, read top to bottom in the order the question is asked:
+        what the assistant is pointed AT, then the field, then how the answer
+        should be written.
+
+        WHAT it looks at moved above the field on 27.08.2026. Below it, at the
+        bottom edge of a panel, under the style row and the transparency line,
+        it was where nobody looked -- and it is the one setting you want to
+        check BEFORE typing, because it decides what the question can even
+        reach. The style row stayed below: it describes the answer, and it is
+        the setting you leave alone for weeks at a time. %>
+    <%# The offer of the page you just navigated to, directly above the row that
+        shows the reference it would set. Panel only -- see #panel?. %>
+    <% if panel? %>
+      <%= render context_offer %>
+    <% end %>
+    <%# Reference and scope. Both chips render as `contents`, so their groups sit
+        in this flex row instead of stacking rows with different spacing.
+        Start-aligned, not end-aligned as it was under the field: it now reads as
+        a caption of the field below it, and a caption starts where the text
+        starts. flex-wrap for the 380px panel. %>
+    <%# chat-context-row / chat-style-row: named so the arrangement can be MEASURED
+        (spec/system/assistant_panel_layout_spec.rb). Both rows are flex parents of
+        chips that render as `contents`, so the chips themselves have no geometry
+        of their own -- these wrappers are the only things a bounding box can be
+        taken of. No CSS hangs off either name. %>
+    <div class="chat-context-row flex flex-wrap items-center gap-x-5 gap-y-2 mb-1">
+      <%= render scope_row %>
+    </div>
+    <%= render composer %>
+    <%# Answer-style selects, directly under the field they configure.
+        turbo_stream-replaced by their DOM class after a change (target lives
+        outside the chatposts log). Only rendered alongside the composer —
+        without a writing affordance there is nothing to configure. justify-end
+        + flex-wrap as before: quiet at the right edge, wrapping on a narrow
+        panel rather than squeezing. %>
+    <div class="chat-style-row mt-2 flex flex-wrap items-center justify-end gap-x-5 gap-y-2">
+      <%= render style_control %>
+    </div>
+    <%# The AI transparency notice moved to the page footer area — the show
+        views render TransparencyNoticeComponent below the chat card. %>
+  <% elsif can_write? %>
+    <%# No route for a message from here — no composer, say why instead. R4 widened
+        this branch: it used to mean "org has not activated AI", it now covers every
+        reason :chat can be unavailable for (a missing credential, a provider that
+        cannot chat). explain_opt_in: true because this surface has ALWAYS spoken about
+        the opt-in — for :ai_disabled the sentence is unchanged, word for word.
+        Wrapped in the SAME turbo frame the composer uses: a stale-tab submit gets a
+        302 from the controller guard, Turbo follows it INSIDE the form's frame, and
+        without a matching frame id in the response the frame would error with
+        "content missing" and swallow the alert. With it, the composer swaps to this
+        notice — the user sees why sending stopped working. %>
+    <%= turbo_frame_tag @chat.chatpost_form_dom_id do %>
+      <%= render Neo::Ai::UnavailableHintComponent.new(
+            availability: chat_availability, organisation: @current_organisation,
+            variant: :warning, explain_opt_in: true, classes: 'mt-4') %>
+    <% end %>
+  <% else %>
+    <%# D5 info: neutral notice → border-2 border-stroke, cobalt-50, icon, no shadow (embedded). %>
+    <div class="mt-4 p-3 bg-cobalt-50 border-2 border-stroke rounded text-sm text-gray-800 flex items-start gap-2">
+      <i class="bi bi-info-circle text-cobalt-700 mt-0.5"></i>
+      <span><%= t('views.organisations.chats.chat_show.read_only') %></span>
+    </div>
+  <% end %>
+</turbo-frame>

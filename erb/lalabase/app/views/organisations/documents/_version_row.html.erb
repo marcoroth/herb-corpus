@@ -1,0 +1,139 @@
+<%# One version of a document, a list row without a shell (S2 of
+    doc/dokumentansicht_plan.md, the designer's 42a): the number first in mono,
+    the file name, the quiet "aktuell" chip on the current one, then a meta line
+    in the reader's own date format. The actions leave the row's face: the
+    download as a frameless sign, the rest behind "···", and "als aktuell setzen"
+    as a text action on every old version. No thumbnail: the name opens the file.
+    The root id stays "<dom_id>_document_versions" so DocumentVersion#broadcast_updated
+    keeps replacing the row.
+
+    The current row is weighted, not filled: the selection fill next door in the
+    list means "open in the lane", and a second meaning for the same tint would
+    make both unreadable (doc/design_system.md, one colour one meaning).
+
+    Locals beyond version and document carry a default, because the broadcast
+    render passes none of them and has no viewer:
+      can_write      documents write access; the writes are server-authorised anyway
+      only_version   the document's last version: the delete item and its confirm
+                     name the consequence (Actors::DestroyDocumentVersion takes
+                     the document with it) %>
+<% file = version.document_version_file %>
+<%# Download via the authorised proxy instead of the unprotected default blob route. %>
+<% download_url = file.present? ? document_version_download_path(version) : nil %>
+<% is_current = document.current_version_id == version.id %>
+<% can_write = local_assigns.fetch(:can_write, true) %>
+<% only_version = local_assigns.fetch(:only_version) { document.document_versions.count == 1 } %>
+<% uploader = version.user ? viewer_display_name(version.user) : t('views.organisations.documents.version_row.uploaded_by_unknown') %>
+<% path_args = { organisation_id: document.project.organisation_id, project_id: document.project.id, id: document.id, version_id: version.id } %>
+<%# The lane head's sign: 32x32, frameless, cream-500 at rest (knowledge/_lane_head). %>
+<% sign = "flex h-8 w-8 items-center justify-center rounded-md text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 focus-visible:bg-cream-200 focus-visible:text-cream-900" %>
+<%# The document's title IS the current version's title (Document#title), so
+    making another version current renames the document when the titles differ;
+    the confirm says so, and asks nothing when nothing else changes. %>
+<% renames = !is_current && document.current_version && document.current_version.title != version.title %>
+<% rename_confirm = renames ? t('views.confirm.set_current_document_version_renames', new_title: version.title, old_title: document.current_version.title) : nil %>
+
+<div id="<%= dom_id(version) %>_document_versions" class="flex items-start gap-4 py-3 px-0">
+  <%# The number, the identifier one talks about (S1); an empty cell keeps the
+      columns aligned for a version the stock's task has not reached. %>
+  <% if version.label %>
+    <span class="flex-shrink-0 w-7 pt-0.5 font-mono text-[13px] <%= is_current ? 'font-semibold text-cream-900' : 'text-cream-500' %>" data-version-number><%= version.label %></span>
+  <% else %>
+    <span class="flex-shrink-0 w-7" aria-hidden="true"></span>
+  <% end %>
+
+  <%# Name line + meta line. min-w-0 lets the file name truncate. %>
+  <div class="min-w-0 flex-1">
+    <div class="flex items-center gap-2">
+      <% if file.present? %>
+        <%# The name opens the PREVIEW in the lane (doc/dateivorschau_plan.md,
+            D7): a lane-link that writes ?preview=V into the address and loads
+            documents#preview into the frame; the href is the page state, the
+            plain fallback. "In neuem Tab öffnen" moved into the "···". %>
+        <%= link_to file.filename.to_s,
+              organisation_project_knowledge_index_path(document.project.organisation, document.project,
+                request.query_parameters.except('frame', 'frame_id', 'format').merge('document_id' => document.id, KnowledgeFilterHelper::PREVIEW_PARAM => version.id)),
+              class: "truncate font-medium text-cream-900 underline decoration-cream-400 underline-offset-2 hover:decoration-cream-900 transition-colors",
+              title: t('views.organisations.documents.version_row.preview'),
+              data: { controller: 'lane-link', action: 'click->lane-link#click',
+                      lane_link_url_value: preview_organisation_project_document_path(organisation_id: document.project.organisation_id, project_id: document.project.id, id: document.id, version_id: version.id),
+                      lane_link_frame_value: local_assigns.fetch(:frame_id, 'knowledge_display_frame'),
+                      lane_link_set_value: { KnowledgeFilterHelper::PREVIEW_PARAM => version.id }.to_json,
+                      preview_link_for: version.id } %>
+      <% else %>
+        <span class="truncate font-medium text-cream-900" title="<%= version.title %>"><%= version.title %></span>
+        <%= render NeoTagComponent.new(text: t('views.organisations.documents.version_row.no_file'), variant: :danger, size: :small) %>
+      <% end %>
+
+      <% if is_current %>
+        <%# Quiet, not the blue info pill: blue and green are not state colours here. %>
+        <%= render NeoTagComponent.new(text: t('views.organisations.documents.version_row.current'), variant: :neutral, size: :small, data: { version_current: true }) %>
+      <% end %>
+    </div>
+
+    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-cream-600">
+      <span class="font-mono text-[13px]" data-version-date><%= viewer_display_time(version.created_at) %></span>
+      <span aria-hidden="true">·</span>
+      <span><%= uploader %></span>
+      <% if file.present? %>
+        <span aria-hidden="true">·</span>
+        <span><%= number_to_human_size(file.byte_size, precision: 0) %></span>
+      <% end %>
+      <%# Only the failure is a state (the note's rule since #778, user 10.09.2026):
+          indexing runs by itself, a version that made it says nothing, and one
+          that is still running says nothing either. A "wird verarbeitet" would
+          have to know that a job is coming, and the flag alone does not: an
+          image or a ZIP never gets one (no text, no embedding job), an unreadable
+          file neither, the stock before the AI switch neither, and a dead queue
+          would keep the promise standing (review of #781). Green would mean
+          navigation. %>
+      <% if version.embeddings_creation_flag == false %>
+        <span aria-hidden="true">·</span>
+        <span class="text-red-600" data-index-state="failed"><%= t('views.organisations.documents.version_row.index_failed') %></span>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Trailing: the text action, the download sign, the "···". Pinned right so
+      they never collide with the name. %>
+  <div class="flex-shrink-0 flex items-center gap-1">
+    <% if can_write && !is_current %>
+      <%# "als aktuell setzen", the missing main thing (42a, 1.5): a quiet text
+          action, ink not lime, because lime text is not readable on cream. %>
+      <%= link_to t('views.organisations.documents.version_row.set_current'),
+            set_current_version_organisation_project_document_path(**path_args),
+            class: text_action_classes,
+            data: { turbo_method: :patch, turbo_confirm: rename_confirm, version_set_current: true } %>
+    <% end %>
+
+    <% if file.present? %>
+      <%# The proxy serves inline, so the `download` attribute (same origin) forces a save. %>
+      <a href="<%= download_url %>" download class="<%= sign %>" title="<%= t('views.organisations.documents.version_row.download') %>">
+        <i class="bi bi-download" aria-hidden="true"></i>
+        <span class="sr-only"><%= t('views.organisations.documents.version_row.download') %></span>
+      </a>
+    <% end %>
+
+    <%# The rare and the consequential (renders nothing when both are absent). %>
+    <%= render Neo::OverflowMenuComponent.new do |menu| %>
+      <% if file.present? %>
+        <%# The new tab, since the name opens the preview (D7). target=_blank:
+            Turbo Drive would otherwise fetch a non-HTML body and do nothing. %>
+        <% menu.with_item(label: t('views.organisations.documents.version_row.open_in_new_tab'),
+                          url: download_url, icon: 'box-arrow-up-right', target: '_blank', rel: 'noopener') %>
+      <% end %>
+      <% if file.present? && version.plain_text_version.present? %>
+        <% menu.with_item(label: t('views.organisations.documents.version_row.text_version'),
+                          url: download_plain_text_organisation_project_document_path(**path_args),
+                          icon: 'filetype-txt', data: { turbo: false }) %>
+      <% end %>
+      <% if can_write %>
+        <% menu.with_item(label: t(only_version ? 'views.organisations.documents.version_row.delete_last' : 'views.organisations.documents.version_row.delete'),
+                          url: destroy_version_organisation_project_document_path(**path_args),
+                          icon: 'trash', danger: true,
+                          data: { turbo_method: :delete,
+                                  turbo_confirm: t(only_version ? 'views.confirm.delete_last_document_version' : 'views.confirm.delete_document_version') }) %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

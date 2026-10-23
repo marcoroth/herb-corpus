@@ -1,0 +1,270 @@
+<%# The viewer's name-display mode is part of the key: the fragment carries
+    actor names rendered in that mode, and a notification belongs to exactly
+    one recipient, so the mode in the key only re-renders after the OWN
+    preference changed (S3, doc/user_display_name_avatar_plan.md). %>
+<%= cache [@notification, 'card_v9_mobile', helpers.viewer_name_display_mode] do %>
+  <div class="neo-notification-card relative group border-2 <%= border_color_class %> rounded-lg transition-all duration-150 <%= state_classes %> hover:shadow-sm hover:-translate-x-0.5 hover:-translate-y-0.5"
+       data-controller="neo-notification toggle"
+       data-notification-id="<%= @notification.id %>"
+        data-neo-notification-url-value="<%= notification_url %>">
+
+    <% unless @notification.state_read? %>
+      <!-- Quick action button (mobile always on, desktop on hover) -->
+      <div class="absolute top-3 left-3 sm:hidden">
+        <%= button_to mark_read_url,
+                    method: :patch,
+                    class: "w-7 h-7 rounded-full bg-green-100 hover:bg-green-200 border border-green-300 flex items-center justify-center transition-all hover:scale-110",
+                    data: { turbo_frame: "_top" },
+                    title: t('components.neo_notification_card.mark_read_title') do %>
+          <i class="bi bi-check text-green-600"></i>
+        <% end %>
+      </div>
+
+      <div class="hidden sm:block absolute -left-11 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <%= button_to mark_read_url,
+                    method: :patch,
+                    class: "w-8 h-8 rounded-full bg-green-100 hover:bg-green-200 border border-green-300 flex items-center justify-center transition-all hover:scale-110",
+                    data: { turbo_frame: "_top" },
+                    title: t('components.neo_notification_card.mark_read_title') do %>
+          <i class="bi bi-check text-green-600"></i>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%= priority_indicator %>
+    
+    <!-- Mobile Collapsed View (default on mobile) -->
+    <div class="sm:hidden">
+      <!-- Collapsed Header - clickable to expand -->
+      <button type="button"
+              class="w-full py-3 pr-3 pl-12 text-left"
+              data-action="click->toggle#toggle:stop">
+        <div class="flex items-start justify-between">
+              <div class="flex-grow min-w-0">
+                <!-- First Line: Project Icon and Name + Time -->
+                <div class="flex items-center gap-2 mb-1">
+                  <% if @notification.notifiable_type == 'Ticket' && @show_project %>
+                    <% project_name = @notification.notifiable.project&.name || 'Unknown Project' %>
+                    <div class="flex items-center gap-1.5">
+                      <i class="bi bi-folder text-xs <%= tertiary_text_class %>"></i>
+                      <span class="text-xs font-medium <%= primary_text_class %>"><%= project_name %></span>
+                    </div>
+                  <% elsif @show_project %>
+                    <% project_name = @notification.project&.name || (@notification.notifiable.respond_to?(:project) ? @notification.notifiable.project&.name : @notification.notifiable.try(:name)) %>
+                    <% if project_name %>
+                      <span class="text-xs font-medium <%= primary_text_class %>"><%= project_name %></span>
+                    <% end %>
+                  <% end %>
+                  <span class="text-xs <%= tertiary_text_class %>">• <%= time_ago %></span>
+                </div>
+
+                <!-- Second Line: Ticket Number and Title (for tickets) or Event Type -->
+                <% if @notification.notifiable_type == 'Ticket' %>
+                  <div class="text-sm <%= primary_text_class %> mb-1">
+                    <span class="font-semibold">#<%= @notification.notifiable.number %></span>
+                    <span class="ml-1"><%= truncate(@notification.notifiable.title, length: 40) %></span>
+                  </div>
+                  <div class="text-xs <%= secondary_text_class %>">
+                    <%= event_type_label %>
+                  </div>
+                <% else %>
+                  <!-- For non-ticket notifications, keep original layout -->
+                  <div class="text-sm font-medium <%= primary_text_class %> mb-1">
+                    <%= event_type_label %>
+                  </div>
+                  <div class="text-xs <%= secondary_text_class %>">
+                    <%= truncate(notification_title, length: 60) %>
+                  </div>
+                <% end %>
+          </div>
+          
+          <!-- Expand Icon -->
+          <div class="flex-shrink-0 ml-2">
+            <i class="bi bi-chevron-down text-gray-400 transition-transform" data-toggle-target="icon"></i>
+          </div>
+        </div>
+      </button>
+      
+      <!-- Expanded Content (hidden by default) -->
+      <div class="hidden pb-3 pr-3 pl-12" data-toggle-target="content">
+        <!-- Full Message -->
+        <% if notification_message.present? %>
+          <p class="text-xs <%= secondary_text_class %> mb-3 leading-normal border-t border-gray-100 pt-3">
+            <%= notification_message %>
+          </p>
+        <% end %>
+        
+        <!-- Actor Info -->
+        <% if @notification.actor %>
+          <div class="text-xs <%= tertiary_text_class %> mb-3">
+            <%= t('components.neo_notification_card.from') %> <span class="font-medium"><%= helpers.viewer_display_name(@notification.actor) %></span>
+          </div>
+        <% end %>
+        
+        <!-- Actions Row -->
+        <div class="notification-actions flex items-center justify-between pt-2 border-t border-gray-100">
+          <div class="flex items-center gap-2">
+            <!-- Go to Item Button -->
+            <% if ticket_exists_and_accessible? %>
+              <%= render Neo::Buttons::ButtonComponent.new(
+                    variant: :primary,
+                    size: :small,
+                    icon: "arrow-right",
+                    interactive: true,
+                    url: notification_url,
+                    data: { turbo_frame: "_top" }
+                  ) do %>
+                <%= t('components.neo_notification_card.show') %>
+              <% end %>
+            <% end %>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <!-- Read/Unread Toggle -->
+            <% unless @notification.state_read? %>
+              <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :success,
+                    size: :small,
+                    icon: "check2",
+                    interactive: true,
+                    form: { action: mark_read_url, method: :patch },
+                    title: t('components.neo_notification_card.mark_read_title')
+                  ) %>
+            <% end %>
+            
+            <!-- Archive -->
+            <%= render Neo::Buttons::IconButtonComponent.new(
+                  variant: :ghost,
+                  size: :small,
+                  icon: "archive",
+                  interactive: true,
+                  form: { action: archive_url, method: :patch },
+                  title: t('components.neo_notification_card.archive_title')
+                ) %>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Desktop View (unchanged) -->
+    <div class="hidden sm:block p-3">
+      <div class="flex items-start gap-3">
+        <!-- Event Icon -->
+        <div class="flex-shrink-0 w-8 h-8 bg-gray-50 border border-gray-200 rounded flex items-center justify-center mt-0.5">
+          <i class="bi bi-<%= event_icon %> text-sm text-gray-600"></i>
+        </div>
+        
+        <!-- Content -->
+        <div class="flex-grow min-w-0">
+          <!-- Header with Actor and Time -->
+          <div class="flex items-start justify-between mb-1">
+            <div class="flex items-center gap-2 min-w-0">
+              <% if @notification.actor %>
+                <span class="text-sm font-medium <%= primary_text_class %> truncate">
+                  <%= helpers.viewer_display_name(@notification.actor) %>
+                </span>
+              <% end %>
+              
+              <% if @show_project %>
+                <% project_name = @notification.project&.name || (@notification.notifiable.respond_to?(:project) ? @notification.notifiable.project&.name : @notification.notifiable.try(:name)) %>
+                <% if project_name %>
+                  <%= render NeoTagComponent.new(
+                    text: project_name,
+                    variant: :neutral,
+                    size: :small
+                  ) %>
+                <% end %>
+              <% end %>
+              
+              <!-- Priority Badge -->
+              <% if @notification.priority_high? || @notification.priority_critical? %>
+                <%= render NeoTagComponent.new(
+                  text: @notification.priority.upcase,
+                  variant: @notification.priority_critical? ? :danger : :warning,
+                  size: :small
+                ) %>
+              <% end %>
+            </div>
+            
+            <div class="flex-shrink-0 text-xs <%= tertiary_text_class %>">
+              <%= time_ago %>
+            </div>
+          </div>
+          
+          <!-- Title -->
+          <div class="text-sm mb-1 leading-snug <%= primary_text_class %>">
+            <%= link_to notification_title, notification_url,
+                        class: "hover:text-blue-600 hover:underline #{primary_text_class}",
+                        data: { turbo_frame: '_top' } %>
+          </div>
+          
+          <!-- Message -->
+          <% if notification_message.present? %>
+            <p class="text-xs <%= secondary_text_class %> mb-2 leading-normal">
+              <%= truncate(notification_message, length: 120) %>
+            </p>
+          <% end %>
+          
+          <!-- Group Count -->
+          <% if grouped_count_text %>
+            <div class="text-xs <%= tertiary_text_class %> italic mb-2">
+              <%= grouped_count_text %>
+            </div>
+          <% end %>
+          
+          <!-- Actions Row -->
+          <div class="notification-actions flex items-center justify-between pt-2 border-t border-gray-100">
+            <div class="flex items-center gap-2">
+              <!-- Go to Ticket Button (if it's a ticket notification) -->
+              <% if ticket_exists_and_accessible? %>
+                <%= render Neo::Buttons::ButtonComponent.new(
+                      variant: :primary,
+                      size: :small,
+                      icon: "arrow-right",
+                      interactive: true,
+                      url: notification_url,
+                      title: t('components.neo_notification_card.go_to_ticket_title'),
+                      data: { turbo_frame: "_top" }
+                    ) do %>
+                  <%= t('components.neo_notification_card.ticket') %>
+                <% end %>
+              <% end %>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <!-- Read/Unread Toggle -->
+              <% unless @notification.state_read? %>
+                <%= render Neo::Buttons::ButtonComponent.new(
+                      variant: :success,
+                      size: :small,
+                      icon: "check2",
+                      interactive: true,
+                      form: { action: mark_read_url, method: :patch },
+                      title: t('components.neo_notification_card.mark_read_title')
+                    ) do %>
+                  <%= t('components.neo_notification_card.read') %>
+                <% end %>
+              <% else %>
+                <span class="h-6 px-2 text-xs bg-gray-50 border border-gray-200 text-gray-400 rounded font-medium inline-flex items-center gap-2">
+                  <i class="bi bi-check2"></i><%= t('components.neo_notification_card.read') %>
+                </span>
+              <% end %>
+              
+              <!-- Archive -->
+              <%= render Neo::Buttons::ButtonComponent.new(
+                    variant: :ghost,
+                    size: :small,
+                    icon: "archive",
+                    interactive: true,
+                    form: { action: archive_url, method: :patch },
+                    title: t('components.neo_notification_card.archive_title')
+                  ) do %>
+                <%= t('components.neo_notification_card.archive') %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,37 @@
+<%# locals: (stat:, drilldown:, dash:, number_cell:, label_cell:, folded: false) %>
+<%# One project row of the status table. Rendered for the projects that have
+    hours in the period and for the ones that do not; `folded` is the only
+    difference, so the two cannot drift apart in look. `dash` is the "--:--"
+    of an empty cell, built once in the panel because the foot renders it too. %>
+<%= tag.tr(class: ('hidden' if folded),
+           data: { overview_row: stat[:project].id, more_item: ('' if folded) }.compact) do %>
+  <th scope="row" class="<%= label_cell %> text-sm font-medium text-cream-900"><%= stat[:project].name %></th>
+  <% TimeSession::BILLING_OVERVIEW_COLUMNS.each do |column| %>
+    <% total = column == TimeSession::BILLING_OVERVIEW_TOTAL %>
+    <% minutes = time_overview_column_minutes(stat, column) %>
+    <%# data-overview-cell: the handle the drill-down spec walks. It follows
+        EVERY number on the page to the list and compares the two sums, which is
+        only possible if a cell can be found together with the state it stands
+        for.
+
+        The tint sits on the CELL, not on the row: the number is the click
+        target, and a whole row lighting up says nothing about which of its four
+        figures is about to be opened. The link is a block, so the tinted cell
+        and the click target are the same box. focus-within so a keyboard
+        reaches the same signal as a mouse -- the numbers carry no link colour
+        any more (when every number is a link, the colour tells the reader
+        nothing and makes the digits harder to compare). %>
+    <td class="<%= class_names(number_cell, 'text-sm text-cream-900 transition-colors',
+                               'hover:bg-cream-100 focus-within:bg-cream-100' => minutes.positive?,
+                               'font-bold' => total) %>"
+        data-overview-cell="<%= column %>">
+      <% if minutes.positive? %>
+        <%= link_to TimeSession.format_duration(minutes),
+                    total ? drilldown.call(stat[:project]) : drilldown.call(stat[:project], [column]),
+                    class: "block hover:underline focus-visible:underline" %>
+      <% else %>
+        <%= dash %>
+      <% end %>
+    </td>
+  <% end %>
+<% end %>

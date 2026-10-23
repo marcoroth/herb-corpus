@@ -1,0 +1,291 @@
+<div>
+  <%= render NeoTitleBoxComponent.new(
+    title: t('.title'),
+    variant: :organisation
+  ) do |component| %>
+    <% component.with_right_content do %>
+      <%= render Neo::Buttons::HeaderButtonComponent.new(
+        variant: :secondary,
+        icon: "arrow-left",
+        label: t('.back_to_members'),
+        url: organisation_memberships_path(@current_organisation)
+      ) %>
+    <% end %>
+  <% end %>
+
+  <!-- User Info Card -->
+  <div class="mt-6 bg-surface-raised border border-slate-200 rounded-lg p-6 shadow-sm">
+    <div class="flex justify-between items-start">
+      <div>
+        <h2 class="text-2xl font-bold mb-2">
+          <%= viewer_display_name(@user) %>
+        </h2>
+        <p class="text-lg text-gray-600 mb-3"><%= @user.email %></p>
+        
+        <!-- Status Badges -->
+        <div class="flex flex-wrap gap-2">
+          <% if @membership %>
+            <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-cobalt-100 text-cobalt-800 border border-cobalt-300">
+              <%= t('.role', role: @membership.role&.title || t('.no_role')) %>
+            </span>
+            <% if @membership.active %>
+              <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-green-100 text-green-800 border border-green-300">
+                <%= t('.active_member') %>
+              </span>
+            <% else %>
+              <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-gray-100 text-gray-800 border border-gray-300">
+                <%= t('.inactive_member') %>
+              </span>
+            <% end %>
+            <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-purple-100 text-purple-800 border border-purple-300">
+              <%= t('.member_since', date: l(@membership.created_at.to_date, format: :default)) %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 mb-8">
+    <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('.stats.activities') %></p>
+          <p class="text-2xl font-bold"><%= @user_stats[:total_activities] %></p>
+        </div>
+        <i class="bi bi-activity text-3xl text-cobalt-500"></i>
+      </div>
+    </div>
+    
+    <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('.stats.logins') %></p>
+          <p class="text-2xl font-bold"><%= @user_stats[:total_logins] %></p>
+        </div>
+        <i class="bi bi-box-arrow-in-right text-3xl text-green-500"></i>
+      </div>
+    </div>
+    
+    <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('.stats.failed_24h') %></p>
+          <p class="text-2xl font-bold <%= @user_stats[:failed_logins_24h] > 0 ? 'text-red-600' : '' %>">
+            <%= @user_stats[:failed_logins_24h] %>
+          </p>
+        </div>
+        <i class="bi bi-exclamation-triangle text-3xl text-red-500"></i>
+      </div>
+    </div>
+    
+    <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('.stats.security_events') %></p>
+          <p class="text-2xl font-bold"><%= @user_stats[:security_events] %></p>
+        </div>
+        <i class="bi bi-shield-exclamation text-3xl text-yellow-500"></i>
+      </div>
+    </div>
+    
+    <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-gray-600"><%= t('.stats.last_login') %></p>
+          <p class="text-sm font-bold">
+            <%= @user_stats[:last_login] ? l(@user_stats[:last_login], format: :short) : t('.stats.never') %>
+          </p>
+        </div>
+        <i class="bi bi-clock text-3xl text-purple-500"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Section -->
+  <div class="bg-surface-raised border border-slate-200 rounded-lg p-4 shadow-sm mb-6">
+    <%= form_with url: organisation_user_activities_path(@current_organisation), method: :get, local: true, class: "flex flex-wrap gap-4" do |f| %>
+      <%= hidden_field_tag :user_id, @user.id %>
+      
+      <div class="flex-1 min-w-[200px]">
+        <%= f.label :category, t('.filter.category'), class: "block text-sm font-bold text-gray-700 mb-1" %>
+        <%= f.select :category, 
+            options_for_select([
+              [t('.filter.all'), ''],
+              [t('.filter.authentication'), 'auth'],
+              [t('.filter.profile'), 'profile'],
+              [t('.filter.permissions'), 'permissions'],
+              [t('.filter.security'), 'security'],
+              [t('.filter.invitations'), 'invitations']
+            ], params[:category]),
+            {},
+            class: "w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cobalt-500" %>
+      </div>
+      
+      <div class="flex-1 min-w-[200px]">
+        <%= f.label :status, t('.filter.status'), class: "block text-sm font-bold text-gray-700 mb-1" %>
+        <%= f.select :status,
+            options_for_select([
+              [t('.filter.all'), ''],
+              [t('.filter.successful'), 'success'],
+              [t('.filter.failed'), 'failed'],
+              [t('.filter.pending'), 'pending']
+            ], params[:status]),
+            {},
+            class: "w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cobalt-500" %>
+      </div>
+      
+      <div class="flex-1 min-w-[150px]">
+        <%= f.label :date_from, t('.filter.from'), class: "block text-sm font-bold text-gray-700 mb-1" %>
+        <%= f.date_field :date_from, 
+            value: params[:date_from],
+            class: "w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cobalt-500" %>
+      </div>
+      
+      <div class="flex-1 min-w-[150px]">
+        <%= f.label :date_to, t('.filter.to'), class: "block text-sm font-bold text-gray-700 mb-1" %>
+        <%= f.date_field :date_to,
+            value: params[:date_to],
+            class: "w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cobalt-500" %>
+      </div>
+      
+      <div class="flex items-end gap-2">
+        <%# P4/D1: filter actions as ButtonComponent. Apply = primary (the region's one action, E1). %>
+        <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :primary,
+          size: :large,
+          tag: :button,
+          type: 'submit'
+        ) do %>
+          <%= t('.filter.submit') %>
+        <% end %>
+        <%# Reset = secondary + ↺ (reset convention, decision 9), no confirm (filter reset is harmless, P9). %>
+        <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :secondary,
+          size: :large,
+          icon: "arrow-counterclockwise",
+          url: organisation_user_activities_path(@current_organisation, user_id: @user.id)
+        ) do %>
+          <%= t('.filter.reset') %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Category Breakdown -->
+  <% if @category_breakdown.any? %>
+    <div class="bg-surface-raised border border-slate-200 rounded-lg shadow-sm overflow-hidden mb-6">
+      <div class="px-4 py-3 border-b border-slate-200 bg-gray-50">
+        <h3 class="text-lg font-bold"><%= t('.category_breakdown.title') %></h3>
+      </div>
+      <div class="p-4">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <% @category_breakdown.each do |category, count| %>
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+              <p class="text-sm text-gray-600 capitalize"><%= category %></p>
+              <p class="text-xl font-bold text-gray-900"><%= count %></p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Activities List -->
+  <div class="bg-surface-raised border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-200 bg-gray-50">
+      <h3 class="text-lg font-bold"><%= t('.activities_list.title', organisation: @current_organisation.name) %></h3>
+    </div>
+    <div class="p-4">
+      <% if @activities.any? %>
+        <div class="space-y-3">
+          <% @activities.each do |activity| %>
+            <div class="flex items-start space-x-3 pb-3 <%= 'border-b' unless activity == @activities.last %>">
+              <div class="flex-shrink-0">
+                <div class="w-10 h-10 rounded-lg border border-slate-200 flex items-center justify-center
+                  <%= case activity.category
+                      when 'auth' then 'bg-cobalt-100'
+                      when 'profile' then 'bg-purple-100'
+                      when 'permissions' then 'bg-yellow-100'
+                      when 'security' then 'bg-red-100'
+                      when 'invitations' then 'bg-green-100'
+                      else 'bg-gray-100'
+                      end %>">
+                  <i class="<%= activity.icon_class %> text-sm
+                    <%= case activity.category
+                        when 'auth' then 'text-cobalt-600'
+                        when 'profile' then 'text-purple-600'
+                        when 'permissions' then 'text-yellow-600'
+                        when 'security' then 'text-red-600'
+                        when 'invitations' then 'text-green-600'
+                        else 'text-gray-600'
+                        end %>"></i>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <p class="text-sm font-bold text-gray-900">
+                      <%= activity.action.humanize %>
+                    </p>
+                    <% if activity.status == 'failed' %>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-red-100 text-red-800 border border-red-300">
+                        <%= t('.status.failed') %>
+                      </span>
+                    <% elsif activity.status == 'success' %>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-green-100 text-green-800 border border-green-300">
+                        <%= t('.status.successful') %>
+                      </span>
+                    <% end %>
+                  </div>
+                  <span class="text-xs text-gray-500">
+                    <%= l(activity.created_at, format: :long) %>
+                  </span>
+                </div>
+                <p class="text-sm text-gray-600 mt-1">
+                  <%= activity.description %>
+                </p>
+                <% if activity.failure_reason.present? %>
+                  <p class="text-sm text-red-600 mt-1">
+                    <i class="bi bi-exclamation-circle"></i> <%= activity.failure_reason %>
+                  </p>
+                <% end %>
+                <% if activity.ip_address.present? || activity.user_agent.present? %>
+                  <p class="text-xs text-gray-500 mt-1">
+                    <% if activity.ip_address.present? %>
+                      IP: <%= activity.ip_address %>
+                    <% end %>
+                    <% if activity.user_agent.present? %>
+                      <% browser = activity.user_agent.match(/\((.*?)\)/)&.captures&.first %>
+                      <%= " • #{browser}" if browser %>
+                    <% end %>
+                  </p>
+                <% end %>
+                <% if activity.trackable.present? %>
+                  <p class="text-xs text-gray-500 mt-1">
+                    <i class="bi bi-link-45deg"></i>
+                    <%= activity.trackable_type %>: <%= activity.trackable_id.to_s.first(8) %>...
+                  </p>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        
+        <!-- Pagination -->
+        <% if @pagy && @pagy.pages > 1 %>
+          <div class="mt-6 pt-4 border-t-2 border-gray-200">
+            <%== pagy_nav(@pagy) %>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="text-center py-12 text-gray-500">
+          <i class="bi bi-activity text-5xl mb-3"></i>
+          <p class="text-lg font-medium"><%= t('.no_activities.title') %></p>
+          <p class="text-sm mt-2"><%= t('.no_activities.description') %></p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

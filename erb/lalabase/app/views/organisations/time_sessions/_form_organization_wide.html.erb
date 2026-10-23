@@ -1,0 +1,71 @@
+<%# locals: (time_session:) %>
+<%# Org-wide form (the capture modal of the time list). Shared fields: _form_fields.
+    Sent through Turbo so a refused save shows its errors inside the open modal
+    (create.turbo_stream.erb); without Turbo the 422 answer was the bare form on
+    an unstyled page. A successful save is still answered with the list page
+    itself (answer_with_page, see TimeSessionsController#create): the stream's
+    list re-render ignores the filters in the address. _top, because the form
+    sits inside turbo-frame#time_session_form_frame and that redirect is a
+    visit of the whole page, not of the frame. %>
+<%= form_with(model: [@current_organisation, time_session],
+              url: organisation_time_sessions_path(@current_organisation),
+              id: "time_session_form",
+              class: "space-y-4 p-1",
+              data: {
+                controller: "time-session-form",
+                turbo_frame: "_top"
+              }) do |f| %>
+  <%= hidden_field_tag :context, 'index_page' %>
+  <%= hidden_field_tag Organisations::TimeSessionsController::ANSWER_WITH_PAGE_PARAM, '1' %>
+
+  <%# Lazy t('.') resolves in the yield block within the form_fields scope — so evaluate it here in advance. %>
+  <% project_label = t('.project_label')
+     project_prompt = t('.project_prompt')
+     ticket_label = t('.ticket_label')
+     select_project_first = t('.select_project_first') %>
+
+  <%= render layout: 'organisations/time_sessions/form_fields',
+             locals: {
+               f: f,
+               time_session: time_session,
+               group_collection: unbilled_time_session_groups,
+               cancel_action: "click->time-sessions-index#closeModal"
+             } do %>
+    <!-- Project selection (required field) -->
+    <div class="mb-4">
+      <%= f.label :project_id, project_label, class: "block text-sm font-medium text-gray-700 mb-1" %>
+      <%= f.collection_select :project_id,
+                            bookable_projects,
+                            :id,
+                            :name,
+                            { prompt: project_prompt },
+                            class: "block w-full rounded-lg border border-stroke px-3 py-2 focus:border-stroke focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-sm focus:ring-0 transition-all duration-200 sm:text-sm bg-surface-raised",
+                            data: {
+                              action: "change->time-session-form#projectChanged",
+                              time_session_form_target: "projectSelect"
+                            } %>
+    </div>
+
+    <!-- Ticket selection (loaded dynamically based on the project) -->
+    <div class="mb-4" data-time-session-form-target="ticketSelectContainer">
+      <%= f.label :ticket_id, ticket_label, class: "block text-sm font-medium text-gray-700 mb-1" %>
+      <div id="ticket_select_container" data-time-session-form-target="ticketSelect">
+        <% if time_session.project && policy(time_session.project).area_access?(:tickets, :read) %>
+          <%# A preselected project (the list's filter) brings its tickets with the
+              page; the change event that loads them never fires for a value set
+              on load. Same partial and same bounded source (selectable_tickets_for:
+              the 200 most recently touched) as the tickets_for_project stream, so
+              the select reads the same on load and after a change. %>
+          <%= render 'organisations/time_sessions/ticket_select',
+                     tickets: selectable_tickets_for(time_session.project), project: time_session.project %>
+        <% else %>
+          <%= f.select :ticket_id,
+                       options_for_select([[select_project_first, ""]]),
+                       {},
+                       class: "block w-full rounded-lg border border-stroke px-3 py-2 focus:border-stroke focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-sm focus:ring-0 transition-all duration-200 sm:text-sm bg-surface-raised",
+                       disabled: true %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

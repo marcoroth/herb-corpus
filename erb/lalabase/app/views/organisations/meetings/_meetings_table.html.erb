@@ -1,0 +1,31 @@
+<%# locals: (meetings:, selected_meeting:, base_path:, frame_id:) %>
+<%# The table of a meetings list, shared by the project page
+    (meetings/_meetings_results) and "Alle Meetings" (meetings_overview/_results).
+    Heads and cells come from @columns (Lists::ResolveColumns) with rank,
+    minimum width and pin: a column that does not fit folds away in rank order
+    and a pinned value moves under the title (layout.css; the fit itself is
+    column_picker_controller's). On a phone no ranked column stands in the head
+    (data-fit 0), so the table never scrolls sideways.
+    base_path and frame_id are the list's own: a sort link reloads that frame.
+    A row opens the meeting in the lane beside the list, on both pages. %>
+<div class="relative w-full overflow-x-auto">
+  <table class="w-full meeting-table" data-fit="<%= @viewport_mode == 'mobile' ? 0 : initial_column_fit(@columns.reject { |column| column[:required] }, content_open: selected_meeting.present? || params[:meeting_id].present? || params[:new] == 'meeting') %>" data-column-count="<%= @columns.size %>">
+    <thead>
+      <tr>
+        <% @columns.each do |column| %>
+          <th scope="col" data-column="<%= column[:key] %>" <%= tag.attributes(data: { rank: column[:rank] }) %>
+              data-col-min="<%= column[:min_width] %>" style="<%= column_min_width_style(column) %>"
+              class="py-3 px-3 text-[11px] font-mono font-medium uppercase tracking-wider text-muted <%= column[:required] ? 'title-header text-start' : column_align_class(column) %>">
+            <%= meeting_sort_link(column, base_path: base_path, frame_id: frame_id) %>
+          </th>
+        <% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% meetings.each do |meeting| %>
+        <%= render 'organisations/meetings/meeting_row', meeting: meeting, selected_meeting: selected_meeting %>
+      <% end %>
+      <%= render 'shared/ruled_rows', missing: @pagy.limit - meetings.size, colspan: @columns.size unless @viewport_mode == 'mobile' %>
+    </tbody>
+  </table>
+</div>

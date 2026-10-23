@@ -1,0 +1,235 @@
+<%# locals: (ai_package:, embedding_credentials:, chat_credentials:) -%>
+<%# Admin styleguide (Tailwind utilities, deliberately NOT the Neo components).
+    kind is NOT a field here — the controller forces 'curated' (§7b.1). %>
+<% input_class = "w-full px-4 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all" %>
+<% label_class = "block text-sm font-bold text-gray-900" %>
+<% hint_class = "mt-1 text-sm text-gray-500" %>
+<% section_class = "text-lg font-medium leading-6 text-gray-900 mb-4" %>
+<% submit_label = ai_package.persisted? ? t('views.admin.ai_packages.form.submit_save') : t('views.admin.ai_packages.form.submit_create') %>
+<% credential_options = ->(credentials) { credentials.map { |credential| [ai_credential_option_label(credential), credential.id] } } %>
+
+<%= form_with model: [:admin, ai_package], local: true, class: "space-y-6" do |form| %>
+  <% if ai_package.errors.any? %>
+    <div class="border-2 border-red-500 bg-red-50 rounded-lg p-4 shadow-[2px_2px_0_0_#ef4444]">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <i class="bi bi-exclamation-triangle text-red-400 text-xl"></i>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">
+            <%= t('views.admin.ai_packages.form.errors_title', count: ai_package.errors.count) %>
+          </h3>
+          <div class="mt-2 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              <% ai_package.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Basics -->
+  <div class="border-b-2 border-black pb-6">
+    <h3 class="<%= section_class %>">
+      <i class="bi bi-info-circle text-gray-400 mr-2"></i>
+      <%= t('views.admin.ai_packages.form.section_basic') %>
+    </h3>
+
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div>
+        <%= form.label :name, t('views.admin.ai_packages.form.label_name'), class: label_class %>
+        <div class="mt-1">
+          <%= form.text_field :name, class: input_class,
+              placeholder: t('views.admin.ai_packages.form.placeholder_name') %>
+        </div>
+        <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.name_help') %></p>
+      </div>
+
+      <div>
+        <%= form.label :position, t('views.admin.ai_packages.form.label_position'), class: label_class %>
+        <div class="mt-1">
+          <%= form.number_field :position, class: input_class %>
+        </div>
+        <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.position_help') %></p>
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <%= form.label :description, t('views.admin.ai_packages.form.label_description'), class: label_class %>
+      <div class="mt-1">
+        <%= form.text_area :description, rows: 3, class: input_class,
+            placeholder: t('views.admin.ai_packages.form.placeholder_description') %>
+      </div>
+      <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.description_help') %></p>
+    </div>
+
+    <div class="mt-6 flex items-start">
+      <%= form.check_box :active, class: "mt-1 w-4 h-4 border-2 border-black rounded focus:ring-2 focus:ring-black accent-lime-500" %>
+      <div class="ml-2">
+        <%# "Veröffentlicht", not "Aktiv": the word "aktiv" is already taken
+            twice on the credential screens and must not mean a third thing. %>
+        <%= form.label :active, t('views.admin.ai_packages.form.label_active'), class: "text-sm font-medium text-gray-700" %>
+        <p class="text-sm text-gray-500"><%= t('views.admin.ai_packages.form.active_help') %></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legal classification -->
+  <div class="border-b-2 border-black pb-6">
+    <h3 class="<%= section_class %>">
+      <i class="bi bi-shield-check text-gray-400 mr-2"></i>
+      <%= t('views.admin.ai_packages.form.section_legal') %>
+    </h3>
+
+    <div>
+      <%= form.label :jurisdiction, t('views.admin.ai_packages.form.label_jurisdiction'), class: label_class %>
+      <div class="mt-1">
+        <%# Full §3 wording per option, including the uncomfortable "EU region,
+            non-European provider" — no shorthand that softens the claim. %>
+        <%= form.select :jurisdiction,
+            options_for_select(
+              AiPackage::JURISDICTIONS.map { |key| [t("views.admin.ai_packages.jurisdictions.#{key}"), key] },
+              ai_package.jurisdiction
+            ),
+            { include_blank: t('views.admin.ai_packages.form.jurisdiction_blank') },
+            class: input_class %>
+      </div>
+      <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.jurisdiction_help') %></p>
+
+      <% jurisdiction_warnings = ai_package.jurisdiction_warnings %>
+      <% if jurisdiction_warnings.any? %>
+        <div class="mt-3 border-2 border-yellow-500 bg-yellow-50 rounded-lg p-4 shadow-[2px_2px_0_0_#eab308]">
+          <h4 class="text-sm font-bold text-yellow-800 mb-1">
+            <i class="bi bi-exclamation-triangle mr-1"></i>
+            <%= t('views.admin.ai_packages.form.jurisdiction_warning_title') %>
+          </h4>
+          <p class="text-sm text-yellow-800">
+            <%= t('views.admin.ai_packages.form.jurisdiction_warning_body',
+                  credentials: jurisdiction_warnings.map(&:display_label).to_sentence) %>
+          </p>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="mt-6">
+      <%= form.label :processing_region, t('views.admin.ai_packages.form.label_processing_region'), class: label_class %>
+      <div class="mt-1">
+        <%= form.text_field :processing_region, class: input_class,
+            placeholder: t('views.admin.ai_packages.form.placeholder_processing_region') %>
+      </div>
+      <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.processing_region_help') %></p>
+    </div>
+
+    <div class="mt-6">
+      <%= form.label :provider_note, t('views.admin.ai_packages.form.label_provider_note'), class: label_class %>
+      <div class="mt-1">
+        <%= form.text_area :provider_note, rows: 3, class: input_class,
+            placeholder: t('views.admin.ai_packages.form.placeholder_provider_note') %>
+      </div>
+      <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.provider_note_help') %></p>
+    </div>
+  </div>
+
+  <!-- Vector space (embedding triple) -->
+  <div class="border-b-2 border-black pb-6">
+    <h3 class="<%= section_class %>">
+      <i class="bi bi-diagram-3 text-gray-400 mr-2"></i>
+      <%= t('views.admin.ai_packages.form.section_embedding') %>
+    </h3>
+    <p class="text-sm text-gray-600 mb-4"><%= t('views.admin.ai_packages.form.section_embedding_help') %></p>
+
+    <div>
+      <%= form.label :embedding_credential_id, t('views.admin.ai_packages.form.label_embedding_credential'), class: label_class %>
+      <div class="mt-1">
+        <%= form.select :embedding_credential_id,
+            options_for_select(credential_options.call(embedding_credentials), ai_package.embedding_credential_id),
+            { include_blank: t('views.admin.ai_packages.form.credential_blank') },
+            class: input_class %>
+      </div>
+      <%= render 'credential_meta', credential: ai_package.embedding_credential %>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div>
+        <%= form.label :embedding_model, t('views.admin.ai_packages.form.label_embedding_model'), class: label_class %>
+        <div class="mt-1">
+          <%= form.text_field :embedding_model, class: input_class,
+              placeholder: t('views.admin.ai_packages.form.placeholder_embedding_model') %>
+        </div>
+        <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.embedding_model_help') %></p>
+      </div>
+
+      <div>
+        <%= form.label :embedding_dims, t('views.admin.ai_packages.form.label_embedding_dims'), class: label_class %>
+        <div class="mt-1">
+          <%= form.select :embedding_dims,
+              options_for_select(Organisation::SUPPORTED_DIMS.map { |dims| [dims.to_s, dims] }, ai_package.embedding_dims),
+              { include_blank: t('views.admin.ai_packages.form.dims_blank') },
+              class: input_class %>
+        </div>
+        <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.embedding_dims_help') %></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Performance ladder: exactly the fixed E2 tiers -->
+  <div class="border-b-2 border-black pb-6">
+    <h3 class="<%= section_class %>">
+      <i class="bi bi-bar-chart-steps text-gray-400 mr-2"></i>
+      <%= t('views.admin.ai_packages.form.section_tiers') %>
+    </h3>
+    <p class="text-sm text-gray-600 mb-4"><%= t('views.admin.ai_packages.form.section_tiers_help') %></p>
+
+    <%# Fixed slots in AiPackageTier::KEYS order with STATIC child indexes
+        (0/1) — §7b.1 option C. key, label and position are a product decision
+        (E2) and are therefore NOT submitted at all: the controller re-derives
+        all three from the slot index. Hidden fields would have made them
+        client data, which is how a tampered duplicate key reached the DB index
+        and 500'd, and how `label` could be rewritten into the badges other
+        admin screens render. Shown read-only below, never posted. %>
+    <% ordered_tiers = ai_package.tiers.sort_by { |tier| AiPackageTier::KEYS.index(tier.key.to_s) || AiPackageTier::KEYS.size } %>
+    <div class="space-y-4">
+      <% ordered_tiers.each_with_index do |tier, index| %>
+        <%= form.fields_for :tiers, tier, child_index: index do |tier_form| %>
+          <div class="border border-black rounded-lg bg-gray-50 p-4">
+            <div class="flex items-center justify-between mb-4">
+              <h4 class="text-base font-bold text-gray-900"><%= tier.label %></h4>
+              <span class="font-mono text-xs text-gray-500"><%= tier.key %></span>
+            </div>
+
+            <div>
+              <%= tier_form.label :chat_credential_id, t('views.admin.ai_packages.form.label_chat_credential'), class: label_class %>
+              <div class="mt-1">
+                <%= tier_form.select :chat_credential_id,
+                    options_for_select(credential_options.call(chat_credentials), tier.chat_credential_id),
+                    { include_blank: t('views.admin.ai_packages.form.credential_blank') },
+                    class: input_class %>
+              </div>
+              <%= render 'credential_meta', credential: tier.chat_credential %>
+            </div>
+
+            <div class="mt-4">
+              <%= tier_form.label :chat_model, t('views.admin.ai_packages.form.label_chat_model'), class: label_class %>
+              <div class="mt-1">
+                <%= tier_form.text_field :chat_model, class: input_class,
+                    placeholder: t('views.admin.ai_packages.form.placeholder_chat_model') %>
+              </div>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_packages.form.chat_model_help') %></p>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="flex justify-end space-x-3">
+    <%= link_to t('views.admin.ai_packages.form.cancel'), admin_ai_packages_path,
+        class: "py-2 px-4 border border-black rounded text-sm font-medium bg-gray-200 hover:bg-gray-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" %>
+    <%= form.submit submit_label,
+        class: "inline-flex justify-center py-2 px-4 border border-black rounded text-sm font-medium bg-lime-200 hover:bg-lime-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" %>
+  </div>
+<% end %>

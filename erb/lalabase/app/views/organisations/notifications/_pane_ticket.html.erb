@@ -1,0 +1,76 @@
+<%# When the pane is freshly loaded via a Turbo Frame click, the
+    master-list entry should also receive the selected state.
+    The turbo-stream element is applied document-wide by Turbo. %>
+<% if @selected_notification %>
+  <%= turbo_stream.replace dom_id(@selected_notification) do %>
+    <div id="<%= dom_id(@selected_notification) %>"
+         data-notification-item="<%= @selected_notification.id %>">
+      <%= render NeoInboxMasterItemComponent.new(notification: @selected_notification, selected: true) %>
+    </div>
+  <% end %>
+<% end %>
+
+<%# Inbox pane: ticket detail display.
+    DRY: reuse of the existing ticket-view building blocks
+    _ticket_header_show.html.erb + _ticket_content_for_frame.html.erb.
+    Pane header shows project eyebrow + status pills (separate partial!).
+    See Spec 4.2 — identity through content, context through frame. %>
+<%= turbo_frame_tag 'ticket_pane', class: 'block' do %>
+  <%# "Back to List" + the close-X of the standalone ticket view control the
+      layout-toggle, which does not exist in the pane → hide it here. ONE rule
+      on #ticket_pane instead of Ruby flags through all render paths (Show/Edit/
+      Update via tickets_controller) — applies on every re-render. The
+      cancel-X in the edit header is a real link (not a layout-toggle) and is
+      therefore preserved. %>
+  <%# Delayed mark_as_read: only for a currently unread notification.
+      Stimulus fires a PATCH after 5s; the server responds with a
+      turbo_stream that only swaps the pills (inbox_pane_status_pills) and the
+      master item — NO full-pane reload, so that an already-open
+      reply form is not destroyed. %>
+  <% if @selected_notification && @selected_notification.unread? %>
+    <div data-controller="pane-mark-read-delay"
+         data-pane-mark-read-delay-url-value="<%= mark_read_organisation_notification_path(@current_organisation, @selected_notification) %>"
+         data-pane-mark-read-delay-delay-value="5000"></div>
+  <% end %>
+
+  <div class="p-4 sm:p-6">
+
+    <%# Inbox pane header: project eyebrow + status-pills partial.
+        The pills are extracted as a separate partial (stable ID
+        inbox_pane_status_pills), so that status changes via turbo_stream
+        only swap this small area — without re-rendering the ticket-content
+        pane (reply form, timeline). %>
+    <div class="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-gray-200 flex-wrap">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="font-mono text-xs uppercase tracking-wider text-slate-500 truncate">
+          <%= @project.name %>
+        </span>
+      </div>
+
+      <%= render 'pane_status_pills',
+                 notification: @selected_notification,
+                 current_organisation: @current_organisation,
+                 project: @project,
+                 ticket: @ticket %>
+    </div>
+
+    <%# "What was new" block: unread activities of this ticket (context
+        for the row grouped in the list). %>
+    <%= render 'pane_new_activity', new_activities: @new_activities %>
+
+    <%# Ticket display in the ticket_display_frame — exactly like the standalone
+        view (_index_desktop.html.erb). The "Edit" pencil opens the writing surface
+        in the layout-owned turbo-frame#writing_surface (Paket 3); the update streams
+        then refresh THIS ticket_display_frame, so the pane stays current. The inline
+        status forms still target "ticket_display_frame" directly — without this
+        frame in the pane → "Content missing". %>
+    <%= turbo_frame_tag 'ticket_display_frame' do %>
+      <%= render 'organisations/tickets/ticket_display',
+                 ticket: @ticket,
+                 post: @post || Post.new(ticket: @ticket, user: current_user),
+                 project: @project,
+                 current_organisation: @current_organisation,
+                 mark_notifications_read: false %>
+    <% end %>
+  </div>
+<% end %>

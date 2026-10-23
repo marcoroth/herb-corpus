@@ -1,0 +1,67 @@
+<%# locals: (options:, filterable:, handle:) %>
+<%# The option list of a filter menu: the type-to-narrow field, the options and
+    the "nothing found" line. Its own partial because two menus draw it: every
+    filter pill (shared/_filter_pill) and each section of the time list's
+    "+ Filter" menu (organisations/time_sessions/_add_filter), where a person
+    list has to look and narrow exactly like the person pill's own menu.
+
+    ⚠️ It is inert without a filter-menu-search controller around it: the
+    caller mounts that, literally, so the wiring census can read the mount. %>
+<%
+  # The chosen option is marked by a CHECK, not by a filled row: a filled row in
+  # a soft layer reads as a hover state, and the reader is looking for "which one
+  # is it now" while the mouse is somewhere else entirely.
+  # ⚠️ The check is an ICON GLYPH, not a character in the markup. Written as a
+  # <span>✓</span> it is a TEXT NODE inside the anchor, so every oracle that
+  # reads an option's label got "✓\n Dieses Jahr" back -- three specs broke on
+  # it -- and a screen reader would have read it out on a row whose aria-current
+  # already says the same thing. An icon font contributes no text, which is why
+  # the status row draws its boxes the same way.
+  menu_link_classes = 'flex items-center gap-3 w-full pl-3 pr-4 py-2 text-sm text-cream-900 hover:bg-cream-100 rounded-lg'
+  chosen_link_classes = "#{menu_link_classes} font-medium"
+%>
+
+<% if filterable %>
+  <%# Enhancement, not a control: it narrows the links that are already
+      there. Without JavaScript the list is simply all of them, which is
+      exactly what it was before this field existed. %>
+  <input type="text"
+         class="w-[calc(100%-1.5rem)] mx-3 mb-1 px-3 py-1.5 text-sm border border-cream-300 rounded-lg bg-cream-50"
+         placeholder="<%= t('views.organisations.time_sessions.index.filter_pill_search') %>"
+         aria-label="<%= t('views.organisations.time_sessions.index.filter_pill_search') %>"
+         autocomplete="off"
+         data-filter-menu-search-target="query"
+         data-action="input->filter-menu-search#filter">
+<% end %>
+
+<% options.each do |option| %>
+  <%# An option may open a group of its own (the ticket status: the chosen
+      project's values below the three phases). Words, not only a line: the
+      reader has to know WHOSE values these are. %>
+  <% if option[:heading].present? %>
+    <p class="px-3 pt-2 pb-1 mt-1 border-t border-cream-300 text-xs text-cream-600" data-filter-option-heading><%= option[:heading] %></p>
+  <% end %>
+  <%= link_to option[:url],
+              data: time_filter_owns(option[:owns])
+                      .merge("#{handle}-option" => option[:value].presence || '',
+                             filter_menu_search_target: (filterable ? 'option' : nil)).compact,
+              aria: { current: (option[:selected] ? 'true' : nil) },
+              class: option[:selected] ? chosen_link_classes : menu_link_classes do %>
+    <i class="bi bi-check-lg w-4 flex-shrink-0 text-[13px] text-lime-700 <%= 'invisible' unless option[:selected] %>" aria-hidden="true"></i>
+    <span class="truncate"><%= option[:label] %></span>
+    <% if option[:sub].present? %>
+      <%# Two meetings may carry the same title -- the case S6 exists for.
+          The project name is what tells them apart. %>
+      <span class="ml-auto pl-2 text-cream-600 truncate"><%= option[:sub] %></span>
+    <% end %>
+  <% end %>
+<% end %>
+
+<% if filterable %>
+  <%# hidden as a CLASS, matching what the controller toggles. The attribute
+      loses to any display utility on the element, which is exactly how the
+      option rows came to be marked hidden and stay on screen. %>
+  <p class="hidden px-4 py-2 text-sm text-cream-600" data-filter-menu-search-target="empty">
+    <%= t('views.organisations.time_sessions.index.filter_pill_search_empty') %>
+  </p>
+<% end %>

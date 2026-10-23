@@ -1,0 +1,55 @@
+<%# Activity-of-others feed. Markup kept identical to the original briefing section for visual
+    parity; data comes from the shared briefing, paths/helpers go through `helpers.`. i18n REUSES
+    the existing dashboard.briefing.* keys (no new strings for the render). %>
+<div>
+  <%= render WidgetHeaderComponent.new(title: t('dashboard.briefing.sections.activity.title')) %>
+  <% if activity_groups.any? %>
+    <ul class="divide-y divide-cream-200 border border-cream-300 rounded-lg bg-cream-50 overflow-hidden"
+        data-controller="neo-lane-expand"
+        data-neo-lane-expand-threshold-value="<%= lane_threshold %>">
+      <% activity_groups.each_with_index do |group, idx| %>
+        <li data-neo-lane-expand-target="item"
+            class="flex items-start gap-3 px-5 py-3 hover:bg-cream-100 transition-colors<%= ' hidden' if idx >= lane_threshold %>">
+          <i class="bi bi-<%= group.icon %> <%= group.css_class %> text-xs mt-1 flex-shrink-0"></i>
+          <div class="flex-1 min-w-0">
+            <% if group.trackable.is_a?(Ticket) %>
+              <%= link_to helpers.organisation_project_ticket_path(organisation_id: current_organisation.id, project_id: group.trackable.project_id, id: group.trackable.id),
+                  class: "text-sm text-cream-900 hover:underline decoration-2 underline-offset-2 block truncate" do %>
+                <span class="font-mono text-xs text-cream-600">#<%= group.trackable.number %></span>
+                <span class="font-medium"><%= helpers.truncate(group.trackable.title, length: 50) %></span>
+              <% end %>
+            <% else %>
+              <span class="text-sm text-cream-900 font-medium truncate block">
+                <%= helpers.truncate(group.trackable_display_name, length: 50) %>
+              </span>
+            <% end %>
+            <div class="text-xs text-cream-800 mt-0.5">
+              <%= t("dashboard.briefing.actions.#{group.headline_action}") %>
+              <% if group.secondary_count.positive? %>
+                <span class="text-cream-600">· <%= t('dashboard.briefing.actions.more_changes', count: group.secondary_count) %></span>
+              <% end %>
+            </div>
+            <div class="font-mono text-xs text-cream-600 mt-0.5">
+              <%= group.actor&.first_name || group.actor&.email&.split('@')&.first || t('dashboard.briefing.system') %>
+              · <%= helpers.time_ago_in_words(group.latest_at) %>
+            </div>
+          </div>
+        </li>
+      <% end %>
+      <% if activity_groups.size > lane_threshold %>
+        <li class="px-5 py-2">
+          <button type="button"
+                  data-neo-lane-expand-target="button"
+                  data-action="click->neo-lane-expand#toggle"
+                  data-collapsed-label="<%= t('dashboard.briefing.sections.lane.show_more', count: activity_groups.size - lane_threshold) %>"
+                  data-expanded-label="<%= t('dashboard.briefing.sections.lane.show_less') %>"
+                  class="font-mono text-xs uppercase tracking-wider text-cream-600 hover:text-cobalt-600 transition-colors">
+            <%= t('dashboard.briefing.sections.lane.show_more', count: activity_groups.size - lane_threshold) %>
+          </button>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <%= render WidgetEmptyComponent.new(message: t('dashboard.briefing.sections.activity.empty')) %>
+  <% end %>
+</div>

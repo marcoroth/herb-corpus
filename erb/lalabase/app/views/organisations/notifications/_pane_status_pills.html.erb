@@ -1,0 +1,78 @@
+<%# Row of pills in the inbox pane header: Ungelesen / Gelesen / Archiviert
+    as a toggle + "Im Ticket öffnen" link.
+    Stable ID "inbox_pane_status_pills", so that the turbo_stream only swaps
+    this small area after state changes (instead of re-rendering the whole
+    pane, which would e.g. destroy an open reply form).
+    Locals: notification, current_organisation, project, ticket. %>
+<%# Single-select status segment (stadium shape, category 1 of the form
+    language): a notification has exactly ONE state → connected segment, NOT
+    separate pills. This deliberately sets this bar apart from the
+    MULTI-select filter pills of the inbox list (left): the form reveals the
+    behaviour. Classes from SegmentStylesHelper. Cells are button_to forms
+    (PATCH mutations unchanged); display:contents makes the buttons flex
+    siblings, rounding by fixed position (segment_cell_classes_at). %>
+<div id="inbox_pane_status_pills"
+     class="flex items-center gap-2 flex-shrink-0 flex-wrap">
+  <div class="inline-flex items-center rounded-full">
+    <%# Ungelesen (first cell) %>
+    <% unread_active = !(notification.state_archived? || notification.state_read?) %>
+    <%= button_to mark_unread_organisation_notification_path(current_organisation, notification),
+                  method: :patch,
+                  form: { class: 'contents' },
+                  class: segment_cell_classes_at(unread_active, :first),
+                  disabled: unread_active do %>
+      <%= t('views.organisations.notifications.pane.status_unread', default: 'Ungelesen') %>
+    <% end %>
+
+    <%# Gelesen (middle cell) %>
+    <% if notification.state_archived? %>
+      <%= button_to unarchive_organisation_notification_path(current_organisation, notification),
+                    method: :patch,
+                    params: { redirect_to_inbox: '1' },
+                    form: { data: { turbo_frame: '_top' }, class: 'contents' },
+                    class: segment_cell_classes_at(false, :middle) + ' gap-1.5' do %>
+        <i class="bi bi-check2"></i>
+        <%= t('views.organisations.notifications.pane.status_read', default: 'Gelesen') %>
+      <% end %>
+    <% elsif notification.state_read? %>
+      <span class="<%= segment_cell_classes_at(true, :middle) %> gap-1.5">
+        <i class="bi bi-check2"></i>
+        <%= t('views.organisations.notifications.pane.status_read', default: 'Gelesen') %>
+      </span>
+    <% else %>
+      <%= button_to mark_read_organisation_notification_path(current_organisation, notification),
+                    method: :patch,
+                    params: { redirect_to_inbox: '1' },
+                    form: { data: { turbo_frame: '_top' }, class: 'contents' },
+                    class: segment_cell_classes_at(false, :middle) + ' gap-1.5' do %>
+        <i class="bi bi-check2"></i>
+        <%= t('views.organisations.notifications.pane.status_read', default: 'Gelesen') %>
+      <% end %>
+    <% end %>
+
+    <%# Archiviert (last cell) %>
+    <% if notification.state_archived? %>
+      <span class="<%= segment_cell_classes_at(true, :last) %> gap-1.5">
+        <i class="bi bi-archive"></i>
+        <%= t('views.organisations.notifications.pane.status_archived', default: 'Archiviert') %>
+      </span>
+    <% else %>
+      <%= button_to archive_organisation_notification_path(current_organisation, notification),
+                    method: :patch,
+                    params: { redirect_to_inbox: '1' },
+                    form: { data: { turbo_frame: '_top' }, class: 'contents' },
+                    class: segment_cell_classes_at(false, :last) + ' gap-1.5' do %>
+        <i class="bi bi-archive"></i>
+        <%= t('views.organisations.notifications.pane.status_archived', default: 'Archiviert') %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <span class="text-slate-300 mx-1">|</span>
+  <%= link_to organisation_project_ticket_path(current_organisation, project, ticket),
+              target: '_top',
+              class: 'inline-flex items-center gap-1.5 text-xs font-bold text-cobalt-600 hover:underline' do %>
+    <%= t('views.organisations.notifications.pane.open_full_view') %>
+    <i class="bi bi-box-arrow-up-right text-[11px]"></i>
+  <% end %>
+</div>

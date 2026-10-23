@@ -1,0 +1,68 @@
+<div data-controller="billing-modal" data-billing-modal-loading-text-value="<%= t('views.organisations.time_session_groups.billing_status.loading') %>">
+  <%# Title box AND tab bar from one partial, so the two share one left edge;
+      the actions travel as captured blocks. See organisations/shared/_subnav. %>
+  <% title_action = capture do %>
+    <% if policy(TimeSessionGroup).create? %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :primary,
+        icon: "plus-lg",
+        size: :medium,
+        title: t('views.organisations.time_session_groups.index.create_new_group_title'),
+        url: new_organisation_time_session_group_path(@current_organisation),
+        data: { turbo: false }
+      ) %>
+    <% end %>
+  <% end %>
+  <% right_content = capture do %>
+    <div class="flex items-center gap-2">
+      <%# The way to the time list is the subnav tab under this box. %>
+      <%= render 'common/contextual_help_menu', context: :billing %>
+    </div>
+  <% end %>
+  <%= render 'organisations/shared/times_subnav',
+        active: :billings,
+        title: t('.title'),
+        title_action: title_action,
+        right_content: right_content %>
+
+  <%# The filter LINE (P2 of doc/abrechnungen_filterzeile_und_tabelle_plan.md):
+      the same shared pill partial as the time list's, the same
+      query-toggle/auto-submit pair. Every control here is wired.
+
+      The filter zone is a STRIPE: a light surface (surface-raised) across the
+      full width, one hairline below it, 14px of gap under the tab bar -
+      deliberately WITHOUT border and radius (that is the language of dropdowns
+      and modals, and the inner padding makes a second left edge) and WITHOUT
+      tint (tinted means "selected" and belongs to the choice pills,
+      CHOICE_STATES).
+      It replaces the pale card of 02.09.2026. That card's REASON - a light
+      ground, with the choice pills as the tinted things on it - still holds and
+      is kept here; only the geometry was doubly booked. Three steps with one
+      meaning each: page `surface`, zone `surface-raised`, selection `selected`.
+      The bottom hairline is the fallback for when the brightness step
+      disappears on a poor monitor, so it must never go quieter than cream-200.
+      ⚠️ No line on TOP, and no docking onto the tab bar's rule: the active
+      tab's underline may only sit on the bar's own line. The gap and the
+      brightness step are what set this zone off. %>
+  <div data-controller="query-toggle"
+       class="-mx-4 lg:-mx-6 px-4 lg:px-6 py-3 bg-surface-raised border-b border-cream-300">
+    <%= form_with url: organisation_time_session_groups_path(@current_organisation), method: :get,
+                  data: { turbo_frame: "time_session_groups_list_frame", controller: "auto-submit" } do |f| %>
+      <%= render 'organisations/time_session_groups/filter_line', f: f %>
+    <% end %>
+  </div>
+
+  <%# The result row: how much the filter answers. %>
+  <div class="mt-3.5 mb-3.5 flex items-center justify-between gap-4 flex-wrap">
+    <%= render 'organisations/time_session_groups/result_summary' %>
+  </div>
+
+  <!-- Groups List Container -->
+  <div>
+    <turbo-frame id="time_session_groups_list_frame" class="transition-opacity duration-200 aria-busy:opacity-50">
+      <%= render 'organisations/time_session_groups/groups_list' %>
+    </turbo-frame>
+  </div>
+
+  <%= render 'organisations/time_session_groups/billing_modal' %>
+</div>

@@ -1,0 +1,164 @@
+<%# One curated package as a card (§7): name, jurisdiction badge, the plain-text
+    description, and — for every rung except ① — the restricting addendum IN THE
+    SAME FONT SIZE as the description. That sizing is a plan requirement, not a
+    style choice: ② ③ ④ are exactly the rungs that trigger Kapitel V (§3.1), and
+    putting their consequence in small print would undo the honesty §3 exists for.
+
+    Local: package. %>
+<% selected = @organisation.ai_package_id == package.id %>
+<%# derived-over-stored with the self_hosted exception — the full reasoning
+    (P2-B3, mutation M4) lives at AiPackage#effective_jurisdiction, which the
+    Art. 13 notice shares since P5: the same claim must read the same everywhere. %>
+<% jurisdiction = package.effective_jurisdiction %>
+<%# nil for self_hosted, otherwise the STRICTEST value of the credentials involved:
+    a package is only as good as its weakest credential (D3). %>
+<% training_usage = package.derived_training_usage %>
+<% blocked = package.embedding_switch_for?(@organisation) %>
+
+<div class="rounded-lg p-5 bg-surface-raised <%= selected ? 'border-2 border-ink shadow-[3px_3px_0_0_#000000]' : 'border border-cream-300' %>"
+     data-package-card="<%= package.id %>">
+  <div class="flex items-start justify-between gap-3">
+    <h4 class="text-base font-bold text-cream-900"><%= package.name %></h4>
+    <% if selected %>
+      <span class="shrink-0 inline-flex items-center px-2 py-1 rounded text-xs font-bold border border-ink bg-ink text-cream-50">
+        <i class="bi bi-check-lg mr-1"></i><%= t('views.organisations.ai_settings.packages.card.selected_badge') %>
+      </span>
+    <% end %>
+  </div>
+
+  <%# The badge moved into its own partial with P4b: the consequence dialog makes
+      the same claim about the same package, and one colour rule with two
+      hand-written copies is one copy too many.
+
+      Two statements side by side since T5: WHERE processing happens and WHAT
+      happens to the content. Both derived, none stored. %>
+  <p class="mt-2 flex flex-wrap items-center gap-2">
+    <%= render 'organisations/ai_settings/jurisdiction_badge', jurisdiction: jurisdiction %>
+    <%= render 'organisations/ai_settings/training_badge', training_usage: training_usage %>
+  </p>
+
+  <p class="mt-3 text-sm text-cream-800"><%= package.description %></p>
+
+  <%# Three addenda, one idiom: since T5 in the shared partial instead of three times
+      by hand. `default: nil` makes the locale file the data: a new value
+      needs a label and (except for the harmless one) an addendum, without a
+      branch here having to follow. Guard specs pin down completeness. %>
+  <%= render 'organisations/ai_settings/claim_note',
+             scope: 'views.organisations.ai_settings.packages.jurisdiction_notes',
+             value: jurisdiction %>
+
+  <%= render 'organisations/ai_settings/claim_note',
+             scope: 'views.organisations.ai_settings.packages.training_notes',
+             value: training_usage %>
+
+  <%# Retention stands as a SENTENCE, not as a second badge (E1): "kein
+      Training" alone is incomplete. OpenAI excludes training AND
+      stores for up to 30 days. Unlike the jurisdiction, the good value
+      carries a sentence here too: the axis has no badge of its own, without a
+      sentence it would stay invisible. For `limited` it names the HIGHEST number
+      of days of the credentials involved; the smaller one would be the prettier statement. %>
+  <% retention_policy, retention_days = package.derived_retention %>
+  <%= render 'organisations/ai_settings/claim_note',
+             scope: 'views.organisations.ai_settings.packages.retention_notes',
+             value: retention_policy,
+             args: retention_days ? { count: retention_days } : {} %>
+
+  <% if package.processing_region.present? %>
+    <p class="mt-3 text-sm text-cream-700">
+      <i class="bi bi-geo-alt mr-1"></i>
+      <%= t('views.organisations.ai_settings.packages.card.processing_region', region: package.processing_region) %>
+    </p>
+  <% end %>
+
+  <%# Two readings of the same ladder. On a package the org has NOT chosen the
+      rungs are informational — naming them is part of describing the package.
+      On the CHOSEN one they become the switcher (§7: "sichtbar untergeordnet",
+      because the rung is the lighter of the two decisions and must not compete
+      with the jurisdiction choice above it). %>
+  <% if package.tiers.any? %>
+    <div class="mt-4 pt-3 border-t border-cream-200">
+      <p class="text-xs font-bold text-cream-700 uppercase tracking-wide">
+        <%= t("views.organisations.ai_settings.packages.card.#{selected ? 'tier_switch_heading' : 'tiers_heading'}") %>
+      </p>
+      <% if selected %>
+        <%= render 'organisations/ai_settings/package_tier_switch', package: package %>
+      <% else %>
+        <ul class="mt-2 space-y-1">
+          <% package.tiers.each do |tier| %>
+            <li class="text-sm text-cream-800">
+              <span class="font-bold"><%= tier.label %></span>
+              <span class="text-cream-700">
+                · <%= tier.chat_credential&.display_label ||
+                      t('views.organisations.ai_settings.packages.card.tier_provider_missing') %>
+              </span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Native <details> rather than a Stimulus disclosure: no state to share, no
+      JS to load, and it stays open/closed correctly across Turbo navigation. %>
+  <% if package.provider_note.present? %>
+    <details class="mt-4">
+      <summary class="text-sm text-cream-800 cursor-pointer font-bold">
+        <%= t('views.organisations.ai_settings.packages.card.provider_note_summary') %>
+      </summary>
+      <p class="mt-2 text-sm text-cream-800"><%= package.provider_note %></p>
+    </details>
+  <% end %>
+
+  <div class="mt-5">
+    <% if selected %>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, disabled: true) do %>
+        <%= t('views.organisations.ai_settings.packages.card.selected_button') %>
+      <% end %>
+    <% elsif blocked %>
+      <%# P4b OPENED this door — it did not delete the branch, which is the point.
+          A lane-moving switch still may not fire from a bare button: it re-embeds
+          the whole corpus against the org's quota and can move the jurisdiction
+          its data is processed in. So the card links to the consequence dialog
+          (#confirm_package) instead of posting, and the dialog owns the button.
+          Until P4a this branch was a refusal, since P4a a deliberate shut door;
+          from here it is a detour.
+
+          package_mode travels into the dialog so its "Abbrechen" lands back on the pane
+          this card was rendered in, not on whatever the default happens to be. %>
+      <p class="text-sm text-cream-800 mb-3"><%= t('views.organisations.ai_settings.packages.card.switch_notice') %></p>
+      <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :secondary,
+        size: :medium,
+        icon: "arrow-left-right",
+        url: confirm_package_organisation_ai_settings_path(@organisation, ai_package_id: package.id,
+                                                           package_mode: @package_mode)
+      ) do %>
+        <%= t('views.organisations.ai_settings.packages.card.switch_button') %>
+      <% end %>
+    <% elsif package.selection_tier_unusable? %>
+      <%# Door 1 of 2 for the OTHER Actor refusal on this button (P3): a fresh
+          selection lands on the default rung, and that rung is either missing or
+          its credential can no longer serve chat (usable_for?) — the Actor
+          answers :tier_not_offered / :tier_credential_unusable either way.
+          The question goes to AiPackage#selection_tier_unusable?, the same row the
+          Actor resolves; deriving it here would be a third hand-written copy of
+          "which rung does a blank request mean".
+          AFTER the embedding block on purpose: that one is the heavier statement
+          (jurisdiction and reindex), and a card can only explain one refusal. %>
+      <p class="text-sm text-cream-800 mb-3"><%= t('views.organisations.ai_settings.packages.card.selection_blocked') %></p>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, disabled: true, icon: "exclamation-triangle") do %>
+        <%= t('views.organisations.ai_settings.packages.card.selection_blocked_button') %>
+      <% end %>
+    <% else %>
+      <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :primary,
+        size: :medium,
+        form: { action: select_package_organisation_ai_settings_path(@organisation),
+                method: :post,
+                params: { ai_package_id: package.id } }
+      ) do %>
+        <%= t('views.organisations.ai_settings.packages.card.select_button') %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

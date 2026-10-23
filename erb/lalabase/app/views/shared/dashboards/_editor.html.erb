@@ -1,0 +1,238 @@
+<%# Shared inline WYSIWYG editor body — IDENTICAL for the project dashboard and the organisation
+    overview. Both surfaces render THIS partial from a thin per-surface edit.html.erb that supplies
+    the surface-specific values as locals (routes, title, widget registry, save-scope partial). One
+    editor, two bindings — no second copy to keep in sync (see the per-surface edit.html.erb).
+
+    Wrapped in a <turbo-frame id="<frame_id>"> that matches the read view's frame, so the gear swaps
+    view<->edit in place. On a validation failure the controller re-renders this template frame-only
+    (layout: false, 422) from `configuration.layout` (= the rejected params) — keep the top-level body
+    free of app chrome (nav/header) so Turbo matches just the frame.
+
+    The chrome strings stay under the `dashboard.configuration.*` i18n namespace: they are generic
+    editor labels (Save / Cancel / Add row / Select widget …), reused verbatim by both surfaces. The
+    save-scope labels (which DO differ per surface) live in the swapped-in `save_scopes_partial`. %>
+<%
+  # smart_folders is project-only (the overview has no smart folders); default to [] so the shared
+  # body and its sub-partials never reference a missing local on the overview binding.
+  smart_folders = local_assigns.fetch(:smart_folders, [])
+  # projects is overview-only (the projects_table widget's "selected projects" picker); same pattern:
+  # default [] so the project binding (which doesn't pass it) never references a missing local.
+  projects = local_assigns.fetch(:projects, [])
+%>
+<div class="labor-layout-view">
+  <turbo-frame id="<%= frame_id %>" data-controller="frame-error">
+    <div data-controller="dashboard-inline-edit"
+         data-dashboard-inline-edit-unsaved-confirm-value="<%= t('dashboard.configuration.unsaved_confirm') %>"
+         <%# Confirm shown before a broad-write save (see confirm_scopes). Surface-specific message:
+             the project warns about overwriting all projects, the overview about the org default. %>
+         data-dashboard-inline-edit-confirm-all-value="<%= local_assigns.fetch(:confirm_message) { t('dashboard.configuration.confirm_apply_all') } %>"
+         data-dashboard-inline-edit-empty-rows-value="<%= t('dashboard.configuration.empty_rows_error') %>"
+         data-dashboard-inline-edit-empty-cards-value="<%= t('dashboard.configuration.empty_cards_error') %>"
+         <%# The 6-unit row track size; the JS reads this to gate widening and the "+ widget"
+             affordance against the units still free in a row. %>
+         data-dashboard-inline-edit-row-units-value="<%= Dashboards::LayoutEngine::ROW_UNITS %>"
+         <%# Endpoint for the live widget preview (re-render a card with its unsaved settings). %>
+         data-dashboard-inline-edit-preview-url-value="<%= preview_url %>"
+         <%# Unit→flex-class map, single source shared with the Ruby render (see DASHBOARD_UNIT_FLEX). %>
+         data-dashboard-inline-edit-unit-flex-value="<%= DashboardHelper::DASHBOARD_UNIT_FLEX.to_json %>"
+         <%# Surface binding for the shared editor JS (K1): default save scope, the scopes that trigger
+             the confirm + smart-folder warning, and the stats-style widget keys to guard. Optional
+             with neutral defaults — behaviour tuning with safe JS fallbacks, so a surface may omit them. %>
+         data-dashboard-inline-edit-default-scope-value="<%= local_assigns.fetch(:default_scope, '') %>"
+         data-dashboard-inline-edit-confirm-scopes-value="<%= local_assigns.fetch(:confirm_scopes, []).to_json %>"
+         data-dashboard-inline-edit-stats-widget-keys-value="<%= local_assigns.fetch(:stats_widget_keys, []).to_json %>">
+
+      <%= render NeoTitleBoxComponent.new(
+        title: title,
+        subtitle: subtitle,
+        variant: title_variant
+      ) do |component| %>
+        <% component.with_right_content do %>
+          <div class="flex items-center gap-2">
+            <%# Compact/preview toggle: crops the widget previews so the whole layout fits on ~one
+                screen and a far-away target row is reachable when dragging. The controller swaps the
+                icon + label to name the action for the current mode (and remembers the choice). %>
+            <%# Rendered via the shared ButtonComponent (secondary/large) so it carries the same
+                border + shadow + hover-lift as the close X next to it. Icon via the component's :icon
+                so it gets the standard icon→label spacing; the controller swaps the glyph class and
+                the label text per mode (see applyCompact). %>
+            <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :secondary, size: :large, tag: :button, type: 'button',
+                  icon: 'arrows-angle-expand',
+                  data: {
+                    action: 'click->dashboard-inline-edit#toggleCompact',
+                    dashboard_inline_edit_target: 'compactToggle',
+                    label_full: t('dashboard.configuration.view_full'),
+                    label_compact: t('dashboard.configuration.view_compact')
+                  }) do %>
+              <span data-compact-text><%= t('dashboard.configuration.view_full') %></span>
+            <% end %>
+            <%# Close (X) leaves edit mode — same target as the gear that opened it (the frame
+                swaps back to the read-only view). %>
+            <%= render Neo::Buttons::IconButtonComponent.new(
+              variant: :secondary,
+              size: :large,
+              icon: 'x-lg',
+              title: t('dashboard.configuration.edit_mode_done'),
+              url: done_url,
+              data: { turbo_frame: frame_id, action: "click->dashboard-inline-edit#confirmLeave" }
+            ) %>
+          </div>
+        <% end %>
+      <% end %>
+
+      <%# 422 inline callout (D5): validation failed; layout kept, no page jump (§19.3). %>
+      <% layout_errors = configuration.errors[:layout] %>
+      <% if layout_errors.present? || flash.now[:alert].present? %>
+        <div class="mb-4 p-3 bg-amber-50 border-2 border-stroke rounded-lg text-sm text-ink" role="alert">
+          <% if flash.now[:alert].present? %><p class="font-bold"><%= flash.now[:alert] %></p><% end %>
+          <% layout_errors.each do |message| %><p><%= message %></p><% end %>
+        </div>
+      <% end %>
+
+      <%# Unsaved-changes notice. Hidden until the first edit (the controller reveals it on markDirty);
+          a successful save navigates away (frame swap) so it is gone afterwards. role=status announces
+          it politely without stealing focus. %>
+      <div data-dashboard-inline-edit-target="unsaved"
+           class="hidden mb-4 p-3 bg-amber-50 border-2 border-stroke rounded-lg flex items-center gap-2" role="status">
+        <i class="bi bi-exclamation-circle text-amber-700" aria-hidden="true"></i>
+        <span class="flex-1 text-sm text-ink"><%= t('dashboard.configuration.unsaved_changes') %></span>
+      </div>
+
+      <%# The editor form is a STANDALONE (empty) envelope. Live-preview components can
+          contain their own <form> (e.g. recent_tickets' inline quick-add); a nested form
+          truncates a wrapping form, orphaning every later field and the save button. So
+          the form holds only its _method/CSRF, and the fields associate with it via the
+          HTML form="dashboard_edit_form" attribute instead of DOM nesting — previews stay
+          safely outside it. %>
+      <%= form_tag update_url,
+                   method: :patch, id: 'dashboard_edit_form',
+                   data: { action: "submit->dashboard-inline-edit#submit", dashboard_inline_edit_target: "form" } do %>
+      <% end %>
+
+      <%# Locals every row/slot render needs, defined once and splatted into all three call sites
+          below (the live rows, the row template, the per-widget templates) so they can never drift.
+          registry/base_params/widget_settings_partial are what bind the shared editor to a surface. %>
+      <% slot_locals = { available_widgets: available_widgets, smart_folders: smart_folders,
+                         projects: projects, registry: registry, base_params: base_params,
+                         widget_settings_partial: widget_settings_partial } %>
+
+      <div data-dashboard-inline-edit-target="rows">
+        <% configuration.layout.each_with_index do |row, row_idx| %>
+          <%= render 'shared/dashboards/edit_row', row: row, row_idx: row_idx, **slot_locals %>
+        <% end %>
+      </div>
+
+      <%# Add a new (empty) row — a full-width dashed zone that mirrors the "+" add-widget zones
+          inside the rows, for a consistent "add here" affordance. %>
+      <button type="button" data-action="click->dashboard-inline-edit#addRow" class="dashboard-edit-add-row">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i> <%= t('dashboard.configuration.add_row') %>
+      </button>
+
+      <%# Save target (surface-specific): the project dashboard renders its 4-scope radio group here,
+          the overview its own 2-scope partial. Swapped in via the `save_scopes_partial` local. %>
+      <%= render save_scopes_partial %>
+
+      <%# Guard message for the silently-reverting empty states (zero rows / a stats_cards with
+          no cards). Revealed by the controller on a blocked submit; role=alert announces it. %>
+      <p data-dashboard-inline-edit-target="error" role="alert"
+         class="hidden mb-2 p-3 bg-amber-50 border-2 border-stroke rounded-lg text-sm text-ink"></p>
+
+      <%# Sticky save bar (P7): Reset isolated left, confirmation pair right. Sits in the
+          content flow → respects the sidebar margin; cream-50 + border-t-2 separates it.
+          Save is a plain button that calls form.requestSubmit() (it lives outside the form). %>
+      <div class="sticky bottom-0 z-20 bg-cream-50 border-t-2 border-stroke py-3 flex items-center gap-3">
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :secondary, size: :large, icon: "arrow-counterclockwise",
+              url: reset_url,
+              data: { turbo_frame: frame_id, turbo_method: :delete, turbo_confirm: t('dashboard.configuration.reset_confirm') }
+            ) do %>
+          <%= t('dashboard.configuration.reset_label') %>
+        <% end %>
+
+        <%# Undo / Redo: client-side history of the layout (Cmd/Ctrl+Z, +Shift for redo). The
+            controller enables/disables these from the history position. %>
+        <%= render Neo::Buttons::IconButtonComponent.new(
+              variant: :secondary, size: :large, icon: 'arrow-90deg-left',
+              title: t('dashboard.configuration.undo'),
+              aria: { label: t('dashboard.configuration.undo') },
+              data: { action: 'click->dashboard-inline-edit#undo', dashboard_inline_edit_target: 'undoBtn' }
+            ) %>
+        <%= render Neo::Buttons::IconButtonComponent.new(
+              variant: :secondary, size: :large, icon: 'arrow-90deg-right',
+              title: t('dashboard.configuration.redo'),
+              aria: { label: t('dashboard.configuration.redo') },
+              data: { action: 'click->dashboard-inline-edit#redo', dashboard_inline_edit_target: 'redoBtn' }
+            ) %>
+
+        <div class="flex-1"></div>
+
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :secondary, size: :large,
+              url: done_url,
+              data: { turbo_frame: frame_id, action: "click->dashboard-inline-edit#confirmLeave" }
+            ) do %>
+          <%= t('dashboard.configuration.cancel') %>
+        <% end %>
+
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :primary, size: :large, tag: :button, type: 'button',
+              data: { action: "click->dashboard-inline-edit#save" }
+            ) do %>
+          <%= t('dashboard.configuration.save') %>
+        <% end %>
+      </div>
+
+      <%# ---- Hidden <template>s for cloning (no JS HTML-building, §5.3). Inert: never
+            submitted while in a <template>; only the cloned copy enters the form. ---- %>
+      <template data-row-template>
+        <%= render 'shared/dashboards/edit_row', row: { 'widgets' => [] }, row_idx: 0, **slot_locals %>
+      </template>
+
+      <%# One clone template per available widget. _edit_slot renders the widget's real content (its
+          default state), so a freshly added widget shows immediately; settings are tuned via ⋯. %>
+      <% available_widgets.each do |widget_key, _config| %>
+        <template data-widget-template="<%= widget_key %>">
+          <%= render 'shared/dashboards/edit_slot',
+                     row_idx: 0, slot_idx: 0, widget_data: { 'key' => widget_key }, **slot_locals %>
+        </template>
+      <% end %>
+
+      <%# Shown in the add-picker host when the row is full (no widget minimum fits): explains why the
+          "+" did nothing instead of silently opening an empty picker. No close button — the whole
+          hint is a dismiss target (click it, or the "+" again, to close; see addWidget's toggle). %>
+      <template data-row-full-template>
+        <button type="button" data-action="click->dashboard-inline-edit#closePicker"
+                aria-label="<%= t('dashboard.configuration.cancel') %>"
+                class="dashboard-edit-row-full dashboard-edit-picker border-2 border-stroke rounded-lg bg-surface-raised p-2 w-full text-left">
+          <span class="flex items-center gap-2">
+            <i class="bi bi-exclamation-circle text-amber-700 shrink-0" aria-hidden="true"></i>
+            <span class="flex-1 text-xs text-ink"><%= t('dashboard.configuration.row_full') %></span>
+          </span>
+        </button>
+      </template>
+
+      <template data-picker-template>
+        <div class="dashboard-edit-picker border-2 border-stroke rounded-lg bg-surface-raised p-2">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold uppercase tracking-wide text-ink/70"><%= t('dashboard.configuration.select_widget') %></span>
+            <button type="button" data-action="click->dashboard-inline-edit#closePicker"
+                    aria-label="<%= t('dashboard.configuration.cancel') %>" class="dashboard-edit-touch text-ink/60 hover:text-ink">
+              <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="space-y-1" data-picker-list>
+            <% available_widgets.each do |widget_key, config| %>
+              <button type="button" data-action="click->dashboard-inline-edit#pickWidget"
+                      data-pick="<%= widget_key %>"
+                      data-units="<%= registry.dig(widget_key, :units) || 1 %>"
+                      class="dashboard-edit-pick">
+                <%= t(config[:label_key], default: widget_key.humanize) %>
+              </button>
+            <% end %>
+          </div>
+        </div>
+      </template>
+    </div>
+  </turbo-frame>
+</div>

@@ -1,0 +1,102 @@
+<div class="pt-6">
+  <%= render NeoTitleBoxComponent.new(
+    title: t('user_preferences.edit.title'),
+    subtitle: current_user.display_name,
+    variant: :project
+  ) %>
+
+  <%# Name display mode (doc/user_display_name_avatar_plan.md, S1). VIEWER
+      preference: controls how ALL user names render for this user. The
+      preview next to each option renders the viewer's own name through the
+      SAME component every call site uses, so what is promised here is what
+      the app shows. %>
+  <div class="mt-8 max-w-2xl">
+    <p class="text-sm text-cream-700 mb-6"><%= t('user_preferences.edit.display.intro') %></p>
+
+    <div>
+      <%= form_with url: user_preferences_path, method: :patch, local: true, multipart: true, data: { turbo: false }, class: "space-y-6" do |form| %>
+        <%= hidden_field_tag 'current_section', 'display' %>
+
+        <!-- Profile picture (shown inside the circle; moved here from the
+             Devise profile, which demanded the current password for every
+             change - user decision 04.09.2026) -->
+        <div data-controller="neo-avatar-crop">
+          <span class="block text-sm font-bold mb-2 text-cream-900"><%= t('user_preferences.edit.display.avatar.label') %></span>
+          <div class="flex items-center gap-4">
+            <%= render Neo::Users::AvatarComponent.new(user: @user, size: :medium) %>
+            <div class="flex-1">
+              <%= file_field_tag 'user[avatar]', accept: UserAvatar.accept,
+                  data: { neo_avatar_crop_target: 'input', action: 'change->neo-avatar-crop#pick' },
+                  class: "block w-full text-sm text-cream-900 file:mr-3 file:py-2 file:px-3 file:rounded file:border file:border-cream-300 file:bg-surface-raised file:text-sm file:cursor-pointer" %>
+              <p class="text-xs text-cream-600 mt-2">
+                <%= t('user_preferences.edit.display.avatar.hint', max_megabytes: UserAvatar.max_megabytes) %>
+              </p>
+            </div>
+          </div>
+
+          <%# Crop tool: appears once a picture is picked. Drag pans, the
+              range input zooms; the hidden fields carry the framed square in
+              original-image pixels. Without JS this block stays hidden and
+              the server keeps its center crop. %>
+          <div hidden data-neo-avatar-crop-target="editor" class="mt-4">
+            <p class="text-xs text-cream-600 mb-2"><%= t('user_preferences.edit.display.avatar.crop_hint') %></p>
+            <div data-avatar-crop-stage
+                 class="relative w-60 h-60 rounded-[5px] overflow-hidden border-2 border-cream-300 bg-cream-100 cursor-grab touch-none select-none"
+                 data-action="pointerdown->neo-avatar-crop#dragStart">
+              <img data-neo-avatar-crop-target="image"
+                   data-action="load->neo-avatar-crop#loaded error->neo-avatar-crop#failed"
+                   alt="" draggable="false" class="absolute top-0 left-0 origin-top-left">
+            </div>
+            <label class="mt-3 flex items-center gap-3 text-xs text-cream-700 max-w-60">
+              <i class="bi bi-zoom-in" aria-hidden="true"></i>
+              <input type="range" min="1" max="3" step="0.01" value="1" class="w-full" autocomplete="off"
+                     data-neo-avatar-crop-target="zoom" data-action="input->neo-avatar-crop#zoom"
+                     aria-label="<%= t('user_preferences.edit.display.avatar.zoom_label') %>">
+            </label>
+            <%= hidden_field_tag 'user[avatar_crop_x]', '', data: { neo_avatar_crop_target: 'fieldX' } %>
+            <%= hidden_field_tag 'user[avatar_crop_y]', '', data: { neo_avatar_crop_target: 'fieldY' } %>
+            <%= hidden_field_tag 'user[avatar_crop_size]', '', data: { neo_avatar_crop_target: 'fieldSize' } %>
+          </div>
+
+          <%# persisted?, not just attached?: after a rejected upload the section
+              re-renders with the picked file still staged, and attached? is true
+              for that. Without the blob check a user WITHOUT a picture is offered
+              "remove profile picture". Same guard as Neo::Users::NameComponent. %>
+          <% if @user.avatar.attached? && @user.avatar.blob&.persisted? %>
+            <label class="mt-2 inline-flex items-center gap-2 text-sm text-cream-900 cursor-pointer">
+              <%= check_box_tag 'user[remove_avatar]', '1', false %>
+              <%= t('user_preferences.edit.display.avatar.remove') %>
+            </label>
+          <% end %>
+        </div>
+
+        <!-- Name display mode -->
+        <div>
+          <span class="block text-sm font-bold mb-2 text-cream-900"><%= t('user_preferences.edit.display.name_display.label') %></span>
+          <% current_mode = @user.preference_store.name_display_mode %>
+          <div class="space-y-2">
+            <% User::PreferenceStore::NAME_DISPLAY_MODES.each do |mode| %>
+              <label class="flex items-center justify-between gap-4 rounded border border-cream-300 bg-surface-raised px-4 py-3 cursor-pointer hover:border-ink transition-all">
+                <span class="flex items-center gap-3">
+                  <%= radio_button_tag 'preferences[name_display]', mode, current_mode == mode %>
+                  <span class="text-sm text-cream-900"><%= t("user_preferences.edit.display.name_display.#{mode}") %></span>
+                </span>
+                <span class="text-sm text-cream-700">
+                  <%= render Neo::Users::NameComponent.new(user: @user, mode: mode) %>
+                </span>
+              </label>
+            <% end %>
+          </div>
+          <p class="text-xs text-cream-600 mt-2"><%= t('user_preferences.edit.display.name_display.description') %></p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-end gap-3 pt-4">
+          <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, type: "submit") do %>
+            <%= t('user_preferences.edit.actions.save') %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

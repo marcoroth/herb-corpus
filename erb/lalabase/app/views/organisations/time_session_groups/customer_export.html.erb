@@ -1,0 +1,201 @@
+<div data-controller="customer-description-edit billing-modal" data-customer-description-edit-group-id-value="<%= @time_session_group.id %>" data-billing-modal-loading-text-value="<%= t('views.organisations.time_session_groups.billing_status.loading') %>">
+  <%= render 'header' %>
+
+  <div>
+    <%= render 'navigation', current_view: :customer_export %>
+
+    <% ce = 'views.organisations.time_session_groups.customer_export' %>
+    <% if @time_sessions.any? %>
+      <%# The section strip (D2 follow-up, user 02.09.): title + counter left,
+          actions right - no boxed gray header, the page's own ground. %>
+      <div class="mb-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div>
+          <h3 class="text-base font-bold text-cream-900"><%= t("#{ce}.customer_descriptions_title") %></h3>
+          <p class="mt-0.5 text-sm text-cream-600">
+            <%= t("#{ce}.customer_descriptions_count", with_description: @sessions_with_description, total: @time_sessions.count) %>
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <%# R3 (doc/ai_feature_registry_plan.md): asks the FEATURE, not a
+              provider. :customer_description is the one pinned entry in the
+              registry (gpt-5-nano is a reasoning model, reasoning_effort travels
+              via provider_options) — and Factory.for_feature routes the generator
+              off that same row, so this button and the call behind it cannot
+              disagree about where the data goes.
+
+              The gate is stricter than "a usable OpenAI credential exists": for a
+              pinned feature the org must actually ROUTE there, otherwise the
+              button would spend its data at a provider its admin did not choose. %>
+          <% if policy(@time_session_group).generate_customer_descriptions? %>
+            <% descriptions = @current_organisation.ai_available_for?(:customer_description) %>
+            <% if descriptions.available? %>
+              <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :ai,
+                size: :medium,
+                icon: "magic",
+                url: generate_customer_descriptions_organisation_time_session_group_path(@current_organisation, @time_session_group),
+                data: { turbo_method: :post, turbo_confirm: t('views.confirm.generate_descriptions') }
+              ) do %>
+                <%= t("#{ce}.generate_descriptions_button") %>
+              <% end %>
+              <% if @sessions_with_description > 0 %>
+                <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :secondary,
+                  size: :medium,
+                  icon: "arrow-clockwise",
+                  url: generate_customer_descriptions_organisation_time_session_group_path(@current_organisation, @time_session_group, regenerate: true),
+                  data: { turbo_method: :post, turbo_confirm: t('views.confirm.regenerate_descriptions') }
+                ) do %>
+                  <%= t("#{ce}.regenerate_descriptions_button") %>
+                <% end %>
+              <% end %>
+            <%# Show the button DISABLED with its reason for every reason the
+                hint can explain to THIS page's audience (adversarial review
+                R3-B1): unavailable_hint carries a correct, actionable sentence
+                for :no_credential too, so withholding it would leave the admin
+                with an expired key staring at nothing exactly where they look.
+                Only :ai_disabled stays silent here — surfacing opt-in hints is
+                the flat R4 rollout, not this page's job. %>
+            <% elsif %i[pinned_elsewhere no_credential].include?(descriptions.reason) %>
+              <%# Disabled rather than absent: the action stays visible where the
+                  user looks for it, and the sentence next to it answers "why can
+                  I not click this?" on the spot. No title: attribute — the
+                  component's disabled state sets pointer-events-none, so a
+                  tooltip would never appear. aria-describedby wires the reason
+                  to the button for assistive tech (the disabled button is not
+                  focusable, but reading mode follows the reference). %>
+              <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :ai,
+                size: :medium,
+                icon: "magic",
+                disabled: true,
+                aria: { describedby: "customer-descriptions-unavailable-hint" }
+              ) do %>
+                <%= t("#{ce}.generate_descriptions_button") %>
+              <% end %>
+              <p id="customer-descriptions-unavailable-hint" class="max-w-md text-sm text-cream-600">
+                <i class="bi bi-info-circle mr-1"></i>
+                <%= Lalabase::Llm::FeatureRegistry.unavailable_hint(descriptions, @current_organisation) %>
+              </p>
+            <% end %>
+          <% end %>
+
+          <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :success,
+            size: :medium,
+            icon: "file-earmark-excel",
+            url: export_customer_descriptions_organisation_time_session_group_path(@current_organisation, @time_session_group)
+          ) do %>
+            <%= t("#{ce}.excel_export_button") %>
+          <% end %>
+        </div>
+      </div>
+
+      <%# The rows in the same flex-grid skeleton as the other two views:
+          header, rows and sum footer share ONE column set. The editor keeps
+          every Stimulus hook exactly (targets, actions, the text-gray-500
+          class the char counter toggles against) - this is a reskin, the
+          customer-description-edit controller stays untouched. %>
+      <div class="flex items-center gap-3.5 px-2 pb-1.5 text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600">
+        <span class="w-[62px] shrink-0 text-right"><%= t("#{ce}.th_duration") %></span>
+        <span class="w-[86px] shrink-0"><%= t("#{ce}.th_date") %></span>
+        <span class="w-[200px] shrink-0"><%= t("#{ce}.th_subject") %></span>
+        <span class="min-w-0 flex-1"><%= t("#{ce}.th_customer_description") %></span>
+      </div>
+      <div class="h-px bg-cream-400"></div>
+
+      <% @time_sessions.each do |time_session| %>
+        <div class="flex items-start gap-3.5 border-b border-cream-200 px-2 py-3"
+             data-controller="customer-description-edit"
+             data-customer-description-edit-session-id-value="<%= time_session.id %>">
+          <span class="w-[62px] shrink-0 text-right font-mono text-sm font-semibold leading-6 text-cream-900">
+            <%= time_session.duration_string %>
+          </span>
+          <span class="w-[86px] shrink-0 font-mono text-sm leading-6 text-cream-700">
+            <%= time_session.occurred_on.strftime('%d.%m.%Y') %>
+          </span>
+          <div class="w-[200px] shrink-0 truncate text-[15px] leading-6">
+            <%= render 'organisations/time_sessions/subject_cell',
+                       subject: time_session.subject,
+                       link_access: @subject_link_access,
+                       truncate_length: 30,
+                       link_class: "font-medium text-cream-900 hover:underline",
+                       muted_class: "text-cream-500" %>
+          </div>
+
+          <div class="min-w-0 flex-1">
+            <!-- Display Mode -->
+            <div data-customer-description-edit-target="display" class="<%= time_session.customer_description.blank? ? 'hidden' : '' %>">
+              <% if time_session.description.present? %>
+                <div class="mb-1 break-words text-xs italic leading-5 text-cream-500">
+                  <%= truncate(time_session.description, length: 150) %>
+                </div>
+              <% end %>
+              <div class="flex items-start gap-2">
+                <i class="bi bi-robot mt-0.5 flex-shrink-0 text-purple-600" aria-hidden="true"></i>
+                <div data-customer-description-edit-target="text" class="min-w-0 flex-1 break-words text-sm leading-6 text-cream-900">
+                  <%= time_session.customer_description || '' %>
+                </div>
+              </div>
+            </div>
+
+            <!-- Edit Mode -->
+            <div data-customer-description-edit-target="editor" class="<%= 'hidden' if time_session.customer_description.present? %>">
+              <textarea
+                data-customer-description-edit-target="textarea"
+                class="w-full resize-none rounded border border-cream-300 bg-surface-raised px-3 py-2 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                rows="2"
+                maxlength="160"
+                placeholder="<%= t("#{ce}.customer_description_placeholder") %>"><%= time_session.customer_description %></textarea>
+              <div class="mt-1.5 flex items-center justify-between">
+                <span data-customer-description-edit-target="charCount" class="text-xs text-gray-500">
+                  <%= t("#{ce}.char_count", count: time_session.customer_description&.length || 0) %>
+                </span>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    data-action="click->customer-description-edit#save"
+                    class="rounded-md bg-ink px-3 py-1 text-xs font-medium text-on-fill hover:opacity-90">
+                    <%= t("#{ce}.save_button") %>
+                  </button>
+                  <button
+                    type="button"
+                    data-action="click->customer-description-edit#cancel"
+                    class="rounded-md px-3 py-1 text-xs font-medium text-cream-700 hover:bg-cream-200">
+                    <%= t("#{ce}.cancel_button") %>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <%# Starts hidden even on blank rows: the open editor already says
+                there is nothing yet, and the old double statement (textarea
+                PLUS "no description" line) read like a defect. The controller
+                reveals it after cancel on a blank row. %>
+            <!-- Empty State -->
+            <div data-customer-description-edit-target="empty" class="hidden">
+              <span class="text-sm italic text-cream-500"><%= t("#{ce}.no_customer_description") %></span>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%# The sum footer: every row above, from the controller's one pass. %>
+      <div class="flex items-baseline gap-3.5 px-2 pt-2">
+        <span class="w-[62px] shrink-0 text-right font-mono text-base font-semibold text-cream-900">
+          <%= TimeSession.format_duration(@group_figures[:minutes]) %>
+        </span>
+        <span class="min-w-0 flex-1 text-sm text-cream-600"><%= t('views.organisations.time_session_groups.shared.sum_all') %></span>
+      </div>
+    <% else %>
+      <div class="rounded-lg border border-cream-300 bg-cream-50 p-6 text-center">
+        <p class="text-cream-600"><%= t("#{ce}.no_sessions_in_group") %></p>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Activity Feed -->
+  <div>
+    <%= render 'organisations/time_session_groups/activities', activities: @activities %>
+  </div>
+</div>

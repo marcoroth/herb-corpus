@@ -1,0 +1,171 @@
+<%# app/views/smart_folders/index.html.erb %>
+<%# Turbo Frame for modal contents %>
+<turbo-frame id="modal"></turbo-frame>
+
+<%= render NeoTitleBoxComponent.new(
+  title: t('smart_folders.title'),
+  variant: :organisation
+) do |component| %>
+  <% if policy(SmartFolder).create? %>
+    <% component.with_title_action do %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :primary,
+        icon: "plus-lg",
+        size: :medium,
+        title: "Neuen intelligenten Ordner erstellen",
+        tag: :a,
+        url: new_organisation_smart_folder_path(@current_organisation, project_id: params[:project_id], modal: true),
+        data: { turbo_frame: "modal" }
+      ) %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%# TODO: add filter/search form %>
+
+<div id="smart-folders-list">
+  <% if @smart_folders.any? %>
+    <table class="min-w-full divide-y divide-black border border-stroke">
+      <thead class="bg-gray-200">
+        <tr>
+          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider">
+            <%= sortable "smart_folders.name", t('activerecord.attributes.smart_folder.name') %>
+          </th>
+          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider">
+            <%= t('activerecord.attributes.smart_folder.description') %>
+          </th>
+          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider">
+            <%= t('activerecord.attributes.smart_folder.project') %>
+          </th>
+          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider">
+            <%= sortable "smart_folders.updated_at", t('activerecord.attributes.smart_folder.updated_at') %>
+          </th>
+          <th scope="col" class="w-24 px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider">
+            <%= t('generic.actions', default: 'Aktionen') %>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-surface-raised divide-y divide-black">
+        <% @smart_folders.each do |folder| %>
+          <tr id="<%= dom_id(folder) %>"
+              data-href="<%= organisation_smart_folder_path(@current_organisation, folder) %>"
+              class="hover:bg-gray-100 transition-colors duration-200 ease-in-out cursor-pointer">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="flex flex-col">
+                  <h5 class="text-sm font-medium">
+                    <%= folder.name %>
+                  </h5>
+                  <% if folder.user == current_user %>
+                    <span class="text-xs text-gray-500">
+                      <%= t('smart_folders.ownership.own', default: 'Eigener Ordner') %>
+                    </span>
+                  <% else %>
+                    <span class="text-xs text-gray-500">
+                      <%= t('smart_folders.ownership.from', default: 'Von') %> <%= folder.user.email %>
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4">
+              <div class="text-sm"><%= folder.description %></div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <% if folder.project.present? %>
+                <span class="inline-flex items-center gap-x-1.5 py-1.5 px-3 rounded-full text-xs font-medium border border-stroke bg-lime-200 text-cream-900">
+                  <%= folder.project.name %>
+                </span>
+              <% else %>
+                <span class="inline-flex items-center gap-x-1.5 py-1.5 px-3 rounded-full text-xs font-medium border border-stroke bg-cobalt-200 text-cream-900">
+                  <%= t('smart_folders.organisation_wide', default: 'Organisationsweit') %>
+                </span>
+              <% end %>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm"><%= l(folder.updated_at, format: :short) %></div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap no-click">
+              <div class="flex gap-2">
+                <% if policy(folder).edit? %>
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :edit,
+                    size: :medium,
+                    tag: :a,
+                    href: edit_organisation_smart_folder_path(@current_organisation, folder, modal: true),
+                    icon: "pencil",
+                    title: t('generic.edit'),
+                    data: { turbo_frame: "modal" }
+                  ) %>
+                <% end %>
+                <% if policy(folder).share? %>
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :secondary,
+                    size: :medium,
+                    tag: :a,
+                    href: share_organisation_smart_folder_path(@current_organisation, folder),
+                    icon: "share",
+                    title: t('smart_folders.share')
+                  ) %>
+                <% end %>
+                <% if policy(folder).destroy? %>
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :danger,
+                    size: :medium,
+                    icon: "trash",
+                    title: t('generic.delete'),
+                    interactive: true,
+                    confirm: t('smart_folders.confirm_delete'),
+                    tag: :a,
+                    href: organisation_smart_folder_path(@current_organisation, folder),
+                    data: {
+                      turbo_method: :delete
+                    }
+                  ) %>
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <%# Pagination navigation %>
+    <% if @pagy.pages > 1 %>
+      <%= render 'shared/pagination_nav', pagy: @pagy %>
+    <% end %>
+
+  <% else %>
+    <div class="mt-6 text-center p-8 bg-gray-100 rounded-lg">
+      <p class="text-gray-600">
+        <%= t('smart_folders.no_folders', default: 'Keine Intelligenten Ordner gefunden.') %>
+      </p>
+      <p class="mt-2">
+        <%= link_to new_organisation_smart_folder_path(@current_organisation, project_id: params[:project_id], modal: true),
+                  class: "text-cobalt-600 hover:text-cobalt-800",
+                  data: { turbo_frame: "modal" } do %>
+          <i class="bi bi-plus-circle me-1"></i> <%= t('smart_folders.create_first', default: 'Erstellen Sie Ihren ersten Intelligenten Ordner') %>
+        <% end %>
+      </p>
+    </div>
+  <% end %>
+</div>
+
+<script>
+document.addEventListener('turbo:load', () => {
+  const rows = document.querySelectorAll('tr[data-href]');
+
+  rows.forEach(row => {
+    row.addEventListener('click', (e) => {
+      // Check whether the click occurred on an element within a specific column
+      const excludedColumns = e.target.closest('.no-click');
+      const link = e.target.closest('a');
+
+      // Only redirect if no exclusion condition applies
+      if (!excludedColumns && !link) {
+        window.location.href = row.dataset.href;
+      }
+    });
+  });
+});
+</script>

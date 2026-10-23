@@ -1,0 +1,131 @@
+<% if @viewport_mode == 'mobile' %>
+  <%= render 'organisations/tickets/ticket_row_mobile', ticket: ticket, project: project %>
+<% else %>
+<%# One ticket row for the list (doc/spaltenwahl_plan.md, S1). A ranked field is
+    a CELL of its column (td[data-rank]) and nothing else; how many of them show
+    is decided by the table's data-fit (measured by lib/column_picker/fit.js,
+    first written by the server) and the rules under "Column fit" in layout.css.
+    A field beyond the fit is dropped - a row stays one line. Cells come from
+    TicketColumnsHelper. Locals: ticket, columns (Tickets::ResolveColumns),
+    organisation, project, selected_ticket, smart_folder_id. %>
+<% ticket_url = organisation_project_ticket_path(organisation, project, ticket) %>
+<% smart_folder_params = defined?(smart_folder_id) && smart_folder_id.present? ? { smart_folder_id: smart_folder_id } : {} %>
+<% if smart_folder_params.any? %>
+  <% ticket_url = organisation_project_ticket_path(organisation, project, ticket, smart_folder_params) %>
+<% end %>
+<% ranked_columns = columns.reject { |column| column[:required] } %>
+<%# One answer per row for "does this row already say the deadline somewhere
+    else" - the due column on screen, or a view whose own condition is the
+    deadline. The caller passes the filtered keys; without them only the column
+    case applies. %>
+<% deadline_flag_suppressed = ticket_deadline_flag_suppressed?(columns, local_assigns[:filtered_keys]) %>
+
+<%# list-row: the ONE opener of the ticket row, the kanban card and the
+    knowledge row (S2 of doc/wissen_als_bahn_plan.md). url is the DETAIL
+    address the lane fetches; the page address comes from data-index-url on
+    the page wrapper. .selected-row is the one mark, server and client. %>
+<tr data-controller="list-row"
+    data-list-row-url-value="<%= html_escape(ticket_url) %>"
+    data-list-row-id-value="<%= ticket.id %>"
+    data-list-row-param-value="ticket_id"
+    data-list-row-frame-value="ticket_display_frame"
+    data-ticket-id="<%= ticket.id %>"
+    data-href="<%= html_escape(ticket_url) %>"
+    data-action="click->list-row#click"
+    class="ticket-row cursor-pointer border-b border-gray-200 focus:outline-none <%= (defined?(selected_ticket) && selected_ticket&.id == ticket.id) ? 'selected-row' : '' %>"
+    tabindex="-1">
+
+  <%# ⚠️ NO mark left of the text edge, in any form (designer, 07.09.2026). A
+      4px red bar used to sit here, outside the edge that the column head and
+      the title start on. Whoever wants to pick one row out has the tinted
+      surface, and that one means "selected".
+      The selection box (08.09.2026, doc/ticket_bulk_edit_plan.md slice 1) is
+      not that mark: it is the FIRST CELL inside the edge, head and rows alike,
+      so the table as a block still starts where the tab word starts. Only for
+      readers who may write. td.no-click keeps ticket-row#click away from it:
+      the row opens the ticket, the box selects, two targets, two effects. The
+      box answers to click, not change: shift is on the mouse event, and Space
+      on a focused box fires a click as well. %>
+  <% if ticket_list_selectable?(project) %>
+    <td class="py-3 select-column no-click" data-column="select">
+      <input type="checkbox"
+             value="<%= ticket.id %>"
+             class="ticket-select-box"
+             data-ticket-selection-target="box"
+             data-action="click->ticket-selection#toggle"
+             aria-label="<%= t('views.organisations.tickets.selection.box_label', number: ticket.number) %>">
+    </td>
+  <% end %>
+  <td class="py-3 number-column" data-column="number">
+    <div class="text-xs font-mono font-medium text-muted whitespace-nowrap">
+      <%# No whitespace between number and dot: a space is ~7px of the column's 48 (layout.css). %>
+      #<%= ticket.number %><%= render 'organisations/tickets/unread_indicator', ticket: ticket,
+                 unread: (@unread_notifications_per_ticket&.dig(ticket.id) || 0) > 0 %>
+    </div>
+  </td>
+
+  <%# The deadline sign lives INSIDE this cell, in front of the title: a state
+      of the ticket belongs on the same edge as the ticket's name.
+      ⚠️ The title needs its own element with flex-1 and min-w-0. As a bare text
+      node in a flex container text-overflow does not apply and a long title is
+      cut off hard instead of getting its ellipsis. %>
+  <td class="py-3 ps-1.5 pe-3 title-column overflow-hidden" data-column="title">
+    <div class="flex flex-col gap-[3px] min-w-0">
+      <div class="flex items-center gap-[7px] min-w-0">
+        <%= ticket_deadline_flag(ticket, suppressed: deadline_flag_suppressed) %>
+        <%# Ink, not the inherited slate: the title is what one reads the list
+            FOR, so it is the one thing on the row at full strength. Everything
+            around it (number, heads, empty cells) is muted on purpose.
+            ⚠️ Its own element with flex-1 and min-w-0: as a bare text node in a
+            flex container text-overflow does not apply and a long title is cut
+            off hard instead of getting its ellipsis. %>
+        <h5 class="text-sm font-medium truncate text-heading flex-1 min-w-0">
+          <%= ticket.title %>
+        </h5>
+      </div>
+
+      <%# The values of the columns the width could not carry, in ONE line under
+          the title, in the order of the columns themselves. Which of them show
+          is decided by the stylesheet against the table's data-fit: an item
+          appears exactly when its cell has gone (layout.css, "The meta line
+          under the title"), so nothing is ever said twice in one row. When
+          everything is left out the row is one line again.
+          ⚠️ An item is rendered for EVERY ranked column, and the ones that must
+          not show carry `hidden`. The stylesheet counts positions (nth-child)
+          to compare a rank with the fit, so leaving an item out would shift
+          every item behind it onto the wrong rank. Two reasons to hide one:
+          the column is not pinned - then its value goes when its column goes,
+          which is what "not pinned" means - and that is `hidden`; or it has no
+          value to show, and that is an EMPTY item (`:empty` in layout.css),
+          because a sub-ticket's write updates the text of its parent's item
+          without the row (TicketListColumns#ticket_list_parent_streams).
+          ⚠️ Nothing between the tags, not even a space, or :empty never matches.
+          data-meta-column, not data-column: that one names the row's CELLS. %>
+      <div class="ticket-meta text-[11px] text-muted truncate">
+        <% ranked_columns.each do |column| %>
+          <% meta_text = column[:pinned] ? ticket_column_meta_text(ticket, column) : nil %>
+          <span class="ticket-meta__item" data-rank="<%= column[:rank] %>" data-meta-column="<%= column[:key] %>"
+                <%= 'hidden' unless column[:pinned] %>><%= meta_text %></span>
+        <% end %>
+      </div>
+        <%# A row is ONE line. Fields that do not fit are dropped, not stacked
+            under the title: with the detail open the list is the register one
+            pages through, and the values live in the detail beside it. Until
+            07.09.2026 every ranked field was in the row twice - as a cell and
+            as an item here - and the second copy turned every row into three
+            or four lines the moment the detail opened. %>
+    </div>
+  </td>
+
+  <% ranked_columns.each do |column| %>
+    <%# Alignment from the column's type (column_align_class): a quantity lines
+        up on the right, in the cell and in the head above it. %>
+    <td class="p-3 <%= column_align_class(column) %> <%= column[:key] %>-column <%= column_header_class(column).gsub('-header', '') %> overflow-hidden"
+        data-rank="<%= column[:rank] %>"
+        data-column="<%= column[:key] %>"
+        style="<%= column_min_width_style(column) %>"><%= ticket_column_cell(ticket, column) %></td>
+  <% end %>
+
+</tr>
+
+<% end %>

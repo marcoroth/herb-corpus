@@ -1,0 +1,47 @@
+<%# locals: (meeting:, detail_frame_id: nil) %>
+<%# The ONE "new meeting" form, rendered into whichever frame asked for it: the
+    lane of the project page, or the frame below the project select in the lane
+    of "Alle Meetings" (meetings_overview/_new_meeting_lane). Submits as
+    turbo_stream; MeetingsController#create decides what to redraw from the list
+    context in the hidden fields (list_context, Meetings::ListState), because the
+    two pages have different lists.
+
+    In the lane itself the form brings the lane head and the heading. Below the
+    select the lane has both already, and the card names its project's meetings
+    index instead (data-lane-index-url, as the lane head does): layout-toggle
+    sets the live list state into the hidden fields at submit for a form below
+    an index it knows (lib/lane/filter_context), and the list may have changed
+    since the select's options were rendered. %>
+<% current_frame_id = detail_frame_id || Organisations::MeetingsController::DETAIL_FRAME_ID %>
+<% own_lane = current_frame_id == Organisations::MeetingsController::DETAIL_FRAME_ID %>
+<%= tag.div id: 'meeting-form-card', class: [('meeting-content' if own_lane), 'min-w-0 relative'].compact,
+            data: ({ lane_index_url: organisation_project_meetings_path(@current_organisation, @project) } unless own_lane) do %>
+  <% if own_lane %>
+    <%= render 'organisations/meetings/form_lane_head', new_form: true %>
+    <h2 class="text-[22px] leading-snug font-bold text-cream-900 mb-6">
+      <%= t('views.organisations.meetings.index.new_meeting') %>
+    </h2>
+  <% end %>
+  <%= form_with(model: [@current_organisation, @project, meeting], format: :turbo_stream,
+                data: { turbo_frame: current_frame_id }) do |form| %>
+    <%= hidden_field_tag :frame_id, current_frame_id %>
+    <%# Carry the active list filter through the write flow — the success
+        turbo_stream re-renders the list the form was opened from; without this the
+        filtered list silently snaps back to "all". %>
+    <%= meeting_list_hidden_fields %>
+    <%= render 'organisations/meetings/form_fields', form: form, meeting: meeting %>
+
+    <div class="flex justify-end items-center gap-2 mt-6">
+      <%# Back to the list the form was opened from, which closes the lane and
+          takes new out of the address (MeetingList#meeting_list_index_path). %>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :edit, url: meeting_list_index_path(meeting_list_state),
+                                                   data: { turbo_frame: '_top', lane_back: true }) do %>
+        <%= t('views.organisations.meetings.form.cancel') %>
+      <% end %>
+
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, type: 'submit') do %>
+        <%= t('views.organisations.meetings.form.save') %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

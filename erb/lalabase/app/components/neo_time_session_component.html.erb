@@ -1,0 +1,133 @@
+<% if quiet? %>
+  <%# Rank between comment and change (designer round 05.09.2026): the 26px
+      column names the KIND - a frameless clock where a comment carries the
+      author mark - the duration leads in mono 14px as the number one reads,
+      and the person sits quietly below as a data field, not an author. The
+      icon says "time entry", so the word itself stays for screen readers
+      only. The default (card) branch below is the assistant report panel. %>
+  <div class="<%= base_classes %>" id="<%= dom_id_for_time_session %>">
+    <div class="group relative flex gap-3 py-1.5">
+      <span class="flex w-[26px] shrink-0 justify-center pt-0.5 text-cream-500" aria-hidden="true">
+        <i class="bi bi-clock text-[14px]"></i>
+      </span>
+      <div class="min-w-0 flex-1 max-w-[70ch]">
+        <span class="sr-only"><%= t('views.organisations.tickets.timeline.time_entry_label') %></span>
+        <div class="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3">
+          <span class="font-mono text-[14px] text-cream-800"><%= compact_duration %></span>
+          <span class="min-w-0 text-[13px] leading-relaxed text-cream-700">
+            <% if description_present? %><%= description_text %><% end %>
+            <span class="ml-1 inline-flex align-middle">
+              <%= render TimeSessionBillingStatusComponent.new(
+                time_session: time_session,
+                show_link: true,
+                size: :small
+              ) %>
+            </span>
+            <% if popover_pencil? %>
+              <%# ONE frameless pencil, like the comment's: it opens the capture
+                  popover at the hours sum in edit mode with this row loaded
+                  (designer, 05.09.2026 — one place instead of two forms). The
+                  red trash is gone; deleting is a text action inside edit
+                  mode, next to the values it destroys, with a confirmation. %>
+              <span class="ml-2 inline-flex align-middle opacity-20 transition-opacity duration-200 hover:opacity-100 focus-within:opacity-100">
+                <%= render Neo::Buttons::IconButtonComponent.new(
+                  variant: :plain,
+                  size: :small,
+                  tag: :a,
+                  href: popover_edit_href,
+                  icon: "pencil",
+                  title: t('views.organisations.time_sessions.subject_popover.heading_edit'),
+                  data: { turbo_frame: popover_frame_dom_id }
+                ) %>
+              </span>
+            <% end %>
+          </span>
+          <%# No date here: the day header carries it; a time session knows a
+              DAY, not a moment (TicketTimelineService.date_only?). Mono and
+              right on the text column's edge for the rare session that IS
+              sorted by a moment. %>
+          <% if row_time.present? %>
+            <span class="justify-self-end font-mono text-[12px] text-cream-500"><%= row_time %></span>
+          <% end %>
+          <span class="col-start-2 text-[12px] text-cream-500"><%= author_name %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+<% else %>
+<div class="<%= base_classes %>" id="<%= dom_id_for_time_session %>">
+
+  <!-- Edit/Delete buttons for owner (only when not yet billed) -->
+  <% if can_edit? %>
+    <div class="absolute top-4 right-4 flex items-center gap-2">
+      <!-- Edit Button -->
+      <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <%= render Neo::Buttons::IconButtonComponent.new(
+          variant: :edit,
+          size: :small,
+          tag: :button,
+          icon: "pencil",
+          title: "Zeitsession bearbeiten",
+          data: {
+            controller: "time-session-actions",
+            action: "click->time-session-actions#editTimeSession"
+          }.merge(time_session_data_attributes)
+        ) %>
+      </div>
+
+      <!-- Delete Button -->
+      <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <%= render Neo::Buttons::IconButtonComponent.new(
+          variant: :danger,
+          size: :small,
+          tag: :button,
+          icon: "trash",
+          title: "Zeitsession löschen",
+          data: {
+            controller: "time-session-actions",
+            action: "click->time-session-actions#deleteTimeSession",
+            time_session_id: time_session.id,
+            project_id: project&.id || time_session.project_id
+          }
+        ) %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="flex items-start gap-4">
+    <!-- Icon circle as a visual marker for time tracking (counterpart to action-tracking icons) -->
+    <div class="flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-cobalt-600 flex items-center justify-center">
+        <i class="bi bi-clock text-on-fill text-sm"></i>
+      </div>
+    </div>
+
+    <div class="flex-grow min-w-0">
+      <!-- Meta — author · date · duration in one quiet row -->
+      <div class="flex flex-wrap items-center gap-2 mb-3 text-sm">
+        <span class="font-semibold text-slate-900"><%= author_name %></span>
+        <span class="text-slate-400">·</span>
+        <span class="font-mono text-xs text-slate-500"><%= formatted_date %></span>
+        <span class="text-slate-400">·</span>
+        <span class="font-mono text-sm font-semibold text-cobalt-700"><%= formatted_duration %></span>
+      </div>
+
+      <!-- Description (optional) -->
+      <% if description_present? %>
+        <p class="text-slate-700 leading-relaxed mb-2">
+          „<%= description_text %>"
+        </p>
+      <% end %>
+
+      <!-- Billing Status Badge -->
+      <div class="mt-2">
+        <%= render TimeSessionBillingStatusComponent.new(
+          time_session: time_session,
+          show_link: true,
+          size: :small
+        ) %>
+      </div>
+    </div>
+  </div>
+</div>
+<% end %>

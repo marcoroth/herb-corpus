@@ -1,0 +1,119 @@
+<% areas = Organisations::Team::MemberRowComponent::AREAS %>
+
+<turbo-frame id="modal"></turbo-frame>
+
+<div class="labor-layout-view">
+  <%= render NeoTitleBoxComponent.new(
+    title: t('views.organisations.project_permissions.index.title'),
+    subtitle: @project.name,
+    variant: :project
+  ) do |component| %>
+    <% component.with_right_content do %>
+      <%= render Neo::Buttons::HeaderButtonComponent.new(
+        variant: :secondary,
+        icon: "arrow-left",
+        label: t('views.organisations.project_permissions.index.back'),
+        url: organisation_project_path(@current_organisation, @project)
+      ) %>
+    <% end %>
+  <% end %>
+
+  <%# Compact, collapsible legend (replaces the permanent explanation block) %>
+  <details class="mt-6 text-sm">
+    <summary class="cursor-pointer font-medium text-cream-600 hover:text-ink">
+      <%= t('views.organisations.project_permissions.legend.title') %>
+    </summary>
+    <div class="mt-3 flex flex-wrap items-center gap-4 rounded-lg bg-cream-50 p-3">
+      <% Organisations::Team::AccessCellComponent::LEVELS.each do |lvl| %>
+        <%= render Organisations::Team::AccessCellComponent.new(area: :tickets, level: lvl) %>
+      <% end %>
+      <span class="inline-flex items-center gap-2 text-cream-600">
+        <i class="bi bi-lock-fill text-xs" aria-hidden="true"></i>
+        <%= t('views.organisations.project_permissions.legend.inherited') %>
+      </span>
+    </div>
+  </details>
+
+  <%# Team members %>
+  <section class="mt-8">
+    <h2 class="mb-4 text-lg font-bold text-ink"><%= t('views.organisations.project_permissions.index.team_members') %></h2>
+
+    <% if @members.empty? %>
+      <div class="rounded-lg bg-cream-50 px-6 py-12 text-center">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border-2 border-ink text-cream-500">
+          <i class="bi bi-people text-2xl" aria-hidden="true"></i>
+        </div>
+        <p class="font-medium text-ink"><%= t('views.organisations.project_permissions.index.empty_title') %></p>
+        <p class="mt-1 text-sm text-cream-600"><%= t('views.organisations.project_permissions.index.empty_hint') %></p>
+      </div>
+    <% else %>
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+          <thead class="hidden md:table-header-group">
+            <tr class="text-left">
+              <th class="border-b border-ink px-1 py-3 text-[11px] font-medium uppercase tracking-wider text-cream-600"><%= t('views.organisations.project_permissions.index.col_member') %></th>
+              <% areas.each do |area| %>
+                <th class="border-b border-ink px-3 py-3 text-center text-[11px] font-medium uppercase tracking-wider text-cream-600"><%= t("views.organisations.project_permissions.areas.#{area}") %></th>
+              <% end %>
+              <th class="border-b border-ink px-3 py-3 text-center text-[11px] font-medium uppercase tracking-wider text-cream-600"><%= t('views.organisations.project_permissions.areas.time_sessions') %></th>
+              <th class="border-b border-ink px-1 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-cream-600"><%= t('views.organisations.project_permissions.index.col_actions') %></th>
+            </tr>
+          </thead>
+          <% @members.each do |member| %>
+            <tbody data-controller="team-member-edit">
+              <%= render Organisations::Team::MemberRowComponent.new(
+                    member: member, project: @project, organisation: @current_organisation,
+                    can_manage: @can_manage_members) %>
+            </tbody>
+          <% end %>
+        </table>
+      </div>
+    <% end %>
+  </section>
+
+  <%# Add member (search picker) %>
+  <% if @can_manage_members && @candidates.any? %>
+    <section class="mt-8" data-controller="member-picker">
+      <details <%= 'open' if @members.empty? %>>
+        <summary class="cursor-pointer text-lg font-bold text-ink">
+          <%= t('views.organisations.project_permissions.index.add_member') %>
+          <span class="text-sm font-normal text-cream-500">(<%= @candidates.size %>)</span>
+        </summary>
+
+        <div class="mt-4">
+          <input type="search"
+                 autocomplete="off"
+                 data-member-picker-target="input"
+                 data-action="input->member-picker#filter"
+                 placeholder="<%= t('views.organisations.project_permissions.index.add_search_placeholder') %>"
+                 class="mb-3 w-full max-w-sm rounded border border-cream-300 px-3 py-2 text-sm md:w-72">
+
+          <ul class="divide-y divide-cream-200 rounded-lg border border-cream-200">
+            <% @candidates.each do |candidate| %>
+              <li data-member-picker-target="item" data-name="<%= candidate.user.full_name %>"
+                  class="flex items-center justify-between px-4 py-2">
+                <span class="text-ink"><%= viewer_display_name(candidate.user) %></span>
+                <%= form_with url: organisation_project_project_permissions_path(@current_organisation, @project),
+                              method: :post, class: "inline" do %>
+                  <%= hidden_field_tag 'project_permission[user_id]', candidate.user.id %>
+                  <button type="submit"
+                          class="inline-flex items-center gap-1 rounded border border-ink bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-200">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i><%= t('views.organisations.project_permissions.index.add') %>
+                  </button>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      </details>
+    </section>
+  <% end %>
+
+  <div class="mt-8 border-t border-cream-200 pt-8 text-center">
+    <%= link_to info_organisation_project_project_permissions_path(@current_organisation, @project),
+                class: "inline-flex items-center gap-2 font-medium text-cobalt-700 hover:text-cobalt-900" do %>
+      <i class="bi bi-info-circle" aria-hidden="true"></i>
+      <%= t('views.organisations.project_permissions.index.project_rights_info_link') %>
+    <% end %>
+  </div>
+</div>

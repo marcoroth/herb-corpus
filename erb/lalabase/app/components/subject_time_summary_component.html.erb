@@ -1,0 +1,51 @@
+<%# One wrapper for both states (sum chip / quiet capture entry): it carries the
+    js-time-chip class and the popover, so the first capture only has to update
+    the value span, never the wrapper — replacing the wrapper would tear down
+    the open popover. %>
+<span class="<%= chip_class %> relative inline-block"
+      data-controller="neo-inline-popover"
+      data-action="keydown@window->neo-inline-popover#closeOnEscape turbo:frame-load->neo-inline-popover#openOnFrameLoad">
+  <button type="button"
+          class="-mx-1 inline-flex items-center gap-1 rounded-md px-1 text-[13px] text-cream-700 transition-colors hover:bg-cream-100 hover:text-cream-900"
+          title="<%= chip_title %>"
+          data-action="click->neo-inline-popover#toggle">
+    <i class="bi bi-clock" style="font-size: 12px;"></i>
+    <span id="<%= value_dom_id %>" class="inline-flex items-center gap-1">
+      <% if booked_time? %>
+        <%= render 'organisations/time_sessions/subject_time_chip_value',
+                   total_minutes: total_minutes,
+                   scope: @summary[:scope],
+                   shares: @summary[:shares],
+                   mode: @mode %>
+      <% else %>
+        <%= capture_label %>
+      <% end %>
+    </span>
+    <% if booked_time? %>
+      <i class="bi bi-chevron-down text-[8px]"></i>
+    <% end %>
+  </button>
+  <%# Anchored below the sum on desktop; on phone width a sheet from the
+      bottom over the full width (designer, 05.09.2026). %>
+  <div class="hidden absolute -left-2.5 top-full z-50 mt-1 max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:left-0 max-sm:top-auto max-sm:mt-0"
+       data-neo-inline-popover-target="panel"
+       data-action="click@window->neo-inline-popover#closeOnOutsideClick">
+    <%# Lazy frame: loads on first open (IntersectionObserver fires when the
+        panel loses its hidden class), so the header render never pays for the
+        booking list. target="_top" for the one navigating link inside. %>
+    <%# A raw <turbo-frame>, not helpers.turbo_frame_tag with a block: helper
+        blocks render into the wrong output buffer inside a ViewComponent.
+
+        The popover WIDTH lives on the frame, not on the loaded content: that
+        way neo_inline_popover#alignPanel measures the final width already at
+        open — with only the placeholder inside — and anchors correctly at
+        once, instead of visibly jumping when the lazy content arrives. The
+        one owner of the width; _subject_popover renders w-full into it. %>
+    <turbo-frame id="<%= popover_frame_id %>" src="<%= popover_src %>" loading="lazy" target="_top"
+                 class="block w-[min(520px,calc(100vw-56px))] max-sm:w-full">
+      <div class="rounded-xl border border-cream-300 bg-surface-raised px-4 py-3 text-[13px] text-cream-600 shadow-lg">
+        <%= t('components.subject_time_summary.loading') %>
+      </div>
+    </turbo-frame>
+  </div>
+</span>

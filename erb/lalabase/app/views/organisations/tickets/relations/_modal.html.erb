@@ -1,0 +1,99 @@
+<%# locals: (ticket:, token:, kind: nil, delay_days: nil, other_ticket: nil, errors: []) %>
+<%# The "Link" modal (doc/ticket_relations_plan.md, revision 4, §7). Lives in the frame
+    #ticket-relation-modal-<id> beside the relations section; the two triggers ("..." menu,
+    "+ Verknüpfen") are links that load relations#new into that frame, so neither has to sit
+    inside a controller scope. The root carries the id of THIS opening (token): a refused save
+    replaces exactly it, with what was sent and the message, and a save removes it. A late
+    answer to a modal closed meanwhile finds no element (review of #944).
+
+    Shape and lifecycle after docs/dokumentation/modal_pattern.md; its controller is the
+    pattern's reference implementation. One autosuggest only (plan, Fassung 3 §2.2b). The other
+    ticket shown after a refused save came through policy_scope(Ticket), so its title is one
+    the reader may see. %>
+<% rs = 'views.organisations.tickets.shared.relations.modal' %>
+<% modal_id = ticket_relation_modal_id(ticket) %>
+<% kind = TicketRelation::KINDS.key?(kind) ? kind : TicketRelation::KINDS.keys.first %>
+<div id="<%= ticket_relation_modal_instance_id(ticket, token) %>"
+     data-controller="ticket-relation-modal"
+     data-ticket-relation-modal-delay-kinds-value="<%= TicketRelation::DELAY_KINDS.to_json %>"
+     data-ticket-relation-modal-return-id-value="<%= ticket_more_actions_id(ticket) %>"
+     data-action="keydown@window->ticket-relation-modal#closeOnEscape keydown@window->ticket-relation-modal#trapFocus">
+  <div class="fixed inset-0 z-50 overflow-y-auto"
+       data-action="click->ticket-relation-modal#closeOnBackdrop">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm" aria-hidden="true"></div>
+    <div class="relative flex min-h-screen items-center justify-center p-4"
+         data-action="click->ticket-relation-modal#closeOnBackdrop">
+      <div class="relative w-full max-w-md rounded-lg border border-slate-200 bg-surface-raised shadow-xl"
+           role="dialog" aria-modal="true" aria-labelledby="<%= modal_id %>-title"
+           data-ticket-relation-modal-target="card">
+        <div class="flex items-center justify-between border-b border-slate-200 p-4">
+          <h3 id="<%= modal_id %>-title" class="text-lg font-bold text-cream-900">
+            <i class="bi bi-link-45deg mr-1" aria-hidden="true"></i>
+            <%= t("#{rs}.title") %>
+          </h3>
+          <button type="button" class="text-gray-400 hover:text-gray-600"
+                  title="<%= t("#{rs}.close") %>" aria-label="<%= t("#{rs}.close") %>"
+                  data-action="click->ticket-relation-modal#close">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <%= form_with url: organisation_project_ticket_relations_path(current_organisation, ticket.project, ticket),
+                      method: :post, id: "ticket-relation-form-#{ticket.id}", class: 'space-y-4 p-5' do %>
+          <%= hidden_field_tag :modal_token, token, id: nil %>
+          <% if errors.any? %>
+            <div class="ticket-relation-error-container rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              <% errors.each do |message| %>
+                <p><%= message %></p>
+              <% end %>
+            </div>
+          <% end %>
+
+          <div>
+            <label for="<%= modal_id %>-kind" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{rs}.kind") %></label>
+            <%= select_tag :kind,
+                           options_for_select(TicketRelation::KINDS.keys.map { |key| [t("views.organisations.tickets.shared.relations.kinds.#{key}"), key] }, kind),
+                           id: "#{modal_id}-kind",
+                           class: 'w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                           data: { ticket_relation_modal_target: 'kind', action: 'change->ticket-relation-modal#kindChanged' } %>
+          </div>
+
+          <div>
+            <label for="<%= modal_id %>-ticket" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{rs}.ticket") %></label>
+            <%= render NeoAutosuggestComponent.new(
+                  name: 'other_ticket_id',
+                  options: [],
+                  selected: other_ticket&.id,
+                  selected_text: other_ticket&.display_title,
+                  placeholder: t("#{rs}.ticket_placeholder"),
+                  include_blank: false,
+                  url: organisation_ticket_lookups_path(current_organisation, exclude: ticket.id),
+                  input_id: "#{modal_id}-ticket"
+                ) %>
+          </div>
+
+          <div class="<%= 'hidden' unless TicketRelation::DELAY_KINDS.include?(kind) %>" data-ticket-relation-modal-target="delay">
+            <label for="<%= modal_id %>-delay" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{rs}.delay_days") %></label>
+            <%= number_field_tag :delay_days, delay_days, id: "#{modal_id}-delay", step: 1, autocomplete: 'off',
+                                 class: 'w-32 rounded border border-cream-300 bg-surface-raised px-3 py-2 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                                 disabled: !TicketRelation::DELAY_KINDS.include?(kind),
+                                 data: { ticket_relation_modal_target: 'delayField' } %>
+            <p class="mt-1 text-xs text-cream-500"><%= t("#{rs}.delay_hint") %></p>
+          </div>
+
+          <div class="flex justify-end gap-2 border-t border-cream-200 pt-3">
+            <button type="button"
+                    class="h-9 rounded border border-cream-300 bg-cream-100 px-4 text-sm font-medium text-cream-800 hover:bg-cream-200"
+                    data-action="click->ticket-relation-modal#close">
+              <%= t("#{rs}.cancel") %>
+            </button>
+            <button type="submit"
+                    class="h-9 rounded border border-ink bg-lime-300 px-4 text-sm font-bold text-ink hover:bg-lime-400">
+              <%= t("#{rs}.submit") %>
+            </button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

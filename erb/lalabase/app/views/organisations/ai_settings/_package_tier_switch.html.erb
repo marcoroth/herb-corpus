@@ -1,0 +1,122 @@
+<%# The Leistungsstufe switcher, rendered only INSIDE the card the org is on
+    (KI-Pakete P3, doc/ki_pakete_plan.md §7). Two axes, two places: the
+    jurisdiction is chosen by picking a card, the rung is chosen in it — and §2
+    is emphatic that the second must not look like the first, because only the
+    first carries legal weight and a reindex.
+
+    It posts to the SAME select_package action with the org's own package id and
+    a different tier_key. One write, one protocol trail (§7), and the Actor is
+    what knows a rung change may skip the embedding guard — a second endpoint
+    would be a second place to get that right.
+
+    Local: package (the org's currently selected one). %>
+<% current_key = @organisation.ai_package_tier_key.presence || AiPackageTier::DEFAULT_KEY %>
+
+<div class="mt-2 flex flex-wrap gap-2" data-tier-switch="<%= package.id %>">
+  <% package.tiers.each do |tier| %>
+    <% active = tier.key == current_key %>
+    <%# A rung whose credential cannot serve chat — disabled, wrong purpose or no
+        endpoint (usable_for?, the same three conditions the Factory refuses on) —
+        is refused by the Actor too (:tier_credential_unusable). Offering it would
+        be a button whose only outcome is an error message. %>
+    <% usable = tier.chat_credential&.usable_for?(:chat) %>
+    <%# ...and a SECOND reason a rung may not be offered, added with P4c (E5): the
+        package itself was withdrawn. Actors::SelectAiPackage#resolve_package answers
+        :package_not_published on EVERY write, rung changes included — the P3
+        relaxation for tier-only writes was deliberately dropped because it tore a
+        hole in the ladder validation. Before E5 this partial never met such a
+        package (the grid renders from the `published` scope), so the gap was
+        unreachable; E5 puts the withdrawn package's own card on screen and makes it
+        reachable in one step.
+
+        Two reasons, two texts, on purpose. A withdrawn package's rungs are not
+        BROKEN — the chat behind them works, the org is running on one of them — so
+        labelling them "nicht verfügbar" would name the wrong fault and send the
+        customer looking at credentials instead of at the package.
+
+        RANK, for the case where both are true (P4c review, I4): WITHDRAWN WINS. With
+        the package withdrawn no rung is reachable whatever its credential says, so
+        naming the credential would be the misleading half of the sentence above.
+        Nothing is hidden by that choice — the ACTIVE rung's chip carries its own
+        #usable_for? warning independently, so a broken credential still shows up
+        where the org actually runs. %>
+    <% offerable = usable && package.published? %>
+    <%# Which provider and model this rung actually talks to — the same question
+        the card answers for the package as a whole, one level down. Computed
+        before the branch so every rendering says the identical thing. %>
+    <% detail = [tier.chat_credential&.display_label, tier.effective_chat_model].compact_blank.join(' · ').presence ||
+                t('views.organisations.ai_settings.packages.card.tier_provider_missing') %>
+    <%# The active rung is a STATE, not an action: as a button it would invite a
+        click that re-posts the rung the org is already on and changes nothing
+        visible. Same shape, no form. %>
+    <% if active %>
+      <%# "Gewählt" AND broken is a real state, and the honest rendering shows
+          both: the org IS on this rung (that is what its column says), and the
+          rung cannot currently serve. Deciding the branch on `active` alone
+          painted a disabled credential as healthy precisely where it hurts most —
+          on the rung the org's chat actually runs on. %>
+      <span class="inline-flex flex-col items-start px-3 py-2 rounded border-2 border-ink bg-ink text-cream-50"
+            data-tier-option="<%= tier.key %>" data-tier-active="true"
+            <%= 'data-tier-disabled="true"'.html_safe unless usable %>>
+        <span class="text-sm font-bold">
+          <i class="bi bi-check-lg mr-1"></i><%= tier.label %>
+        </span>
+        <span class="text-xs opacity-90"><%= detail %></span>
+        <% unless usable %>
+          <span class="text-xs font-bold">
+            <i class="bi bi-exclamation-triangle mr-1"></i><%= t('views.organisations.ai_settings.packages.card.tier_unavailable') %>
+          </span>
+        <% end %>
+      </span>
+    <% elsif !offerable %>
+      <%# Shown rather than hidden: the rung is part of what the package offers,
+          and a silently missing option reads as "this package has one stufe". %>
+      <span class="inline-flex flex-col items-start px-3 py-2 rounded border border-dashed border-cream-300 bg-cream-100 opacity-60 cursor-not-allowed"
+            data-tier-option="<%= tier.key %>" data-tier-disabled="true">
+        <span class="text-sm font-bold text-cream-700">
+          <i class="bi bi-lock mr-1"></i><%= tier.label %>
+        </span>
+        <span class="text-xs text-cream-700">
+          <%= t("views.organisations.ai_settings.packages.card.#{package.published? ? 'tier_unavailable' : 'tier_withdrawn'}") %>
+        </span>
+      </span>
+    <% else %>
+      <%= button_to select_package_organisation_ai_settings_path(@organisation),
+                    method: :post,
+                    params: { ai_package_id: package.id, ai_package_tier_key: tier.key },
+                    class: 'inline-flex flex-col items-start px-3 py-2 rounded border border-cream-300 ' \
+                           'bg-surface-raised text-left hover:bg-cream-100 hover:border-ink transition-colors',
+                    data: { tier_option: tier.key } do %>
+        <span class="text-sm font-bold text-cream-900"><%= tier.label %></span>
+        <span class="text-xs text-cream-700"><%= detail %></span>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<%# §2.1 made visible: the rung the customer picks does NOT govern the helper
+    paths, and a customer who pays for "Gründlich" and then reads a terse ticket
+    summary would otherwise conclude the switch is broken. Naming the affected
+    features beats naming the rule.
+
+    The rung is named by AiPackage#utility_tier — the SAME call the routing makes
+    (Factory#curated_tier). Deriving it here would let the screen promise a rung
+    the request does not use, which is the one way this sentence could become a
+    lie.
+
+    …and NAMING it is only half of not lying. The utility rung is judged for
+    usability by the same #usable_for?(:chat) as every chip above (the routing
+    refuses on all three of its conditions, Factory#curated_chat_resolution), so
+    the state "org sits on Gründlich, operator disabled the fast credential"
+    cannot render the sentence "helper tasks always run on Schnell" while all
+    five of them are in fact down. That state is reachable without touching the
+    package: AiPackageTier validates its credential on write, never after. %>
+<% utility_tier = package.utility_tier %>
+<% if utility_tier %>
+  <% utility_usable = utility_tier.chat_credential&.usable_for?(:chat) %>
+  <p class="mt-3 text-xs <%= utility_usable ? 'text-cream-700' : 'font-bold text-red-800' %>">
+    <i class="bi <%= utility_usable ? 'bi-info-circle' : 'bi-exclamation-triangle' %> mr-1"></i>
+    <%= t("views.organisations.ai_settings.packages.card.#{utility_usable ? 'tier_utility_hint' : 'tier_utility_unavailable'}",
+          tier: utility_tier.label) %>
+  </p>
+<% end %>

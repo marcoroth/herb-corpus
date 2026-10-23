@@ -1,0 +1,75 @@
+<%# locals: (reason: nil) %>
+<%# The empty state of a FILTERED list: which filter emptied it, and the way back
+    out (S3 of the filter-line plan, finding F5).
+
+    The list carries up to seven filters at once and two of them are DEFAULTS
+    nobody chose -- this month, and billed hidden -- so "Deine Filter haben keine
+    Treffer ergeben" asked the reader to guess which of seven to touch, including
+    two they never set.
+
+    `reason` comes from TimeSessions::EmptyReason and is nil on the one path that
+    renders this table without running the diagnosis (create.turbo_stream, whose
+    list is unfiltered anyway); the generic sentence is what is left then.
+
+    The reset stands whenever the diagnosis ran and no pill can help: no single
+    filter explains the emptiness, or nothing removable narrows at all and the
+    base itself is empty, which is a smart folder. It leads to the NEUTRAL list
+    (all time, all three states), not to the bare address: the bare address
+    re-applies the two defaults, and in the very case this branch exists for
+    (the only booking is old AND billed) that is the same empty page again.
+
+    The links carry turbo_frame: _top on purpose. The pills, the period segments
+    and the selects all sit OUTSIDE time_sessions_list_frame, so a frame
+    navigation would drop a filter from the list and leave it standing in the
+    row above it. %>
+<%
+  culprits = reason&.culprits.presence
+  removable = reason&.active.presence
+  scope = 'views.organisations.time_sessions.empty_reason'
+  # Everything the labels print, from ONE owner
+  # (TimeSessionsController#build_filter_state), shared with the filter line and
+  # the mobile badge since S7. A nil record is a name the reader may not read,
+  # and the label falls back to the bare filter name.
+  filter_state = @filter_state
+  description = if culprits
+                  t("#{scope}.culprits", count: culprits.size)
+                elsif removable
+                  t("#{scope}.none_alone")
+                else
+                  t('views.organisations.time_sessions.index_table.empty_no_results_description')
+                end
+%>
+
+<% actions = capture do %>
+  <% if culprits %>
+    <% culprits.each do |key| %>
+      <%= link_to time_filter_removal_url(key),
+                  data: { turbo_frame: '_top', empty_filter: key },
+                  class: TimeSessionsHelper::REMOVAL_CHIP_CLASSES do %>
+        <i class="bi bi-x-lg text-[11px]" aria-hidden="true"></i>
+        <%# Capped and clipped: a ticket or meeting title goes into this label,
+            and a long one would stretch the pill across the card. %>
+        <span class="max-w-[18rem] truncate"><%= time_filter_removal_label(key, filter_state) %></span>
+        <%# The glyph says "remove" to a mouse and nothing at all to a screen
+            reader, so the word travels with it. %>
+        <span class="sr-only"><%= t("#{scope}.remove") %></span>
+      <% end %>
+    <% end %>
+  <% elsif reason %>
+    <%= link_to time_list_path(current_organisation, **TimeSession::LIST_NEUTRAL_DRILLDOWN_PARAMS),
+                data: { turbo_frame: '_top', empty_reset: true },
+                class: TimeSessionsHelper::REMOVAL_CHIP_CLASSES do %>
+      <i class="bi bi-arrow-counterclockwise text-[11px]" aria-hidden="true"></i>
+      <span><%= t("#{scope}.reset") %></span>
+    <% end %>
+  <% end %>
+<% end %>
+
+<div class="flex items-center justify-center min-h-[50vh]">
+  <%= render 'shared/empty_content',
+      variant: :no_results,
+      icon_class: 'bi bi-search',
+      title: t('views.organisations.time_sessions.index_table.empty_no_results_title'),
+      description: description,
+      actions: actions %>
+</div>

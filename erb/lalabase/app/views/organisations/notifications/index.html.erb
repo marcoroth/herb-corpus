@@ -1,0 +1,180 @@
+<% content_for :title, t('navigation.notifications') %>
+
+<div class="h-full">
+  
+  <!-- Title Box -->
+  <div class="hidden sm:block">
+    <%= render NeoTitleBoxComponent.new(
+      title: t('.title'),
+      variant: :organisation
+    ) do |c| %>
+      <!-- Actions (Right) — bulk actions (Mark all read / Archive all)
+           were removed: fully covered by bulk-select + "Select all".
+           Only navigation actions remain here. -->
+      <% c.with_right_content do %>
+        <div class="flex items-center gap-2">
+          <%= render Neo::Buttons::HeaderButtonComponent.new(
+            variant: :secondary,
+            icon: "ticket-detailed",
+            label: t('.ticket_exceptions'),
+            url: ticket_exceptions_organisation_notifications_path(current_organisation)
+          ) %>
+
+          <%= render Neo::Buttons::IconButtonComponent.new(
+            variant: :secondary,
+            icon: "gear",
+            size: :large,
+            title: t('.settings'),
+            url: preferences_organisation_notifications_path(current_organisation)
+          ) %>
+
+          <%= render 'common/contextual_help_menu', context: :inbox %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+  
+  <!-- Mobile Title Box -->
+  <div class="sm:hidden">
+    <%= render NeoTitleBoxComponent.new(
+      title: t('.title_mobile'),
+      variant: :organisation
+    ) %>
+  </div>
+
+  <!-- Inbox master-detail container.
+       Mobile/tablet (< lg): master only, clicking a notification opens the ticket
+       in full view (pane hidden).
+       Desktop (lg+): master 500px on the left (aligned with the ticket-detail
+       list column, see --list-raw in layout.css), pane fills the remaining
+       width. See doc/inbox_feature_spec.md chapter 4.1 / 4.7. -->
+  <%# Desktop: fixed viewport height + overflow-hidden, so that master and pane
+      EACH scroll internally (independently). Otherwise everything shares the
+      window scroll → scrolling in the pane (e.g. to the comment form)
+      triggers the endless scroll of the notifications. Mobile (< lg):
+      normal page scroll. %>
+  <div class="mt-5 lg:flex lg:gap-4 lg:h-[calc(100vh-7.5rem)] lg:overflow-hidden">
+
+    <!-- MASTER COLUMN — Stimulus scope for bulk-select. Own scroll
+         (lg:overflow-y-auto): the endless-scroll sentinel lives here, so
+         only scrolling THIS column loads more notifications. -->
+    <div class="lg:w-[500px] lg:flex-shrink-0 lg:h-full lg:overflow-y-auto lg:pr-1 scrollbar-amber"
+         data-controller="inbox-bulk-select">
+
+      <!-- Filter Component -->
+      <%= render NeoNotificationFilterComponent.new(
+        current_filters: params.permit(:search, :project_id, :state, :event_type, :view_mode, state_filters: []),
+        filter_url: organisation_notifications_path(current_organisation),
+        projects: @projects
+      ) %>
+
+      <!-- Status/bulk row: relative wrapper with a constant minimum height.
+           Contains the "X unread" banner AND the bulk-action bar, which
+           layers absolutely on top of it when a selection is made. Since the wrapper always
+           reserves the same height, the list is NEVER shifted — regardless of whether
+           the banner is visible, empty, or the bulk bar is active. The bulk bar sits
+           DELIBERATELY OUTSIDE the turbo-frame, so that turbo_stream refreshes
+           do not destroy its Stimulus state. -->
+      <div class="relative mt-5 min-h-[3.25rem]">
+        <!-- Unread count summary — its own element ID so that turbo_stream
+             can refresh it with the current count after every state change. -->
+        <div id="inbox_unread_count_banner">
+          <% if @unread_count.to_i > 0 && @presenter.show_unread_banner? %>
+            <div class="p-3 bg-cream-50 border border-cream-300 rounded-lg">
+              <p class="text-sm text-cream-700 font-medium">
+                <%= t('.unread_notifications', count: @unread_count) %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+
+        <!-- Bulk-action bar — overlays the status/banner row (absolute
+             inset-0 over the relative wrapper), opaque. The list stays in place. -->
+        <div data-inbox-bulk-select-target="bar"
+             class="hidden absolute inset-0 z-20 bg-cream-900 rounded-lg px-3 flex items-center gap-3">
+          <span class="font-bold text-sm text-cream-50">
+            <span data-inbox-bulk-select-target="count">0</span>
+            <%= t('views.organisations.notifications.bulk.selected', default: 'ausgewählt') %>
+          </span>
+          <div class="flex-1"></div>
+          <%= form_with url: mark_all_read_organisation_notifications_path(current_organisation),
+                        method: :patch,
+                        data: {
+                          inbox_bulk_select_target: 'form',
+                          action: 'turbo:submit-end->inbox-bulk-select#onBulkSubmit'
+                        },
+                        class: 'inline' do %>
+            <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :small, tag: :button, type: :submit) do %>
+              <%= t('views.organisations.notifications.bulk.mark_read', default: 'Als gelesen') %>
+            <% end %>
+          <% end %>
+          <%= form_with url: archive_all_organisation_notifications_path(current_organisation),
+                        method: :patch,
+                        data: {
+                          inbox_bulk_select_target: 'form',
+                          action: 'turbo:submit-end->inbox-bulk-select#onBulkSubmit'
+                        },
+                        class: 'inline' do %>
+            <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :small, tag: :button, type: :submit) do %>
+              <%= t('views.organisations.notifications.bulk.archive', default: 'Archivieren') %>
+            <% end %>
+          <% end %>
+          <button type="button"
+                  data-action="click->inbox-bulk-select#clear"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs text-cream-200 hover:bg-cream-700 hover:text-cream-50 rounded transition-colors"
+                  aria-label="<%= t('views.organisations.notifications.bulk.clear', default: 'Auswahl aufheben') %>">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <%# End bulk bar %>
+      </div>
+      <%# End status/bulk row %>
+
+      <!-- Real-time subscription for new notifications -->
+      <%= turbo_stream_from Notifications::Streams.notifications(current_user, current_organisation) %>
+
+      <!-- Notifications List -->
+      <turbo-frame id="notifications_list_frame" class="block mt-5">
+        <!-- Banner for new real-time notifications -->
+        <div id="new_notifications_banner" class="hidden"></div>
+
+        <%# Inbox master list — content rendered entirely in the partial.
+            Stable ID inbox_master_list enables a targeted refresh via
+            turbo_stream after state changes. %>
+        <%= render 'master_list',
+                   presenter: @presenter,
+                   selected_notification: @selected_notification %>
+      </turbo-frame>
+    </div>
+    <%# End master column %>
+
+    <!-- PANE — Desktop only (V1). On mobile/tablet only the master list remains.
+         The pane initially loads the empty state; with params[:notification] it is
+         replaced by the ticket detail by the controller (coming in a follow-up commit). -->
+    <!-- PANE — own scroll (lg:overflow-y-auto), independent of the master.
+         Scrolling to the comment form moves only this column. -->
+    <div class="hidden lg:block lg:flex-1 lg:h-full lg:overflow-y-auto scrollbar-amber">
+      <div class="bg-cream-50 border border-cream-300 rounded-lg min-h-full">
+        <%# Pane content: partial supplied by the controller depending on the pane state.
+            On a frame request only this partial is rendered (see controller). %>
+        <% if @pane_state %>
+          <%= render inbox_pane_partial %>
+        <% else %>
+          <%= render 'pane_empty' %>
+        <% end %>
+      </div>
+    </div>
+
+  </div>
+  <%# End master-detail container %>
+</div>
+
+<!-- Scroll to Top Button (Mobile only) -->
+<div class="sm:hidden" data-controller="scroll-to-top">
+  <button type="button"
+          data-scroll-to-top-target="button"
+          data-action="click->scroll-to-top#scrollToTop"
+          class="hidden fixed bottom-20 right-4 z-sidebar w-12 h-12 bg-ink text-on-fill rounded-full shadow-lg items-center justify-center hover:bg-gray-800 transition-all">
+    <i class="bi bi-arrow-up text-lg"></i>
+  </button>
+</div>

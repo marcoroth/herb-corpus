@@ -1,0 +1,121 @@
+<div>
+  <%= render 'organisations/shared/settings_subnav', active: :import %>
+  <div class="flex justify-end items-center gap-2 mb-3.5">
+    <%= render 'common/contextual_help_menu', context: :settings_import %>
+    <%= render Neo::Buttons::IconButtonComponent.new(
+      variant: :primary,
+      icon: "plus-lg",
+      size: :medium,
+      title: t('views.organisations.codebase_import_files.index.new_file_btn'),
+      url: new_organisation_codebase_import_file_path(current_organisation)
+    ) %>
+  </div>
+
+  <!-- Description -->
+  <%# D5 Callout (info): cobalt instead of off-palette blue, border-stroke, no shadow. %>
+  <div class="bg-cobalt-50 border border-cream-300 rounded-lg p-4 mb-6">
+    <p class="text-sm text-cobalt-900">
+      <%= t('views.organisations.codebase_import_files.index.description', organisation: current_organisation.name) %>
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-4 lg:gap-6 mb-6">
+
+  <!-- Info Box -->
+  <div class="p-6 bg-cream-100 border border-cream-300 rounded-lg">
+    <h3 class="text-lg font-semibold mb-3 text-cream-900">
+      <%= t('views.organisations.codebase_import_files.index.supported_file_types') %>
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 bg-cobalt-500 rounded-full"></div>
+        <span class="text-cream-900"><strong>users.xml</strong> - <%= t('views.organisations.codebase_import_files.index.users_xml') %></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+        <span class="text-cream-900"><strong>tickets.xml</strong> - <%= t('views.organisations.codebase_import_files.index.tickets_xml') %></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
+        <span class="text-cream-900"><strong>time_tracking.xml</strong> - <%= t('views.organisations.codebase_import_files.index.time_tracking_xml') %></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 bg-purple-500 rounded-full"></div>
+        <span class="text-cream-900"><strong>uploads.xml</strong> - <%= t('views.organisations.codebase_import_files.index.uploads_xml') %></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Files List -->
+  <div class="bg-cream-50 border border-cream-300 rounded-lg">
+    <div class="p-6 border-b border-cream-200">
+      <h2 class="text-xl font-semibold text-cream-900"><%= t('views.organisations.codebase_import_files.index.uploaded_files') %></h2>
+    </div>
+
+    <div class="p-6">
+      <% if @import_files.any? %>
+        <div class="space-y-8">
+          <!-- General Imports Section -->
+          <% if @general_imports.any? %>
+            <div>
+              <h3 class="text-lg font-semibold text-cream-900 mb-4 flex items-center gap-2">
+                <i class="bi bi-people text-xl text-cobalt-600"></i>
+                <%= t('views.organisations.codebase_import_files.index.general_imports') %>
+              </h3>
+              <%= render 'import_files_table', import_files: @general_imports %>
+            </div>
+          <% end %>
+
+          <!-- Project-specific Imports Section -->
+          <% if @project_imports.any? %>
+            <div>
+              <h3 class="text-lg font-semibold text-cream-900 mb-4 flex items-center gap-2">
+                <i class="bi bi-archive text-xl text-green-600"></i>
+                <%= t('views.organisations.codebase_import_files.index.project_imports') %>
+              </h3>
+
+              <div class="space-y-6">
+                <% @project_imports.each do |project, imports| %>
+                  <div class="border-l-4 border-green-500 pl-4">
+                    <div class="flex items-center justify-between mb-3">
+                      <h4 class="font-medium text-cream-900">
+                        <%= project&.name || t('views.organisations.codebase_import_files.index.unknown_project') %>
+                        <span class="text-sm text-cream-600">
+                          (<%= pluralize(imports.count, 'Import') %>)
+                        </span>
+                      </h4>
+
+                      <% if project && imports.any? { |i| i.file_type == 'tickets' && i.status == 'processed' } %>
+                        <%# off-palette blue + hand-built → ButtonComponent info (data assignment), link icon carries meaning. %>
+                        <%= render Neo::Buttons::ButtonComponent.new(
+                              variant: :info,
+                              size: :medium,
+                              icon: "link-45deg",
+                              url: assign_uploads_organisation_codebase_import_file_path(current_organisation, imports.first, project_id: project.id)
+                            ) do %>
+                          <%= t('views.organisations.codebase_import_files.index.assign_uploads') %>
+                        <% end %>
+                      <% end %>
+                    </div>
+                    <%= render 'import_files_table', import_files: imports %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <%# Canonical empty state (H6: circle icon) instead of a bare SVG — consistent app-wide. %>
+        <%= render 'shared/empty_content',
+              variant: :first_time,
+              icon_class: 'bi bi-file-earmark-text',
+              title: t('views.organisations.codebase_import_files.index.no_files_title'),
+              description: t('views.organisations.codebase_import_files.index.no_files_description'),
+              cta_text: t('views.organisations.codebase_import_files.index.upload_first_file'),
+              cta_url: new_organisation_codebase_import_file_path(current_organisation) %>
+      <% end %>
+    </div>
+  </div>
+
+  </div>
+</div>

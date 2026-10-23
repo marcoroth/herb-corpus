@@ -1,0 +1,57 @@
+<%# locals: can_manage_sets, can_connect_repo, project_has_repository, variant (:no_set | :no_pages | :no_results)
+
+    Two distinct permission flags on purpose (see plan 1c): can_manage_sets gates
+    documentation-SET actions (DocumentationSetPolicy#create?), can_connect_repo
+    gates the REPOSITORY (ProjectRepositoryPolicy#create?). They are different
+    contracts — do not collapse them into one.
+
+    :no_set additionally shows a plain-language explainer beside the connect box
+    (two columns on desktop, stacked on mobile) — what documentation is and is not,
+    for non-technical readers who reach this screen before anything is connected. %>
+<% show_explainer = (variant == :no_set) %>
+<div class="<%= 'grid gap-5 md:grid-cols-2 md:items-stretch' if show_explainer %>">
+  <div class="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-cream-300 py-16 text-center<%= ' md:h-full' if show_explainer %>">
+  <div class="flex h-14 w-14 items-center justify-center rounded-full bg-surface-raised">
+    <i class="bi bi-journal-text text-2xl text-muted"></i>
+  </div>
+  <h2 class="text-lg font-semibold text-heading"><%= t("views.organisations.documentation.empty.#{variant}.title") %></h2>
+  <p class="max-w-md text-sm text-muted"><%= t("views.organisations.documentation.empty.#{variant}.body") %></p>
+
+  <% if variant == :no_set && !project_has_repository %>
+    <%# No repo yet → connecting one is the first step. Offer the CTA ONLY to a user
+        who can ALSO create the set afterwards (can_manage_sets): the round-trip lands
+        on set-creation, which needs documentation:write. A chats:write + doc:read user
+        CAN connect a repo (for chat grounding, via settings/chat) but would 403 on
+        that redirect — so here they get the neutral hint, not a dead-end CTA. See
+        plan 1c + AK1/AK5. %>
+    <% if can_connect_repo && can_manage_sets %>
+      <%= render(Neo::Buttons::ButtonComponent.new(
+            variant: :primary, icon: 'plug',
+            url: organisation_project_project_repositories_path(@current_organisation, @project, origin: documentation_origin)
+          )) { t('views.organisations.documentation.empty.connect_repository') } %>
+    <% else %>
+      <%# P9: explain the block instead of a silent dead end. Neutral wording — NOT
+          "administrator only" (documentation:write non-admins may set up too). %>
+      <p class="text-xs text-muted"><%= t('views.organisations.documentation.empty.setup_no_permission') %></p>
+    <% end %>
+  <% elsif can_manage_sets && variant == :no_set %>
+    <%# Repo exists but no set yet → the normal set-creation CTA. %>
+    <%= render(Neo::Buttons::ButtonComponent.new(
+          variant: :primary, icon: 'plus-lg',
+          url: new_organisation_project_documentation_set_path(@current_organisation, @project)
+        )) { t('views.organisations.documentation.index.connect') } %>
+  <% elsif can_manage_sets && variant == :no_pages && @documentation_set %>
+    <%= render(Neo::Buttons::ButtonComponent.new(
+          variant: :primary, icon: 'arrow-repeat',
+          form: { action: sync_organisation_project_documentation_set_path(@current_organisation, @project, @documentation_set), method: :post }
+        )) { t('views.organisations.documentation.index.sync_now') } %>
+  <% elsif !can_manage_sets && variant != :no_results %>
+    <%# P9: explain the block instead of a silent dead end. %>
+    <p class="text-xs text-muted"><%= t('views.organisations.documentation.empty.admin_hint') %></p>
+  <% end %>
+  </div>
+
+  <% if show_explainer %>
+    <%= render 'empty_explainer' %>
+  <% end %>
+</div>

@@ -1,0 +1,164 @@
+<%# Results live in their own Turbo frame so the in-widget search can swap just this list
+    (ProjectDashboardWidgetsController#show re-renders the component frame-only). Captured once
+    here and reused below — so the modal/header are not re-rendered on every search keystroke.
+    target: '_top' keeps the ticket links inside the frame navigating the whole page (as they did
+    before the frame existed), while the search still loads its src into this frame programmatically. %>
+<% results_frame = capture do %>
+  <%= turbo_frame_tag frame_id, target: "_top" do %>
+    <% if recent_tickets.any? %>
+      <% if grouped? %>
+        <div class="space-y-4">
+          <% grouped_tickets.each do |group_value, tickets| %>
+            <div>
+              <h3 class="text-xs font-bold uppercase text-cream-600 mb-2 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full <%= group_dot_color(group_value) %>"></span>
+                <%= group_value %>
+              </h3>
+              <div class="space-y-2">
+                <% tickets.each do |ticket| %>
+                  <%= link_to helpers.ticket_turbo_frame_path(current_organisation, project, ticket),
+                      class: "block p-2 border border-cream-300 rounded text-sm hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all #{ticket_highlight_classes(ticket)}" do %>
+                    <div class="flex justify-between items-center">
+                      <div class="flex-1 min-w-0">
+                        <span class="font-medium truncate block">
+                          #<%= ticket.number %>
+                          <%= render Neo::UnreadMarkerComponent.new(count: unread_notifications_per_ticket[ticket.id].to_i, variant: :dot,
+                                                                    class: 'align-middle ml-0.5', label: t('tickets.has_unread_notifications')) %>
+                          <%= ticket.title %><% if ticket.overdue? %> <%= helpers.ticket_due_badge(ticket) %><% end %>
+                        </span>
+                        <span class="text-xs text-cream-900 opacity-50">
+                          <% if display == 'grouped_status' %>
+                            <%= helpers.ticket_priority_info(ticket) %>
+                          <% else %>
+                            <%= helpers.ticket_status_info(ticket) %>
+                          <% end %>
+                        </span>
+                      </div>
+                      <span class="font-bold text-xs whitespace-nowrap ml-2"><%= ticket.updated_at.strftime("%d.%m.%y") %></span>
+                    </div>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% elsif display == 'list' %>
+        <div class="space-y-2">
+          <% recent_tickets.each do |ticket| %>
+            <%= link_to helpers.ticket_turbo_frame_path(current_organisation, project, ticket),
+                class: "block p-2 border border-cream-300 rounded text-sm hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all #{ticket_highlight_classes(ticket)}" do %>
+              <div class="flex justify-between items-center">
+                <div class="flex-1 min-w-0">
+                  <span class="font-medium truncate block">
+                    #<%= ticket.number %>
+                    <%= render Neo::UnreadMarkerComponent.new(count: unread_notifications_per_ticket[ticket.id].to_i, variant: :dot,
+                                                              class: 'align-middle ml-0.5', label: t('tickets.has_unread_notifications')) %>
+                    <%= ticket.title %><% if ticket.overdue? %> <%= helpers.ticket_due_badge(ticket) %><% end %>
+                  </span>
+                  <span class="text-xs text-cream-900 opacity-50">
+                    <%= helpers.ticket_status_info(ticket) %>
+                    &middot; <%= helpers.ticket_priority_info(ticket) %>
+                  </span>
+                </div>
+                <span class="font-bold text-xs whitespace-nowrap ml-2"><%= ticket.updated_at.strftime("%d.%m.%y") %></span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="space-y-2">
+          <% recent_tickets.each do |ticket| %>
+            <%= link_to helpers.ticket_turbo_frame_path(current_organisation, project, ticket),
+                class: "block p-2 border border-cream-300 rounded text-sm hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all #{ticket_highlight_classes(ticket)}" do %>
+              <div class="flex justify-between items-center">
+                <div class="flex-1 min-w-0">
+                  <span class="font-medium truncate block">
+                    #<%= ticket.number %>
+                    <%= render Neo::UnreadMarkerComponent.new(count: unread_notifications_per_ticket[ticket.id].to_i, variant: :dot,
+                                                              class: 'align-middle ml-0.5', label: t('tickets.has_unread_notifications')) %>
+                    <%= ticket.title %><% if ticket.overdue? %> <%= helpers.ticket_due_badge(ticket) %><% end %>
+                  </span>
+                  <span class="text-xs text-cream-900 opacity-50">
+                    <%= helpers.ticket_status_info(ticket) %>
+                    &middot; <%= helpers.ticket_priority_info(ticket) %>
+                  </span>
+                </div>
+                <span class="font-bold text-xs whitespace-nowrap ml-2"><%= ticket.updated_at.strftime("%d.%m.%y") %></span>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="text-center text-cream-600 py-8">
+        <%= searching? ? t('dashboard.recent_tickets.no_search_results', query: search_query) : t('dashboard.recent_tickets.no_tasks') %>
+      </p>
+    <% end %>
+
+    <% if more_results? %>
+      <%# Top-N shown in the widget; the rest live on the real tickets list page with the same search. %>
+      <div class="mt-3 pt-3 border-t border-cream-300 text-center">
+        <%= link_to t('dashboard.recent_tickets.view_all_results', count: search_total), search_results_path,
+              class: "text-sm font-bold text-cream-900 underline hover:opacity-70" %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>
+
+<% if frame_only %>
+  <%= results_frame %>
+<% else %>
+  <% if can_create_tickets? %>
+  <div data-project-id="<%= project.id %>">
+  <% end %>
+  <%= render NeoCardComponent.new(variant: :surface, shadow: :none, padding: :small) do %>
+    <%= render WidgetHeaderComponent.new(title: t('dashboard.recent_tickets.title'), subtitle: period_label) do |header| %>
+      <% header.with_actions do %>
+        <%= render Neo::Buttons::ButtonComponent.new(
+              variant: :secondary,
+              size: :medium,
+              url: helpers.organisation_project_tickets_path(current_organisation, project)
+            ) do %>
+              <span class="hidden sm:inline"><%= t('dashboard.recent_tickets.view_all') %></span>
+              <span class="sm:hidden"><%= t('dashboard.recent_tickets.all') %></span>
+            <% end %>
+        <% if can_create_tickets? %>
+            <%# New ticket (opens modal) → icon-only plus (D2.1: „+" is unambiguous, saves space in the widget header). %>
+            <%= render Neo::Buttons::IconButtonComponent.new(
+                  variant: :primary,
+                  size: :medium,
+                  icon: "plus-lg",
+                  tag: :a,
+                  href: helpers.new_organisation_project_ticket_path(current_organisation, project, source: "dashboard"),
+                  title: t('buttons.new', default: 'New'),
+                  data: { turbo_frame: "writing_surface" }
+                ) %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%# Live in-widget search: same engine as the tickets list page, searches ALL project tickets.
+        The field sits outside the Turbo frame so it keeps focus/text while only the list swaps. %>
+    <div class="relative mb-4"
+         data-controller="frame-search"
+         data-frame-search-url-value="<%= widget_url %>"
+         data-frame-search-frame-value="<%= frame_id %>">
+      <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 pointer-events-none z-10">
+        <i class="bi bi-search text-xs"></i>
+      </span>
+      <input type="search"
+             autocomplete="off"
+             data-frame-search-target="input"
+             data-action="input->frame-search#search"
+             placeholder="<%= t('dashboard.recent_tickets.search_placeholder') %>"
+             aria-label="<%= t('dashboard.recent_tickets.search_placeholder') %>"
+             class="w-full h-8 pl-9 pr-3 text-xs border border-slate-300 rounded-full bg-surface-raised
+                    focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors">
+    </div>
+
+    <%= results_frame %>
+  <% end %>
+  <% if can_create_tickets? %>
+  </div>
+  <% end %>
+<% end %>

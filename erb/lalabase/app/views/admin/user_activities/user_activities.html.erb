@@ -1,0 +1,218 @@
+<div class="container mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="mb-8">
+    <!-- Breadcrumb -->
+    <nav class="mb-4" aria-label="Breadcrumb">
+      <%= link_to t('views.admin.user_activities.user_activities.breadcrumb_admin'), admin_dashboard_path, class: "text-blue-600 hover:text-blue-800" %> &gt;
+      <%= link_to t('views.admin.user_activities.user_activities.breadcrumb_users'), admin_users_path, class: "text-blue-600 hover:text-blue-800" %> &gt;
+      <%= link_to @user.email, admin_user_path(@user), class: "text-blue-600 hover:text-blue-800" %> &gt;
+      <%= t('views.admin.user_activities.user_activities.breadcrumb_activities') %>
+    </nav>
+    
+    <div class="flex justify-between items-start">
+      <div>
+        <h1 class="text-3xl font-bold mb-2">
+          <%= t('views.admin.user_activities.user_activities.title') %>
+        </h1>
+        <p class="text-gray-600">
+          <%= t('views.admin.user_activities.user_activities.user_label', email: @user.email) %>
+          <% if @user.full_name.present? %>
+            (<%= @user.full_name %>)
+          <% end %>
+        </p>
+      </div>
+      
+      <div class="flex gap-2">
+        <%= link_to admin_user_path(@user),
+            class: "inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50" do %>
+          <i class="bi bi-arrow-left mr-2"></i>
+          <%= t('views.admin.user_activities.user_activities.back_to_profile') %>
+        <% end %>
+        
+        <%= link_to admin_user_activities_path(user_id: @user.id, format: :csv),
+            class: "inline-flex items-center px-4 py-2 border-2 border-black rounded-lg hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+          <i class="bi bi-download mr-2"></i>
+          <%= t('views.admin.user_activities.user_activities.export_csv') %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Stats -->
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="text-sm text-gray-600"><%= t('views.admin.user_activities.user_activities.stat_total_activities') %></div>
+      <div class="text-2xl font-bold"><%= @user_stats[:total_activities] %></div>
+    </div>
+    
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="text-sm text-gray-600"><%= t('views.admin.user_activities.user_activities.stat_last_login') %></div>
+      <div class="text-lg font-bold">
+        <%= @user_stats[:last_login] ? l(@user_stats[:last_login], format: :short) : t('views.admin.user_activities.user_activities.never') %>
+      </div>
+    </div>
+    
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="text-sm text-gray-600"><%= t('views.admin.user_activities.user_activities.stat_last_ip') %></div>
+      <div class="text-lg font-mono">
+        <%= @user_stats[:last_ip] || '-' %>
+      </div>
+    </div>
+    
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="text-sm text-gray-600"><%= t('views.admin.user_activities.user_activities.stat_total_logins') %></div>
+      <div class="text-2xl font-bold text-green-600"><%= @user_stats[:total_logins] %></div>
+    </div>
+    
+    <div class="bg-white border-2 border-black rounded-lg p-4 shadow-[2px_2px_0_0_#000000]">
+      <div class="text-sm text-gray-600"><%= t('views.admin.user_activities.user_activities.stat_security_events') %></div>
+      <div class="text-2xl font-bold <%= @user_stats[:security_events] > 0 ? 'text-red-600' : 'text-gray-600' %>">
+        <%= @user_stats[:security_events] %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category Breakdown -->
+  <% if @category_breakdown && @category_breakdown.any? %>
+    <div class="bg-white border-2 border-black rounded-lg p-6 mb-8 shadow-[2px_2px_0_0_#000000]">
+      <h3 class="text-lg font-bold mb-4"><%= t('views.admin.user_activities.user_activities.activities_by_category') %></h3>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <% @category_breakdown.each do |category, count| %>
+          <div class="text-center">
+            <div class="text-3xl font-bold 
+              <%= case category
+                  when 'auth' then 'text-blue-600'
+                  when 'profile' then 'text-purple-600'
+                  when 'permissions' then 'text-yellow-600'
+                  when 'security' then 'text-red-600'
+                  else 'text-gray-600'
+                  end %>">
+              <%= count %>
+            </div>
+            <div class="text-sm text-gray-600 mt-1"><%= category.capitalize %></div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Recent Sessions -->
+  <% if @recent_sessions && @recent_sessions.any? %>
+    <div class="bg-white border-2 border-black rounded-lg mb-8 shadow-[2px_2px_0_0_#000000] overflow-hidden">
+      <div class="px-6 py-4 border-b-2 border-black bg-blue-50">
+        <h3 class="text-lg font-bold"><%= t('views.admin.user_activities.user_activities.recent_sessions') %></h3>
+      </div>
+      <div class="divide-y divide-gray-200">
+        <% @recent_sessions.each do |session| %>
+          <div class="px-6 py-3 flex items-center justify-between hover:bg-gray-50">
+            <div class="flex items-center gap-3">
+              <i class="bi <%= session.action == 'login' ? 'bi-box-arrow-in-right text-green-500' : 'bi-box-arrow-right text-gray-500' %>"></i>
+              <div>
+                <span class="font-medium"><%= session.action == 'login' ? t('views.admin.user_activities.user_activities.session_login') : t('views.admin.user_activities.user_activities.session_logout') %></span>
+                <span class="text-sm text-gray-500 ml-2"><%= l(session.created_at, format: :long) %></span>
+              </div>
+            </div>
+            <% if session.ip_address.present? %>
+              <span class="text-sm font-mono text-gray-600"><%= session.ip_address %></span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Activities Table -->
+  <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-6 py-4 border-b-2 border-black bg-gray-50">
+      <h2 class="text-lg font-bold"><%= t('views.admin.user_activities.user_activities.full_activity_log') %></h2>
+    </div>
+    
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-gray-100 border-b-2 border-black">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_time') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_action') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_category') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_status') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_details') %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_ip_address') %></th>
+            <th class="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider"><%= t('views.admin.user_activities.user_activities.th_action_col') %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          <% @activities.each do |activity| %>
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <div>
+                  <div class="font-medium"><%= l(activity.created_at, format: :short) %></div>
+                  <div class="text-xs text-gray-500"><%= activity.created_at.strftime('%H:%M:%S') %></div>
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="flex items-center gap-2">
+                  <i class="<%= activity.icon_class %> <%= activity.status_class %>"></i>
+                  <span class="text-sm font-medium"><%= activity.action.humanize %></span>
+                </div>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <span class="px-2 py-1 text-xs rounded-full 
+                  <%= case activity.category
+                      when 'auth' then 'bg-blue-100 text-blue-800'
+                      when 'profile' then 'bg-purple-100 text-purple-800'
+                      when 'permissions' then 'bg-yellow-100 text-yellow-800'
+                      when 'security' then 'bg-red-100 text-red-800'
+                      else 'bg-gray-100 text-gray-800'
+                      end %>">
+                  <%= activity.category %>
+                </span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <span class="inline-flex items-center">
+                  <% if activity.status == 'success' %>
+                    <i class="bi bi-check-circle-fill text-green-500 mr-1"></i>
+                    <span class="text-green-600"><%= t('views.admin.user_activities.user_activities.status_success') %></span>
+                  <% elsif activity.status == 'failed' %>
+                    <i class="bi bi-x-circle-fill text-red-500 mr-1"></i>
+                    <span class="text-red-600"><%= t('views.admin.user_activities.user_activities.status_failed') %></span>
+                  <% else %>
+                    <i class="bi bi-clock-fill text-yellow-500 mr-1"></i>
+                    <span class="text-yellow-600"><%= t('views.admin.user_activities.user_activities.status_pending') %></span>
+                  <% end %>
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm">
+                <% if activity.failure_reason.present? %>
+                  <span class="text-red-600"><%= activity.failure_reason %></span>
+                <% else %>
+                  <span class="text-gray-600"><%= activity.description %></span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm">
+                <span class="font-mono text-xs"><%= activity.ip_address || '-' %></span>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-sm text-center">
+                <%= link_to admin_user_activity_path(activity),
+                    class: "text-gray-600 hover:text-gray-900" do %>
+                  <i class="bi bi-eye"></i>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    
+    <% if @activities.empty? %>
+      <div class="px-4 py-8 text-center text-gray-500">
+        <%= t('views.admin.user_activities.user_activities.no_activities') %>
+      </div>
+    <% end %>
+    
+    <% if @activities.any? %>
+      <div class="px-4 py-3 border-t border-gray-200 text-sm text-gray-600">
+        <%= t('views.admin.user_activities.user_activities.showing_count', count: @activities.count) %>
+      </div>
+    <% end %>
+  </div>
+</div>

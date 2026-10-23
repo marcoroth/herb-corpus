@@ -1,0 +1,410 @@
+<%# locals: (f:) %>
+<%# The filter LINE (S7, finding F7). Two rows, split by INTERACTION and not by
+    topic: what you PICK above, what you SWITCH below. The box it replaced had
+    three rows sorted by subject -- nine period targets, then the status, then
+    the selects -- and "Nur meine Zeiten" sat with the dropdowns although it is
+    a switch like the three beside it.
+
+    Every choice above is one _filter_pill. The words and the removals come from
+    the two owners S3 already established for the EMPTY state
+    (time_filter_line_label, TIME_FILTER_REMOVALS), so a filter cannot be called
+    one thing while it narrows the list and another once it has emptied it. %>
+<%
+  # Everything the labels print, from ONE owner
+  # (TimeSessionsController#build_filter_state). Four surfaces read it: this
+  # line, the reset link, the mobile badge and the empty state. Each used to
+  # gather its own, and the mobile badge's copy was already wrong.
+  filter_state = @filter_state
+
+  owns_for = ->(changes) { time_filter_owns_pairs(changes) }
+  url_for_changes = ->(changes) { time_list_filter_url(changes) }
+
+  # --- Period. The eight presets plus "Eigener Zeitraum", which used to be nine
+  # always-visible targets for ONE decision. Same keys, same owner
+  # (TimeSessions::ListPeriod), same address; only the shape changed.
+  custom_key = TimeSessions::ListPeriod::CUSTOM
+  # Every option is ONE hash of changes, read twice: once as an address, once as
+  # a declaration. Never two expressions that happen to agree.
+  option_for = lambda do |value, label, changes|
+    { value: value, label: label, url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: @effective_date_range == value }
+  end
+
+  period_options = TimeSessions::ListPeriod.options.map do |key, label|
+    # ⚠️ time_period_change(key) ONCE. It was called twice per option, for the
+    # url and for the owns, which is two chances to answer differently.
+    option_for.call(key, label, time_period_change(key))
+  end
+  # The custom entry only names the mode; its bounds are two fields in the menu,
+  # so it clears nothing the presets clear.
+  period_options << option_for.call(custom_key, TimeSessions::ListPeriod.label(custom_key),
+                                    { 'date_range' => custom_key })
+
+  # --- Project. Removing it takes the subject with it, because a subject
+  # belongs to a project; TIME_FILTER_REMOVALS owns that and so does the blank
+  # option here.
+  project_removal = TimeSessionsHelper::TIME_FILTER_REMOVALS.fetch(:project)
+  project_options = [
+    { value: '', label: t('views.organisations.time_sessions.index.filter_all_projects'),
+      url: time_filter_removal_url(:project), owns: owns_for.call(project_removal),
+      selected: @filtered_project.blank? }
+  ]
+  project_options += @accessible_projects.map do |project|
+    changes = project_removal.merge('project_id_filter' => project.id)
+    { value: project.id, label: project.name, url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: @filtered_project&.id == project.id }
+  end
+
+  # --- Subject. Across ALL projects since S6 made the meeting filter real (D4).
+  # Setting one CLEARS the other id: a booking has one subject, and both set at
+  # once is a filter that can only answer empty.
+  # Choosing one subject REPLACES the other, it does not add to it: both ids on
+  # one address is a query the database forbids (check constraint
+  # time_sessions_single_subject) and the list is then empty for good. The rule
+  # and its reasoning belong to #692; here it is read, not restated.
+  subject_removal = TimeSessionsHelper::TIME_FILTER_REMOVALS.fetch(:subject)
+  chosen_subject = @filtered_ticket || @filtered_meeting
+  subject_options = [
+    { value: '', label: t('views.organisations.time_sessions.index.filter_all_subjects'),
+      url: time_filter_removal_url(:subject), owns: owns_for.call(subject_removal),
+      selected: chosen_subject.blank? }
+  ]
+  subject_options += Array(@filter_subjects).map do |subject|
+    param = subject.is_a?(Meeting) ? 'meeting_id' : 'ticket_id'
+    changes = subject_removal.merge(param => subject.id)
+    { value: subject.id, label: time_session_subject_presentation(subject).label,
+      sub: subject.project&.name, url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: chosen_subject&.id == subject.id }
+  end
+
+  # --- Person (step 1 of doc/zeiten_weitere_filter_plan.md). The people are
+  # the ones whose time the reader may see (D2); the pill stands only for a
+  # colleague the controller found among them, the reader's own id is the
+  # switch "Nur meine Zeiten" in the status row (D4).
+  people = Array(@filter_people)
+  creator_removal = TimeSessionsHelper::TIME_FILTER_REMOVALS.fetch(:creator)
+  person_choices = people.map do |person|
+    changes = { 'creator_id' => person.id }
+    { value: person.id, label: viewer_display_name(person), url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: filter_state[:creator_id] == person.id }
+  end
+  person_options = [
+    { value: '', label: t('views.organisations.time_sessions.index.filter_all_people'),
+      url: time_filter_removal_url(:creator), owns: owns_for.call(creator_removal),
+      selected: params[:creator_id].blank? }
+  ] + person_choices
+
+  # --- Tag (step 2): the tags of visible bookings and of their tickets. A
+  # booking matches when the tag is on it OR on its ticket.
+  tags = Array(@filter_tags)
+  tag_removal = TimeSessionsHelper::TIME_FILTER_REMOVALS.fetch(:tag)
+  tag_choices = tags.map do |tag|
+    changes = { 'tag_id' => tag.id }
+    { value: tag.id, label: tag.name, url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: @filtered_tag&.id == tag.id }
+  end
+  tag_options = [
+    { value: '', label: t('views.organisations.time_sessions.index.filter_all_tags'),
+      url: time_filter_removal_url(:tag), owns: owns_for.call(tag_removal),
+      selected: @filtered_tag.blank? }
+  ] + tag_choices
+
+  # --- Ticket status (steps 3a and 3b): three phases read from the status
+  # System Functions, the same in every project (TimeSessions::TicketPhase),
+  # and below them the chosen project's own values
+  # (TimeSessions::TicketStatusValues). One pill for both, and each choice
+  # REPLACES the other: the removal clears both, so every choice starts from it.
+  phase_removal = TimeSessionsHelper::TIME_FILTER_REMOVALS.fetch(:ticket_phase)
+  status_choice = filter_state[:ticket_status_choice]
+  phase_choices = TimeSessions::TicketPhase::KEYS.map do |key|
+    changes = phase_removal.merge('ticket_phase' => key)
+    { value: key, label: TimeSessions::TicketPhase.label(key), url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: filter_state[:phase] == key }
+  end
+  phase_choices += Array(@filter_ticket_statuses).map.with_index do |choice, index|
+    changes = phase_removal.merge('ticket_status' => choice.value)
+    { value: choice.value, label: choice.label, url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: filter_state[:phase].nil? && status_choice == choice,
+      heading: (t('views.organisations.time_sessions.index.filter_ticket_status_heading', project: @filtered_project.name) if index.zero?) }
+  end
+  phase_options = [
+    { value: '', label: t('views.organisations.time_sessions.index.filter_all_ticket_phases'),
+      url: time_filter_removal_url(:ticket_phase), owns: owns_for.call(phase_removal),
+      selected: filter_state[:phase].blank? && status_choice.nil? }
+  ] + phase_choices
+  phase_notice = t('views.organisations.time_sessions.index.filter_ticket_phase_notice')
+
+  addable_kinds = time_filter_addable_kinds(filter_state, people: people, reader: current_user, tags: tags,
+                                                          ticket_phase: @filter_offers_ticket_phase)
+
+  # --- Billing. Picking one opens the period and all three states (S4, D2), so
+  # its hours are really in the list; the pills visibly move with it. The
+  # widening comes from time_billing_choice_owns, the id is the reader's choice
+  # and not part of the rule.
+  billing_locked = time_billing_choice_locked?(@effective_status_filters)
+  billing_removal = TimeSessionsHelper::TIME_FILTER_REMOVALS.fetch(:billing)
+  billing_options = [
+    { value: '', label: t('views.organisations.time_sessions.index.filter_all_groups'),
+      url: time_filter_removal_url(:billing), owns: owns_for.call(billing_removal),
+      selected: @filtered_group.blank? }
+  ]
+  # ⚠️ ONE merge, read twice. The href needs the changes as a hash, the
+  # declaration needs them as pairs, and building them separately -- which this
+  # did, under a comment promising it did not -- is exactly the drift the helper
+  # exists to prevent.
+  billing_options += @accessible_time_session_groups.map do |group|
+    changes = time_billing_choice_changes.merge('time_session_group_id' => group.id)
+    { value: group.id, label: group.name, url: url_for_changes.call(changes),
+      owns: owns_for.call(changes), selected: @filtered_group&.id == group.id }
+  end
+%>
+
+<%# The panel is a GRID with a label column (Handout §3.1): 74px of quiet words
+    on the left, the controls on the right. The labels are the only structure in
+    here -- no inner lines, no tiles -- and they name the GATTUNG of each row:
+    what you choose, what you switch, what you type.
+
+    Three labels since the user's billings screenshot (evening of 02.09.2026):
+    Filter, Status, Suche. An earlier drawing had no "Status" label and this
+    comment defended the gap; the later screenshot shows it, and a later drawing
+    beats an earlier one.
+
+    ⚠️ minmax(0, 1fr), not 1fr. A 1fr track never shrinks below the minimum
+    width of its content, and the search field's fixed 420px set that minimum:
+    in the phone's filter drawer the pills wrapped behind the screen's edge and
+    the drawer scrolled sideways (browser check, 29.09.2026; pinned in
+    spec/system/mobile_shell_regressions_spec.rb). %>
+<div class="grid grid-cols-[74px_minmax(0,1fr)] items-center gap-x-3.5 gap-y-2">
+
+  <%# --- Row 1: what you pick ------------------------------------------- %>
+  <span class="text-xs text-cream-600"><%= t('views.organisations.time_sessions.index.filter_row_choose') %></span>
+  <div class="flex items-center gap-2 flex-wrap">
+    <%# The two hand-typed bounds live in the menu of the pill they belong to,
+        and only while that pill is the chosen one. Shown against the bounds the
+        controller ACCEPTED (TimeSessions::DateBound), not the raw parameters:
+        an array typed into the address (start_date[]=x) reached date_field
+        as-is and answered with a 500. %>
+    <% custom_bounds = capture do %>
+      <%# The two fields carry data-auto-submit-skip: a range is ONE decision made
+          out of two controls, and submitting when the first changes applies a span
+          half of which the reader has not chosen ("from June" against last month's
+          "to"). The button below is what applies them.
+
+          The day count is rendered here from the bounds in force, so the panel is
+          complete without JavaScript; custom_period_controller only keeps it
+          honest while the fields are being typed. %>
+      <% span_days = (@effective_start_date && @effective_end_date) ? (@effective_end_date.to_date - @effective_start_date.to_date).to_i + 1 : nil %>
+      <div class="border-t border-cream-300 mt-1 pt-2 px-3 pb-1"
+           data-controller="custom-period"
+           data-action="input->custom-period#refresh change->custom-period#refresh">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="w-8 text-xs text-cream-600"><%= t('views.organisations.time_sessions.index.filter_range_from') %></span>
+          <%= f.date_field :start_date, value: @effective_start_date,
+                           class: 'flex-1 border border-stroke rounded text-xs px-2 py-1 font-mono',
+                           data: { auto_submit_skip: '', custom_period_target: 'start' } %>
+        </div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="w-8 text-xs text-cream-600"><%= t('views.organisations.time_sessions.index.filter_range_to') %></span>
+          <%= f.date_field :end_date, value: @effective_end_date,
+                           class: 'flex-1 border border-stroke rounded text-xs px-2 py-1 font-mono',
+                           data: { auto_submit_skip: '', custom_period_target: 'end' } %>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs text-cream-600 tabular-nums"
+                data-custom-period-target="days"
+                data-template="<%= t('views.organisations.time_sessions.index.filter_range_days', count: '%{count}') %>">
+            <%= span_days ? t('views.organisations.time_sessions.index.filter_range_days', count: span_days) : '' %>
+          </span>
+          <%# Green, because this one IS an action -- the only one in the filter
+              line. The reset beside it stays a neutral link on purpose (F7).
+
+              ⚠️ turbo_frame _top, overriding the form's frame. This button changes
+              the PERIOD, and the period pill sits outside time_sessions_list_frame:
+              a frame answer updated the list underneath and left the pill reading
+              "Eigener Zeitraum" over a list of June to August. Every other period
+              choice is a whole-page visit for exactly this reason (time_filter_owns),
+              and this is one too. It also makes the panel close by itself on the
+              answer, with or without JavaScript, because the span is settled by then. %>
+          <%= f.submit t('views.organisations.time_sessions.index.filter_range_apply'),
+                       name: nil,
+                       class: 'px-3 py-1.5 text-xs font-semibold rounded border border-ink bg-btn-primary text-cream-900 cursor-pointer disabled:opacity-50 disabled:cursor-default',
+                       data: { custom_period_target: 'apply', turbo_frame: '_top',
+                               action: 'click->details-autoclose#close' } %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# The period menu stands OPEN only while the span is not yet settled.
+        Choosing "eigener Zeitraum" is a page visit and the two fields live in
+        that menu, so landing on a closed one would put the very thing the reader
+        asked for out of reach. Once both bounds are in force they have it, and
+        the panel closing on "übernehmen" (custom_period#close) would be undone by
+        the next full load if the server disagreed. %>
+    <% custom_chosen = @effective_date_range == custom_key %>
+    <% span_settled = @effective_start_date.present? && @effective_end_date.present? %>
+    <%= render 'shared/filter_pill',
+               key: :period, clearable: false,
+               label: time_filter_line_label(:period, filter_state),
+               set: true, options: period_options,
+               open: (custom_chosen && !span_settled),
+               footer: (custom_chosen ? custom_bounds : nil) %>
+
+    <%# At rest a pill wears the words of its own blank option ("alle Projekte"),
+        not the filter's name. It is the sentence the menu opens with, and it says
+        what the list IS showing rather than what could be narrowed. Once
+        something is chosen the value takes the place of both. %>
+    <%= render 'shared/filter_pill',
+               key: :project,
+               label: (@filtered_project ? time_filter_line_label(:project, filter_state) : project_options.first[:label]),
+               set: @filtered_project.present?, options: project_options,
+               clear_url: time_filter_removal_url(:project), clear_owns: owns_for.call(project_removal) %>
+
+    <%# A subject lives INSIDE a project, and this is the only thing on the line
+        that says so. Not a separator between equals: it points. %>
+    <span class="text-cream-500 select-none" aria-hidden="true">&rsaquo;</span>
+
+    <%# ⚠️ The menu shows the most recently booked subjects, at most
+        MAX_FILTER_SUBJECTS of them, and says so when it is cutting. The way past
+        the cap is the project pill to its left, which narrows the SOURCE, not
+        the type-to-narrow field, which only hides links already rendered. %>
+    <%= render 'shared/filter_pill',
+               key: :subject, filterable: true,
+               label: (chosen_subject ? time_filter_line_label(:subject, filter_state) : subject_options.first[:label]),
+               set: chosen_subject.present?, options: subject_options,
+               clear_url: time_filter_removal_url(:subject), clear_owns: owns_for.call(subject_removal),
+               notice: (@filter_subjects_capped ? t('views.organisations.time_sessions.index.filter_subject_capped', count: Organisations::TimeSessionsController::MAX_FILTER_SUBJECTS) : nil) %>
+
+    <% if @filtered_person %>
+      <%= render 'shared/filter_pill',
+                 key: :person, filterable: true,
+                 label: time_filter_removal_label(:creator, filter_state),
+                 set: true, options: person_options,
+                 clear_url: time_filter_removal_url(:creator), clear_owns: owns_for.call(creator_removal) %>
+    <% end %>
+
+    <% if @filtered_tag %>
+      <%= render 'shared/filter_pill',
+                 key: :tag, filterable: true,
+                 label: time_filter_removal_label(:tag, filter_state),
+                 set: true, options: tag_options,
+                 clear_url: time_filter_removal_url(:tag), clear_owns: owns_for.call(tag_removal) %>
+    <% end %>
+
+    <% if filter_state[:phase] || status_choice %>
+      <%= render 'shared/filter_pill',
+                 key: :ticket_phase,
+                 label: time_filter_removal_label(:ticket_phase, filter_state),
+                 set: true, options: phase_options, notice: phase_notice,
+                 clear_url: time_filter_removal_url(:ticket_phase), clear_owns: owns_for.call(phase_removal) %>
+    <% end %>
+
+    <%# Further filters, one menu for all of them (plan path C): a kind is
+        opened in place, its values listed under it, and a choice makes it a pill
+        of its own beside the others. Absent while it has nothing to offer. %>
+    <% if addable_kinds.any? %>
+      <%= render 'organisations/time_sessions/add_filter',
+                 sections: {
+                   person: { options: person_choices, filterable: true },
+                   tag: { options: tag_choices, filterable: true },
+                   ticket_phase: { options: phase_choices, filterable: false, notice: phase_notice }
+                 }.slice(*addable_kinds) %>
+    <% end %>
+
+    <%# The billing sits at the far end, apart from the three that narrow WHAT is
+        listed. It asks a different question: whose invoice this time belongs to.
+        The reset that used to hold this end has moved down to the switches. %>
+    <%# min-w-0 max-w-full: a flex item does not shrink below its content on
+        its own, so a chosen billing with a long name held this wrapper wider
+        than the row and the pill ran past a phone's edge (second review of
+        #932). The pill inside may shrink; this lets it. %>
+    <div class="ms-auto min-w-0 max-w-full">
+      <%# align: :end - pushed to the end of the row, so its menu has to hang
+          from that end or it runs off the page. %>
+      <%= render 'shared/filter_pill',
+                 key: :billing, filterable: true, align: :end,
+                 label: (@filtered_group ? time_filter_line_label(:billing, filter_state) : billing_options.first[:label]),
+                 set: @filtered_group.present?, options: billing_options,
+                 clear_url: time_filter_removal_url(:billing), clear_owns: owns_for.call(billing_removal),
+                 locked_reason: (billing_locked ? t('views.organisations.time_sessions.index.filter_group_locked') : nil) %>
+    </div>
+  </div>
+
+  <%# --- Row 2: what you switch, labelled "Status" (user screenshot,
+      02.09.2026). %>
+  <span class="text-xs text-cream-600"><%= t('views.organisations.time_sessions.index.filter_row_status') %></span>
+  <%= render 'organisations/time_sessions/status_pills' %>
+
+  <%# --- Row 3: what you type. Deliberately wider and whiter than the four
+      surfaces above (Handout §3.4): it is a different gattung and must not read
+      as a fifth chooser. %>
+  <span class="text-xs text-cream-600"><%= t('views.organisations.time_sessions.index.filter_row_search') %></span>
+  <%# The reset ends the LAST row of the panel, bottom right (user, 02.09.2026).
+      It governs everything in the box, so it belongs at the box's end rather
+      than at the end of one row inside it -- on the status row it read as a
+      reset of the three states alone.
+      Its own id, so it can arrive with the frame answer: its existence depends
+      on the search, and the search targets the list frame. %>
+  <div class="flex items-end justify-between gap-4 flex-wrap">
+    <%= render 'organisations/time_sessions/list_search', f: f %>
+    <%= render 'organisations/time_sessions/filter_reset' %>
+  </div>
+</div>
+
+<%# --- Hidden fields that carry the filter state across a submit ---------- %>
+
+<% if @time_session_smart_folders.any? %>
+  <%= f.hidden_field :smart_folder_id, value: params[:smart_folder_id] %>
+  <%= f.hidden_field :items, value: params[:items] %>
+<% end %>
+
+<%# No hidden search field any more: the search IS a field of this form now
+    (row 3), so a hidden copy beside it would send the parameter twice. That
+    also ends the hazard the comment further down used to describe: there is one
+    form on this panel, so nothing is emitted twice under one name. %>
+
+<%# Every filter a LINK sets (a pill option, "Nur meine Zeiten") has no field in
+    this form, so a submit would drop it. Which parameters those are is declared
+    once, per filter, in TimeSessions::ListFilters (`carried`); the period and
+    the status carry their effective value below.
+
+    ⚠️ data-filter-state, a handle of its own, because the NAME is not one. The
+    search form (_list_search) re-emits EVERY query parameter as a hidden field
+    out of request.query_parameters, under the SAME name, to the SAME address.
+    A selector on the name finds whichever copy the parser reaches first, and so
+    does one scoped by form action -- so removing a line here can change nothing
+    a spec can see. True of every hidden filter field on this page.
+
+    ⚠️ Do NOT re-anchor this on document order. The search used to sit above the
+    filter panel and the copy came first; it moved down to the display row and
+    now it comes second, and nothing else about the hazard changed. An oracle
+    that relies on which is earlier is one layout change away from testing the
+    wrong field, silently. That is the whole reason this handle exists.
+
+    (The two forms are SIBLINGS, not nested -- an earlier version of this comment
+    blamed HTML's nested-form reparenting, which is not what happens here; #692
+    corrected it.) %>
+<%# Strings only. A list typed into the address (ticket_status[]=Fertig) is no
+    value of any of these filters, and a hidden field turned it into one:
+    value="Fertig", and the next submit filtered by a value the page had not
+    named (review of #936). Dropped here, it is dropped on the next submit. %>
+<% TimeSessions::ListFilters.carried_params.each do |carried_param| %>
+  <% if params[carried_param].is_a?(String) && params[carried_param].present? %>
+    <%= f.hidden_field carried_param, value: params[carried_param], data: { filter_state: carried_param } %>
+  <% end %>
+<% end %>
+
+<%# Status pills are set outside the form via pills -- preserved on submit %>
+<% Array(@effective_status_filters || params[:status_filters]).reject(&:blank?).each do |s| %>
+  <%= hidden_field_tag 'status_filters[]', s %>
+<% end %>
+
+<%# The date-range choice is set by the pill above -- preserved on filter submit,
+    except when custom dates are set (then 'custom' applies implicitly via
+    start_date/end_date, which ARE fields of this form). %>
+<% if @effective_date_range.present? && @effective_date_range != custom_key %>
+  <%= f.hidden_field :date_range, value: @effective_date_range %>
+<% end %>
+
+<%# Display options are set outside the filter via pills -- carried over %>
+<% if params[:show_creator] == '1' %><%= f.hidden_field :show_creator, value: '1' %><% end %>
+<% if params[:expand_all] == '1' %><%= f.hidden_field :expand_all, value: '1' %><% end %>

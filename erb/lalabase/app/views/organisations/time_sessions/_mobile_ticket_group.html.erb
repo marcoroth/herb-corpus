@@ -1,0 +1,83 @@
+<%# locals: (row:, can_bulk_assign_others: false, show_creator: false, expand_all: false) %>
+<%# One row of the time list on a phone. Same STRUCTURE as the desktop since
+    30.08.2026, not just the same colours: month > row > booking, with the
+    bookings folded away behind the row and opened by tapping it.
+    Before that the phone drew every booking, always, each in its own bordered
+    box with a filled red delete on it. Three rows and six bookings came to
+    2000px of page, the loudest thing on the screen was a border around the
+    least important content, and every change in this area had to be made twice
+    because the two screens were two layouts. The desktop twin is _aggregate_row
+    and the shared toggle is ticket_group_controller.js.
+    The row's own key is UI state, exactly as on the desktop: it identifies a
+    position on a screen, never a record. %>
+<% parts = time_session_subject_presentation(row[:subject]) %>
+<% selectable = row[:sessions].any? { |session| time_session_selectable?(session, can_bulk_assign_others: can_bulk_assign_others) } %>
+<div data-time-session-bulk-group
+     data-controller="ticket-group" data-ticket-group-expanded-value="<%= expand_all %>"
+     data-ticket-group-key-value="<%= row[:key].join('|') %>">
+  <div class="flex cursor-pointer items-start gap-3 border-b border-cream-200 py-3"
+       data-action="click->ticket-group#toggle">
+    <%# The checkbox on the LEFT, where the bookings carry theirs. It used to sit
+        far right while theirs sat left: one control, two sides. %>
+    <div class="flex h-6 w-4 shrink-0 items-center" data-no-toggle>
+      <% if selectable %>
+        <input type="checkbox"
+               class="group-checkbox <%= TimeSessionsHelper::TIME_LIST_CHECKBOX_CLASSES %>"
+               data-time-session-bulk-target="groupCheckbox"
+               data-action="change->time-session-bulk#toggleGroup">
+      <% end %>
+    </div>
+
+    <div class="min-w-0 flex-1">
+      <%# The TITLE is the link, as on the desktop. A "Zum Ticket" button used to
+          sit under every row saying what the title already points at. %>
+      <div class="flex min-h-6 items-center gap-1.5 font-semibold leading-6 text-cream-900">
+        <% if parts.nil? %>
+          <span class="italic font-normal text-cream-600"><%= t('views.time_sessions.billing_status.without_subject') %></span>
+        <% else %>
+          <% if parts.glyph_as_handle? %><i class="bi <%= parts.icon %> shrink-0 text-cream-700"></i><% end %>
+          <% if policy(row[:subject].project).area_access?(parts.read_area, :read) %>
+            <%= link_to parts.label, parts.path, class: 'min-w-0 hover:underline',
+                        data: { turbo_frame: '_top', no_toggle: true } %>
+          <% else %>
+            <span class="min-w-0"><%= parts.label %></span>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="flex items-center gap-2 text-sm leading-6 text-cream-700">
+        <span class="font-mono font-semibold"><%= TimeSession.format_duration(row[:minutes]) %></span>
+        <%= render NeoTimeShareBarComponent.new(shares: row[:shares]) %>
+        <span class="text-xs"><%= time_billing_state_label(row[:state], percent: row[:percent]) %></span>
+      </div>
+
+      <% if row[:hidden_minutes].positive? %>
+        <div class="text-[11px] leading-6 text-cream-600">
+          <%= t('views.time_sessions.billing_status.hidden_note',
+                shown: TimeSession.format_duration(row[:minutes]),
+                total: TimeSession.format_duration(row[:total_minutes]),
+                hidden: TimeSession.format_duration(row[:hidden_minutes])) %>
+        </div>
+      <% end %>
+    </div>
+
+    <button type="button" data-toggle-allowed aria-expanded="false"
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-cream-700"
+            aria-label="<%= t('views.time_sessions.billing_status.entries_count', count: row[:sessions].size) %>">
+      <i class="bi bi-chevron-right inline-block text-xs transition-transform duration-200" data-ticket-group-target="chevron"></i>
+    </button>
+  </div>
+
+  <div class="hidden border-b border-cream-200" data-ticket-group-target="sessions">
+    <% row[:sessions].each do |time_session| %>
+      <%# Same rule as the desktop: the mark only travels down when the row is
+          mixed, or every booking repeats the mark above it. %>
+      <%= render 'organisations/time_sessions/mobile_session_card',
+                 time_session: time_session,
+                 can_bulk_assign_others: can_bulk_assign_others,
+                 show_creator: show_creator,
+                 show_state_mark: row[:state] == :mixed,
+                 show_duration: row[:sessions].size > 1 %>
+    <% end %>
+  </div>
+</div>

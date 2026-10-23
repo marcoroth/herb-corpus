@@ -1,0 +1,71 @@
+<%# app/views/organisations/knowledge/_knowledge_row.html.erb %>
+<%
+  is_selected = defined?(selected_item) && selected_item && selected_item.id == item.id && selected_item.class == item.class
+
+  # Notes and documents open into the detail lane through list-row.
+  # url is the DETAIL address the lane fetches (the resource), never the page
+  # address: that one the opener builds from the page's data-index-url and the
+  # live query, so a click keeps search, view, conditions and page.
+  item_type = item.is_a?(Note) ? 'note' : 'document'
+
+  case item_type
+  when 'note'
+    detail_url = organisation_project_note_path(@current_organisation, @project, item)
+    item_title = item.title
+    type_icon = 'bi-journal-text'
+    type_label = t('views.organisations.knowledge.knowledge_row.note_type')
+  else
+    detail_url = organisation_project_document_path(@current_organisation, @project, item)
+    item_title = item.current_version&.title
+    type_icon = 'bi-file-earmark-text'
+    type_label = t('views.organisations.knowledge.knowledge_row.document_type')
+  end
+  selection_param = Knowledge::TypeRegistry.fetch(item_type)[:param_key]
+%>
+
+<%# data-item-id is the row's IDENTITY, addressed by the notes and documents
+    controllers' streams (replace after a save, remove after a delete) and by
+    the page's selected-row selectors. Not a Stimulus value on purpose: a
+    controller rename must not detach a stream from its row. %>
+<tr
+  data-controller="list-row"
+  data-list-row-url-value="<%= html_escape(detail_url) %>"
+  data-list-row-id-value="<%= item.id %>"
+  data-list-row-param-value="<%= selection_param %>"
+  data-list-row-frame-value="knowledge_display_frame"
+  data-item-id="<%= item.id %>"
+  data-item-type="<%= item_type %>"
+  data-action="click->list-row#click"
+  class="transition-colors duration-100 ease-in-out cursor-pointer focus:outline-none <%= is_selected ? 'selected-row' : 'hover:bg-cream-100' %>"
+  tabindex="-1">
+  <td class="p-3" data-column="type">
+    <span class="inline-flex items-center gap-1 text-xs text-cream-600">
+      <i class="bi <%= type_icon %>"></i>
+      <span class="type-label"><%= type_label %></span>
+    </span>
+  </td>
+  <td class="title-column p-3 w-[50%]">
+    <div class="flex items-center">
+      <div class="flex flex-col w-full">
+        <h5 class="text-sm font-medium truncate">
+          <%= item_title %>
+        </h5>
+      </div>
+    </div>
+  </td>
+  <td class="p-3 whitespace-nowrap w-[20%]" data-fb-col-date>
+    <div class="text-sm">
+      <span class="date-full"><%= l(item.created_at, format: :long) %></span>
+      <span class="date-compact hidden"><%= l(item.created_at.to_date) %></span>
+    </div>
+  </td>
+  <td class="p-3 w-[25%]">
+    <% if item.tags.any? %>
+      <div class="flex flex-wrap gap-1 max-w-full">
+        <% item.tags.each do |tag| %>
+          <%= render NeoTagComponent.new(text: tag.name, variant: :warning, size: :small) %>
+        <% end %>
+      </div>
+    <% end %>
+  </td>
+</tr>

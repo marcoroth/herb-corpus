@@ -1,0 +1,64 @@
+<div data-controller="billing-modal" data-billing-modal-loading-text-value="<%= t('views.organisations.time_session_groups.billing_status.loading') %>">
+  <%= render 'header' %>
+
+  <div>
+    <%= render 'navigation', current_view: :aggregated %>
+
+    <% ag = 'views.organisations.time_session_groups.aggregated' %>
+    <% if @time_sessions.any? %>
+      <%# Grouped by subject, in the same flex-grid skeleton as the
+          chronological rows (D2): header, rows and footer share ONE column
+          set. Every row keeps its project as the subline - this is the view
+          that reads like the invoice, and there the project is the context. %>
+      <div class="flex items-center gap-3.5 px-2 pb-1.5 text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600">
+        <span class="w-[62px] shrink-0 text-right"><%= t("#{ag}.th_duration") %></span>
+        <span class="w-[56px] shrink-0 text-right"><%= t("#{ag}.th_count") %></span>
+        <span class="min-w-0 flex-1"><%= t("#{ag}.th_subject") %></span>
+        <span class="w-[170px] shrink-0 text-right"><%= t("#{ag}.th_period") %></span>
+      </div>
+      <div class="h-px bg-cream-400"></div>
+
+      <% @sessions_by_subject.each do |subject, sessions| %>
+        <div class="flex items-start gap-3.5 border-b border-cream-200 px-2 py-2.5">
+          <span class="w-[62px] shrink-0 text-right font-mono text-sm font-semibold leading-6 text-cream-900">
+            <%= TimeSession.format_duration(sessions.sum(&:duration)) %>
+          </span>
+          <span class="w-[56px] shrink-0 text-right font-mono text-sm leading-6 text-cream-700">
+            <%= sessions.count %>
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-[15px] leading-6">
+              <%= render 'organisations/time_sessions/subject_cell',
+                         subject: subject,
+                         link_access: @subject_link_access,
+                         truncate_length: 60,
+                         link_class: "font-medium text-cream-900 hover:underline",
+                         muted_class: "text-cream-500" %>
+            </div>
+            <% project = subject ? subject.project : sessions.first.project %>
+            <div class="truncate text-xs leading-5 text-cream-600"><%= project.name %></div>
+          </div>
+          <span class="w-[170px] shrink-0 text-right font-mono text-sm leading-6 text-cream-700">
+            <% dates = sessions.map(&:occurred_on) %>
+            <%= dates.min.strftime('%d.%m.%Y') %> - <%= dates.max.strftime('%d.%m.%Y') %>
+          </span>
+        </div>
+      <% end %>
+
+      <%# The sum footer mirrors the header's first two columns. %>
+      <div class="flex items-baseline gap-3.5 px-2 pt-2">
+        <span class="w-[62px] shrink-0 text-right font-mono text-base font-semibold text-cream-900">
+          <%= TimeSession.format_duration(@group_figures[:minutes]) %>
+        </span>
+        <span class="w-[56px] shrink-0 text-right font-mono text-sm text-cream-700"><%= @group_figures[:count] %></span>
+        <span class="min-w-0 flex-1 text-sm text-cream-600"><%= t('views.organisations.time_session_groups.shared.sum_all') %></span>
+      </div>
+    <% else %>
+      <div class="rounded-lg border border-cream-300 bg-cream-50 p-6 text-center">
+        <p class="text-cream-600"><%= t("#{ag}.no_sessions_in_group") %></p>
+      </div>
+    <% end %>
+
+    <%= render 'organisations/time_session_groups/activities', activities: @activities %>
+  </div>
+</div>

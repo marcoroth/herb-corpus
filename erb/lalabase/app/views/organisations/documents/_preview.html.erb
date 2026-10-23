@@ -1,0 +1,77 @@
+<%# locals: (document:, version:, detail_frame_id: 'knowledge_display_frame') %>
+<%# One version of a document in the lane (doc/dateivorschau_plan.md, S1; the
+    designer's part 3): the same root on every road (the page state
+    ?document_id=X&preview=V and the frame request documents#preview), no
+    surface of its own, like .document-content. The head is the lane head with
+    an unconditional way back to the document (D4), the title is the version's
+    number and the file name, never truncated. Then the case (D3), by content
+    type, every file through the authorised proxy and never the open blob
+    address. The root is what preview_embed measures (D5): the PDF's frame is
+    mounted only while the root is wide enough, the text version stands in
+    below. Locals only: the broadcast never renders this, but a frame request
+    has no @-variables beyond the page's. %>
+<% pv = 'views.organisations.documents.preview' %>
+<% file = version.document_version_file %>
+<% proxy = file.attached? ? document_version_download_path(version) : nil %>
+<% kind = document_preview_kind(version) %>
+<% organisation = document.project.organisation %>
+<% page_query = request.query_parameters.except('frame', 'frame_id', 'format', KnowledgeFilterHelper::PREVIEW_PARAM).merge('document_id' => document.id) %>
+<% document_url = organisation_project_document_path(organisation_id: organisation.id, project_id: document.project.id, id: document.id) %>
+<% preview_url = preview_organisation_project_document_path(organisation_id: organisation.id, project_id: document.project.id, id: document.id, version_id: version.id) %>
+<%# refresh-url: the road "Aktualisieren" takes when the frame has no src of its
+    own (a preview the page rendered), see preview_embed_controller. %>
+<%# The DOCUMENT is what the assistant marker names, whatever version this
+    preview shows: the reference is to the document and the tool reads its
+    current version (doc/assistent_wissen_kontext_plan.md, §2). On an OLDER
+    version the label says so, because the offer strip and the draft pill are
+    built from it and a tooltip on the button does not reach that road
+    (review of #799). %>
+<% historical = version.id != document.current_version_id %>
+<div class="document-preview" id="<%= dom_id(version) %>_preview"
+     data-controller="preview-embed" data-preview-embed-refresh-url-value="<%= preview_url %>"
+     <%= assistant_context_attributes(document, suffix: (t("#{pv}.assistant_current_version") if historical)) %>>
+  <%= render 'organisations/knowledge/lane_head',
+             type_word: t('views.organisations.knowledge.knowledge_row.document_type'),
+             assistant_record: document,
+             back: { href: organisation_project_knowledge_index_path(organisation, document.project, page_query),
+                     label: t("#{pv}.back_to_document"), url: document_url, frame: detail_frame_id,
+                     remove: [KnowledgeFilterHelper::PREVIEW_PARAM], focus: "[data-preview-link-for='#{version.id}']" },
+             menu: (proxy ? [
+               { label: t("#{pv}.open_in_new_tab"), url: proxy, icon: 'box-arrow-up-right', target: '_blank', rel: 'noopener' },
+               { label: t("#{pv}.download"), url: proxy, icon: 'download', download: '' }
+             ] : nil) %>
+  <h2 class="text-[22px] leading-snug font-bold tracking-tight text-cream-900 break-words" data-lane-title>
+    <% if version.label %>
+      <span class="mr-2 font-mono text-[15px] font-normal text-cream-500"><%= version.label %></span>
+    <% end %>
+    <%= file.attached? ? file.filename.to_s : version.title %>
+  </h2>
+
+  <div class="py-4" data-preview-case="<%= kind %>">
+    <% case kind %>
+    <% when :image %>
+      <img src="<%= proxy %>" alt="" class="max-w-full h-auto rounded"
+           data-preview-embed-target="image" data-action="error->preview-embed#imageFailed">
+      <div hidden data-preview-embed-target="imageFallback">
+        <%= render 'organisations/documents/preview_none', proxy: proxy, sentence: t("#{pv}.image_failed") %>
+      </div>
+    <% when :pdf %>
+      <%# The frame without a sandbox (D8, decided 10.09.2026): access is the
+          proxy's, rendering and isolation the browser's PDF viewer's; Chrome's
+          viewer renders in no sandboxed frame at all. Mounted by the controller
+          while the root is wide enough; below, the text version. %>
+      <template data-preview-embed-target="template">
+        <iframe src="<%= proxy %>" title="<%= file.filename %>" referrerpolicy="no-referrer"
+                class="block w-full h-[70vh] rounded border border-cream-300 bg-cream-50"></iframe>
+      </template>
+      <div data-preview-embed-target="mount"></div>
+      <div hidden data-preview-embed-target="fallback">
+        <%= render 'organisations/documents/preview_text', version: version, proxy: proxy %>
+      </div>
+    <% when :text, :text_missing %>
+      <%= render 'organisations/documents/preview_text', version: version, proxy: proxy %>
+    <% else %>
+      <%= render 'organisations/documents/preview_none', proxy: proxy, sentence: t("#{pv}.no_preview") %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,120 @@
+<turbo-frame id="knowledge_results">
+
+<%# What the list found under the current conditions; the bar reads it from
+    here for the draft row (20a, § 8). The pager counted these rows anyway. %>
+<div class="xl:col-span-2" style="padding-top: 0;"
+     data-fb-hits-total="<%= pagy.count if defined?(pagy) && pagy %>">
+  <div class="text-base min-h-[70vh] overflow-hidden">
+    <% if knowledge_items.empty? %>
+        <% if knowledge_first_use?(@project) %>
+          <%# First time: full-width two-column grid like the documentation
+              reference (style guide "Leerzustände") — empty card + explainer,
+              stacked on mobile, starting at the top of the list area.
+              first-use-empty-grid/-card: while the detail pane shows a create
+              form (.show-content — e.g. the first note), layout.css hides the
+              card (it prompts for the action already in progress) and the
+              explainer takes the full list column. Same as meetings. %>
+          <div class="first-use-empty-grid grid w-full gap-5 md:grid-cols-2 md:items-stretch">
+            <div class="first-use-empty-card h-full">
+              <%# First-time CTAs mirror the "+" header dropdown (same paths, icons, rights). %>
+              <% knowledge_cta = capture do %>
+                <% if can_write_notes? %>
+                  <%= render Neo::Buttons::ButtonComponent.new(
+                        variant: :primary, icon: "pencil-square", size: :large,
+                        url: new_organisation_project_note_path(@current_organisation, @project, frame: 'content', frame_id: 'knowledge_display_frame'),
+                        data: { turbo_frame: 'knowledge_display_frame' }
+                      ) do %>
+                    <%= t('views.organisations.knowledge.index.new_note') %>
+                  <% end %>
+                <% end %>
+                <% if can_write_documents? %>
+                  <%= render Neo::Buttons::ButtonComponent.new(
+                        variant: :secondary, icon: "file-earmark-arrow-up", size: :large,
+                        url: new_organisation_project_document_path(@current_organisation, @project, frame: 'content', frame_id: 'knowledge_display_frame'),
+                        data: { turbo_frame: 'knowledge_display_frame' }
+                      ) do %>
+                    <%= t('views.organisations.knowledge.index.new_document') %>
+                  <% end %>
+                <% end %>
+              <% end %>
+              <%= render 'shared/empty_content',
+                  variant: :first_time,
+                  icon_class: 'bi bi-lightbulb',
+                  title: t('views.organisations.knowledge.index.empty_first_time_title'),
+                  description: t('views.organisations.knowledge.index.empty_first_time_description'),
+                  actions: knowledge_cta.presence %>
+            </div>
+            <%= render 'shared/explainer_panel',
+                i18n_scope: 'views.organisations.knowledge.index.explainer',
+                points: { files: 'file-earmark', notes: 'pencil', search: 'search', chat: 'robot' } %>
+          </div>
+        <% else %>
+          <div class="flex items-center justify-center min-h-[50vh]">
+            <%= render 'shared/empty_content',
+                variant: :no_results,
+                icon_class: 'bi bi-search',
+                title: t('views.organisations.knowledge.index.empty_no_results') %>
+          </div>
+        <% end %>
+    <% else %>
+    <!-- table -->
+    <div class="relative w-full overflow-y-auto bg-cream-50 rounded-lg overflow-hidden">
+      <%# w-full, not min-w-full: the compact table (layout.css,
+          ".layout:not(.hide-content) .list table") is table-layout: fixed, and
+          fixed layout only applies to a table WITH a width. The title cells
+          carry the classes that rule addresses: width: auto beside the lane, so
+          the title takes what a folded column gives up. %>
+      <table class="w-full border-collapse" data-organisation-id="<%= @current_organisation.id %>" data-project-id="<%= @project.id %>">
+        <thead>
+          <tr>
+            <%# No width share for the type column: with the table at a set width
+                (w-full, S1) a 5% share was 28px of content at 1050px and cut
+                "Notiz" to "Noti" (seen 10.09.2026). Wide, the table lays out
+                by content and this column takes what the word and the icon
+                need; beside the lane the compact rule gives it the icon's
+                width (views.css, data-column="type"). %>
+            <th scope="col" data-column="type" class="p-3 text-start text-[11px] font-mono font-medium text-cream-600 uppercase tracking-wider border-b border-ink">
+            </th>
+            <th scope="col" class="title-header p-3 text-start text-[11px] font-mono font-medium text-cream-600 uppercase tracking-wider border-b border-ink w-[50%]">
+              <%= t('views.organisations.knowledge.knowledge_results.title_header') %>
+            </th>
+            <th scope="col" data-fb-col-date class="p-3 text-start text-[11px] font-mono font-medium text-cream-600 uppercase tracking-wider border-b border-ink w-[20%]">
+              <%# In a span: the narrow rule (views.css) hides the CONTENT of
+                  this column and folds the cell to zero width. %>
+              <span><%= t('views.organisations.knowledge.knowledge_results.created_at_header') %></span>
+            </th>
+            <th scope="col" class="p-3 text-start text-[11px] font-mono font-medium text-cream-600 uppercase tracking-wider border-b border-ink w-[25%]">
+              <%= t('views.organisations.knowledge.knowledge_results.tags_header') %>
+            </th>
+          </tr>
+        </thead>
+
+        <tbody class="divide-y divide-cream-200">
+          <% knowledge_items.each do |item| %>
+            <%= render 'organisations/knowledge/knowledge_row',
+                item: item,
+                selected_item: defined?(selected_item) ? selected_item : nil,
+                type: defined?(type) ? type : 'all' %>
+          <% end %>
+          <%# The ruled short page (D8): one owner for the filler rows, shared
+              with the ticket table. The colspan is the head's four cells. %>
+          <% target_rows = defined?(pagy) && pagy ? pagy.limit : 20 %>
+          <%= render 'shared/ruled_rows', missing: target_rows - knowledge_items.size, colspan: 4 %>
+        </tbody>
+      </table>
+    </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Pagination Navigation -->
+<% if defined?(pagy) && pagy && pagy.pages > 1 %>
+  <div class="mt-4">
+    <% pagination_extra = {} %>
+    <% pagination_extra[:type] = type if defined?(type) %>
+    <% pagination_extra[:smart_folder_id] = smart_folder_id if defined?(smart_folder_id) && smart_folder_id.present? %>
+    <%= render 'shared/pagination_nav_compact', pagy: pagy, sort_params: (defined?(sort_params) ? sort_params : {}).merge(pagination_extra), frame_id: 'knowledge_results' %>
+  </div>
+<% end %>
+
+</turbo-frame>

@@ -1,0 +1,185 @@
+<% if @viewport_mode == 'mobile' %>
+  <%= render 'organisations/tickets/tickets_results_mobile', tickets: tickets, pagy: pagy, project: project %>
+<% else %>
+<%# The columns of this list (doc/spaltenwahl_plan.md, S1): one ordered list,
+    resolved once by Tickets::ResolveColumns and handed in by the controller
+    (columns:). A caller without it, a stream from elsewhere, gets the reader's
+    saved list. %>
+<% view_config = @view_configuration || ViewConfiguration.for_user_project(current_user, project, 'tickets') %>
+<% columns = local_assigns[:columns].presence || Tickets::ResolveColumns.call(view_configuration: view_config) %>
+<% ranked_columns = columns.reject { |column| column[:required] } %>
+<%# The first data-fit, before the script has measured: all ranked columns with
+    the detail closed, one with it open. %>
+<% content_open = @open_content || (defined?(selected_ticket) && selected_ticket.present?) %>
+<% initial_fit = initial_column_fit(ranked_columns, content_open: content_open) %>
+<%# The head's cells, for the ruled rows' colspan: the select box (writers
+    only), number, title, then the ranked columns. Counted HERE, beside the
+    head that renders exactly these, so the two cannot drift apart unseen. %>
+<% header_cell_count = (ticket_list_selectable?(project) ? 1 : 0) + 2 + ranked_columns.size %>
+<%# What the list is narrowed BY - the ad-hoc conditions plus the rules of the
+    view it stands on. The deadline sign in a row asks this: in a view whose own
+    question is the deadline, every row would carry the sign and it would say
+    nothing (designer, 07.09.2026). %>
+<% filtered_keys = ad_hoc_filter_params.keys +
+                   (@active_smart_folder&.smart_folder_rule_groups&.flat_map { |group| group.smart_folder_rules.map(&:field) } || []) %>
+
+<%# What the list found under the current conditions. The bar reads it from
+    here after every reload and puts it in the draft row (20a, § 8): the pager
+    counted these rows anyway, so the number costs nothing. %>
+<div class="w-full" style="padding-top: 0;"
+     data-controller="frame-error"
+     data-fb-hits-total="<%= pagy.count if defined?(pagy) && pagy %>">
+    <div class="text-base min-h-[70vh] overflow-hidden">
+      <% if tickets.empty? %>
+          <% if tickets_first_use?(project) %>
+            <% ticket_cta = nil %>
+            <% if policy(project).area_access?(:tickets, :write) %>
+              <%# Opens the inline "New Ticket" modal (like the +-header button), NOT new_ticket_path →
+                  otherwise the link loads into the list frame and Turbo reports "Content missing". %>
+              <% ticket_cta = capture do %>
+                <%= render Neo::Buttons::ButtonComponent.new(
+                      variant: :primary, icon: "plus-lg", size: :large, tag: :button, type: "button",
+                      data: { action: "click->modal#open", context: "index_page" }
+                    ) do %>
+                  <%= t('views.organisations.tickets.tickets_results.empty_first_time_cta') %>
+                <% end %>
+              <% end %>
+            <% end %>
+            <%# First time: full-width two-column grid like the documentation
+                reference (style guide "Leerzustände") — empty card + explainer,
+                stacked on mobile, starting at the top of the list area. %>
+            <div class="grid w-full gap-5 md:grid-cols-2 md:items-stretch">
+              <%= render 'shared/empty_content',
+                  variant: :first_time,
+                  icon_class: 'bi bi-check2-square',
+                  title: t('views.organisations.tickets.tickets_results.empty_first_time_title'),
+                  description: t('views.organisations.tickets.tickets_results.empty_first_time_description'),
+                  actions: ticket_cta %>
+              <%= render 'shared/explainer_panel',
+                  i18n_scope: 'views.organisations.tickets.tickets_results.explainer',
+                  points: { task: 'check2-square', status: 'arrow-repeat', people: 'person-check', time: 'clock' } %>
+            </div>
+          <% else %>
+            <div class="flex items-center justify-center min-h-[50vh]">
+              <%= render 'shared/empty_content',
+                  variant: :no_results,
+                  icon_class: 'bi bi-search',
+                  title: t('views.organisations.tickets.tickets_results.empty_no_results_title'),
+                  description: t('views.organisations.tickets.tickets_results.empty_no_results_description') %>
+            </div>
+          <% end %>
+      <% else %>
+      <!-- table -->
+      <div class="relative w-full overflow-x-auto">
+        <table class="w-full" data-fit="<%= initial_fit %>" data-column-count="<%= columns.size %>">
+        <thead>
+          <tr>
+            <%# The head box (doc/ticket_bulk_edit_plan.md, slice 1): first cell,
+                on the table's left edge, only for readers who may write. It
+                takes the LOADED page and nothing more; "alle N" is a second
+                step in the selection row. Three states: empty, dash (some of
+                the loaded rows), check (all of them). Always the stronger tone,
+                it stands alone. %>
+            <% if ticket_list_selectable?(project) %>
+              <th scope="col" data-column="select" class="py-3 select-column">
+                <input type="checkbox"
+                       class="ticket-select-box ticket-select-box--head"
+                       data-ticket-selection-target="headBox"
+                       data-action="click->ticket-selection#togglePage"
+                       aria-label="<%= t('views.organisations.tickets.selection.head_box_label') %>">
+              </th>
+            <% end %>
+            <%# Always show number header first %>
+            <th scope="col" data-column="number" data-col-min="<%= ViewConfiguration::COLUMN_MIN_WIDTH_PX['number'] %>" class="py-3 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-muted number-header">
+              <% if sortable_header && sortable_column?('number') %>
+                <%= sortable 'number', t('views.organisations.tickets.tickets_results.number') %>
+              <% else %>
+                <%= t('views.organisations.tickets.tickets_results.number') %>
+              <% end %>
+            </th>
+
+            <%# Always show title header second %>
+            <th scope="col" data-column="title" data-col-min="<%= ViewConfiguration::COLUMN_MIN_WIDTH_PX['title'] %>" class="py-3 ps-1.5 pe-3 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-muted title-header">
+              <% if sortable_header && sortable_column?('title') %>
+                <%= sortable 'title', t('views.organisations.tickets.tickets_results.title') %>
+              <% else %>
+                <%= t('views.organisations.tickets.tickets_results.title') %>
+              <% end %>
+            </th>
+
+            <%# The ranked columns: rank and minimum width as data for the fit rule %>
+            <% ranked_columns.each do |column| %>
+              <th scope="col"
+                  data-column="<%= column[:key] %>"
+                  data-rank="<%= column[:rank] %>"
+                  data-col-min="<%= column[:min_width] %>"
+                  style="<%= column_min_width_style(column) %>"
+                  class="py-3 px-3 <%= column_align_class(column) %> text-[11px] font-mono font-medium uppercase tracking-wider text-muted <%= column_header_class(column) %>">
+                <%# column_head_label, not column[:label]: the head has to name
+                    the column inside a fixed cell, the picker explains it. %>
+                <% if sortable_header && sortable_column?(column[:key]) %>
+                  <%= sortable column[:key], column_head_label(column) %>
+                <% else %>
+                  <%= column_head_label(column) %>
+                <% end %>
+              </th>
+            <% end %>
+
+            <%# Since 20a (S2) the header row ends with the last column that
+                shows something: the picker's trigger lives in the filter bar,
+                and the 8.5rem cell that used to hold it here - empty in every
+                row below - is gone with the legacy bar. %>
+          </tr>
+        </thead>
+        <tbody>
+          <%# Booked time, sub-tickets and waiting: each counted for the page in one go, the first
+              time a cell reads it (TicketsHelper#register_ticket_count_page). %>
+          <% register_ticket_count_page(tickets) %>
+          <% tickets.each do |ticket| %>
+            <%= render "organisations/tickets/ticket_row_dynamic",
+                      ticket: ticket,
+                      filtered_keys: filtered_keys,
+                      selected_ticket: defined?(selected_ticket) ? selected_ticket : nil,
+                      smart_folder_id: defined?(smart_folder_id) ? smart_folder_id : nil,
+                      organisation: defined?(current_organisation) ? current_organisation : @current_organisation,
+                      project: defined?(project) ? project : @project,
+                      columns: columns %>
+          <% end %>
+          <%# The ruled short page (D8 of doc/wissen_als_bahn_plan.md, user,
+              10.09.2026): a short page is ruled to its page size, like an
+              empty sheet of a ruled pad, and that is better than a white
+              void. The rows were here until #768 the same morning and went
+              because the cell had lost its colspan (a882a25a): the divider
+              under that lone first cell drew a short dash per phantom row
+              down the left edge. Back now with the colspan, from the ONE
+              partial the knowledge list uses too; the count is the head's
+              cell count, held together with the head by
+              ticket_list_view_columns_spec. %>
+          <% target_rows = defined?(pagy) && pagy ? pagy.limit : 20 %>
+          <%= render 'shared/ruled_rows', missing: target_rows - tickets.size, colspan: header_cell_count %>
+        </tbody>
+      </table>
+    </div>
+      <% end %><%# end if tickets.empty? %>
+
+  </div>
+</div>
+
+<!-- Pagination Navigation -->
+<% if defined?(pagy) && pagy && pagy.count > 0 %>
+  <div class="mt-4">
+    <% pagination_locals = { pagy: pagy, sort_params: defined?(sort_params) ? sort_params : (@sort_params || {}), frame_id: (defined?(frame_id) && frame_id.present?) ? frame_id : "tickets_list_frame" } %>
+    <% if defined?(smart_folder_id) && smart_folder_id.present? %>
+      <% pagination_locals[:smart_folder_id] = smart_folder_id %>
+    <% end %>
+    <% if defined?(items_per_page) && items_per_page.present? %>
+      <% pagination_locals[:items_per_page] = items_per_page %>
+    <% end %>
+    <% pagination_locals[:current_organisation] = defined?(organisation) ? organisation : (defined?(current_organisation) ? current_organisation : @current_organisation) %>
+    <% pagination_locals[:project] = defined?(project) ? project : @project %>
+
+    <%= render 'shared/pagination_nav_compact', **pagination_locals %>
+  </div>
+<% end %>
+
+<% end %>

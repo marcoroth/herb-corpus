@@ -1,0 +1,119 @@
+<%
+  # Determine the objects to use
+  current_ticket = defined?(ticket) && ticket ? ticket : @ticket
+  current_post = defined?(post) && post ? post : @post || Post.new
+  pf = 'views.organisations.posts.form'
+%>
+
+<% if current_ticket && current_ticket.project %>
+  <%# T5 (doc/tickets_detail_entschlackt_plan.md): the composer is one quiet
+      card - editor on top, a single footer row with the secondary controls
+      as words and chips. The BACKEND is untouched: same form, same params.
+      The status quick-change still travels as params[:ticket_status]
+      (posts_controller#handle_ticket_status_change, shared with the Kanban
+      path via Actors::ApplyTicketChanges), "Privat" is the same is_private
+      checkbox dressed as a chip, and the Lexxy toolbar hides behind
+      "Format" (components/post_composer.css + post_composer_controller). %>
+  <div class="post-composer post-form w-full" data-controller="post-composer">
+    <%= form_with(model: [@current_organisation, current_ticket.project, current_ticket, current_post],
+                  data: { turbo_frame: "ticket_display_frame" }) do |form| %>
+      <div class="post-composer__card rounded-lg border border-cream-400 bg-surface-raised transition-colors focus-within:border-cream-600"
+           data-post-composer-target="card">
+        <div class="px-3 pt-2">
+          <%= form.lexxy_rich_text_area :content,
+            **lexxy_embed_editor_options(attachment_field: "post[post_document_files][]"),
+            placeholder: t("#{pf}.content_placeholder"),
+            class: "lexxy-content w-full min-h-[110px] text-sm" %>
+        </div>
+
+        <p class="hidden px-4 pb-2 text-xs text-cream-600" data-post-composer-target="privateHint">
+          <%= t("#{pf}.private_hint") %>
+        </p>
+
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-cream-200 px-4 py-2.5 text-[13px]">
+          <span class="flex items-center gap-3 text-cream-600">
+            <button type="button" aria-pressed="false"
+                    class="transition-colors hover:text-cream-900 aria-pressed:font-medium aria-pressed:text-cream-900"
+                    data-action="post-composer#toggleFormat">
+              <%= t("#{pf}.format") %>
+            </button>
+            <span class="text-cream-300">·</span>
+            <%# A LABEL around the input, not a JS click-forward. sr-only, NOT
+                hidden: Safari ignores label activation on a display:none
+                file input (found live, 03.09.) - visually hidden but present
+                is the portable form of this pattern. %>
+            <label class="cursor-pointer transition-colors hover:text-cream-900">
+              <%= t("#{pf}.file") %>
+              <%# include_hidden: false - Rails' auxiliary hidden input landed
+                  INSIDE the label before the file input, and Safari lets the
+                  label activation die on it. The create path needs no
+                  empty-array marker. %>
+              <%= form.file_field :post_document_files, multiple: true, direct_upload: true,
+                    include_hidden: false,
+                    class: "sr-only",
+                    data: { post_composer_target: "fileInput", action: "change->post-composer#fileChanged" } %>
+            </label>
+            <span class="hidden text-xs text-cream-500" data-post-composer-target="fileCount"></span>
+
+            <%# R2: :ask_ai_post - the registry row whose seam is Actors::CreateAiPost,
+                the actor behind this checkbox (same gate as posts/edit.html.erb -
+                change both together). AI surfaces only for opted-in orgs with a
+                usable, correctly routed configuration. %>
+            <% if @current_organisation&.ai_available_for?(:ask_ai_post)&.available? %>
+              <span class="text-cream-300">·</span>
+              <label class="cursor-pointer">
+                <%= check_box_tag :ask_ai, '1', false, class: 'peer sr-only' %>
+                <span class="inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 transition-colors hover:text-cream-900 peer-checked:border-cream-400 peer-checked:bg-cream-200 peer-checked:font-medium peer-checked:text-cream-900">
+                  <i class="bi bi-robot text-[11px]"></i>
+                  <%= t("#{pf}.ask_ai") %>
+                </span>
+              </label>
+            <% end %>
+          </span>
+
+          <span class="ml-auto flex flex-wrap items-center gap-2">
+            <% status_attr_def = current_ticket.attribute_definitions.find { |ad| ad.name == 'status' } rescue nil %>
+            <% if status_attr_def && policy(current_ticket.project).area_access?(:tickets, :write) %>
+              <button type="button" aria-pressed="false"
+                      class="text-cream-600 transition-colors hover:text-cream-900 aria-pressed:font-medium aria-pressed:text-cream-900"
+                      data-action="post-composer#toggleStatus">
+                <%= t("#{pf}.change_status") %>
+              </button>
+              <span class="hidden" data-post-composer-target="statusWrap">
+                <% status_options = status_attr_def.allowed_values.map { |v| [v['labels']&.dig(I18n.locale.to_s) || v['value'], v['value']] } %>
+                <%= select_tag :ticket_status,
+                    options_for_select([[t("#{pf}.keep_current_status"), '']] + status_options, ''),
+                    class: "rounded-full border border-cream-400 bg-cream-100 px-2 py-1 text-[13px] text-cream-900 focus:border-ink focus:outline-none" %>
+              </span>
+            <% end %>
+
+            <label class="cursor-pointer">
+              <%= form.check_box :is_private, class: 'peer sr-only', data: { action: "change->post-composer#privateChanged" } %>
+              <span class="inline-flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 text-cream-600 transition-colors hover:text-cream-900 peer-checked:border-cream-400 peer-checked:bg-cream-200 peer-checked:font-medium peer-checked:text-cream-900">
+                <i class="bi bi-lock text-[11px]"></i>
+                <%= t("#{pf}.private_chip") %>
+              </span>
+            </label>
+
+            <button type="button" class="text-cream-600 transition-colors hover:text-cream-900"
+                    data-action="collapse#hide">
+              <%= t("#{pf}.cancel") %>
+            </button>
+
+            <%= render(Neo::Buttons::ButtonComponent.new(
+              variant: :primary,
+              type: "submit"
+            )) do %>
+              <span data-post-composer-target="sendLabel"><%= t("#{pf}.send") %></span>
+              <span class="hidden" data-post-composer-target="sendPrivateLabel"><%= t("#{pf}.send_private") %></span>
+            <% end %>
+          </span>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <div class="p-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded">
+    <p><%= t("#{pf}.unavailable") %></p>
+  </div>
+<% end %>

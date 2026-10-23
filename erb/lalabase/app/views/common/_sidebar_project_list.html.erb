@@ -1,0 +1,95 @@
+<% groups = sidebar_project_groups %>
+<% pinned_sections_map = current_user.sidebar_pins.pins_for(current_organisation)['sections'] %>
+
+<div id="sidebar-project-list">
+  <%# Deliberately NO horizontal padding on this container: every row sets its
+      own padding (chevron left, pins flush right, children indented).
+      Projects are separated by spacing, children are tied to their project
+      through indentation + a connecting line. %>
+  <div class="w-full mt-6">
+    <%# Section label above the list (mock 04.09.): quiet mono caption
+        "PROJEKTE", the create action as a bare + behind it - replaces the
+        quiet closing row at the list's end. Same policy gate as before.
+        The first-run CTA further down stays: with zero projects a bare +
+        would be the only, easily missed entry point. %>
+    <div class="flex items-center justify-between pl-3 pr-3">
+      <%# --muted, never --faint: on the cream-200 shell a faint label falls under
+          4:1 (designer, 07.09.2026). Same for every secondary word in the bar. %>
+      <span class="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted"><%= t('navigation.projects_label') %></span>
+      <% if policy(Project).create? %>
+        <%= link_to new_organisation_project_path(organisation_id: current_organisation.id),
+            title: t('navigation.new_project'),
+            'aria-label': t('navigation.new_project'),
+            class: "flex h-6 w-6 items-center justify-center rounded text-cream-700 hover:bg-white/55 hover:text-heading transition-colors" do %>
+          <i class="bi bi-plus-lg text-[13px]" aria-hidden="true"></i>
+        <% end %>
+      <% end %>
+    </div>
+    <ul class="flex flex-col" data-controller="sidebar-project-accordion">
+      <%# Pinned projects (most recently pinned first) %>
+      <% groups[:pinned].each do |proj| %>
+        <%= render NeoSidebarProjectItemComponent.new(
+          project: proj,
+          current_project: current_project,
+          current_tab: current_sidebar_tab,
+          project_pinned: true,
+          pinned_sections: pinned_sections_map[proj.id.to_s] || []
+        ) %>
+      <% end %>
+
+      <%# Active projects (always visible) %>
+      <% groups[:active].each do |proj| %>
+        <%= render NeoSidebarProjectItemComponent.new(
+          project: proj,
+          current_project: current_project,
+          current_tab: current_sidebar_tab
+        ) %>
+      <% end %>
+
+      <%# Remaining projects behind a toggle. A divider + spacing sets them apart
+          as a separate, quiet section; the toggle has the same style as the
+          project headers (chevron + subtle label instead of "..."). %>
+      <% if groups[:rest].any? %>
+        <li class="mt-3 pt-3 border-t border-cream-300">
+          <button data-action="click->sidebar-project-accordion#toggleHiddenProjects"
+                  class="flex justify-center w-full px-6 py-1.5 rounded text-cream-700 hover:text-heading hover:bg-white/55 transition-colors">
+            <span data-hidden-projects-label
+                  data-more-text="<%= t('navigation.show_more_projects') %>"
+                  data-less-text="<%= t('navigation.show_less_projects') %>"
+                  class="text-xs">
+              <%= t('navigation.show_more_projects') %>
+            </span>
+          </button>
+        </li>
+        <li class="hidden list-none" data-hidden-projects>
+          <ul class="flex flex-col">
+            <% groups[:rest].each do |proj| %>
+              <%= render NeoSidebarProjectItemComponent.new(
+                project: proj,
+                current_project: current_project,
+                current_tab: current_sidebar_tab
+              ) %>
+            <% end %>
+          </ul>
+        </li>
+      <% end %>
+
+      <%# First-run CTA (kept although the + next to the PROJEKTE label is the
+          standard entry since the label row, mock 04.09.): with zero projects
+          the sidebar link is the ONLY entry point for the very first project,
+          and a bare + alone would be an easily missed dead end. %>
+      <% if policy(Project).create? && groups[:pinned].none? && groups[:active].none? && groups[:rest].none? %>
+        <li class="px-4 mt-3">
+          <div class="rounded-md border border-cream-300 px-3 py-3 text-sm text-cream-600">
+            <p class="mb-2.5"><%= t('navigation.no_projects_yet') %></p>
+            <%= link_to new_organisation_project_path(organisation_id: current_organisation.id),
+                class: "inline-flex items-center gap-2 px-3 py-1.5 rounded-md border-2 border-stroke bg-surface-raised text-ink text-sm font-bold shadow-[2px_2px_0_0_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_rgba(0,0,0,1)] transition-all" do %>
+              <i class="bi bi-plus-lg"></i>
+              <span><%= t('navigation.new_project') %></span>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+</div>

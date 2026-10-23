@@ -1,0 +1,65 @@
+<%# locals: (run:, project:) %>
+<%# The result line of a run (doc/ticket_bulk_edit_plan.md, 29a §6): in the
+    workbench, where the selection stands, not a toast in a corner. It names
+    the change and the count, names a partial result ("12 von 14 geändert ·
+    2 nicht änderbar", the two expandable), never a silent success, and carries
+    "Rückgängig" while the run can be taken back (D8). The ids of the
+    changed tickets ride along for the selection controller: after a run in
+    "all" mode the selection becomes exactly these, so "nachlegen" hits the
+    same tickets even if they left the filter. %>
+<% bk = 'views.organisations.tickets.bulk.result' %>
+<% total = run.results.size %>
+<% if run.change? %>
+  <% changes = Tickets::Changes.build(run.change_list, catalogue: Tickets::BulkFields.for_run(run: run, user: current_user, name_mode: viewer_name_display_mode)) rescue [] %>
+  <% described = changes.map(&:describe).join(', ') %>
+<% end %>
+<%# A move or a delete (slice 7) leaves the list without the tickets: the
+    panel clears the selection, this line stays until dismissed. %>
+<div class="<%= NeoFilterBarComponent::SENTENCE_PROSE_CLASSES %> max-w-none pe-3 flex flex-wrap items-center gap-x-3 gap-y-1"
+     data-run-ticket-ids="<%= run.change? ? run.ok_ticket_ids.join(',') : '' %>"
+     data-run-kind="<%= run.kind %>"
+     data-run-id="<%= run.id %>">
+  <span class="text-heading">
+    <% if run.move? %>
+      <% if run.failed_count.zero? %>
+        <%= t("#{bk}.moved", count: run.changed_count, project: run.target_project_name) %>
+      <% else %>
+        <%= t("#{bk}.moved_partial", ok: run.changed_count, total: total, failed: run.failed_count, project: run.target_project_name) %>
+      <% end %>
+    <% elsif run.delete? %>
+      <% if run.failed_count.zero? %>
+        <%= t("#{bk}.deleted", count: run.changed_count) %>
+      <% else %>
+        <%= t("#{bk}.deleted_partial", ok: run.changed_count, total: total, failed: run.failed_count) %>
+      <% end %>
+    <% elsif run.undo? %>
+      <%= t("#{bk}.undone", changes: described, count: run.changed_count) %>
+    <% elsif run.failed_count.zero? %>
+      <%= t("#{bk}.done", changes: described, count: run.changed_count) %>
+    <% else %>
+      <%= t("#{bk}.partial", changes: described, ok: run.changed_count, total: total, failed: run.failed_count) %>
+    <% end %>
+  </span>
+  <% if run.failed_count.positive? %>
+    <details class="text-xs">
+      <summary class="cursor-pointer text-muted underline underline-offset-2 hover:text-heading"><%= t("#{bk}.show_failed") %></summary>
+      <ul class="mt-1 list-disc ps-4 text-muted">
+        <% run.failed_results.each_value do |failure| %>
+          <li>#<%= failure['number'] %>: <%= t("#{bk}.reasons.#{failure['error']}", default: failure['error'].to_s) %></li>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
+  <% if run.undoable_by?(current_user) %>
+    <%= button_to t("#{bk}.undo"),
+                  undo_bulk_run_organisation_project_tickets_path(project.organisation, project, id: run.id),
+                  method: :patch,
+                  form: { data: { turbo_stream: true }, class: 'inline' },
+                  class: NeoFilterBarComponent::TEXT_ACTION_CLASSES %>
+  <% end %>
+  <button type="button" class="ms-auto text-muted hover:text-heading focus:outline-none focus-visible:ring-1 focus-visible:ring-ink rounded"
+          data-action="click->ticket-selection#dismissResult"
+          aria-label="<%= t("#{bk}.dismiss") %>" title="<%= t("#{bk}.dismiss") %>">
+    <i class="bi bi-x-lg text-xs" aria-hidden="true"></i>
+  </button>
+</div>

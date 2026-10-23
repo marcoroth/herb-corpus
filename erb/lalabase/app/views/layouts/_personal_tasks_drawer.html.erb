@@ -1,0 +1,41 @@
+<%# Notizblock slide-over drawer — rendered ONCE at body level (NOT inside the
+    sidebar, whose transform/overflow would clip position:fixed). Available to any
+    signed-in member of the current org; the panel content loads lazily into the
+    turbo-frame on first open (personal_tasks_drawer_controller#loadFrame). %>
+<% if user_signed_in? && current_organisation.present? %>
+  <div data-personal-tasks-drawer-target="overlay"
+       data-action="click->personal-tasks-drawer#closeOnBackdrop"
+       class="hidden fixed inset-0 z-modal"
+       role="dialog" aria-modal="true"
+       aria-label="<%= t('navigation.notizblock.title') %>">
+    <div class="fixed inset-0 bg-scrim bg-opacity-60 backdrop-blur-sm"></div>
+
+    <%# Mobile: full width; from sm up a 360px drawer. Off-screen via -translate-x-full,
+        slid in by the controller. %>
+    <div data-personal-tasks-drawer-target="panel"
+         class="relative h-full w-full sm:max-w-[360px] bg-surface-raised border-r-2 border-cream-300 shadow-[6px_6px_0_0_#000] flex flex-col -translate-x-full transition-transform duration-200 ease-out">
+      <div class="flex items-center justify-between gap-2 px-4 py-3 border-b-2 border-cream-300 shrink-0">
+        <h2 class="min-w-0 text-sm font-bold text-cream-900 flex items-center gap-2">
+          <i class="bi bi-journal-text shrink-0"></i>
+          <span class="truncate"><%= t('navigation.notizblock.title') %></span>
+        </h2>
+        <button type="button"
+                data-action="click->personal-tasks-drawer#close"
+                aria-label="<%= t('navigation.notizblock.close') %>"
+                class="w-7 h-7 flex items-center justify-center text-cream-500 hover:text-cream-900 hover:bg-cream-200 rounded transition-all shrink-0">
+          <i class="bi bi-x-lg text-sm"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto">
+        <%# No src here — the controller sets it on first open (data-src) so we never
+            query the list until the drawer is actually used. %>
+        <%= turbo_frame_tag "personal_tasks_panel",
+                            data: { "personal-tasks-drawer-target": "frame",
+                                    src: organisation_personal_tasks_path(current_organisation) } do %>
+          <p class="p-4 text-sm text-cream-500"><%= t('navigation.notizblock.loading') %></p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% end %>

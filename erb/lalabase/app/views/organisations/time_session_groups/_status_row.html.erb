@@ -1,0 +1,55 @@
+<%# locals: () %>
+<%# The status row of the billings filter (user decision, 02.09.: same language
+    as the time list's status row, instead of a dropdown pill): the two billing
+    states as CHECKBOXES with the COUNT of billings beside each. Both on is the
+    default and means "all"; the words come from the one owner
+    (time_billing_state_label), the boxes from the time list's helpers.
+
+    Its own id and NO locals, because it must be able to ARRIVE ON ITS OWN:
+    the row sits outside time_session_groups_list_frame while the search
+    targets it, and its figures are counted UNDER THE OTHER FILTERS (F4) - a
+    search would change them. One of BILLING_FRAME_DEPENDENT_REGIONS.
+
+    An empty state is not worth a click, so its box stops being one - but an
+    ACTIVE box stays clickable even at zero: it is the way back out of the
+    filter that emptied the list. Same rule, same reasoning as the time list.
+
+    ⚠️ Deselecting the LAST active box clears the parameter, and the absent
+    parameter means the default: both on. That mirrors the time list exactly;
+    a "none selected" state does not exist on either row. %>
+<% return if @billing_status_counts.blank? %>
+<% states = Array(@effective_billing_states) %>
+<div id="billing_status_row" class="flex items-center gap-x-4 gap-y-2 flex-wrap">
+  <% { 'unbilled' => 'in_billing', 'billed' => 'billed' }.each do |value, word_key| %>
+    <% active = states.include?(value) %>
+    <% count = @billing_status_counts.fetch(value, 0) %>
+    <% state = if active
+                 :on
+               elsif count.positive?
+                 :off
+               else
+                 :empty
+               end %>
+
+    <% body = capture do %>
+      <%= time_status_box(state) %>
+      <span class="<%= time_status_word_classes(state) %>"><%= time_billing_state_label(word_key) %></span>
+      <span class="<%= time_status_figure_classes(state) %>"><%= count %></span>
+    <% end %>
+
+    <% if state == :empty %>
+      <span class="inline-flex items-center gap-2" data-status-box="<%= value %>" data-status-state="empty">
+        <%= body %>
+        <span class="sr-only"><%= t('views.organisations.time_sessions.index.filter_status_none_here') %></span>
+      </span>
+    <% else %>
+      <%= link_to billing_list_filter_url('billing_states' => billing_state_toggle(value, states), 'billing_status' => nil),
+                  data: time_filter_owns(billing_state_owns_pairs(value, states))
+                          .merge(status_box: value, status_state: state),
+                  aria: { current: (active ? 'true' : nil) },
+                  class: TimeSessionsHelper::STATUS_ROW_LINK do %>
+        <%= body %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

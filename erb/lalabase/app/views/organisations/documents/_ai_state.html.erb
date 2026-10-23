@@ -1,0 +1,27 @@
+<%# locals: (document:, organisation:, document_version: nil) %>
+<%# document_version: Turbo::Broadcastable passes the broadcasting record under
+    its model name with every broadcast_replace_to; strict locals refuse an
+    unknown one, so the name is listed and unused. %>
+<%# The AI status of the document's current version as a STATUS, not a chooser
+    (D3 of doc/dokumentansicht_plan.md): indexed, failed in red, or "not
+    available" while the organisation has AI on and no usable embedding lane.
+    Nothing while the index has not answered: the flag cannot tell a running
+    job from a file that never gets one (review of #781).
+    The outer span keeps its id even when it is empty: DocumentVersion#broadcast_updated
+    replaces it together with the version row, so a retry that succeeds while
+    the document is open clears the failure here as it does in the row
+    (review of #783). Rendered without a viewer on that road, so no
+    @current_organisation: the organisation comes in as a local. %>
+<% current = document.current_version %>
+<% ai_state = if current&.embeddings_creation_flag == true then :indexed
+              elsif current&.embeddings_creation_flag == false then :failed
+              elsif organisation&.ai_enabled? && !organisation.ai_available_for?(:content_indexing).available? then :unavailable
+              end %>
+<span id="<%= dom_id(document) %>_ai_state" class="contents" data-document-ai-state-slot>
+  <% if ai_state %>
+    <span class="inline-flex items-center gap-1.5 <%= 'text-red-600' if ai_state == :failed %>" data-document-ai-state="<%= ai_state %>">
+      <i class="bi bi-stars text-[11px]" aria-hidden="true"></i>
+      <%= t("views.organisations.documents.document_content_for_frame.ai_#{ai_state}") %>
+    </span>
+  <% end %>
+</span>

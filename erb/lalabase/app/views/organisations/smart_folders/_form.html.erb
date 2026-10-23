@@ -1,0 +1,206 @@
+<!-- app/views/smart_folders/_form.html.erb -->
+<!-- This form requires the Stimulus controller 'smart_folder_form' -->
+<% sf_project_id = smart_folder.project_id || params[:project_id] %>
+<%= form_with(model: [@current_organisation, smart_folder],
+              data: { controller: 'smart-folder-form', redirect_on_success: true,
+                      smart_folder_form_field_operators_url_value: organisation_field_operators_path(@current_organisation, ':field', project_id: sf_project_id, context_type: smart_folder.target_object_type),
+                      smart_folder_form_reference_options_url_value: organisation_reference_options_path(@current_organisation, ':field', project_id: sf_project_id, context_type: smart_folder.target_object_type) },
+              class: 'space-y-6',
+              html: { "data-turbo-frame": params[:modal] ? "modal" : nil }) do |form| %>
+
+  <% if params[:return_to] %>
+    <%= hidden_field_tag :return_to, params[:return_to] %>
+  <% end %>
+
+  <% if params[:project_id] %>
+    <%= hidden_field_tag :project_id, params[:project_id] %>
+  <% end %>
+
+  <% if params[:return_to] == 'meetings' && params[:list_context].is_a?(ActionController::Parameters) %>
+    <% context = Meetings::ListState.extract(params[:list_context]).merge(params[:list_context].permit(:meeting_id, :new).to_h) %>
+    <% URI.decode_www_form({ list_context: context }.to_query).each do |name, value| %>
+      <%= hidden_field_tag name, value %>
+    <% end %>
+  <% end %>
+
+  <!-- Show errors directly in the form -->
+  <% if smart_folder.errors.any? %>
+    <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded" role="alert">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <i class="bi bi-exclamation-triangle-fill text-red-400"></i>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">
+            <%= pluralize(smart_folder.errors.count, t('views.organisations.smart_folders.form.error_noun')) %> <%= t('views.organisations.smart_folders.form.error_on_save') %>
+          </h3>
+          <div class="mt-2 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              <% smart_folder.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%= form.hidden_field :project_id %>
+  <%= form.hidden_field :target_object_type %>
+
+  <!-- General folder settings -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div>
+      <%= form.label :name, class: 'block text-sm font-medium text-cream-700 mb-1' %>
+      <%= form.text_field :name,
+                        class: "block w-full px-3 py-2 bg-surface-raised border #{'border-red-300' if smart_folder.errors.has_key?(:name)} border-cream-300 rounded-md focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink sm:text-sm",
+                        required: true %>
+      <% if smart_folder.errors.has_key?(:name) %>
+        <p class="mt-1 text-sm text-red-600"><%= smart_folder.errors[:name].join(', ') %></p>
+      <% end %>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-cream-700 mb-1"><%= t('views.organisations.smart_folders.form.sorting_label') %></label>
+      <div class="flex gap-2">
+        <%= form.select :sort_column,
+                      options_for_select([
+                        [t('smart_folders.sorting.updated_desc', default: 'Zuletzt aktualisiert'), 'updated_at'],
+                        [t('smart_folders.sorting.created_desc', default: 'Erstellt am'), 'created_at'],
+                        [t('views.organisations.smart_folders.form.sort_title'), 'title'],
+                        *(smart_folder.target_object_type == 'Meeting' ? [[t('models.view_configuration.meeting_columns.occurred_at'), 'occurred_at'], [t('models.view_configuration.meeting_columns.duration_minutes'), 'duration_minutes']] : [[t('views.organisations.smart_folders.form.sort_number'), 'number']])
+                      ], smart_folder.effective_sort_column),
+                      {},
+                      { class: "block w-full px-3 py-2 bg-surface-raised border border-cream-300 rounded-md focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink sm:text-sm" } %>
+        <%= form.select :sort_direction,
+                      options_for_select([
+                        [t('views.organisations.smart_folders.form.sort_desc'), 'desc'],
+                        [t('views.organisations.smart_folders.form.sort_asc'), 'asc']
+                      ], smart_folder.effective_sort_direction),
+                      {},
+                      { class: "block w-full px-3 py-2 bg-surface-raised border border-cream-300 rounded-md focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink sm:text-sm" } %>
+      </div>
+    </div>
+
+    <% if smart_folder.new_record? || policy(smart_folder).publish? %>
+    <div>
+      <div class="block text-sm font-medium text-cream-700 mb-1">
+        <%= t('smart_folders.public_access', default: 'Zugriff') %>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center">
+          <%= form.check_box :is_public, class: "h-4 w-4 text-cobalt-600 focus:ring-cobalt-500 border-cream-300 rounded" %>
+          <%= form.label :is_public, t('smart_folders.is_public', default: 'Öffentlich'), class: 'ml-1.5 text-sm text-cream-700' %>
+        </div>
+        <%= form.select :public_access_level,
+                      options_for_select([
+                        [t('smart_folders.access_levels.view_only'), 0],
+                        [t('smart_folders.access_levels.use_rules'), 1],
+                        [t('smart_folders.access_levels.copy'), 2]
+                      ], smart_folder.public_access_level),
+                      {},
+                      { class: "block px-3 py-2 bg-surface-raised border border-cream-300 rounded-md focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink sm:text-sm" } %>
+      </div>
+    </div>
+    <% end %>
+  </div>
+
+  <!-- Rules section -->
+  <div class="bg-cream-50 border border-cream-200 rounded-lg overflow-hidden">
+    <div class="p-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-medium text-cream-900">
+          <%= t('views.organisations.smart_folders.form.filter_rules') %>
+        </h3>
+      </div>
+
+      <!-- Container for rule groups -->
+      <div class="space-y-4" data-smart-folder-form-target="ruleGroupsContainer">
+        <%= form.fields_for :smart_folder_rule_groups do |group_form| %>
+          <%= render 'organisations/smart_folder_rule_groups/rule_group_fields', form: group_form %>
+        <% end %>
+      </div>
+
+      <!-- Button to add a new rule group (OR) -->
+      <div class="mt-6 flex flex-col items-center">
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, icon: "plus-lg",
+              tag: :button, type: "button", data: { action: "click->smart-folder-form#addRuleGroup" }) do %>
+          <%= t('views.organisations.smart_folders.form.add_or_rule') %>
+        <% end %>
+
+        <!-- Explanatory text -->
+        <p class="text-xs italic text-cream-600 mt-2">
+          <%= t('views.organisations.smart_folders.form.rules_hint_1') %> <br>
+          <%= t('views.organisations.smart_folders.form.rules_hint_2') %> <br>
+          <%= t('views.organisations.smart_folders.form.rules_hint_3') %>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <%# The columns of a view are chosen at the list, where the effect is visible
+      (doc/spaltenwahl_plan.md, D8); the form only says so. %>
+  <% if smart_folder.target_object_type.in?(%w[Ticket All]) %>
+    <p class="text-sm text-cream-600">
+      <%= t('views.organisations.smart_folders.form.columns_chosen_in_list') %>
+    </p>
+  <% end %>
+
+  <!-- Form buttons -->
+  <div class="flex items-center pt-6 gap-4">
+    <% if smart_folder.persisted? %>
+      <%= render(Neo::Buttons::ButtonComponent.new(
+            variant: :danger,
+            icon: "trash",
+            url: organisation_smart_folder_path(@current_organisation, smart_folder, return_to: params[:return_to]),
+            data: { turbo_method: :delete, turbo_confirm: t('smart_folders.confirm_delete') }
+          )) { t('smart_folders.delete') } %>
+    <% end %>
+
+    <div class="ml-auto flex gap-4">
+      <% if params[:modal] %>
+        <%# In the modal, cancel must close client-side (like the X button) — a
+            link would navigate the "modal" turbo frame to a frameless response
+            and Turbo would render "Content missing" into it %>
+        <%= render(Neo::Buttons::ButtonComponent.new(
+              variant: :edit,
+              data: { action: "click->smart-folder-modal#close" }
+            )) { t('generic.cancel', default: 'Abbrechen') } %>
+      <% else %>
+        <%= render(Neo::Buttons::ButtonComponent.new(
+              variant: :edit,
+              url: smart_folder.persisted? ? organisation_smart_folder_path(@current_organisation, smart_folder) : organisation_smart_folders_path(@current_organisation)
+            )) { t('generic.cancel', default: 'Abbrechen') } %>
+      <% end %>
+
+      <%= render(Neo::Buttons::ButtonComponent.new(
+            variant: :primary,
+            type: "submit"
+          )) { t('generic.save', default: 'Speichern') } %>
+    </div>
+  </div>
+
+  <!-- --- Templates for Stimulus controller --- -->
+  <!-- Template for a new rule group -->
+  <template data-smart-folder-form-target="ruleGroupTemplate">
+      <!-- IMPORTANT: child_index must be unique, NEW_GROUP_RECORD is replaced by JS -->
+      <%= form.fields_for :smart_folder_rule_groups, SmartFolderRuleGroup.new(position: 1), child_index: 'NEW_GROUP_RECORD' do |group_form| %>
+          <!-- Build an empty rule along with it -->
+          <% group_form.object.smart_folder_rules.build(position: 1) %>
+          <%= render 'organisations/smart_folder_rule_groups/rule_group_fields', form: group_form %>
+      <% end %>
+  </template>
+
+  <!-- Template for a new rule (used inside a group) -->
+  <template data-smart-folder-form-target="ruleTemplate">
+      <!-- Create a dummy form just for the template -->
+      <!-- IMPORTANT: child_index for the group (NEW_GROUP_RECORD) and rule (NEW_RULE_RECORD) are replaced by JS -->
+      <%= form.fields_for :smart_folder_rule_groups, SmartFolderRuleGroup.new, child_index: 'NEW_GROUP_RECORD' do |group_form| %>
+          <%= group_form.fields_for :smart_folder_rules, SmartFolderRule.new(position: 1), child_index: 'NEW_RULE_RECORD' do |rule_form| %>
+              <%= render 'organisations/smart_folder_rules/rule_fields', form: rule_form %>
+          <% end %>
+      <% end %>
+  </template>
+
+<% end %> <!-- End form_with -->

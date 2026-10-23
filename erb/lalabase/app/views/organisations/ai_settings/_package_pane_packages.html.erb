@@ -1,0 +1,113 @@
+<%# The "Systempaket" pane (doc/ki_zugang_umbau_plan.md D6/D8): everything that used to
+    sit between the intro and the "Eigene Konfiguration" card — the two filters, the
+    org's own package when the grid would not show it, the grid, and the empty-result
+    hint. Rendered only when that way is open; the alternative is _package_pane_custom.
+
+    The "Aktuell" line and the switch progress deliberately did NOT move in here: they
+    hold whichever way is open, so they live in _package_chooser above. %>
+<div class="mt-6 border border-cream-300 rounded-lg bg-surface-raised p-4 space-y-3">
+  <div>
+    <p class="text-sm font-bold text-cream-900"><%= t('views.organisations.ai_settings.packages.filters.heading') %></p>
+    <p class="text-sm text-cream-700"><%= t('views.organisations.ai_settings.packages.filters.hint') %></p>
+  </div>
+  <%# The two axes of §3 as two INDEPENDENT filters — never one four-step ranking:
+      ② and ③ are not better or worse than each other, only different, and which
+      one is worse is the customer's call (§7.1).
+
+      base_params carries package_mode along (D6). Without it a filter click would fall
+      back to the DEFAULT mode, and for an organisation on its own configuration that
+      default is `custom` — so one click on a filter would silently close the pane the
+      filter belongs to. %>
+  <% base_params = { provider_scope: @package_provider_scope,
+                     processing_scope: @package_processing_scope,
+                     package_mode: @package_mode } %>
+  <%= render 'organisations/ai_settings/package_filter_row',
+             label: t('views.organisations.ai_settings.packages.filters.provider'),
+             param: :provider_scope,
+             current: @package_provider_scope,
+             base_params: base_params,
+             values: [
+               [Organisations::AiSettingsController::FILTER_EU,
+                t('views.organisations.ai_settings.packages.filters.provider_eu')],
+               [Organisations::AiSettingsController::FILTER_ANY,
+                t('views.organisations.ai_settings.packages.filters.provider_any')]
+             ] %>
+  <%= render 'organisations/ai_settings/package_filter_row',
+             label: t('views.organisations.ai_settings.packages.filters.processing'),
+             param: :processing_scope,
+             current: @package_processing_scope,
+             base_params: base_params,
+             values: [
+               [Organisations::AiSettingsController::FILTER_EU,
+                t('views.organisations.ai_settings.packages.filters.processing_eu')],
+               [Organisations::AiSettingsController::FILTER_ANY,
+                t('views.organisations.ai_settings.packages.filters.processing_any')]
+             ] %>
+</div>
+
+<%# E5: the org's OWN package, when the grid would not show it. Two ways in — the
+    strict default filter hides it (it makes a jurisdiction claim the customer has
+    not asked to see), or the operator has withdrawn it — and they end differently:
+    the filtered-out package keeps a working Stufen-Umschalter, the withdrawn one
+    does not (_package_tier_switch, via AiPackage#published?).
+
+    Before this, an org in either state saw the "Aktuell" TEXT line and no card at
+    all — and with no card there is no rung switcher and no way to read what the
+    package actually routes to. %>
+<% if @current_package_outside_grid %>
+  <div class="mt-6 border border-amber-300 rounded-lg bg-amber-50 p-4">
+    <p class="text-sm font-bold text-amber-900">
+      <i class="bi bi-eye-slash mr-1"></i>
+      <%= t("views.organisations.ai_settings.packages.outside_grid.#{@current_package.published? ? 'filtered_title' : 'withdrawn_title'}") %>
+    </p>
+    <p class="mt-1 text-sm text-amber-800">
+      <%= t("views.organisations.ai_settings.packages.outside_grid.#{@current_package.published? ? 'filtered_body' : 'withdrawn_body'}") %>
+    </p>
+  </div>
+  <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <%= render 'organisations/ai_settings/package_card', package: @current_package %>
+  </div>
+<% end %>
+
+<%# Two INDEPENDENT questions, deliberately not nested: "does the org's own package
+    need showing" above, and "did the filters find anything" here. Folding the card
+    into this branch would swallow the empty-filter hint whenever the org sits on a
+    hidden package — and that hint is the only thing on the page that says which
+    relaxation brings the catalogue back (§7.1). %>
+<% if @packages.any? %>
+  <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <% @packages.each do |package| %>
+      <%= render 'organisations/ai_settings/package_card', package: package %>
+    <% end %>
+  </div>
+<% else %>
+  <%# "Leerer Treffer ist ein eigener Zustand" (§7.1): naming the relaxation that
+      would reveal the nearest package is what keeps the strict default from
+      reading as a defect. %>
+  <div class="mt-6 border border-cream-300 rounded-lg bg-amber-50 p-4">
+    <div class="flex">
+      <div class="flex-shrink-0"><i class="bi bi-funnel text-amber-700 text-xl"></i></div>
+      <div class="ml-3">
+        <h4 class="text-sm font-bold text-amber-900">
+          <%= t('views.organisations.ai_settings.packages.empty.title') %>
+        </h4>
+        <%# hint_none is reserved for a genuinely empty catalogue. The last
+            branch is the case that would otherwise be misreported as "nothing
+            published": packages exist, but no SINGLE relaxation reaches them. %>
+        <p class="mt-1 text-sm text-amber-800">
+          <% if @package_catalogue.empty? %>
+            <%= t('views.organisations.ai_settings.packages.empty.hint_none') %>
+          <% elsif @relaxing_provider_helps && @relaxing_processing_helps %>
+            <%= t('views.organisations.ai_settings.packages.empty.hint_both') %>
+          <% elsif @relaxing_provider_helps %>
+            <%= t('views.organisations.ai_settings.packages.empty.hint_provider') %>
+          <% elsif @relaxing_processing_helps %>
+            <%= t('views.organisations.ai_settings.packages.empty.hint_processing') %>
+          <% else %>
+            <%= t('views.organisations.ai_settings.packages.empty.hint_relax_both') %>
+          <% end %>
+        </p>
+      </div>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,91 @@
+<%# Renders the timeline items (posts, activities, time sessions, the creation
+    marker), grouped by calendar day (T4): a quiet date header per group, each
+    group wrapped as a dayGroup target so the controller can hide headers whose
+    items are all hidden. The day boundary asks TicketTimelineService.timestamp_for
+    - the SAME rule the sort uses, so a group can never disagree with the order.
+    Auto-collapsing of consecutive same-kind events is deliberately deferred
+    (plan decision 7). %>
+<div>
+<%# "Person nur wenn sie wechselt" (designer round 05.09.2026): a change row
+    names its actor only when the previous VISIBLE entry belongs to someone
+    else. The chain runs across day borders - a date does not change who
+    acted - and only over rows that actually rendered. %>
+<% previous_person_id = nil %>
+<% timeline_items.chunk_while { |a, b| TicketTimelineService.timestamp_for(a).to_date == TicketTimelineService.timestamp_for(b).to_date }.each do |day_items| %>
+  <div data-timeline-filter-target="dayGroup">
+    <div class="flex items-center gap-3 pt-5 pb-3">
+      <%# Dates are numbers: mono, like every other date on the page (user
+          mockup 05.09.2026). %>
+      <span class="font-mono text-[12px] text-cream-600 whitespace-nowrap">
+        <%= timeline_day_label(TicketTimelineService.timestamp_for(day_items.first).to_date) %>
+      </span>
+      <span class="h-px flex-1 bg-cream-200"></span>
+    </div>
+    <% previous_element = nil %>
+    <% day_items.each do |element| %>
+      <% if element.is_a?(Activity) || element.is_a?(TicketTimelineService::ActivityRun) %>
+        <% show_actor = previous_person_id.present? && previous_person_id != element.actor_id %>
+        <% if element.is_a?(TicketTimelineService::ActivityRun) %>
+          <%= render NeoActivityRunComponent.new(activity_run: element, ticket: ticket,
+                                                 current_user: current_user, show_actor: show_actor) %>
+        <% else %>
+          <%= render NeoActivityComponent.new(activity: element, ticket: ticket,
+                                              current_user: current_user, show_actor: show_actor) %>
+        <% end %>
+        <% previous_person_id = element.actor_id %>
+      <% elsif element.is_a?(TicketTimelineService::CreationMarker) %>
+        <%# The ticket's birth as a change row like any other (user mockup
+            05.09.2026), but ALWAYS visible - it replaced the footer below the
+            timeline, and a footer never hid behind the filter either. %>
+        <div class="py-1.5 pl-[38px] text-[13px] leading-relaxed text-cream-600">
+          <div class="flex items-baseline gap-4">
+            <span class="min-w-0 flex-1">
+              <%= t('views.organisations.tickets.timeline.created_line',
+                    name: viewer_display_name(element.creator)) %>
+            </span>
+            <span class="shrink-0 font-mono text-[12px] text-cream-500"><%= timeline_row_clock(element) %></span>
+          </div>
+        </div>
+        <% previous_person_id = element.creator&.id %>
+      <% elsif element.is_a?(Post) %>
+        <%# Posts are toggleable like the other two kinds - the chip row in
+            _timeline_frame_content drives this target (default: visible). %>
+        <%# Slack grouping (user mockup 05.09.2026): a comment DIRECTLY after
+            another comment by the same person carries no head. Strictly
+            adjacent within the day group - anything in between restores it.
+            The spacing says the same thing: 6px inside a block of the same
+            person, 20px between blocks. %>
+        <% follow_up = previous_element.is_a?(Post) && previous_element.user_id == element.user_id %>
+        <div data-timeline-filter-target="post" class="<%= follow_up ? 'mt-1.5' : 'mt-5' %>">
+          <%= render NeoPostComponent.new(
+            post: element,
+            current_user: current_user,
+            current_organisation: current_organisation || element.ticket.project.organisation,
+            turbo_frame: true,
+            show_author: !follow_up
+          ) %>
+        </div>
+        <% previous_person_id = element.user_id %>
+      <% elsif element.is_a?(TimeSession) && policy(project).area_access?(:time_sessions, :read) %>
+        <div data-timeline-filter-target="timeSession" style="display: none;">
+          <% begin %>
+            <% can_update = policy(element).update? %>
+          <% rescue %>
+            <% can_update = false %>
+          <% end %>
+          <%= render NeoTimeSessionComponent.new(
+            time_session: element,
+            current_user: current_user,
+            project: project,
+            ticket: ticket,
+            show_actions: can_update,
+            variant: :quiet
+          ) %>
+        </div>
+        <% previous_person_id = element.creator_id %>
+      <% end %>
+      <% previous_element = element %>
+    <% end %>
+  </div>
+<% end %>
+</div>

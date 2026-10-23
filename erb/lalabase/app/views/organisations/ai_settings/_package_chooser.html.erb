@@ -1,0 +1,122 @@
+<%# KI-Pakete §7/§7.1 plus doc/ki_zugang_umbau_plan.md D6: what is true regardless of
+    which way is open — the permanent "Aktuell" line, a switch already under way, and the
+    two-way chooser itself.
+
+    The page asks an EITHER/OR ("Systempaket or own configuration?") and used to answer it
+    by showing both branches stacked: filters and card grid, and below them the custom
+    card. Whoever answered that question for the first time had to work out that the last
+    entry was an alternative to the list above it rather than a member of it.
+
+    TWO SIGNALS, kept apart on purpose:
+      open   — which pane is currently shown. Carried by the selection frame (border-2 +
+               shadow, the Neo "selected" shape) and by aria-current.
+      active — which way is IN FORCE. Carried by the small "Aktiv" chip.
+    Separating them is what lets somebody look at the other way without the page claiming
+    they already switched to it.
+
+    Links, not a Stimulus controller, for the same reasons the filter rows are links (see
+    _package_filter_row): the whole state is one query param, so it is bookmarkable,
+    back-button-correct and directly assertable in a request spec.
+
+    Tile ORDER is fixed, "Systempaket" first, and deliberately not sorted by what is
+    active: stable geometry beats context sorting, and the chip already carries that
+    information. %>
+<h3 class="text-sm font-bold text-cream-900">
+  <i class="bi bi-box-seam mr-2"></i>
+  <%= t('views.organisations.ai_settings.packages.title') %>
+</h3>
+<p class="mt-1 text-sm text-cream-700"><%= t('views.organisations.ai_settings.packages.intro') %></p>
+
+<%# "Dauerhaft sichtbar in den KI-Einstellungen" (§7) — and deliberately OUTSIDE
+    the filters: an org can sit on a package the strict default hides, or on one
+    the operator has since unpublished. The line states what is true, the grid
+    below is the catalogue. %>
+<div class="mt-4 border border-cream-300 rounded-lg bg-cream-100 p-4">
+  <% if @current_package.present? %>
+    <p class="text-sm font-bold text-cream-900">
+      <%= t('views.organisations.ai_settings.packages.current_label_package',
+            name: @current_package.name, description: @current_package.description) %>
+    </p>
+    <% if @current_package.processing_region.present? %>
+      <p class="mt-1 text-sm text-cream-700">
+        <i class="bi bi-geo-alt mr-1"></i>
+        <%= t('views.organisations.ai_settings.packages.card.processing_region',
+              region: @current_package.processing_region) %>
+      </p>
+    <% end %>
+  <% elsif @organisation.ai_custom_access_configured? %>
+    <p class="text-sm font-bold text-cream-900">
+      <%= t('views.organisations.ai_settings.packages.current_label_custom') %>
+    </p>
+    <p class="mt-1 text-sm text-cream-700">
+      <%= t('views.organisations.ai_settings.packages.current_custom_hint') %>
+    </p>
+  <% else %>
+    <%# Z3 (D7): no package AND no credentials. The line said "Aktuell: Eigene
+        Konfiguration" here, which named a decision nobody had made — the schema cannot
+        tell "never chose" from "chose custom", and the line believed the schema. It says
+        what is TRUE instead, and what to do about it. Same neutral box, no green. %>
+    <p class="text-sm font-bold text-cream-900">
+      <%= t('views.organisations.ai_settings.packages.none_configured_title') %>
+    </p>
+    <p class="mt-1 text-sm text-cream-700">
+      <%= t('views.organisations.ai_settings.packages.none_configured_hint') %>
+    </p>
+  <% end %>
+</div>
+
+<%# P4c: directly under the "Aktuell" line, because a switch underway is a statement
+    ABOUT that line — the package named above is the one being switched TO, while
+    the search still reads from the old space until the flip.
+
+    ABOVE the chooser, not inside a pane: it holds whichever way is open. %>
+<%= render 'organisations/ai_settings/switch_progress' %>
+
+<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2" id="ai_package_chooser">
+  <%# ⚠️ The custom tile's chip asks TWO things, not one (D7). A blank ai_package_id means
+      "own configuration" by convention (E1-C) and says nothing about whether credentials
+      exist — asking only that gave a fresh organisation an "Aktiv" chip on a way nobody
+      had chosen and nothing was behind. Organisation#ai_custom_access_configured? is the
+      one owner of the second half. %>
+  <%
+    modes = [
+      [Organisations::AiSettingsController::MODE_PACKAGES, 'packages', 'box-seam',
+       @organisation.ai_package_id.present?],
+      [Organisations::AiSettingsController::MODE_CUSTOM, 'custom', 'key',
+       @organisation.ai_package_id.blank? && @organisation.ai_custom_access_configured?]
+    ]
+  %>
+  <% modes.each do |mode, key, icon, in_force| %>
+    <% open_pane = @package_mode == mode %>
+    <%= link_to organisation_ai_settings_path(@organisation,
+                                              provider_scope: @package_provider_scope,
+                                              processing_scope: @package_processing_scope,
+                                              package_mode: mode,
+                                              anchor: 'ai_package_chooser'),
+                class: "block rounded-lg p-4 transition-transform hover:-translate-y-0.5 #{
+                  open_pane ? 'border-2 border-ink bg-cream-50 shadow-[3px_3px_0_0_#000000]'
+                            : 'border border-cream-300 bg-surface-raised'
+                }",
+                aria: { current: open_pane ? 'true' : nil } do %>
+      <div class="flex items-start justify-between gap-3">
+        <h4 class="text-base font-bold text-cream-900">
+          <i class="bi bi-<%= icon %> mr-2 text-cream-600"></i>
+          <%= t("views.organisations.ai_settings.packages.chooser.#{key}_title") %>
+        </h4>
+        <% if in_force %>
+          <%# data-chooser-chip, same idea as the hub's data-card-state: the chip is a
+              DECISION, and a spec should be able to ask which tile carries it without
+              matching on a word that also occurs inside "aktiviert" elsewhere on the
+              page. %>
+          <span class="shrink-0 inline-flex items-center rounded border border-ink bg-ink px-2 py-1 text-xs font-bold text-cream-50"
+                data-chooser-chip="<%= key %>">
+            <%= t('views.organisations.ai_settings.packages.chooser.active_chip') %>
+          </span>
+        <% end %>
+      </div>
+      <p class="mt-2 text-sm text-cream-700">
+        <%= t("views.organisations.ai_settings.packages.chooser.#{key}_subline") %>
+      </p>
+    <% end %>
+  <% end %>
+</div>

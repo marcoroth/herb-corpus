@@ -1,0 +1,33 @@
+<%# Flash message %>
+<% flash.now[:notice] = t('flash.time_sessions.updated') %>
+<%= turbo_stream.update "flash" do %>
+  <%= render partial: "layouts/flash" %>
+<% end %>
+
+<%# Load fresh data after the update %>
+<% @time_session.reload %>
+
+<%# Update the ticket display when the TimeSession is assigned to a ticket.
+    Independent of the context — Turbo ignores the command if ticket_display_frame does not exist. %>
+<% if @time_session.ticket.present? %>
+  <% ticket = @time_session.ticket.reload %>
+  <% @post = Post.new(ticket: ticket, user: current_user) %>
+  <% @timeline_items = TicketTimelineService.new(ticket, current_user).timeline_items %>
+
+  <%= turbo_stream.update "ticket_display_frame",
+                        partial: "organisations/tickets/ticket_display",
+                        locals: {
+                          ticket: ticket,
+                          timeline_items: @timeline_items,
+                          post: @post,
+                          project: @time_session.project,
+                          current_organisation: @current_organisation
+                        } %>
+<% else %>
+  <%# No ticket assigned: replace the single element %>
+  <%= turbo_stream.replace dom_id(@time_session) do %>
+    <div data-timeline-filter-target="timeSession">
+      <%= render 'organisations/time_sessions/time_session', time_session: @time_session %>
+    </div>
+  <% end %>
+<% end %>

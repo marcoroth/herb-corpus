@@ -1,0 +1,79 @@
+<%# locals: (ticket:) %>
+<%# "Beziehungen" on the ticket page (doc/ticket_relations_plan.md, revision 4, §8.2).
+    Rendered from _ticket_content_for_frame outside every condition, so sub-tasks have it too,
+    and replaced as a whole by the relations streams.
+
+    ⚠️ The <section> always renders, only its content is conditional: without relations it is
+    an empty, hidden container, and the stream of the FIRST relation needs it as its target.
+
+    Only relations the reader may see (TicketRelation.visible_to via Tickets::RelationSection);
+    a relation to a ticket without read access shows nowhere here. Done and open come from
+    Tickets::Waiting, never from a status compared in this view. No frame of its own: a link
+    into the same project stays in the ticket frame like a sub-task link, one into another
+    project leaves it (ticket_relation_link). %>
+<% section = ticket_relation_section(ticket) %>
+<% rs = 'views.organisations.tickets.shared.relations' %>
+<% section_id = ticket_relations_section_id(ticket) %>
+<% can_edit = policy(ticket).update? %>
+<section id="<%= section_id %>"
+         class="ticket-relations-section mb-6 <%= 'hidden' unless section.any? %>"
+         aria-labelledby="<%= section_id %>-heading">
+  <% if section.any? %>
+    <h3 id="<%= section_id %>-heading" class="mb-2 text-sm font-bold uppercase tracking-wide text-cream-700">
+      <%= t("#{rs}.heading") %>
+    </h3>
+    <div class="space-y-3">
+      <% section.groups.each do |group, entries| %>
+        <div data-relation-group="<%= group %>">
+          <h4 class="mb-1 text-xs font-medium text-cream-600"><%= t("#{rs}.groups.#{group}") %></h4>
+          <ul class="divide-y divide-cream-200 overflow-hidden rounded-lg bg-cream-50">
+            <% entries.each do |entry| %>
+              <% other = entry.ticket %>
+              <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 <%= 'opacity-60' if entry.done? %>"
+                  data-relation-id="<%= entry.relation.id %>"
+                  <%= 'data-relation-done' if entry.done? %>>
+                <span class="shrink-0 text-xs text-cream-600"><%= t("#{rs}.kinds.#{entry.kind}") %></span>
+                <span class="font-mono text-xs tabular-nums text-cream-500">#<%= other.number %></span>
+                <%= ticket_relation_link(other, from: ticket, class: 'min-w-[10rem] flex-1 truncate text-sm text-cream-900 hover:underline') do %><%= other.title %><% end %>
+                <% if other.project_id != ticket.project_id %>
+                  <span class="shrink-0 truncate text-xs text-cream-500"><%= other.project.name %></span>
+                <% end %>
+                <% if entry.delay_days %>
+                  <span class="shrink-0 font-mono text-xs tabular-nums text-cream-600">
+                    <%= t("#{rs}.delay", count: entry.delay_days.abs, days: format('%+d', entry.delay_days)) %>
+                  </span>
+                <% end %>
+                <% if (status_label = entry.status_label) %>
+                  <span class="h-6 shrink-0 rounded-full border border-cream-300 px-2 text-xs leading-6 text-cream-700">
+                    <%= status_label %>
+                  </span>
+                <% end %>
+                <% if can_edit %>
+                  <%= button_to organisation_project_ticket_relation_path(current_organisation, ticket.project, ticket, entry.relation),
+                                method: :delete,
+                                class: 'flex h-6 w-6 items-center justify-center rounded text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 focus-visible:bg-cream-200 focus-visible:text-cream-900',
+                                title: t("#{rs}.remove"),
+                                aria: { label: t("#{rs}.remove") },
+                                form: { class: 'shrink-0',
+                                        data: { turbo_confirm: t("#{rs}.remove_confirm", ticket: other.display_title) } } do %>
+                    <i class="bi bi-x-lg text-[11px]" aria-hidden="true"></i>
+                  <% end %>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    </div>
+    <% if can_edit %>
+      <%# The id brings the focus back here after a save, although the stream replaced the link. %>
+      <%= link_to new_organisation_project_ticket_relation_path(current_organisation, ticket.project, ticket),
+                  id: ticket_relations_add_id(ticket),
+                  class: 'mt-2 inline-flex items-center gap-1 text-[13px] text-cream-600 transition-colors hover:text-cream-900',
+                  data: { turbo_frame: ticket_relation_modal_id(ticket) } do %>
+        <i class="bi bi-plus-lg text-[11px]" aria-hidden="true"></i>
+        <%= t("#{rs}.add") %>
+      <% end %>
+    <% end %>
+  <% end %>
+</section>

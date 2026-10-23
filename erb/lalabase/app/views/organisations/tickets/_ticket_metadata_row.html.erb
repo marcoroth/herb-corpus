@@ -1,0 +1,376 @@
+<%# Metadata row: Assignee display + header columns + time + tags %>
+<%# Locals: ticket, ds, header_columns, view_config, project, current_organisation %>
+
+<%# Typography aligned to the mock (03.09.): larger, darker, dates in mono.
+    Structure and behaviour of the row are untouched (user decision: the row
+    itself stays). %>
+<%# 8px up to the title, the same 8px the title keeps to the identifier above
+    it: identifier, title and attributes are ONE block. 16px is the value that
+    separates blocks further down (description, files, subscribers). %>
+<div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-cream-700">
+
+  <%# Assignee Display - conditional based on detail_settings %>
+  <% unless ds['assignee_display'] == 'off' %>
+    <% sh = 'views.organisations.tickets.ticket_header_show' %>
+    <% assignee_names = ticket.assignees.any? ? viewer_ordered_users(ticket.assignees).map { |a| viewer_display_name(a) }.join(', ') : t("#{sh}.no_assignment") %>
+    <% assignee_gap = ds['assignee_display'] == 'icon_only' || ticket.assignees.empty? ? 'gap-1' : 'gap-2' %>
+    <%# The picture of the people, captured ONCE: below it sits in a button
+        for a writer and in a span for a reader, and the density branches
+        must not be spelled twice. %>
+    <% assignee_content = capture do %>
+      <% if ds['assignee_display'] == 'icon_only' %>
+        <i class="bi bi-person-fill text-[12px]"></i>
+        <% if ticket.assignees.size > 1 %>
+          <span class="text-gray-400"><%= ticket.assignees.size %></span>
+        <% end %>
+      <% elsif ticket.assignees.any? %>
+        <%# Slack model (05.09.2026): the avatar chip is constant and replaced
+            the person icon. The per-view switch keeps meaning DENSITY here:
+            'full_name' = chip + name in the viewer's spelling while ONE person
+            is assigned, chips only once there are several (adaptive, user
+            decision 08.09.2026: two names do not fit this row); 'initials' =
+            chips only, always. Either way the name stays in the hover title
+            and the viewer comes first (user feedback: "muss hier wirklich der
+            Name nochmal zusaetzlich angezeigt werden?"). %>
+        <% if ds['assignee_display'] == 'initials' %>
+          <%= viewer_user_chips(ticket.assignees, size: :xs) %>
+        <% else %>
+          <%= viewer_user_list(ticket.assignees, size: :xs) %>
+        <% end %>
+      <% else %>
+        <i class="bi bi-person-fill text-[12px]"></i>
+        <%= t("#{sh}.no_assignment") %>
+      <% end %>
+    <% end %>
+    <% if policy(project).area_access?(:tickets, :write) %>
+      <%# A writer sets the people HERE, like the status and the priority
+          beside it (user, 09.09.2026): the segment is a button, the menu
+          lists the people of the edit form (TicketsHelper#assignable_users_for:
+          active members who may read the project's tickets, plus whoever is
+          assigned, so a deactivated person shows ticked and can be unticked;
+          Ticket#assignable_user_ids takes the same people), the viewer first,
+          each with a tick. Ticks
+          change the menu alone; closing it (outside click, Escape, "Fertig")
+          sends the difference to what it showed as ONE add/remove change to
+          the endpoint the status uses (inline_assignees_controller), and no
+          difference sends nothing. The response replaces this whole head. %>
+      <% assignee_button_title = ds['assignee_display'] == 'icon_only' ? "#{assignee_names} · #{t("#{sh}.assign")}" : t("#{sh}.assign") %>
+      <% assigned_ids = ticket.assignees.map(&:id) %>
+      <span class="relative inline-flex items-center" data-controller="inline-assignees">
+        <%= form_with(
+          url: update_kanban_attribute_organisation_project_ticket_path(current_organisation, project, ticket),
+          method: :patch,
+          data: { inline_assignees_target: "form", turbo_frame: "ticket_display_frame" }
+        ) do |f| %>
+          <%= hidden_field_tag 'attribute_name', 'assignees' %>
+        <% end %>
+        <%# data-assignee-spot: the ONE place in the head that shows the
+            people, button or span, so a spec finds it without knowing which
+            (tickets_name_display_spec). %>
+        <button type="button"
+                class="inline-flex items-center <%= assignee_gap %> text-sm text-cream-800 cursor-pointer hover:text-cream-900 hover:bg-cream-100 rounded px-1 -mx-1 transition-colors"
+                data-action="click->inline-assignees#toggle"
+                data-inline-assignees-target="badge"
+                data-assignee-spot
+                aria-haspopup="true"
+                aria-expanded="false"
+                title="<%= assignee_button_title %>">
+          <%= assignee_content %>
+          <i class="bi bi-chevron-down text-[8px]"></i>
+        </button>
+        <div class="hidden absolute left-0 top-full mt-1 w-56 bg-surface-raised border border-slate-200 rounded-lg shadow-md py-1 z-50"
+             data-inline-assignees-target="menu">
+          <div class="px-3 py-1.5 text-xs font-bold text-gray-500"><%= t("#{sh}.assigned_to") %></div>
+          <div class="border-t border-gray-200 my-1"></div>
+          <%# The edit form's people: assignable now, plus whoever is assigned
+              (a deactivated person stays ticked and can be unticked). %>
+          <% viewer_ordered_users(assignable_users_for(project, ticket).includes(avatar_attachment: :blob)).each do |person| %>
+            <label class="w-full px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 cursor-pointer transition-colors">
+              <input type="checkbox"
+                     value="<%= person.id %>"
+                     <%= 'checked' if assigned_ids.include?(person.id) %>
+                     class="h-3.5 w-3.5 rounded border-stroke accent-ink flex-shrink-0"
+                     data-inline-assignees-target="option">
+              <%= viewer_user_chip(person, size: :xs) %>
+            </label>
+          <% end %>
+          <div class="border-t border-gray-200 my-1"></div>
+          <button type="button"
+                  class="w-full text-left px-3 py-1.5 text-xs font-medium hover:bg-gray-100 transition-colors"
+                  data-action="click->inline-assignees#done">
+            <%= t("#{sh}.assign_done") %>
+          </button>
+        </div>
+      </span>
+    <% else %>
+      <span class="inline-flex items-center <%= assignee_gap %>" data-assignee-spot title="<%= ds['assignee_display'] == 'icon_only' ? assignee_names : t("#{sh}.assigned_to") %>">
+        <%= assignee_content %>
+      </span>
+    <% end %>
+  <% end %>
+
+  <% header_columns.each do |column_key|
+       next if column_key == 'assignees'
+
+       case column_key
+       when 'status', 'custom_status'
+         status_attr_def = ticket.attribute_definitions.find { |ad| ad.name == 'status' }
+         status_value = ticket.get_custom_attribute('status')
+         if status_attr_def && policy(project).area_access?(:tickets, :write) %>
+           <% status_options = status_attr_def.allowed_values.map { |v| [v['labels']&.dig(I18n.locale.to_s) || v['value'], v['value']] } %>
+           <% current_label = status_attr_def.display_value(status_value) || status_value %>
+           <% status_display_mode = view_config.custom_field_display_mode(column_key) %>
+           <% badge_style = (status_display_mode == 'colored' && status_value.present?) ? status_badge_style(status_attr_def, status_value) : {} %>
+           <span class="relative inline-flex items-center" data-controller="inline-status">
+             <%= form_with(
+               url: update_kanban_attribute_organisation_project_ticket_path(current_organisation, project, ticket),
+               method: :patch,
+               data: { inline_status_target: "form", turbo_frame: "ticket_display_frame" }
+             ) do |f| %>
+               <%= hidden_field_tag 'attribute_name', 'status' %>
+               <%= hidden_field_tag 'value', status_value, data: { inline_status_target: "hiddenField" } %>
+             <% end %>
+             <% status_text = status_value.present? ? current_label : t('views.organisations.tickets.ticket_header_show.no_status') %>
+             <% if status_display_mode == 'text' %>
+               <button type="button"
+                       class="text-sm text-cream-800 cursor-pointer hover:text-cream-900 hover:bg-cream-100 rounded px-1 -mx-1 transition-colors inline-flex items-center gap-1"
+                       data-action="click->inline-status#toggle"
+                       data-inline-status-target="badge"
+                       title="<%= t('views.organisations.tickets.ticket_header_show.status') %>">
+                 <i class="bi bi-circle-fill text-[7px]"></i>
+                 <%= status_text %>
+                 <i class="bi bi-chevron-down text-[8px]"></i>
+               </button>
+             <% else %>
+               <% status_rounded = status_text.length > 12 ? 'rounded-lg' : 'rounded-full' %>
+               <button type="button"
+                       class="px-2 py-0.5 <%= status_rounded %> text-xs font-medium border border-stroke cursor-pointer hover:opacity-80 transition-opacity <%= badge_style[:class] %>"
+                       <%= tag.attributes(style: badge_style[:style]) %>
+                       data-action="click->inline-status#toggle"
+                       data-inline-status-target="badge"
+                       title="<%= t('views.organisations.tickets.ticket_header_show.status') %>">
+                 <i class="bi bi-circle-fill text-[7px]"></i>
+                 <%= status_text %>
+                 <i class="bi bi-chevron-down text-[8px] ml-0.5"></i>
+               </button>
+             <% end %>
+             <div class="hidden absolute left-0 top-full mt-1 w-48 bg-surface-raised border border-slate-200 rounded-lg shadow-md py-1 z-50"
+                  data-inline-status-target="menu">
+               <div class="px-3 py-1.5 text-xs font-bold text-gray-500"><%= t('views.organisations.tickets.ticket_header_show.status') %></div>
+               <div class="border-t border-gray-200 my-1"></div>
+               <button type="button"
+                       class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 transition-colors text-gray-400 <%= 'font-bold' if status_value.blank? %>"
+                       data-action="click->inline-status#select"
+                       data-value="">
+                 <span class="inline-block w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></span>
+                 <%= t('views.organisations.tickets.ticket_header_show.no_selection') %>
+                 <% if status_value.blank? %><i class="bi bi-check ml-auto text-[12px]"></i><% end %>
+               </button>
+               <div class="border-t border-gray-200 my-1"></div>
+               <% status_options.each do |label, value| %>
+                 <% opt_style = status_badge_style(status_attr_def, value) %>
+                 <button type="button"
+                         class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 transition-colors <%= 'font-bold' if value == status_value %>"
+                         data-action="click->inline-status#select"
+                         data-value="<%= value %>">
+                   <span class="inline-block w-3 h-3 rounded-full border border-stroke flex-shrink-0 <%= opt_style[:class] %>"
+                         <%= tag.attributes(style: opt_style[:style]) %>></span>
+                   <%= label %>
+                   <% if value == status_value %><i class="bi bi-check ml-auto text-[12px]"></i><% end %>
+                 </button>
+               <% end %>
+             </div>
+           </span>
+         <% elsif status_value.present? %>
+           <span class="inline-flex items-center gap-1" title="<%= t('views.organisations.tickets.ticket_header_show.status') %>">
+             <i class="bi bi-circle-fill text-[6px]"></i>
+             <%= status_attr_def&.display_value(status_value) || status_value %>
+           </span>
+         <% end
+       when 'priority'
+         priority_value = ticket.get_custom_attribute('priority')
+         priority_attr_def = ticket.attribute_definitions.find { |ad| ad.name == 'priority' }
+         priority_display_mode = view_config.custom_field_display_mode(column_key)
+         if priority_attr_def && policy(project).area_access?(:tickets, :write) %>
+           <% priority_options = priority_attr_def.allowed_values.map { |v| [v['labels']&.dig(I18n.locale.to_s) || v['value'], v['value']] } %>
+           <% priority_label = priority_attr_def.display_value(priority_value) || priority_value %>
+           <% priority_badge = (priority_display_mode == 'colored' && priority_value.present?) ? status_badge_style(priority_attr_def, priority_value) : {} %>
+           <span class="relative inline-flex items-center" data-controller="inline-status">
+             <%= form_with(
+               url: update_kanban_attribute_organisation_project_ticket_path(current_organisation, project, ticket),
+               method: :patch,
+               data: { inline_status_target: "form", turbo_frame: "ticket_display_frame" }
+             ) do |f| %>
+               <%= hidden_field_tag 'attribute_name', 'priority' %>
+               <%= hidden_field_tag 'value', priority_value, data: { inline_status_target: "hiddenField" } %>
+             <% end %>
+             <% priority_text = priority_value.present? ? priority_label : '–' %>
+             <% if priority_display_mode == 'text' %>
+               <button type="button"
+                       class="text-sm text-cream-800 cursor-pointer hover:text-cream-900 hover:bg-cream-100 rounded px-1 -mx-1 transition-colors inline-flex items-center gap-1"
+                       data-action="click->inline-status#toggle"
+                       data-inline-status-target="badge"
+                       title="<%= t('views.organisations.tickets.ticket_header_show.priority') %>">
+                 <i class="bi bi-flag-fill text-[9px]"></i>
+                 <%= priority_text %>
+                 <i class="bi bi-chevron-down text-[8px]"></i>
+               </button>
+             <% else %>
+               <button type="button"
+                       class="px-2 py-0.5 rounded text-xs font-medium border border-stroke cursor-pointer hover:opacity-80 transition-opacity <%= priority_badge[:class] %>"
+                       <%= tag.attributes(style: priority_badge[:style]) %>
+                       data-action="click->inline-status#toggle"
+                       data-inline-status-target="badge"
+                       title="<%= t('views.organisations.tickets.ticket_header_show.priority') %>">
+                 <i class="bi bi-flag-fill text-[9px]"></i>
+                 <%= priority_text %>
+                 <i class="bi bi-chevron-down text-[8px] ml-0.5"></i>
+               </button>
+             <% end %>
+             <div class="hidden absolute left-0 top-full mt-1 w-48 bg-surface-raised border border-slate-200 rounded-lg shadow-md py-1 z-50"
+                  data-inline-status-target="menu">
+               <div class="px-3 py-1.5 text-xs font-bold text-gray-500"><%= t('views.organisations.tickets.ticket_header_show.priority') %></div>
+               <div class="border-t border-gray-200 my-1"></div>
+               <button type="button"
+                       class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 transition-colors text-gray-400 <%= 'font-bold' if priority_value.blank? %>"
+                       data-action="click->inline-status#select"
+                       data-value="">
+                 <span class="inline-block w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></span>
+                 <%= t('views.organisations.tickets.ticket_header_show.no_selection') %>
+                 <% if priority_value.blank? %><i class="bi bi-check ml-auto text-[12px]"></i><% end %>
+               </button>
+               <div class="border-t border-gray-200 my-1"></div>
+               <% priority_options.each do |label, pval| %>
+                 <% opt_style = status_badge_style(priority_attr_def, pval) %>
+                 <button type="button"
+                         class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 transition-colors <%= 'font-bold' if pval == priority_value %>"
+                         data-action="click->inline-status#select"
+                         data-value="<%= pval %>">
+                   <span class="inline-block w-3 h-3 rounded-full border border-stroke flex-shrink-0 <%= opt_style[:class] %>"
+                         <%= tag.attributes(style: opt_style[:style]) %>></span>
+                   <%= label %>
+                   <% if pval == priority_value %><i class="bi bi-check ml-auto text-[12px]"></i><% end %>
+                 </button>
+               <% end %>
+             </div>
+           </span>
+         <% elsif priority_value.present? %>
+           <span class="inline-flex items-center gap-1" title="<%= t('views.organisations.tickets.ticket_header_show.priority') %>">
+             <i class="bi bi-flag-fill text-[10px]"></i>
+             <%= priority_attr_def&.display_value(priority_value) || priority_value %>
+           </span>
+         <% end
+       when 'tags'
+         if ticket.tags.any? %>
+           <span class="inline-flex items-center gap-1" title="<%= t('views.organisations.tickets.ticket_header_show.tags') %>">
+             <i class="bi bi-tag-fill text-[10px]"></i>
+             <%= ticket.tags.map(&:name).join(", ") %>
+           </span>
+         <% end
+       when 'created_at' %>
+         <span class="inline-flex items-center gap-1.5 font-mono text-[13px]" title="<%= t('views.organisations.tickets.ticket_header_show.created_at') %>">
+           <i class="bi bi-calendar-fill text-[10px]"></i>
+           <%= display_time_split(ticket.created_at, area: :ticket_header, user: current_user) %>
+         </span>
+       <% when 'updated_at' %>
+         <span class="inline-flex items-center gap-1.5 font-mono text-[13px]" title="<%= t('views.organisations.tickets.ticket_header_show.updated_at') %>">
+           <i class="bi bi-clock-history text-[10px]"></i>
+           <%= display_time_split(ticket.updated_at, area: :ticket_header, user: current_user) %>
+         </span>
+       <% else
+         if column_key.start_with?('custom_')
+           attribute_name = column_key.gsub('custom_', '')
+           value = ticket.get_custom_attribute(attribute_name)
+           attr_def = ticket.attribute_definitions.find { |ad| ad.name == attribute_name }
+           display_mode = view_config.custom_field_display_mode(column_key)
+
+           if attr_def && attr_def.field_type == 'select' && policy(project).area_access?(:tickets, :write)
+             # Inline dropdown for select attributes
+             ca_options = attr_def.allowed_values.map { |v| [v['labels']&.dig(I18n.locale.to_s) || v['value'], v['value']] }
+             ca_label = attr_def.display_value(value) || value
+             ca_badge_style = (display_mode == 'colored' && value.present?) ? status_badge_style(attr_def, value) : {} %>
+             <span class="relative inline-flex items-center" data-controller="inline-status">
+               <%= form_with(
+                 url: update_kanban_attribute_organisation_project_ticket_path(current_organisation, project, ticket),
+                 method: :patch,
+                 data: { inline_status_target: "form", turbo_frame: "ticket_display_frame" }
+               ) do |f| %>
+                 <%= hidden_field_tag 'attribute_name', attribute_name %>
+                 <%= hidden_field_tag 'value', value, data: { inline_status_target: "hiddenField" } %>
+               <% end %>
+               <% ca_text = value.present? ? ca_label : '–' %>
+               <% if display_mode == 'text' %>
+                 <button type="button"
+                         class="text-sm text-cream-800 cursor-pointer hover:text-cream-900 hover:bg-cream-100 rounded px-1 -mx-1 transition-colors inline-flex items-center gap-1"
+                         data-action="click->inline-status#toggle"
+                         data-inline-status-target="badge"
+                         title="<%= attr_def.label_for %>">
+                   <i class="bi bi-tag-fill text-[9px]"></i>
+                   <%= ca_text %>
+                   <i class="bi bi-chevron-down text-[8px]"></i>
+                 </button>
+               <% else %>
+                 <% ca_rounded = ca_text.length > 12 ? 'rounded-lg' : 'rounded-full' %>
+                 <button type="button"
+                         class="px-2 py-0.5 <%= ca_rounded %> text-xs font-medium border border-stroke cursor-pointer hover:opacity-80 transition-opacity <%= ca_badge_style[:class] %>"
+                         <%= tag.attributes(style: ca_badge_style[:style]) %>
+                         data-action="click->inline-status#toggle"
+                         data-inline-status-target="badge"
+                         title="<%= attr_def.label_for %>">
+                   <i class="bi bi-tag-fill text-[9px]"></i>
+                   <%= ca_text %>
+                   <i class="bi bi-chevron-down text-[8px] ml-0.5"></i>
+                 </button>
+               <% end %>
+               <div class="hidden absolute left-0 top-full mt-1 w-48 bg-surface-raised border border-slate-200 rounded-lg shadow-md py-1 z-50"
+                    data-inline-status-target="menu">
+                 <div class="px-3 py-1.5 text-xs font-bold text-gray-500"><%= attr_def.label_for %></div>
+                 <div class="border-t border-gray-200 my-1"></div>
+                 <button type="button"
+                         class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 transition-colors text-gray-400 <%= 'font-bold' if value.blank? %>"
+                         data-action="click->inline-status#select"
+                         data-value="">
+                   <span class="inline-block w-3 h-3 rounded-full border border-gray-300 flex-shrink-0"></span>
+                   <%= t('views.organisations.tickets.ticket_header_show.no_selection') %>
+                   <% if value.blank? %><i class="bi bi-check ml-auto text-[12px]"></i><% end %>
+                 </button>
+                 <div class="border-t border-gray-200 my-1"></div>
+                 <% ca_options.each do |opt_label, opt_value| %>
+                   <% opt_style = status_badge_style(attr_def, opt_value) %>
+                   <button type="button"
+                           class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 flex items-center gap-2 transition-colors <%= 'font-bold' if opt_value == value %>"
+                           data-action="click->inline-status#select"
+                           data-value="<%= opt_value %>">
+                     <span class="inline-block w-3 h-3 rounded-full border border-stroke flex-shrink-0 <%= opt_style[:class] %>"
+                           <%= tag.attributes(style: opt_style[:style]) %>></span>
+                     <%= opt_label %>
+                     <% if opt_value == value %><i class="bi bi-check ml-auto text-[12px]"></i><% end %>
+                   </button>
+                 <% end %>
+               </div>
+             </span>
+           <% elsif value.present?
+             label = attr_def ? attr_def.label_for : attribute_name.humanize
+             has_explicit_color = attr_def&.allowed_values&.find { |v| v['value'] == value }&.dig('color').present?
+             has_system_color = display_mode == 'colored' && (has_explicit_color || system_function_badge_color(ticket, attr_def, value).present?) %>
+             <span class="inline-flex items-center gap-1" title="<%= label %>">
+               <%# date fields bring their own calendar icon (see ticket_due_badge) — no generic gear %>
+               <% unless has_system_color || attr_def&.field_type == 'date' %><i class="bi bi-gear-fill text-[10px]"></i><% end %>
+               <%= render_custom_attribute_value(ticket, attribute_name, value, display_mode: display_mode, context: :header) %>
+             </span>
+           <% end
+         end
+       end
+     end %>
+
+  <%# "Wartet auf ..." (doc/ticket_relations_plan.md, revision 4, §8.1), beside the status
+      and priority above it. Not a header column and not behind a detail setting: whether a
+      ticket waits is always shown. An empty, hidden span while it waits on nothing. %>
+  <%= render 'organisations/tickets/waiting_hint', ticket: ticket %>
+
+  <%# Time Display - conditional %>
+  <% unless ds['time_display'] == 'off' %>
+    <%= render SubjectTimeSummaryComponent.new(subject: ticket, user: current_user, mode: ds['time_display']) %>
+  <% end %>
+
+</div>

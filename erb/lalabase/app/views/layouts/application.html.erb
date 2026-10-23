@@ -1,0 +1,317 @@
+<!doctype html>
+<%# Org recognition color (per user): users with >=2 orgs set --brand inline (across all themes).
+    Without an effective color (one org / off / not set) NO override -> :root default applies. %>
+<html lang="<%= I18n.locale %>" class="theme-lime theme-pop"<% if (brand_style = brand_style_for(current_user, @current_organisation)) %> style="<%= brand_style %>"<% end %>>
+  <head>
+    <title><%= t('application.title', default: 'Projektmanagement') %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <%= csrf_meta_tags %> <%= csp_meta_tag %>
+
+    <!-- Favicon -->
+    <%= favicon_link_tag 'favicon.svg', type: 'image/svg+xml' %>
+    <%= favicon_link_tag 'favicon.png', type: 'image/png', sizes: '32x32' %>
+
+    <!-- I18n translations for JavaScript -->
+    <script>
+      window.translations = <%= raw(javascript_translations.to_json) %>;
+      window.locale = <%= raw(I18n.locale.to_json) %>;
+    </script>
+
+    <%# Theme mode (Light/Dark/Pop): apply before the first paint (no FOUC) + toggle logic.
+        Test/dev switch at the bottom of the sidebar. See doc/token_layer_phase2_dark_plan.md %>
+    <script>
+      (function () {
+        var KEY = 'lb-theme', root = document.documentElement;
+        function apply(t) {
+          root.classList.remove('dark', 'theme-pop');
+          if (t === 'dark') { root.classList.add('dark'); }
+          else if (t === 'pop') { root.classList.add('theme-pop'); }
+        }
+        function get() { try { return localStorage.getItem(KEY) || 'pop'; } catch (e) { return 'pop'; } }
+        function mark() {
+          var cur = get(), els = document.querySelectorAll('[data-theme-set]');
+          for (var i = 0; i < els.length; i++) {
+            els[i].setAttribute('aria-pressed', els[i].getAttribute('data-theme-set') === cur ? 'true' : 'false');
+          }
+        }
+        function set(t) { try { localStorage.setItem(KEY, t); } catch (e) {} apply(t); mark(); }
+        apply(get()); // vor dem Paint
+        window.__lbTheme = { set: set, get: get };
+        document.addEventListener('click', function (e) {
+          var b = e.target.closest ? e.target.closest('[data-theme-set]') : null;
+          if (b) { e.preventDefault(); set(b.getAttribute('data-theme-set')); }
+        });
+        document.addEventListener('DOMContentLoaded', mark);
+        document.addEventListener('turbo:load', function () { apply(get()); mark(); });
+      })();
+    </script>
+
+    <!-- JavaScript: Importmap must be loaded first -->
+    <%= javascript_importmap_tags %>
+
+    <!-- Stylesheets -->
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "lalabase-fonts", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "tailwind", "inter-font", "data-turbo-track": "reload" %>
+
+    <!-- SlimSelect CSS (JS via importmap; local from vendor/assets, @2.9.2) -->
+    <%= stylesheet_link_tag "slimselect", "data-turbo-track": "reload" %>
+
+    <!-- Bootstrap Icons: application.css bundles bootstrap-icons.min; the fonts are served from public/fonts -->
+
+    <%# SortableJS is now loaded via importmap %>
+
+    <!-- This is the Import Map tag that Rails uses -->
+    <meta name="turbo-prefetch" content="false">
+    <meta name="view-transition" content="same-origin">
+
+    <%= yield :head %>
+  </head>
+
+  <%# Token layer drives Light/Dark/Pop (text-slate-700/bg-cream-100 are var-based).
+      The old dark: literals (dark:text-slate-200/dark:bg-neutral-950) REMOVED — they collided
+      with the warm dark ramp (slate-200 is dark there) -> default text was dark-on-dark. %>
+  <%# S3a T4: the companion panel's geometry is rendered SERVER-side from the
+      cookie (AssistantPanelState) so a hard reload paints the shifted layout
+      immediately. assistant_panel_controller re-applies both of these to the
+      INCOMING body on turbo:before-render; without the server half the page
+      would jump once on every full load.
+      The offset is a custom property, not an inline margin on <main>: WHETHER it
+      applies is a viewport question, and that lives in the media query in
+      components/assistant_panel.css. The server cannot know the viewport. %>
+  <% assistant_panel_open = assistant_available? && assistant_panel_state.open? %>
+  <%# S3c T2: the full view covers the page instead of standing next to it, so it
+      publishes its own body class and NO offset -- content_offset answers nil
+      there, and the media query's own fallback (16rem, the bare sidebar) is then
+      the correct resting place. %>
+  <% assistant_panel_full = assistant_panel_open && assistant_panel_state.full? %>
+  <% assistant_panel_offset = assistant_panel_open ? assistant_panel_state.content_offset : nil %>
+  <body x-data="{ sidebar: false }" class="<%= 'mobile-app' if user_signed_in? && @current_organisation.present? %> font-sans text-base font-normal text-slate-700 bg-cream-100<%= ' assistant-panel-open' if assistant_panel_open %><%= ' assistant-panel-full' if assistant_panel_full %>" style="<%= "--assistant-panel-offset: #{assistant_panel_offset}px" if assistant_panel_offset %>" data-controller="undefined-url-guard turbo-cache search-overlay personal-tasks-drawer contextual-help-drawer" data-turbo-cache-target="body">
+
+    <%= render 'layouts/session_sync' if user_signed_in? %>
+    <%= render 'layouts/session_timeout' if user_signed_in? %>
+    <%= render 'layouts/flash' %>
+
+    <%# The ONE target frame of the ticket writing surface (tickets#new / tickets#edit,
+        organisations/tickets/_writing_surface). In the layout, not per page, so every
+        place that shows a ticket header (list, dashboard, inbox pane) can open it.
+        Deliberately NOT the shared turbo-frame#modal: filter_bar_controller re-visits
+        the page after every successful submit inside #modal, which threw the view back
+        to the previously selected ticket after saving a new one. %>
+    <turbo-frame id="writing_surface"></turbo-frame>
+
+    <!-- Debug info for pagination was removed -->
+
+    <!-- sidebar -->
+    <%# Org recognition color (per user, >=2 orgs): continuous left edge line (border-s,
+        visible in ALL themes, because a border is not a surface -> not affected by the
+        .dark/.theme-pop sidebar neutralization) + logo chip (bg-brand, further down, via
+        --brand cascade). Additionally a surface tint in Light (.dark/.theme-pop force
+        cream-100 -> tint only in Light). Source = resolver (org_colors.effective_color) -> ≥2 gate + OFF
+        are decided CENTRALLY; returns only valid hex (no 'off' leak as a CSS value).
+        The line is gated (only when a color is present) -> default orgs: no line -> pixel-identical. %>
+    <% org_brand = current_user&.org_colors&.effective_color(@current_organisation) if user_signed_in? && @current_organisation %>
+    <aside id="sidebar"
+      class="fixed inset-y-0 start-0 sidebar flex flex-col w-64 lg:min-w-64 h-screen overflow-hidden <%= 'bg-cream-200' unless org_brand %> border-r border-cream-300 <%= 'border-s-[3px] border-s-brand' if org_brand %> transition-all duration-500 ease-in-out -translate-x-full lg:translate-x-0 max-lg:z-sidebar rtl:translate-x-full lg:rtl:translate-x-0"
+      <% if org_brand %> style="background-color: <%= org_brand %>;"<% end %>>
+
+      <!-- Scrollable content container -->
+      <div class="flex flex-col h-full">
+        <!-- Fixed top section -->
+        <div class="flex-shrink-0">
+          <!-- logo + changelog -->
+          <div class="flex items-center justify-between mx-7 pt-4 pb-4">
+            <%= link_to @current_organisation.present? ? organisation_root_path(organisation_id: @current_organisation.id) : root_path, class: "text-2xl font-black flex flex-row items-center gap-1.5" do %>
+              <%# The brand mark of the public pages, ONE partial (user, 10.09.2026: the
+                  application carried a third fashion, "alaBase" with a 2px shadow). The
+                  chip keeps the org recognition colour through bg-brand (BrandHelper sets
+                  --brand inline for users with >=2 orgs); the :root default of --brand is
+                  the public chip's lime-300, so without a colour the two are one. %>
+              <%= render 'shared/brand_mark', chip_class: 'bg-brand' %>
+            <% end %>
+            <%# No header icons anymore: "Neuigkeiten" (changelog) moved into the account menu
+                (#109, common/_user_menu_compact); global search moved to a labelled "Suche"
+                nav item + body-level overlay (search_overlay). The logo stands alone here. %>
+          </div>
+        </div>
+
+        <!-- Scrollable middle section -->
+        <div class="flex-1 overflow-y-auto scrollbars">
+          <% if user_signed_in? && @current_organisation.blank? %>
+            <%= render 'common/navigation_account' %>
+          <% else %>
+            <%= render 'common/navigation_application', current_organisation: @current_organisation %>
+            <% if user_signed_in? && @current_organisation.present? %>
+              <%= turbo_stream_from Notifications::Streams.badge(current_user, @current_organisation) %>
+              <%= render 'notifications/count_data_frame', count: current_user.unread_notifications_count(@current_organisation) %>
+            <% end %>
+            <% if user_signed_in? && @current_organisation.present? %>
+              <%= render 'common/sidebar_project_list' %>
+            <% end %>
+          <% end %>
+        </div>
+
+        <!-- Fixed bottom section -->
+        <div class="flex-shrink-0 border-t border-cream-300">
+          <%# render 'common/upgrade_box' %>
+
+          <%# Utility row: Notizblock (daily tool, keeps its label) left; icon-only help +
+              collapsed theme switcher right. Help is deliberately icon-only reference
+              material, not a full nav row (doc/in_app_hilfe_plan.md §3.4) — the "?" is
+              learned app-wide via the contextual-help triggers. The mobile sidebar is an
+              overlay, hence the max-lg padding bumps (≥44px touch targets). %>
+          <div class="px-4 py-2.5 border-b border-cream-300 flex items-center justify-between gap-2">
+            <%# Notizblock trigger replaces the (redundant) "Ansicht" label; theme toggles stay
+                on the right. Opens the body-level slide-over drawer (personal_tasks_drawer). %>
+            <% if user_signed_in? && @current_organisation.present? %>
+              <button type="button"
+                      data-action="personal-tasks-drawer#open"
+                      title="<%= t('navigation.notizblock.title') %>"
+                      aria-label="<%= t('navigation.notizblock.open') %>"
+                      class="flex items-center gap-2 -ml-1 px-2 py-1 max-lg:py-2.5 rounded text-cream-600 hover:text-ink hover:bg-cream-200 transition-colors">
+                <i class="bi bi-journal-text"></i>
+                <span class="text-sm"><%= t('navigation.notizblock.title') %></span>
+              </button>
+            <% else %>
+              <span></span>
+            <% end %>
+            <div class="flex items-center gap-1.5">
+              <%# Help: org-independent, so it also shows on org-free pages (cockpit,
+                  user preferences). Same trigger optics as the theme button next to it. %>
+              <% if user_signed_in? %>
+                <%= link_to help_home_url,
+                    title: t('navigation.help'),
+                    'aria-label': t('navigation.help'),
+                    class: "flex items-center px-2.5 py-1 max-lg:py-2.5 rounded border border-cream-300 text-sm text-cream-600 hover:bg-cream-100 hover:text-ink transition-colors" do %>
+                  <i class="bi bi-question-circle"></i>
+                <% end %>
+              <% end %>
+              <%# Collapsed theme switcher: the trigger shows ONLY the active theme's icon (revealed
+                  by the <html> theme class via CSS in layout.css — set before first paint, so no
+                  flash). Click opens a small popover listing all three modes; it opens upward
+                  (bottom-full) and stays within the sidebar width so the aside's overflow-hidden
+                  never clips it. Selection runs through the delegated [data-theme-set] click handler
+                  in the <head> script; #close then dismisses the popover. %>
+              <div class="relative" data-controller="neo-inline-popover"
+                   data-action="keydown@window->neo-inline-popover#closeOnEscape">
+                <button type="button"
+                        data-action="click->neo-inline-popover#toggle"
+                        aria-haspopup="menu"
+                        title="<%= t('navigation.theme.label') %>" aria-label="<%= t('navigation.theme.label') %>"
+                        class="flex items-center gap-1.5 px-2.5 py-1 max-lg:py-2.5 rounded border border-cream-300 text-sm text-cream-600 hover:bg-cream-100 hover:text-ink transition-colors">
+                  <% [['light', 'sun'], ['dark', 'moon-stars'], ['pop', 'palette']].each do |mode, icon| %>
+                    <i class="bi bi-<%= icon %>" data-theme-trigger-icon="<%= mode %>"></i>
+                  <% end %>
+                </button>
+
+                <div data-neo-inline-popover-target="panel"
+                     data-action="click@window->neo-inline-popover#closeOnOutsideClick"
+                     role="menu"
+                     class="hidden absolute bottom-full right-0 mb-2 w-40 z-30 py-1 bg-surface-raised border-2 border-stroke shadow-[4px_4px_0_0_rgba(0,0,0,1)] rounded-md overflow-hidden text-sm">
+                  <% [['light', 'sun'], ['dark', 'moon-stars'], ['pop', 'palette']].each do |mode, icon| %>
+                    <button type="button" data-theme-set="<%= mode %>"
+                            data-action="click->neo-inline-popover#close"
+                            role="menuitemradio"
+                            title="<%= t("navigation.theme.#{mode}") %>"
+                            class="theme-option w-full flex items-center gap-2.5 px-3 py-1.5 text-cream-600 hover:bg-cream-100 hover:text-ink aria-pressed:text-ink aria-pressed:font-bold transition-colors">
+                      <i class="bi bi-<%= icon %> w-4 text-center"></i>
+                      <span class="flex-1 text-left"><%= t("navigation.theme.#{mode}") %></span>
+                      <i class="bi bi-check-lg theme-check text-accent"></i>
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <%# "Neues Projekt" moved from here into common/_sidebar_project_list (object
+              action lives with the object); the help entry collapsed into the icon-only
+              "?" in the utility row above. %>
+
+          <!-- User Menu -->
+          <div class="space-y-0">
+            <%= render 'common/user_menu_compact', current_organisation: @current_organisation %>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="mobile-app-screen">
+    <%= render 'layouts/mobile_header' if user_signed_in? && @current_organisation.present? %>
+    <!-- main -->
+    <main class="content-compact relative lg:ms-64 transition-all duration-500 ease-in-out px-4 lg:px-6 py-4 bg-cream-100">
+
+      <div class="flex flex-col gap-4 lg:gap-6 mx-auto mb-6">
+
+         <%# Account-level deadline banners. They live HERE — inside main, inside
+             the flow, as the first children of the gap-flex column — and not at
+             body level. Both used to be `fixed top-0`, out of the flow, and each
+             got the height reservation wrong in its own way: the confirmation
+             banner had NONE at all and therefore lay on top of the first ~60px of
+             every page (on a ticket exactly where the time-tracking actions sit,
+             so they were neither visible nor clickable), while the deletion
+             warning guessed with a hard-coded h-16 spacer that broke as soon as
+             the bar wrapped on a narrow screen. In the flow neither has to guess.
+             Position is pinned by spec/requests/users/email_confirmation_spec.rb.
+
+             Still only ONE of the two renders. That is now a priority call, not a
+             technical necessity: the deletion deadline destroys data, the
+             confirmation deadline only ends access. %>
+         <%= render 'layouts/deletion_warning' if user_signed_in? && current_user.deletion_scheduled? %>
+         <%= render 'layouts/email_confirmation' if user_signed_in? && current_user.awaiting_confirmation? && !current_user.deletion_scheduled? %>
+         <%= render 'layouts/demo_banner' if user_signed_in? && Lalabase::Demo.enabled? %>
+
+         <%# Mount notification dropdown in test env so system specs can interact with it %>
+         <% if Rails.env.test? && user_signed_in? && @current_organisation.present? %>
+           <div id="test-notification-dropdown-mount" class="mt-2">
+             <%= render NeoNotificationDropdownComponent.new(
+                   user: current_user,
+                   organisation: @current_organisation,
+                   limit: 10
+                 ) %>
+           </div>
+         <% end %>
+
+         <%= yield %>
+      </div>
+    </main>
+    <% if user_signed_in? && @current_organisation.present? %>
+      <%= render NeoMobileNavComponent.new(user: current_user, organisation: @current_organisation, current_project: current_project) %>
+    <% end %>
+    </div>
+
+    <%# Global search overlay — body level, outside the sidebar's transform/overflow %>
+    <%= render 'layouts/global_search_overlay' %>
+
+    <%# Assistant companion panel — body level for the same clipping reason, and
+        data-turbo-permanent so it survives every Turbo visit as a living node %>
+    <%= render 'layouts/assistant_panel' %>
+
+    <%# Notizblock drawer — body level for the same clipping reason as the search overlay %>
+    <%= render 'layouts/personal_tasks_drawer' %>
+
+    <%# Contextual-help drawer — body level for the same clipping reason %>
+    <%= render 'layouts/contextual_help_drawer' %>
+
+    <% if Rails.env.staging? %>
+      <!-- Staging Environment Indicator -->
+
+      <div class="staging-indicator">
+        <input type="checkbox" id="staging-toggle" class="staging-toggle">
+        <label for="staging-toggle" class="staging-badge">staging</label>
+        <div class="staging-info">
+          <div style="font-weight: bold; margin-bottom: 4px;">STAGING ENVIRONMENT</div>
+          <div>Branch: main</div>
+          <div>Deployed: <%= File.mtime(Rails.root.join('REVISION_TIME')).strftime('%Y-%m-%d %H:%M UTC') rescue 'Unknown' %></div>
+          <div>Rev: <%= File.read(Rails.root.join('REVISION')).strip[0..7] rescue 'Unknown' %></div>
+        </div>
+      </div>
+    <% end %>
+
+<!--
+  Deployment Info:
+  - Deployed: <%= File.mtime(Rails.root.join('REVISION_TIME')).strftime('%Y-%m-%d %H:%M:%S UTC') rescue 'Unknown' %>
+  - Revision: <%= File.read(Rails.root.join('REVISION')).strip rescue 'Unknown' %>
+-->
+</body>
+</html>

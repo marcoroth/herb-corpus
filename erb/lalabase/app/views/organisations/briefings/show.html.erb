@@ -1,0 +1,84 @@
+<%# =========================================================================
+     ORGANISATION OVERVIEW (briefings#show) — configurable widget layout.
+     The hero stays as fixed page chrome; the body is rendered from the resolved
+     overview layout (system default until the user configures their own), one row
+     at a time via the SHARED render helper (overview_row_slots).
+     See doc/overview_widgets_plan.md.
+     ========================================================================= %>
+
+<%# The hero + widget rows live in a turbo-frame so the gear loads the inline overview editor into
+     THIS frame (view<->edit swap in place), exactly like the project dashboard. target="_top" so a
+     normal link inside a widget navigates the whole page (the frame has no match elsewhere); the gear
+     sets data-turbo-frame explicitly, so it still swaps this frame to edit mode. The footer links
+     stay outside the frame so they survive the swap. %>
+<turbo-frame id="overview" target="_top" data-controller="frame-error">
+  <%# ========== HERO ========== uniform org header; only the configure gear sits right. The unread
+       hint that used to live here is gone on purpose — notifications belong in the widgets now
+       (unread_summary / recent_notifications), not as fixed header chrome. %>
+  <%= render NeoTitleBoxComponent.new(
+        title: t('dashboard.briefing.global_overview_title'),
+        variant: :organisation
+      ) do |c| %>
+    <% c.with_right_content do %>
+      <div class="flex items-center gap-2">
+        <%# Gear: opens the inline overview editor in this frame (mirrors the project dashboard gear). %>
+        <%= render Neo::Buttons::IconButtonComponent.new(
+              variant: :secondary,
+              size: :large,
+              icon: 'gear',
+              title: t('overview.configuration.configure'),
+              url: edit_organisation_overview_configuration_path(@current_organisation),
+              data: { turbo_frame: "overview" }
+            ) %>
+
+        <%= render 'common/contextual_help_menu', context: :dashboard %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%# Onboarding banner (Kettenglied 0): fixed chrome between hero and widget
+       grid — NOT part of the configurable layout. Renders only while the
+       seeded tutorial project has open tickets and wasn't dismissed. %>
+  <% if @onboarding_banner_project %>
+    <%= render 'onboarding_banner', project: @onboarding_banner_project %>
+  <% end %>
+
+  <%# ========== WIDGET ROWS ========== permission-aware, owner-branched (see overview_row_slots /
+       dashboard_row_slots): own config holds a placeholder, an inherited default reflows. A row is a
+       flex track; widths are proportional to each widget's units. Mobile stacks (flex-col). %>
+  <% any_widget_rendered = false %>
+  <% @overview_layout.each do |row| %>
+    <% slots = overview_row_slots(row, organisation: @current_organisation, user: current_user,
+                                       briefing: @briefing, owned: @overview_layout_owned) %>
+    <% next if slots.empty? %>
+    <% any_widget_rendered = true %>
+    <div class="flex flex-col lg:flex-row gap-4 md:gap-6 mb-6">
+      <% slots.each do |slot| %>
+        <%# grid grid-rows-1 stretches the single child to the slot's height (equal-height row). %>
+        <div class="grid grid-cols-1 grid-rows-1 min-w-0 <%= dashboard_unit_flex(slot.units) %>">
+          <% if slot.placeholder %>
+            <%= render 'organisations/projects/dashboard_widget_placeholder' %>
+          <% else %>
+            <%= render slot.component %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# D4: with the redirect gone, a low-permission viewer can resolve to zero visible widgets. Show a
+       warm empty state with a way forward (the inbox) instead of a blank page. %>
+  <% unless any_widget_rendered %>
+    <%= render 'organisations/briefings/empty_overview' %>
+  <% end %>
+</turbo-frame>
+
+<%# ========== FOOTER LINKS ========== (outside the frame: survives the edit swap) %>
+<section class="pt-6 border-t border-cream-200 mt-2">
+  <div class="flex flex-wrap gap-x-6 gap-y-2 font-mono text-xs uppercase tracking-wider">
+    <%= link_to organisation_notifications_path(organisation_id: @current_organisation.id),
+        class: "text-cream-600 hover:text-cobalt-600 underline decoration-2 underline-offset-4" do %>
+      <%= t('dashboard.briefing.footer.all_notifications') %>
+    <% end %>
+  </div>
+</section>

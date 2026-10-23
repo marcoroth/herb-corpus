@@ -1,0 +1,45 @@
+<%# locals: (suggestion:, meeting:, user:, snapshot: nil, run: nil) %>
+<% org = meeting.organisation %>
+<% project = meeting.project %>
+<% can_write = run ? run.writable_by?(user) : MeetingPolicy.new(user, meeting).update? %>
+<% description = suggestion&.description || snapshot&.fetch('description', nil) %>
+<li class="py-3 break-words" data-suggestion-id="<%= suggestion&.id || snapshot['id'] %>">
+  <details>
+    <summary class="cursor-pointer text-sm font-medium"><%= suggestion&.title || snapshot['title'] %></summary>
+    <% if description.present? %><p class="mt-1 whitespace-pre-line text-sm"><%= description %></p><% end %>
+  </details>
+  <% if suggestion&.similar_ticket && TicketPolicy.new(user, suggestion.similar_ticket).show? %>
+    <% ticket = suggestion.similar_ticket %>
+    <p class="mt-1 text-xs text-muted"><%= t('views.organisations.meetings.ticket_suggestions.similar_ticket') %>
+      <%= link_to "##{ticket.number} #{ticket.display_title}", organisation_project_tickets_path(org, ticket.project, ticket_id: ticket.id), class: 'underline', data: { turbo_frame: '_top' } %>
+    </p>
+  <% end %>
+  <% if suggestion.nil? %>
+    <p class="mt-2 text-xs text-muted"><%= t('assistant_suggestions.superseded') %></p>
+  <% elsif suggestion.accepted? %>
+    <% if suggestion.created_ticket && TicketPolicy.new(user, suggestion.created_ticket).show? %>
+      <% ticket = suggestion.created_ticket %>
+      <p class="mt-2 text-xs"><%= t('assistant_suggestions.accepted', number: ticket.number) %> ·
+        <%= link_to t('assistant_suggestions.open_ticket'), organisation_project_tickets_path(org, ticket.project, ticket_id: ticket.id), class: 'underline', data: { turbo_frame: '_top' } %>
+      </p>
+    <% else %>
+      <p class="mt-2 text-xs"><%= t('assistant_suggestions.accepted_hidden') %></p>
+    <% end %>
+  <% elsif suggestion.dismissed? %>
+    <p class="mt-2 text-xs text-muted"><%= t('assistant_suggestions.dismissed') %></p>
+  <% elsif can_write %>
+    <% accept_path = run ? accept_organisation_assistant_chat_ticket_suggestion_run_path(org, run.chatpost.chat, run, suggestion_id: suggestion.id) : accept_organisation_project_meeting_ticket_suggestion_path(org, project, meeting, suggestion) %>
+    <% dismiss_path = run ? dismiss_organisation_assistant_chat_ticket_suggestion_run_path(org, run.chatpost.chat, run, suggestion_id: suggestion.id) : dismiss_organisation_project_meeting_ticket_suggestion_path(org, project, meeting, suggestion) %>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <% if ProjectPolicy.new(user, project).area_access?(:tickets, :write) %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :small, form: { action: accept_path, method: :post }) do %>
+          <% unless run %><i class="bi bi-plus-lg" aria-hidden="true"></i><% end %>
+          <%= t(run ? 'assistant_suggestions.accept' : 'views.organisations.meetings.ticket_suggestions.accept') %>
+        <% end %>
+      <% end %>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :small, form: { action: dismiss_path, method: :post }) do %>
+        <%= t('views.organisations.meetings.ticket_suggestions.dismiss') %>
+      <% end %>
+    </div>
+  <% end %>
+</li>

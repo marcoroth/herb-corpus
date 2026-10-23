@@ -1,0 +1,110 @@
+<%# Per-project portfolio table. Markup kept identical to the original briefing section for visual
+    parity; data from the shared briefing, paths via `helpers.`. Reuses the existing
+    dashboard.briefing.sections.projects.* i18n keys. %>
+<div>
+  <%= render WidgetHeaderComponent.new(title: t('dashboard.briefing.sections.projects.title')) %>
+  <% if project_rows.any? %>
+    <%# Dashboard frame (border) to match the other widget boxes (design system H2: dashboard widgets
+        use cream-50 + 1px cream-300). The table inside stays "naked" per H5 — only the widget box is framed. %>
+    <div class="bg-cream-50 border border-cream-300 rounded-lg overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full border-collapse text-sm">
+          <thead>
+            <tr class="text-left">
+              <th class="px-5 py-3 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink"><%= t('dashboard.briefing.sections.projects.table.project') %></th>
+              <% if show_unread? %>
+                <th class="px-5 py-3 text-end text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink whitespace-nowrap"><%= t('dashboard.briefing.sections.projects.table.notifications') %></th>
+              <% end %>
+              <% if show_billing? %>
+                <th class="px-5 py-3 text-end text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink whitespace-nowrap"><%= helpers.time_billing_state_label('in_billing') %></th>
+                <th class="px-5 py-3 text-end text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink whitespace-nowrap"><%= helpers.time_billing_state_label('without_billing') %></th>
+              <% end %>
+              <th class="px-5 py-3 text-end text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink whitespace-nowrap"><%= t('dashboard.briefing.sections.projects.table.last_activity') %></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-cream-200">
+            <% project_rows.each do |row| %>
+              <tr class="hover:bg-cream-100 transition-colors">
+                <td class="px-5 py-3">
+                  <%= link_to row[:project].name,
+                      helpers.organisation_project_tickets_path(organisation_id: current_organisation.id, project_id: row[:project].id),
+                      class: "font-medium text-cream-900 hover:underline decoration-2 underline-offset-2" %>
+                </td>
+                <% if show_unread? %>
+                  <td class="px-5 py-3 text-right tabular-nums">
+                    <% if row[:unread_count] > 0 %>
+                      <%= link_to helpers.organisation_notifications_path(organisation_id: current_organisation.id),
+                          class: "inline-flex hover:opacity-80 transition-opacity" do %>
+                        <%= render Neo::UnreadMarkerComponent.new(
+                              count: row[:unread_count],
+                              label: t('components.unread_marker.count_label', count: row[:unread_count])) %>
+                      <% end %>
+                    <% else %>
+                      <span class="text-cream-500">—</span>
+                    <% end %>
+                  </td>
+                <% end %>
+                <% if show_billing? %>
+                  <td class="px-5 py-3 text-right font-mono tabular-nums <%= row[:in_billing_hours] > 0 ? 'text-cobalt-700' : 'text-cream-500' %>">
+                    <% if row[:in_billing_hours] > 0 %>
+                      <%= link_to "#{row[:in_billing_hours]} h",
+                          helpers.organisation_time_sessions_path(current_organisation, project_id_filter: row[:project].id, status_filters: ['in_billing'], date_range: 'all'),
+                          class: "hover:underline decoration-2 underline-offset-2" %>
+                    <% else %>
+                      —
+                    <% end %>
+                  </td>
+                  <td class="px-5 py-3 text-right font-mono tabular-nums <%= row[:without_billing_hours] > 0 ? 'text-cream-900' : 'text-cream-500' %>">
+                    <% if row[:without_billing_hours] > 0 %>
+                      <%= link_to "#{row[:without_billing_hours]} h",
+                          helpers.organisation_time_sessions_path(current_organisation, project_id_filter: row[:project].id, status_filters: ['without_billing'], date_range: 'all'),
+                          class: "hover:underline decoration-2 underline-offset-2" %>
+                    <% else %>
+                      —
+                    <% end %>
+                  </td>
+                <% end %>
+                <td class="px-5 py-3 text-right font-mono tabular-nums whitespace-nowrap <%= row[:last_activity_at] ? 'text-cream-600' : 'text-cream-500' %>">
+                  <%= row[:last_activity_at] ? row[:last_activity_at].to_date.strftime('%d.%m.%Y') : '—' %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-ink font-bold">
+              <td class="px-5 py-3 font-mono text-xs uppercase tracking-wider text-cream-900"><%= t('dashboard.briefing.sections.projects.table.total') %></td>
+              <% if show_unread? %>
+                <td class="px-5 py-3 text-right tabular-nums text-cream-900"><%= total_unread %></td>
+              <% end %>
+              <% if show_billing? %>
+                <td class="px-5 py-3 text-right font-mono tabular-nums text-cobalt-700">
+                  <% if total_in_billing > 0 %>
+                    <%= link_to "#{total_in_billing} h",
+                        helpers.organisation_time_sessions_path(current_organisation, status_filters: ['in_billing'], date_range: 'all'),
+                        class: "hover:underline decoration-2 underline-offset-2" %>
+                  <% else %>
+                    <%= total_in_billing %> h
+                  <% end %>
+                </td>
+                <td class="px-5 py-3 text-right font-mono tabular-nums text-cream-900">
+                  <% if total_without_billing > 0 %>
+                    <%= link_to "#{total_without_billing} h",
+                        helpers.organisation_time_sessions_path(current_organisation, status_filters: ['without_billing'], date_range: 'all'),
+                        class: "hover:underline decoration-2 underline-offset-2" %>
+                  <% else %>
+                    <%= total_without_billing %> h
+                  <% end %>
+                </td>
+              <% end %>
+              <td class="px-5 py-3"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  <% else %>
+    <%# main unified empty states on WidgetEmptyComponent; keep the mode-specific message (selected /
+        pinned / with_entries) instead of the generic projects.empty so the reason still shows. %>
+    <%= render WidgetEmptyComponent.new(message: empty_state_message) %>
+  <% end %>
+</div>

@@ -1,0 +1,108 @@
+<%# locals: () %>
+<%# The status row of the filter (Handout §3.3): the three billing states as
+    CHECKBOXES with their hours, then "nur meine Zeiten".
+
+    ⚠️ Checkboxes, not pills, since the layout of 02.09.2026. The three states
+    are a SET the reader adds to and takes from; as filled pills they looked
+    like the four choice surfaces above them, which ask a different question
+    ("which one") than this row does ("which of these three").
+
+    ⚠️ Still its own partial with an id, because it must be able to ARRIVE ON
+    ITS OWN. The row sits outside time_sessions_list_frame (it is inside the
+    filter panel, above the list), and the search targets that frame. Turbo
+    swaps the frame and leaves everything around it alone -- so before this
+    partial existed, typing a search that matched nothing left three figures
+    standing beside a list saying "0 Zeilen".
+    Worse, `state` below is decided once per render: a box that was empty on
+    page load stayed a dead <span>, so a search whose only hits were invoiced
+    could not be reached at all -- the one case the "an active box stays
+    clickable" rule was written for.
+    _index_table sends this partial along with every frame answer. See the
+    turbo_stream element at its foot.
+
+    ⚠️ NO locals: every one of TimeSessionsHelper::FRAME_DEPENDENT_REGIONS reads
+    its own ivars, which is what lets that list stay data instead of four
+    hand-written turbo_stream.replace blocks with four different signatures.
+
+    query_toggle semantics stay: the href is the no-JS fallback, `owns` is the
+    JS path (lib/query_toggle.js). %>
+<%# ⚠️ Nothing to say without counts, and one path renders this table without
+    them: create.turbo_stream, whose list is unfiltered. A region of
+    FRAME_DEPENDENT_REGIONS decides for ITSELF whether it has an answer -- the
+    list stays data, and the condition sits where the knowledge is. %>
+<% return if @status_counts.blank? %>
+<% status_counts = @status_counts %>
+<% effective_status_filters = @effective_status_filters || [] %>
+<div id="time_status_pills" class="flex items-center gap-x-4 gap-y-2 flex-wrap">
+  <% TimeSession::BILLING_STATUS_FILTERS.each do |value| %>
+    <% label_text = time_billing_state_label(value) %>
+    <% active = effective_status_filters.include?(value) %>
+    <% bucket = status_counts.fetch(value) %>
+    <%# Emptiness is decided on the BOOKING count, not on the minutes. The two
+        cannot disagree today (TimeSession validates duration > 0), but the
+        question "is there anything here" is about bookings, and the day a
+        zero-minute booking becomes possible, greying its box would hide the one
+        row that could explain the zero. %>
+    <% duration = TimeSession.format_duration(bucket[:minutes]) %>
+    <%# An empty state is not worth a click, so its box stops being one. But an
+        ACTIVE box always stays clickable even at zero: it is the way back out of
+        the filter that emptied the list, and a page that shows nothing and
+        offers no way to undo it is a trap. %>
+    <% state = if active
+                 :on
+               elsif bucket[:sessions].positive?
+                 :off
+               else
+                 :empty
+               end %>
+    <% unit = t('views.organisations.time_sessions.index_table.sum_unit') %>
+
+    <% body = capture do %>
+      <%= time_status_box(state) %>
+      <span class="<%= time_status_word_classes(state) %>"><%= label_text %></span>
+      <span class="<%= time_status_figure_classes(state) %>"><%= duration %></span>
+    <% end %>
+
+    <% if state == :empty %>
+      <span class="inline-flex items-center gap-2" data-status-box="<%= value %>" data-status-state="empty">
+        <%= body %>
+        <%# sr-only rather than aria-label + title: aria-label on a <span> with no
+            role is invalid per ARIA 1.2 and may be dropped, and a title is only
+            reachable with a mouse. This says the unit AND the reason, to everyone. %>
+        <span class="sr-only"><%= "#{duration} #{unit}. #{t('views.organisations.time_sessions.index.filter_status_none_here')}" %></span>
+      </span>
+    <% else %>
+      <%= link_to time_list_filter_url('status_filters' => time_status_filter_toggle(value, effective_status_filters)),
+                  data: time_filter_owns(time_status_filter_owns_pairs(value, effective_status_filters))
+                          .merge(status_box: value, status_state: state),
+                  aria: { current: (active ? 'true' : nil) },
+                  class: TimeSessionsHelper::STATUS_ROW_LINK do %>
+        <%= body %>
+        <span class="sr-only"><%= "#{duration} #{unit}" %></span>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%# "Only my sessions" -- the same checkbox language, because it is the same
+      kind of question. It carries no figure: it is not one of the three buckets
+      the hours are split into.
+      Shown only where it can change something: for someone who may see only
+      their own hours it would filter the list down to itself. %>
+  <% if shows_foreign_time? %>
+    <%# Compared in the one spelling (ListFilters.normalize_id): the list narrows
+        to a capitalised own id as well, so the switch has to light for it. %>
+    <% mine_active = TimeSessions::ListFilters.normalize_id(params[:creator_id]) == current_user.id %>
+    <%= link_to time_list_filter_url('creator_id' => mine_active ? nil : current_user.id),
+                data: time_filter_owns([['creator_id', mine_active ? '' : current_user.id]])
+                        .merge(status_box: 'creator_mine'),
+                aria: { current: (mine_active ? 'true' : nil) },
+                class: TimeSessionsHelper::STATUS_ROW_LINK do %>
+      <%= time_status_box(mine_active ? :on : :off) %>
+      <span class="<%= time_status_word_classes(mine_active ? :on : :off) %>">
+        <%# No :default. A fallback here is a second place the word can live, and
+            this row has exactly one owner for every word in it. %>
+        <%= t('views.organisations.time_sessions.index.filter_only_mine') %>
+      </span>
+    <% end %>
+  <% end %>
+</div>

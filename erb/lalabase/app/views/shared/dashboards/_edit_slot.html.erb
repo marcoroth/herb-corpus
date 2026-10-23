@@ -1,0 +1,154 @@
+<%# One editable widget slot: a flip card. The FRONT shows the widget preview + chrome (drag
+    handle, label, ⋯); clicking ⋯ flips the card to the BACK, which holds the actions/settings
+    form in place of the widget (no panel pushing content down). The SAME partial renders the server
+    layout AND each hidden <template> that the controller clones when a widget is added — identical
+    structure so the reindex contract holds. A row holds only filled widget slots plus a trailing
+    "+ widget" affordance (see _edit_row).
+
+    Locals: row_idx, slot_idx, widget_data (Hash), available_widgets, smart_folders, projects
+    (overview project picker), registry (the surface's full widget catalogue), base_params (component
+    context, e.g. { project:, user: } for the project dashboard / { organisation:, user:, briefing: }
+    for the overview), and widget_settings_partial (the surface's per-widget settings form). %>
+<% widget_data = {} if widget_data.blank? %>
+<% widget_key = widget_data['key'].to_s %>
+<% prefix = dashboard_widget_field_prefix(row_idx, slot_idx) %>
+<%# This widget's registry ENTRY — not to be confused with the full `registry` catalogue local
+    threaded down from the editor binding. Named widget_config so the two never get mixed up. %>
+<% widget_config = registry[widget_key] %>
+<%# A widget has a settings form iff its registry entry carries :extra_params (project: stats_cards,
+    recent_tickets, smart_folder_tickets; overview: org_activity_feed, my_week_chart) — exactly the
+    keys the surface's widget_settings partial renders a `when` branch for. Driving the gate off the
+    registry keeps it from drifting out of sync. %>
+<% has_settings = widget_config&.key?(:extra_params) %>
+<% widget_label = dashboard_widget_label(widget_key, registry: registry) %>
+<% no_access = Dashboards::LayoutEngine.widget_no_access?(widget_key, available_widgets, registry: registry) %>
+<%# Width per slot, in 1/6-of-a-row units. `units` is the slot's effective width, passed in by
+    _edit_row after distributing the row to a full Σ = ROW_UNITS (split-pane). The widget <template>s
+    render a lone slot with no row context, so fall back to the stored/min width there; the JS
+    normalizes the row the moment a cloned widget is inserted. `units_min` is the floor the controls
+    clamp to. The JS reads both from data-units / data-units-min. %>
+<% units = local_assigns.fetch(:units) { Dashboards::LayoutEngine.widget_units(widget_data, registry: registry) } %>
+<% units_min = widget_config&.dig(:units) || 1 %>
+
+<%# data-has-settings drives the JS preview refresh on flip-back (only settings-bearing widgets need
+    a re-render). Set from the same registry gate as has_settings so the JS can't drift from a list
+    of field names. %>
+<div data-slot data-dashboard-inline-edit-target="slot" data-widget-key="<%= widget_key %>"
+     data-units="<%= units %>" data-units-min="<%= units_min %>" data-has-settings="<%= has_settings %>"
+     class="dashboard-edit-slot relative rounded-lg bg-surface-raised <%= dashboard_unit_flex(units) %>">
+
+  <%# key input — always present; reindex rewrites the prefix from DOM position. form= binds it to
+      the standalone editor form (it is not nested inside <form>, see edit.html.erb). %>
+  <input type="hidden" data-name-suffix="[key]" data-slot-key form="dashboard_edit_form" name="<%= prefix %>[key]" value="<%= widget_key %>">
+  <%# Width input. Travels with the slot; the full rows[i][widgets][j][units] name is rewritten by
+      reindex via data-name-suffix, exactly like [key]. %>
+  <input type="hidden" data-name-suffix="[units]" data-slot-units form="dashboard_edit_form" name="<%= prefix %>[units]" value="<%= units %>">
+
+  <%# Right-edge width drag (pointer). Widen consumes free row space first, then takes a unit from
+      the right neighbour (never below its minimum); the ⋯-menu carries the keyboard/touch-
+      equivalent breiter/schmaler (WCAG 2.5.7). The controller hides the handle in single-widget
+      rows and while the card is flipped to its settings. %>
+  <button type="button" data-slot-resize data-action="pointerdown->dashboard-inline-edit#startResize"
+          aria-label="<%= t('dashboard.configuration.resize_width') %>" tabindex="-1"
+          class="dashboard-edit-resize"><span class="dashboard-edit-resize-grip" aria-hidden="true"><i class="bi bi-arrow-left-right"></i></span></button>
+
+  <%# Perspective wrapper: scopes the 3D perspective to the flip card only, so the absolutely
+      positioned resize handle (a sibling above) stays in flat 2D and its glyph isn't rendered
+      edge-on. See .dashboard-edit-flip-perspective in layout.css. %>
+  <div class="dashboard-edit-flip-perspective">
+  <div data-flip class="dashboard-edit-flip">
+    <%# ── FRONT: widget preview + chrome ─────────────────────────────────────────────── %>
+    <%# The whole front opens the settings on click (openSettings ignores the grip/resize/gear so
+        those keep their own behaviour). The preview is a dimmed, non-interactive snapshot that
+        brightens on hover — see layout.css. %>
+    <div data-flip-front data-action="click->dashboard-inline-edit#openSettings"
+         class="dashboard-edit-flip-face dashboard-edit-flip-front p-2">
+      <%# Always-visible chrome (NOT hover-only, §19.1 / P10) %>
+      <div class="flex items-center gap-1 mb-1">
+        <span class="dashboard-edit-touch">
+          <button type="button" data-slot-handle aria-label="<%= t('dashboard.configuration.drag_handle') %>"
+                  class="dashboard-edit-handle">
+            <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+          </button>
+        </span>
+        <span class="flex-1 truncate text-xs font-bold uppercase tracking-wide text-ink/70"><%= widget_label %></span>
+        <span class="dashboard-edit-touch">
+          <button type="button" data-action="click->dashboard-inline-edit#toggleMenu"
+                  data-slot-menu-button aria-haspopup="true" aria-expanded="false"
+                  aria-label="<%= t('dashboard.configuration.actions_menu') %>"
+                  class="dashboard-edit-menu-btn">
+            <i class="bi bi-gear" aria-hidden="true"></i>
+          </button>
+        </span>
+      </div>
+
+      <%# Preview: the live component (gated on should_render? inside _widget_preview), or a neutral
+          placeholder when the viewer lacks access (A1). pointer-events-none: a preview, not a live widget. %>
+      <% live_component = no_access ? nil : Dashboards::LayoutEngine.component_for_widget(widget_data, registry: registry, **base_params) %>
+      <%# data-preview is the swap target: flipping a settings widget back re-renders this via the
+          widget_preview endpoint so the card immediately shows the new settings (WYSIWYG). %>
+      <div data-preview>
+        <%= render 'shared/dashboards/widget_preview',
+                   component: live_component, widget_label: widget_label, no_access: no_access %>
+      </div>
+    </div>
+
+    <%# ── BACK: actions + settings, shown in place of the widget after the flip ────────── %>
+    <%# inert by default so it is out of the tab order / a11y tree until flipped (the controller
+        toggles inert + .is-flipped together). %>
+    <div data-flip-back class="dashboard-edit-flip-face dashboard-edit-flip-back p-2" inert>
+      <div class="flex items-center gap-1 mb-1">
+        <span class="flex-1 truncate text-xs font-bold uppercase tracking-wide text-ink/70"><%= widget_label %></span>
+        <%# Close (X) in the top-right corner — a plain icon, not a boxed button. %>
+        <button type="button" data-action="click->dashboard-inline-edit#closeMenus"
+                aria-label="<%= t('dashboard.configuration.close_settings') %>"
+                class="dashboard-edit-touch text-ink/50 hover:text-ink">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <%# Actions/settings. Disclosure semantics come from the ⋯ toggle's aria-expanded; no role=menu. %>
+      <div data-slot-menu class="dashboard-edit-menu">
+        <% if has_settings %>
+          <%# No "Einstellungen" heading — the flipped card already makes clear this is the settings.
+              widget_settings_partial is surface-specific (the project dashboard and the overview have
+              different widgets / fields); the shared slot just renders whichever the binding passed. %>
+          <div class="dashboard-edit-menu-section">
+            <%= render widget_settings_partial,
+                       row_idx: row_idx, slot_idx: slot_idx, widget_data: widget_data,
+                       smart_folders: smart_folders, projects: projects %>
+          </div>
+        <% end %>
+
+        <div class="dashboard-edit-menu-section">
+          <p class="dashboard-edit-menu-heading"><%= t('dashboard.configuration.arrange') %></p>
+          <%# Light chips (subtle border) — clearly clickable + grouped, but quiet (not heavy
+              buttons). Width controls (WCAG 2.5.7 alt to the edge drag) clamp to [units_min, free
+              row space]; the controller greys them at the limits. %>
+          <div class="dashboard-edit-arrange">
+            <button type="button" data-action="click->dashboard-inline-edit#narrowWidget" class="dashboard-edit-chip">
+              <i class="bi bi-dash-lg" aria-hidden="true"></i> <%= t('dashboard.configuration.narrow_width') %>
+            </button>
+            <button type="button" data-action="click->dashboard-inline-edit#widenWidget" class="dashboard-edit-chip">
+              <i class="bi bi-plus-lg" aria-hidden="true"></i> <%= t('dashboard.configuration.widen_width') %>
+            </button>
+            <button type="button" data-action="click->dashboard-inline-edit#moveSlotLeft"
+                    class="dashboard-edit-chip" aria-label="<%= t('dashboard.configuration.move_left') %>">
+              <i class="bi bi-chevron-left" aria-hidden="true"></i> <%= t('dashboard.configuration.move_left') %>
+            </button>
+            <button type="button" data-action="click->dashboard-inline-edit#moveSlotRight"
+                    class="dashboard-edit-chip" aria-label="<%= t('dashboard.configuration.move_right') %>">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i> <%= t('dashboard.configuration.move_right') %>
+            </button>
+          </div>
+        </div>
+
+        <button type="button" data-action="click->dashboard-inline-edit#removeWidget"
+                class="dashboard-edit-menu-item dashboard-edit-menu-danger w-full">
+          <i class="bi bi-trash" aria-hidden="true"></i> <%= t('dashboard.configuration.remove_widget') %>
+        </button>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>

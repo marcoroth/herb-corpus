@@ -1,0 +1,75 @@
+<%# KI-Pakete P4c (doc/ki_pakete_p4_plan.md E1): what a package switch already
+    underway is doing, directly under the permanent "Aktuell" line — where the
+    customer pressed the button and where they come back to look.
+
+    STATIC on purpose, no polling frame. The build runs for minutes to hours, and a
+    frame refreshing every few seconds would pay Embeddings::SwitchProgress's four
+    anti-joins per interval per open tab — §5 Falle 1 amplified rather than avoided.
+    A reload is honest and costs nothing.
+
+    Reads @switch_progress (Embeddings::SwitchProgress::Result), assigned in
+    AiSettingsController#load_package_catalogue. :none renders nothing. %>
+<% if @switch_progress.present? && @switch_progress.state != :none %>
+  <%# The visual states as DATA rather than as a four-branch cascade repeated for
+      border, background, icon and text colour. Same reason as the controller's
+      SEARCH_OUTCOMES (#437 review): a rule enforced by hand in four places drifts in
+      one of them, and the drift is invisible in review.
+
+      `.fetch` and NOT `.fetch(state, default)`: a state added to
+      Embeddings::SwitchProgress::STATES without an entry here must fail loudly in the
+      spec that pins the two together, rather than render in some arbitrary colour.
+      That spec is spec/views/organisations/ai_settings/switch_progress_spec.rb — it
+      renders EVERY state, so the missing key is a red example and never a customer's
+      500 (P4c review, I3). %>
+  <% tone = {
+       building: { frame: 'border-cream-300 bg-cream-100', text: 'text-cream-900', icon: 'bi-arrow-repeat' },
+       awaiting_flip: { frame: 'border-green-300 bg-green-50', text: 'text-green-900', icon: 'bi-check-circle' },
+       paused: { frame: 'border-amber-300 bg-amber-50', text: 'text-amber-900', icon: 'bi-pause-circle' },
+       retired_target: { frame: 'border-amber-300 bg-amber-50', text: 'text-amber-900', icon: 'bi-exclamation-triangle' }
+     }.fetch(@switch_progress.state) %>
+
+  <div class="mt-4 border rounded-lg p-4 <%= tone[:frame] %>"
+       data-switch-progress="<%= @switch_progress.state %>">
+    <p class="text-sm font-bold <%= tone[:text] %>">
+      <i class="bi <%= tone[:icon] %> mr-1"></i>
+      <%= t("views.organisations.ai_settings.packages.progress.#{@switch_progress.state}_title") %>
+    </p>
+
+    <%# Only :building has numbers worth showing. :awaiting_flip measured a zero, and
+        the other two would show a bar that cannot move — which is the very thing
+        their own texts exist to explain. %>
+    <% if @switch_progress.state == :building %>
+      <p class="mt-1 text-sm tabular-nums <%= tone[:text] %>">
+        <%= t('views.organisations.ai_settings.packages.progress.building_body',
+              remaining: number_with_delimiter(@switch_progress.remaining),
+              total: number_with_delimiter(@switch_progress.total),
+              percent: @switch_progress.percent) %>
+      </p>
+      <%# Decorative: the sentence above already carries the numbers, so a screen
+          reader gets them once rather than twice. %>
+      <div class="mt-2 h-2 rounded bg-cream-300 overflow-hidden" aria-hidden="true">
+        <div class="h-full bg-ink" style="width: <%= @switch_progress.percent %>%"></div>
+      </div>
+    <% else %>
+      <p class="mt-1 text-sm <%= tone[:text] %>">
+        <%= t("views.organisations.ai_settings.packages.progress.#{@switch_progress.state}_body") %>
+      </p>
+    <% end %>
+
+    <%# ONE search sentence, and it is true in every state that reaches this partial.
+        Each of them has a resolved pointer — SwitchProgress returns :none without one
+        — so the old space keeps serving until the flip and the Bestand stays findable
+        throughout; only content created during the window is not, and that is said out
+        loud.
+
+        This used to be two sentences, the second one for orgs with no pointer, whose
+        reads jump to the new empty space at once. That state no longer reaches this
+        partial at all: it could not be detected without warning every healthy org too
+        (P4c review, blocker 1), and it is reported to the OPERATOR instead, by
+        `embeddings:check_alignment`. Do not reintroduce a reassuring/alarming split
+        here without a detector that can tell the two populations apart. %>
+    <p class="mt-2 text-sm <%= tone[:text] %>">
+      <%= t('views.organisations.ai_settings.packages.progress.search_kept') %>
+    </p>
+  </div>
+<% end %>

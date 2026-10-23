@@ -1,0 +1,98 @@
+<% if @turbo_frame %>
+  <turbo-frame id="<%= post_frame_id %>">
+<% end %>
+  <div class="<%= base_classes %>">
+    <%# Slack row (user decision 05.09.2026, twice revised the same day): the
+        avatar chip on the left - the ONE app-wide chip shape - and the
+        author's bold name in the viewer's spelling on the first line of the
+        meta column. %>
+    <div class="flex gap-3">
+      <%# mt-px: aligned to the TOP of the text block, not centred on the whole
+          comment - a chip that floats beside a five-line paragraph reads as
+          decoration rather than as the head of it. A follow-up comment by the
+          SAME person carries no head (Slack grouping, user mockup 05.09.):
+          an empty spacer keeps the shared text edge. %>
+      <% if @show_author %>
+        <%= render Neo::Users::AvatarComponent.new(user: post.user, size: :small, class: "mt-px") %>
+      <% else %>
+        <span class="w-[26px] shrink-0" aria-hidden="true"></span>
+      <% end %>
+
+      <%# max-w-[70ch] on the whole column, not just the text: the measure is
+          a rule about the text column, and the pencil at the end of the meta
+          line has to sit on ITS edge, not on the panel's (user mockup
+          05.09.2026). %>
+      <div class="min-w-0 flex-1 max-w-[70ch]">
+        <div class="post-head flex items-center gap-2">
+          <div class="post-meta flex min-w-0 items-center gap-2">
+          <%# Name at 600/14px: recognisable, but quieter than the comment text
+              below it. The age is speech, not a value, so it is proportional -
+              the exact moment sits in the tooltip (user mockup 05.09.). %>
+          <% if @show_author %>
+            <%= render Neo::Users::NameComponent.new(user: post.user,
+                                                     text_class: 'text-[14px] font-semibold text-cream-900') %>
+          <% end %>
+          <span class="text-[12px] text-cream-500">
+            <%= row_time %>
+          </span>
+          <% if edited? %>
+            <%# An edit is a property of the comment, not an event of its own:
+                no row in the timeline, a quiet marker in the head, the exact
+                moment in the tooltip (designer round 05.09.2026). %>
+            <span class="text-[12px] text-cream-500" title="<%= edited_tooltip %>">&middot; <%= t('views.organisations.tickets.timeline.edited') %></span>
+          <% end %>
+          <% if is_private? %>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] bg-orange-100 text-orange-800 border border-orange-300 rounded-full">
+              <i class="bi bi-lock text-[10px]"></i>
+              <%= t('views.organisations.tickets.timeline.private') %>
+            </span>
+          <% end %>
+          </div>
+          <%= render 'organisations/post_reactions/reactions',
+                     post: post,
+                     current_user: current_user,
+                     current_organisation: current_organisation,
+                     can_react: can_react?,
+                     reactions: reactions %>
+          <% if @show_edit_button %>
+            <span class="post-edit-button post-tool shrink-0">
+              <%= render Neo::Buttons::IconButtonComponent.new(
+                variant: :plain,
+                size: :small,
+                tag: :a,
+                href: edit_path,
+                icon: "pencil",
+                title: "Kommentar bearbeiten",
+                # Wichtig: Kein data-turbo-frame setzen, damit Turbo den nächsten
+                # Vorfahren-Frame (dieser Post-Frame) als Ziel nutzt und keine
+                # doppelte ID im DOM (Mobile/Desktop) zu falschem Target führt
+              ) %>
+            </span>
+          <% end %>
+        </div>
+
+        <div class="mt-0.5 break-words text-[15px] leading-[1.65] text-cream-900">
+          <%= formatted_content %>
+        </div>
+
+        <!-- Attachments: the previews stay visible (user decision), only the
+             ornamental divider banner is gone -->
+        <% if has_attachments? %>
+          <div class="mt-3 grid grid-cols-3 gap-4">
+            <% attachments.each do |pd| %>
+              <% if pd.post_document_file.present? %>
+                <%# Unified onto the shared partial so post + ticket attachments render and
+                    behave identically (open-link, target=_blank, affordance). The old
+                    organisations/posts/_attachment twin had drifted and missed PR #140's fix. %>
+                <%= render 'shared/attachment', document: pd, file_accessor: :post_document_file %>
+              <% end %>
+            <% end %>
+          </div>
+        <% end %>
+
+      </div>
+    </div>
+  </div>
+<% if @turbo_frame %>
+  </turbo-frame>
+<% end %>

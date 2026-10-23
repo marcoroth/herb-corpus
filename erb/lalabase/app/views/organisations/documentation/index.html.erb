@@ -1,0 +1,96 @@
+<% content_for(:page_title, t('views.organisations.documentation.index.title')) %>
+
+<div id="documentation-page"
+     class="flex flex-col gap-5"
+     data-controller="viewport"
+     data-viewport-current-mode-value="<%= @viewport_mode %>">
+
+  <%= render NeoTitleBoxComponent.new(
+        title: t('views.organisations.documentation.index.title'),
+        subtitle: @project.name,
+        variant: :project,
+        margin_bottom: nil
+      ) do |c| %>
+    <% c.with_right_content do %>
+      <% if @documentation_set %>
+        <%= render Documentation::SyncStatusPillComponent.new(status: @documentation_set.sync_status) %>
+        <% if @documentation_set.last_synced_at %>
+          <span class="text-xs text-muted">
+            <%= t('views.organisations.documentation.index.last_synced', time: time_ago_in_words(@documentation_set.last_synced_at)) %>
+          </span>
+        <% end %>
+      <% end %>
+
+      <% if @can_manage && @documentation_set %>
+        <%= render(Neo::Buttons::ButtonComponent.new(
+              variant: :secondary, icon: 'arrow-repeat',
+              form: { action: sync_organisation_project_documentation_set_path(@current_organisation, @project, @documentation_set), method: :post }
+            )) { t('views.organisations.documentation.index.sync_now') } %>
+      <% end %>
+
+      <%# Contextual "?" help for this area — mirrors the other index pages. %>
+      <%= render 'common/contextual_help_menu', context: :documentation %>
+
+      <%# Rare actions live in the overflow: the logbook is an occasional read view,
+          connecting a documentation set is a one-off setup step. %>
+      <%= render Neo::OverflowMenuComponent.new do |menu| %>
+        <% if @documentation_set %>
+          <% menu.with_item(
+               label: t('views.organisations.documentation.index.logbook'),
+               url: history_organisation_project_documentation_set_path(@current_organisation, @project, @documentation_set),
+               icon: 'clock-history'
+             ) %>
+        <% end %>
+        <% if @can_manage %>
+          <% menu.with_item(
+               label: t('views.organisations.documentation.index.connect'),
+               url: new_organisation_project_documentation_set_path(@current_organisation, @project),
+               icon: 'plus-lg'
+             ) %>
+        <% end %>
+        <%# Persistent repo entry, ALSO in the non-empty state: after Phase 2 a
+            documentation:write manager without settings access (ProjectPolicy#update?
+            needs admin or change_project_properties) would otherwise have no path to
+            the repo page once a repo exists — e.g. to rotate an expired PAT.
+            origin=documentation so the repo page's back link returns to the docs area
+            (which this persona CAN read) rather than the settings page (which 403s). %>
+        <% if @can_connect_repo %>
+          <% menu.with_item(
+               label: t('views.organisations.documentation.index.manage_repository'),
+               url: organisation_project_project_repositories_path(@current_organisation, @project, origin: documentation_origin),
+               icon: 'plug'
+             ) %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if @failed_run %>
+    <div class="rounded-md border border-red-900 bg-red-100 px-3 py-2 text-sm text-red-900">
+      <%= documentation_sync_error_message(@failed_run.error_class) %>
+    </div>
+  <% end %>
+
+  <% if @sets.empty? %>
+    <%= render 'empty', can_manage_sets: @can_manage, can_connect_repo: @can_connect_repo,
+                        project_has_repository: @project_has_repository, variant: :no_set %>
+  <% else %>
+    <% if @sets.size > 1 %>
+      <nav class="flex flex-wrap gap-1 border-b border-cream-300 pb-1">
+        <% @sets.each do |set| %>
+          <%= link_to set.name,
+                organisation_project_documentation_index_path(@current_organisation, @project, set_id: set.id),
+                class: "rounded-t-md px-3 py-1.5 text-sm font-medium #{set.id == @documentation_set.id ? 'bg-selected text-heading' : 'text-muted hover:text-heading'}" %>
+        <% end %>
+      </nav>
+    <% end %>
+
+    <%# The search moved into the navigation column (see _search_box / _index_*):
+        a live result list below the field, mirroring the in-app help. %>
+    <% if @viewport_mode == 'mobile' %>
+      <%= render 'index_mobile' %>
+    <% else %>
+      <%= render 'index_desktop' %>
+    <% end %>
+  <% end %>
+</div>

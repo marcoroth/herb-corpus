@@ -1,0 +1,89 @@
+<div>
+<%= render 'organisations/shared/settings_subnav', active: :archive %>
+
+<%# No page heading on purpose: the subnav already carries the TitleBox and the
+    active tab names the section - same reason organisation_settings/show gives
+    for having no card. What IS headed is the section, because the page is a
+    container: a second archivable type becomes a sibling section, not a rename. %>
+<%# Full keys, not the lazy t('.x'): in this app the lazy form resolves to the
+    top-level `organisations.<controller>.<action>` namespace in de.yml, while these
+    strings live in the per-area file under `views.organisations.*` (CLAUDE.md). The
+    lazy form would render "translation missing" without failing anything. %>
+<div class="mt-2">
+  <h2 class="text-sm font-bold text-cream-900 mb-3">
+    <%= t('views.organisations.archives.index.projects_section') %>
+  </h2>
+
+  <% if @archived_projects.any? %>
+    <div>
+      <table class="min-w-full border-collapse">
+        <thead>
+          <tr>
+            <th scope="col" class="px-4 py-4 first:ps-0 last:pe-0 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink">
+              <%= t('views.organisations.archives.index.table_headers.name') %>
+            </th>
+            <th scope="col" class="px-4 py-4 first:ps-0 last:pe-0 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink">
+              <%= t('views.organisations.archives.index.table_headers.archived_at') %>
+            </th>
+            <th scope="col" class="px-4 py-4 first:ps-0 last:pe-0 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink">
+              <%= t('views.organisations.archives.index.table_headers.archived_by') %>
+            </th>
+            <th scope="col" class="w-40 px-4 py-4 first:ps-0 last:pe-0 text-start text-[11px] font-mono font-medium uppercase tracking-wider text-cream-600 border-b border-ink">
+              <%= t('views.organisations.archives.index.table_headers.actions') %>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-cream-200">
+          <% @archived_projects.each do |project| %>
+            <tr class="hover:bg-cream-100 transition-colors">
+              <td class="px-4 py-4 first:ps-0 last:pe-0">
+                <%# Links to the settings hub, which is where deletion lives. Note
+                    that the hub is the WHOLE settings page: archived projects stay
+                    editable, because ProjectPolicy#update? does not look at
+                    archived_at. That is the status quo, not something this page
+                    introduces. Whether archived should also mean frozen is an
+                    open question. %>
+                <%= link_to project.name,
+                      edit_organisation_project_path(@current_organisation, project),
+                      class: 'text-sm font-medium underline decoration-cream-400 underline-offset-2 hover:decoration-ink' %>
+              </td>
+              <td class="px-4 py-4 first:ps-0 last:pe-0 whitespace-nowrap">
+                <span class="text-sm text-cream-600"><%= display_time(project.archived_at) %></span>
+              </td>
+              <td class="px-4 py-4 first:ps-0 last:pe-0 whitespace-nowrap">
+                <%# The name seam, never archived_by.full_name: the register guard
+                    forbids the raw call, and the component renders the unknown-user
+                    label when the archiving user is gone (archived_by is optional
+                    and unarchive! clears it). %>
+                <%= render Neo::Users::NameComponent.new(
+                      user: project.archived_by,
+                      text_class: 'text-sm text-cream-600'
+                    ) %>
+              </td>
+              <td class="px-4 py-4 first:ps-0 last:pe-0 whitespace-nowrap">
+                <%= render Neo::Buttons::ButtonComponent.new(
+                      variant: :success,
+                      size: :small,
+                      icon: "arrow-counterclockwise",
+                      url: unarchive_organisation_project_path(@current_organisation, project),
+                      interactive: true,
+                      confirm: t('views.confirm.restore_project', name: project.name),
+                      data: { turbo_method: :patch }
+                    ) do %>
+                  <%= t('views.organisations.archives.index.restore') %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <%= render 'shared/empty_content',
+          variant: :first_time,
+          icon_class: 'bi bi-archive',
+          title: t('views.organisations.archives.index.empty_title'),
+          description: t('views.organisations.archives.index.empty_description') %>
+  <% end %>
+</div>
+</div>

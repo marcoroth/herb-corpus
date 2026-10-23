@@ -1,0 +1,209 @@
+<div data-controller="neo-repository-connect" class="space-y-6">
+  <%# Connected repositories list %>
+  <% if any_repositories? %>
+    <div>
+      <h3 class="text-base font-semibold mb-3">
+        <%= t('views.organisations.project_repositories.index.connected_header') %>
+      </h3>
+      <ul class="border-2 border-stroke rounded divide-y divide-black bg-surface-raised">
+        <% @repositories.each do |repo| %>
+          <li class="p-3 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex flex-col">
+                <span class="font-medium font-mono text-sm"><%= repo.full_name %></span>
+                <span class="text-xs text-gray-500">
+                  <%= t('views.organisations.project_repositories.index.branch',
+                        branch: repo.default_branch) %>
+                  ·
+                  <%= t('views.organisations.project_repositories.index.connected_by',
+                        name: (repo.connected_by_user && helpers.viewer_display_name(repo.connected_by_user)) || '—',
+                        time: time_ago_in_words(repo.connected_at)) %>
+                </span>
+              </div>
+              <%# Read-only hardening: disconnect is a write action — hide it for
+                  visitors who only have chats:read (they reach this page by URL but
+                  the DELETE would 403). Same write gate as the webhook/token blocks. %>
+              <% if can_manage?(repo) %>
+                <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :danger,
+                  size: :small,
+                  icon: 'x-circle',
+                  url: disconnect_path(repo),
+                  data: { turbo_method: :delete,
+                          turbo_confirm: t('views.organisations.project_repositories.index.confirm_disconnect',
+                                           name: repo.full_name) }
+                ) do %>
+                  <%= t('views.organisations.project_repositories.index.disconnect') %>
+                <% end %>
+              <% end %>
+            </div>
+
+            <%# Live index status — subscription sits OUTSIDE the component's root
+                so a status broadcast replaces only the badge, not the stream.
+                Chat-gated: a chat-less org never builds an index, so the whole
+                index/history/reindex block is only shown when chat is enabled. %>
+            <% if indexing_ui_enabled? && repo.project_index %>
+              <%= helpers.turbo_stream_from repo.organisation, :project_index, repo.id %>
+              <%= render Neo::Repository::IndexStatusComponent.new(index: repo.project_index) %>
+              <div class="flex flex-wrap items-center gap-3">
+                <%# Entry point to the run history (when/what/how long it re-indexed). %>
+                <%= link_to index_runs_path(repo),
+                            class: "text-xs text-gray-600 hover:text-cream-900 underline inline-flex items-center gap-1" do %>
+                  <i class="bi bi-clock-history"></i> <%= t('views.organisations.indexing.runs.link') %>
+                <% end %>
+
+                <%# Manual incremental re-index (only for a settled index; write-gated). %>
+                <% if reindexable?(repo) %>
+                  <%= render Neo::Buttons::ButtonComponent.new(
+                    variant: :secondary,
+                    size: :small,
+                    icon: 'arrow-clockwise',
+                    url: reindex_path(repo),
+                    data: { turbo_method: :post,
+                            turbo_confirm: t('views.organisations.indexing.reindex.confirm',
+                                             name: repo.full_name) }
+                  ) do %>
+                    <%= t('views.organisations.indexing.reindex.button') %>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
+
+            <% if can_manage?(repo) %>
+              <%# Webhook feeds ONLY the push-reindex job, which no-ops for a
+                  chat-less org — so the setup instructions would be a dead
+                  call-to-action there. Chat-gated on top of the write gate. %>
+              <% if indexing_ui_enabled? %>
+                <div class="border-2 border-stroke rounded p-3 bg-gray-50 space-y-3">
+                  <div>
+                    <h4 class="text-sm font-bold"><%= t('views.organisations.indexing.webhook.title') %></h4>
+                    <p class="text-xs text-gray-600 mt-1"><%= t('views.organisations.indexing.webhook.intro') %></p>
+                  </div>
+
+                  <% [['url_label', webhook_url(repo)], ['secret_label', repo.webhook_secret]].each do |label_key, value| %>
+                    <div data-controller="clipboard"
+                         data-clipboard-success-text-value="<%= t('views.organisations.indexing.webhook.copied') %>">
+                      <label class="block text-xs font-medium mb-1">
+                        <%= t("views.organisations.indexing.webhook.#{label_key}") %>
+                      </label>
+                      <div class="flex gap-2">
+                        <input type="text" readonly value="<%= value %>" autocomplete="off" data-clipboard-target="source"
+                               class="flex-1 px-2 py-1 border border-gray-300 rounded font-mono text-xs bg-surface-raised">
+                        <button type="button" data-action="click->clipboard#copy" data-clipboard-target="button"
+                                class="px-2 py-1 border-2 border-stroke rounded text-xs font-bold bg-surface-raised hover:bg-gray-100 whitespace-nowrap">
+                          <span data-clipboard-target="buttonLabel"><%= t('views.organisations.indexing.webhook.copy') %></span>
+                        </button>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <p class="text-xs text-gray-500"><%= t('views.organisations.indexing.webhook.steps') %></p>
+                  <p class="text-xs text-gray-500"><%= t('views.organisations.indexing.webhook.content_type_hint') %></p>
+                </div>
+              <% end %>
+
+              <%# Rotate the access token (e.g. after the PAT expired) without
+                  disconnecting. Deliberately NOT chat-gated: documentation sync
+                  also uses this token, so a chat-less org must be able to rotate an
+                  expired PAT. Write-gated only (can_manage?). %>
+              <details class="border-2 border-stroke rounded p-3 bg-gray-50">
+                <summary class="text-sm font-bold cursor-pointer">
+                  <%= t('views.organisations.indexing.token_update.title') %>
+                </summary>
+                <div class="mt-3 space-y-2">
+                  <p class="text-xs text-gray-600"><%= t('views.organisations.indexing.token_update.intro') %></p>
+                  <%= form_with url: update_token_path(repo), method: :patch, local: true,
+                                class: "flex gap-2 items-center" do %>
+                    <%= password_field_tag 'project_repository[access_token]', nil,
+                          autocomplete: 'off', required: true,
+                          placeholder: t('views.organisations.indexing.token_update.placeholder'),
+                          class: "flex-1 px-2 py-1 border border-gray-300 rounded font-mono text-xs bg-surface-raised" %>
+                    <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :small, type: :submit) do %>
+                      <%= t('views.organisations.indexing.token_update.submit') %>
+                    <% end %>
+                  <% end %>
+                </div>
+              </details>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+
+      <%# R4: why the index status/reindex/webhook blocks above are missing. Rendered
+          once for the list, never per row. %>
+      <% if show_indexing_unavailable_hint? %>
+        <%= render Neo::Ai::UnavailableHintComponent.new(
+              availability: repository_indexing, organisation: @current_organisation,
+              feature: :repository_indexing, classes: 'mt-3') %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="p-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded text-sm text-gray-600">
+      <%= t('views.organisations.project_repositories.index.empty') %>
+    </div>
+  <% end %>
+
+  <%# Add-new form — write-gated (read-only hardening): a chats:read visitor may
+      SEE this page (index? needs only chats:read) but cannot connect; showing the
+      form would produce a 403 on submit. %>
+  <% if can_connect? %>
+  <div class="border-2 border-stroke rounded p-4 bg-surface-raised">
+    <h3 class="text-base font-semibold mb-3">
+      <%= t('views.organisations.project_repositories.new.header') %>
+    </h3>
+
+    <%= form_with(model: @new_repository, url: create_path, local: true) do |form| %>
+      <%# Round-trip marker (e.g. origin=documentation) rides through as a hidden
+          field so the controller can redirect back after connect — and so it
+          survives a failed connect (render :new re-renders THIS form). %>
+      <% if @origin.present? %>
+        <%= hidden_field_tag :origin, @origin %>
+      <% end %>
+      <% if @new_repository.errors.any? %>
+        <div class="mb-3 p-2 border border-red-300 bg-red-50 text-sm text-red-800 rounded">
+          <ul class="list-disc list-inside">
+            <% @new_repository.errors.full_messages.each do |msg| %>
+              <li><%= msg %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <div class="mb-3">
+        <%= form.label :full_name,
+              t('views.organisations.project_repositories.new.full_name_label'),
+              class: 'block text-sm font-medium mb-1' %>
+        <%= form.text_field :full_name,
+              placeholder: 'acme/backend',
+              autocomplete: 'off',
+              class: 'block w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm' %>
+        <p class="text-xs text-gray-500 mt-1">
+          <%= t('views.organisations.project_repositories.new.full_name_hint') %>
+        </p>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :access_token,
+              t('views.organisations.project_repositories.new.token_label'),
+              class: 'block text-sm font-medium mb-1' %>
+        <%= form.password_field :access_token,
+              autocomplete: 'off',
+              class: 'block w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm' %>
+        <p class="text-xs text-gray-500 mt-1">
+          <%# _html suffix marks the translation html_safe already — no explicit .html_safe needed %>
+          <%= t('views.organisations.project_repositories.new.token_hint_html',
+                link: link_to(t('views.organisations.project_repositories.new.token_link_label'),
+                              pat_help_url, target: '_blank', rel: 'noopener',
+                              class: 'underline')) %>
+        </p>
+      </div>
+
+      <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :primary, size: :medium, icon: 'plug', interactive: true, type: :submit
+      ) do %>
+        <%= t('views.organisations.project_repositories.new.connect') %>
+      <% end %>
+    <% end %>
+  </div>
+  <% end %>
+</div>

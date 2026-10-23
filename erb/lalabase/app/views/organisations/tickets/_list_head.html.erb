@@ -1,0 +1,184 @@
+<%# locals: () %>
+<%# The LIST's head, and it lives inside the list column - not across the page.
+    A head reaches as far as the thing it belongs to: rendered above the grid it
+    spanned both columns, so "7 Spalten" stood over the detail lane although it
+    is the list that has columns. In the column it also stops pushing the lane
+    down, and the lane starts at the top of the content area where the object
+    belongs, beside the page title rather than under the toolbar.
+
+    Order left to right: which view -> how narrowed -> which columns. Tools sit
+    right behind the tabs, not flush right: flush right they wander with the
+    content width and end up over the detail. The right end stays free for what
+    is fleeting - a selection count, a draft state. %>
+<%# ⚠️ The page title lives HERE, inside the list column, and not across the
+    page. It names what the column holds - a list of tickets in this project -
+    and while it stood above the grid the lane could not reach the top of the
+    content area: the lane began under the title instead of beside it. The
+    object's identifier and the page title now share a height, which is the
+    hierarchy the detail head was rebuilt for (page top left, object one step
+    lower and to the right).
+    It carries what belongs to the page: help, and the main action that creates
+    a ticket in this very list. %>
+<%= render NeoProjectLayoutHeaderComponent.new(
+  title: t('views.organisations.tickets.index.title'),
+  subtitle: @project.name,
+  project: @project,
+  active_smart_folder: @active_smart_folder,
+  selected_item: @selected_ticket,
+  content_open: @open_content,
+  context_type: :tickets,
+  view_mode: @view_mode || 'table',
+  # One rhythm down this column: 14px from the page title to the list head, and
+  # the same 14px from the head to the column labels (the bar's own mb-3.5).
+  # The page-wide mb-6 was a title standing above a page; this one stands on
+  # the head of its own list.
+  margin_bottom: 'mb-3.5'
+) do |header| %>
+  <% header.with_right_content do %>
+    <%# The page header carries what belongs to the PAGE: the view switch, help
+        and the main action.
+        ⚠️ "Liste | Kanban" is a PAGE element, not a list tool (designer,
+        07.09.2026). It decides whether there is a table at all - in kanban
+        there are no columns and no detail lane - so it stands with the title
+        and not among the three that narrow the list down. It spent one day in
+        the tab row on the opposite argument ("a control belongs with the thing
+        it changes"); the thing it changes turned out to be the page.
+        Stands at every state, with a ticket open too (user, 09.09.2026): both
+        views open the ticket in the same lane, and update_view_mode redirects
+        back to the live address with the ticket_id, so the switch keeps the
+        ticket in both directions and only swaps what one picks from
+        (doc/kanban_ticket_als_bahn_plan.md, rule 7). It used to step aside
+        while the lane was open on the table, from the days the board had no
+        lane. %>
+    <div class="flex items-center">
+
+    <% unless @view_mode == 'kanban' && @kanban_columns.nil? %>
+      <div class="me-2.5 flex items-center" data-page-view-switch>
+        <%# The icon pair (designer, 09.09.2026): the groove with its word
+            labels was the largest element of the row, four signals for one
+            statement, on a control that is used seldom. The caption is
+            mandatory, the kanban sign is not self-explaining: title,
+            aria-label and the keyboard tooltip carry the word. One
+            definition for every view switch: NeoViewSwitchComponent. %>
+        <%= render NeoViewSwitchComponent.new(
+          label: t('kanban.view_mode_label'),
+          variant: :icon_pair,
+          container_class: 'hidden sm:inline-flex',
+          items: %w[table kanban].map do |mode|
+            { key: mode.to_sym, icon: (mode == 'table' ? :list : :kanban), title: t("kanban.view_mode_#{mode}"),
+              active: (@view_mode || 'table') == mode,
+              path: update_view_mode_organisation_project_view_configuration_path(@current_organisation, @project),
+              method: :patch, params: { view_mode: mode },
+              disabled: mode == 'kanban' && @view_configuration&.resolved_kanban_attribute.nil? }
+          end
+        ) %>
+      </div>
+    <% end %>
+
+    <div class="flex items-center gap-1.5">
+    <%= render 'common/contextual_help_menu', context: :tickets %>
+
+    <%# Settings dropdown removed: View Settings opens via the gear in the table header;
+        Detail Settings via the action bar in the detail panel; manage ticket fields via
+        project settings (edit project page). Modal markup remains below. %>
+
+    <%# Detail Settings Modal — shared between action bar and settings dropdown %>
+    <% detail_show_time = policy(@project).area_access?(:time_sessions, :read) rescue false %>
+    <%= render 'organisations/tickets/detail_settings_modal',
+               current_organisation: @current_organisation,
+               project: @project,
+               view_config: @view_configuration,
+               show_time: detail_show_time,
+               hide_trigger: true %>
+
+    <%# The clock button and its capture modal are gone (designer handoff
+        "Uebergabe Tickets" §9): a timer icon up here had no visible object.
+        Capturing time happens at the hours sum in the ticket header
+        (SubjectTimeSummaryComponent -> capture popover); capturing without a
+        ticket stays on the times list, where the context really is missing. %>
+    </div>
+
+    <% if policy(@project).area_access?(:tickets, :write) %>
+      <%# The main action sits outermost (user, 04.09.2026). Opens the
+          viewport-filling writing surface into turbo-frame#writing_surface (Paket 3). %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :primary,
+        icon: "plus-lg",
+        size: :medium,
+        tag: :a,
+        href: new_organisation_project_ticket_path(@current_organisation, @project, source: 'index_page'),
+        title: t('views.organisations.tickets.index.new_task_tooltip'),
+        # 3 px of air to the right: the list column clips at its edge
+        # (overflow auto), and the main action's offset shadow needs the room.
+        class: "ml-3 me-[3px]",
+        data: { turbo_frame: "writing_surface" }
+      ) %>
+    <% end %>
+    </div>
+  <% end %>
+<% end %>
+
+<%# Unified Filter Bar: SmartFolder pills + Ad-hoc Filters + Search.
+    Hidden on first use (no tickets at all — style guide "Leerzustände"):
+    filters over nothing only add noise. Reappears with the next full page
+    load after the first ticket exists. %>
+<% unless tickets_first_use?(@project) %>
+<%= render NeoFilterBarComponent.new(
+  current_user_id: current_user&.id,
+  smart_folders: @ticket_smart_folders,
+  url: organisation_project_tickets_path(@current_organisation, @project),
+  frame_id: 'tickets_list_frame',
+  i18n_scope: 'views.organisations.tickets.index',
+  all_items_label: t('smart_folders.all_tickets', default: 'Alle Tickets'),
+  smart_folder_context_type: 'Ticket',
+  smart_folder_return_to: 'tickets',
+  active_smart_folder: @active_smart_folder,
+  active_view_permissions: filter_bar_view_permissions(@active_smart_folder),
+  dissolver_result: @dissolver_result,
+  ad_hoc_filters: ad_hoc_filter_params.presence || {},
+  ad_hoc_operators: ad_hoc_filter_op_params.presence || {},
+  dropped_categories: dropped_filter_categories,
+  filter_categories_json: ad_hoc_filter_categories_json(@project),
+  search_value: params[:search],
+  search_mode: @current_search_mode,
+  project: @project,
+  organisation: @current_organisation
+) do |bar| %>
+  <%# The column picker's trigger (F39) lives in the bar since 20a (S2):
+      columns belong to the view, like the conditions do. In the table header
+      it held a column's width and never showed a value in it.
+      ⚠️ A SIGN, at every width, and no count beside it (user, 07.09.2026): the
+      right end of a narrow head holds the search and this, and nothing else.
+      It used to carry "6 Spalten", which a width rule then had to take away
+      again - a label that only fits sometimes is a label that has to be
+      managed. The number is in the title, where the whole sentence fits. %>
+  <% bar.with_selection_row do %>
+    <%= render 'organisations/tickets/selection_row' %>
+  <% end %>
+  <%# Not on the board (D5 of doc/kanban_ticket_als_bahn_plan.md): the picker
+      chooses the TABLE's columns, and it rendered on the board with nothing
+      behind it. %>
+  <% if @view_mode != 'kanban' %>
+  <% bar.with_view_tool do %>
+    <button type="button"
+            class="column-picker-trigger grid place-items-center h-7 w-7 rounded-md text-muted
+                   hover:text-heading hover:bg-cream-100 transition-colors
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+            data-column-picker-trigger
+            data-action="click->column-picker#toggle"
+            aria-expanded="false"
+            aria-controls="<%= Neo::ColumnPickerComponent::ELEMENT_ID %>"
+            title="<%= t('components.column_picker.trigger_title') %>">
+      <i class="bi bi-sliders2 text-sm" aria-hidden="true"></i>
+      <%# A sign, and nothing beside it (user, 07.09.2026). It carried a count
+          and then a word; both said something the table next to it already
+          shows. The caption lives in the title ("Spalten wählen"), which is
+          also what a screen reader announces - a sign is never left without
+          one, it just does not have to be read every time. No number in it
+          either (designer, 09.09.2026): the chosen columns stand as heads
+          below and in the panel itself. 28 x 28 like the two tools beside it. %>
+    </button>
+  <% end %>
+  <% end %>
+<% end %>
+<% end %>

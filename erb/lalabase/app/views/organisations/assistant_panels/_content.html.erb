@@ -1,0 +1,66 @@
+<%# locals: (chat:) -%>
+<%# S3a T4 — what lives INSIDE the companion panel's turbo frame (plan §7.7).
+
+    Its own partial because two responses render it: assistant_panels#show (the
+    lazy first load and every reload) and assistant_chats#create (the first
+    message, which turns the empty state into a running conversation). The frame
+    ELEMENT itself is deliberately not part of this partial -- create updates the
+    frame's children rather than replacing the frame, so the src the controller
+    armed survives and `reload()` keeps working.
+
+    A chat that is not persisted is the empty state: either there is no thread
+    yet, or create just failed and hands the invalid record back so the typed
+    question reappears in the field instead of being swallowed. %>
+<% availability = current_organisation&.ai_available_for?(:chat) %>
+<% if chat&.persisted? %>
+  <%# The container asks the availability question itself and swaps the composer
+      for the reason when there is no route. %>
+  <%# frame_id: the panel renders on top of EVERY page, chat pages included, so it
+      must not carry the same id as the page's own chat frame. %>
+  <%= render Neo::Chat::ChatContainerComponent.new(
+    chat: chat,
+    current_user: current_user,
+    current_organisation: current_organisation,
+    frame_id: Neo::Chat::ChatContainerComponent::PANEL_FRAME_ID
+  ) %>
+<% else %>
+  <div class="flex-1 min-h-0 overflow-y-auto px-4 pt-6">
+    <p class="text-sm font-bold text-cream-900"><%= t('views.organisations.assistant_panels.show.empty_title') %></p>
+    <p class="mt-1 text-xs text-muted"><%= t('views.organisations.assistant_panels.show.empty_hint') %></p>
+    <% if chat&.errors&.any? %>
+      <p class="mt-3 text-xs text-red-700"><%= chat.errors.full_messages.to_sentence %></p>
+    <% end %>
+  </div>
+  <div class="px-4 pb-2 shrink-0">
+    <% if availability&.available? %>
+      <%= render Neo::Chat::ContextOfferComponent.new %>
+      <%# The first message posts to assistant_chats#create, which creates the
+          thread WITH it and updates this frame with the running conversation. %>
+      <%= render Neo::Chat::ComposerComponent.new(
+        chat: chat || Chat.new(organisation: current_organisation),
+        chatpost: nil,
+        mode: :new_chat,
+        current_organisation: current_organisation,
+        current_user: current_user
+      ) %>
+    <% else %>
+      <%# R4: no route for a message from here, so say WHY instead of offering a
+          field that swallows the question. The same branch (and the same
+          explain_opt_in) the running conversation shows -- without it the empty
+          state would be the one surface in the app that still pretends to work
+          while the org has no usable AI credential. %>
+      <%= render Neo::Ai::UnavailableHintComponent.new(
+        availability: availability, organisation: current_organisation,
+        variant: :warning, explain_opt_in: true
+      ) %>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Art. 13 GDPR / EU AI Act labelling: the notice belongs where the input
+    happens, and since T4 that is this panel rather than a chat page. %>
+<% if availability&.available? %>
+  <div class="px-4 pb-3 shrink-0">
+    <%= render Neo::Chat::TransparencyNoticeComponent.new(organisation: current_organisation) %>
+  </div>
+<% end %>

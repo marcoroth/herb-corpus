@@ -1,0 +1,51 @@
+<%# The viewer's open tickets across the org, as one or more buckets (group_keys picker), shown either
+    as stacked sections (default) or as switchable pills/tabs (display_mode). The per-bucket body (rows
+    or a calm "nothing" line) is the shared overview/_my_open_tickets_bucket partial, so the row markup
+    lives in one place across both modes. Empty single-bucket -> the widget empty state (never collapses). %>
+<div>
+  <%= render WidgetHeaderComponent.new(title: t('overview.widgets.my_open_tickets')) %>
+  <% if all_empty? && !multiple_groups? %>
+    <%= render WidgetEmptyComponent.new(message: t('overview.tickets.empty')) %>
+  <% elsif tabs? %>
+    <%# Pills switch which single bucket is visible; all bodies are rendered and the inactive ones are
+        hidden client-side by tabs_controller (data already loaded, so no server round-trip). The pill
+        look mirrors the hours widget's period switcher (rounded-full, mono), active via data-[active]. %>
+    <div data-controller="tabs">
+      <div class="flex items-center gap-1 mb-3 flex-wrap" role="tablist">
+        <% groups.each do |group| %>
+          <button type="button" role="tab"
+                  data-tabs-target="tab"
+                  data-tab-id="<%= group[:key] %>"
+                  data-active="<%= group[:key] == default_active_key %>"
+                  data-action="click->tabs#switch"
+                  class="px-2 py-0.5 rounded-full text-xs font-mono border transition-colors cursor-pointer text-cream-600 border-cream-300 bg-cream-50 hover:bg-cream-100 hover:border-cream-400 data-[active=true]:border-ink data-[active=true]:bg-cream-200 data-[active=true]:text-cream-900 data-[active=true]:font-semibold">
+            <%= group_label(group[:key]) %>
+            <span class="ml-1 tabular-nums opacity-70"><%= group[:tickets].size %></span>
+          </button>
+        <% end %>
+      </div>
+      <% groups.each do |group| %>
+        <%# Hide inactive panels via the `hidden` CLASS (not the attribute): tabs_controller switches
+            panels with classList.toggle("hidden", ...), so a panel hidden by the attribute could never
+            be revealed (it would show empty when its pill is clicked). The active panel renders with no
+            hidden class; the controller re-applies the same state on connect. %>
+        <div data-tabs-target="panel" class="<%= 'hidden' unless group[:key] == default_active_key %>">
+          <%= render "overview/my_open_tickets_bucket", organisation: organisation, tickets: group[:tickets] %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="space-y-3">
+      <% groups.each do |group| %>
+        <div>
+          <% if multiple_groups? %>
+            <div class="font-mono text-xs uppercase tracking-wider text-cream-600 mb-1">
+              <%= group_label(group[:key]) %> (<%= group[:tickets].size %>)
+            </div>
+          <% end %>
+          <%= render "overview/my_open_tickets_bucket", organisation: organisation, tickets: group[:tickets] %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

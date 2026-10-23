@@ -1,0 +1,203 @@
+<%# The AI hub (doc/ki_bereich_navigation_plan.md §3.2; the row list since
+    doc/ki_uebersicht_zeilenliste_plan.md).
+
+    "Der Hub ist kein Verteiler, sondern die Antwort": the page answers "muss ich etwas
+    tun?" in three places and no more. The sentence at the top says whether AI runs.
+    The one main action in the title row is the first open step of the setup, in the
+    order the Zugang plan (§3) intends: choose the access, throw the switch — when both
+    are done there is no button. The rows carry a dot only where something needs
+    doing. It must not dramatise — its value lies in being boring until it is not.
+
+    Two faces (§3.2): with AI switched off the rows stay VISIBLE but locked. Hiding them
+    would be worse — a prospect could then not see what they would get, and that scope
+    is what the product sells. "Zugang" stays reachable either way, because preparing
+    the access before switching on is the intended order and locking that row would
+    block it (D3 of the Zugang plan); "Protokoll" too, because the trail keeps its
+    value after an organisation stops using AI. %>
+<div>
+<% ai_on = @organisation.ai_enabled? %>
+
+<%# The main action: one lime button, or none. Access before switch, because choosing
+    who processes the content is the step that carries legal weight. %>
+<% title_action = capture do %>
+  <% if !@access_chosen %>
+    <%= render Neo::Buttons::ButtonComponent.new(
+      variant: :primary, size: :medium,
+      url: organisation_ai_settings_path(@organisation)
+    ) do %>
+      <%= t('views.organisations.ai_overview.actions.set_up_access') %>
+    <% end %>
+  <% elsif !ai_on %>
+    <%= render Neo::Buttons::ButtonComponent.new(
+      variant: :primary, size: :medium,
+      confirm: t('views.confirm.ai_activate'),
+      form: { action: activate_organisation_ai_settings_path(@organisation), method: :post }
+    ) do %>
+      <%= t('views.organisations.ai_overview.actions.switch_on') %>
+    <% end %>
+  <% end %>
+<% end %>
+<%= render 'organisations/shared/settings_subnav', active: :ai, title_action: title_action %>
+
+<%= render 'organisations/ai_overviews/status' %>
+
+<%# Capped (layout.css, "Page widths"; Nachtrag 3 of the plan): directories are
+    capped, tables are not. The ticket list may take the full width because every
+    column there is data one compares; here are five ways with one state each, and
+    more width brings no information, only distance between a name and its value.
+    The value column ends on the cap, a visible second edge. The sentence above is
+    text and stays at 70ch. %>
+<ul id="ai_overview_rows" class="width-capped" role="list">
+  <%# ── Zugang ───────────────────────────────────────────────────────────────
+      Value: who processes — the package, the org's own credentials, or nothing chosen.
+      Description: the three things that answer "who processes our content, where".
+
+      The dot: red when the last connection check failed, amber when nothing is chosen,
+      nothing otherwise — and nothing at all while AI is off, because nothing is missing
+      while nothing runs. Red outranks amber: a failed access is the one reason to act,
+      and a switch running on an access that does not answer is going to fail anyway.
+      "Nie geprüft" stays dotless: it is the absence of a verdict, not a third verdict.
+
+      Z3 (doc/ki_zugang_umbau_plan.md D7): no package and no credentials reads as
+      "nicht eingerichtet", never as "Eigene Konfiguration" — a blank package id means
+      custom by convention (E1-C), which turned "nothing is set up" into a claim that
+      something was. Same rule, same owner as the access page. %>
+  <% switch_running = @switch_progress.present? && @switch_progress.in_progress? %>
+  <% access_state, access_state_title =
+       if ai_on && @organisation.ai_connection_failed?
+         [:alert, t('views.organisations.ai_overview.rows.access.state_failed')]
+       elsif ai_on && !@access_chosen
+         [:attention, t('views.organisations.ai_overview.rows.access.state_missing')]
+       end %>
+  <%= render 'organisations/ai_overviews/row',
+        path: organisation_ai_settings_path(@organisation),
+        locked: false,
+        title: t('views.organisations.ai_overview.rows.access.title'),
+        value: if @package
+                 @package.name
+               elsif @organisation.ai_custom_access_configured?
+                 t('views.organisations.ai_overview.rows.access.value_custom')
+               else
+                 t('views.organisations.ai_overview.rows.access.value_none')
+               end,
+        state: access_state,
+        state_title: access_state_title,
+        description: if @organisation.ai_connection_failed?
+                       # ⚠️ :long, NOT :short — `time.formats.short` carries no year, and a
+                       # failed check from 2024 would read like this afternoon on the one
+                       # row whose whole job is to say "this is broken, and since when".
+                       t('views.organisations.ai_overview.rows.access.description_check_failed',
+                         date: l(@organisation.ai_connection_checked_at, format: :long))
+                     elsif switch_running
+                       t('views.organisations.ai_overview.rows.access.description_switching')
+                     elsif @package
+                       t('views.organisations.ai_overview.rows.access.description_package',
+                         jurisdiction: t("views.organisations.ai_settings.packages.jurisdictions.#{@package.effective_jurisdiction.presence || 'blank'}"),
+                         tier: @tier&.label.presence || t('views.organisations.ai_overview.rows.access.no_tier'))
+                     elsif @organisation.ai_custom_access_configured?
+                       t('views.organisations.ai_overview.rows.access.description_custom')
+                     else
+                       t('views.organisations.ai_overview.rows.access.description_none')
+                     end %>
+
+  <%# ── Verbrauch ────────────────────────────────────────────────────────────
+      Credits, not tokens (L8): tokens are our purchasing unit, credits are what the
+      customer is held to. Beneath the value the 4 px bar shows the used share of the
+      budget; the dot says when the share is a problem: red once the hard limit blocks
+      new calls, amber in the grace zone or from 80 % on. %>
+  <% usage_state, usage_state_title =
+       if !ai_on
+         nil
+       elsif @quota.hard_exhausted?
+         [:alert, t('views.organisations.ai_overview.rows.usage.state_exhausted')]
+       elsif @quota.in_grace? || @quota.usage_percent >= 80
+         [:attention, t('views.organisations.ai_overview.rows.usage.state_nearly')]
+       end %>
+  <%= render 'organisations/ai_overviews/row',
+        path: organisation_ai_usage_path(@organisation),
+        locked: !ai_on,
+        title: t('views.organisations.ai_overview.rows.usage.title'),
+        value: t('views.organisations.ai_overview.rows.usage.value_html',
+                 used: ai_overview_figure(number_with_delimiter(@quota.used)),
+                 budget: ai_overview_figure(number_with_delimiter(@quota.budget))),
+        bar_percent: @quota.usage_percent,
+        state: usage_state,
+        state_title: usage_state_title,
+        description: t('views.organisations.ai_overview.rows.usage.description') %>
+
+  <%# ── Indexierung ──────────────────────────────────────────────────────────
+      "Sync Status" was implementation language; what the admin wants to know is
+      whether their content is searchable. Figures come from Embeddings::IndexHealth
+      (ONE query, §3.3) and never from AiSyncStatusService.
+
+      The value names failures first, the backlog second, and "nichts ausstehend" when
+      both are zero: a running indexing is the normal case and gets no colour, only
+      failures do. paused (AI off) is asked first for the description, same order and
+      same reason as the Indexierung summary: with the opt-in off the figure is not a
+      backlog anybody owes, and the row used to say "Verarbeitung läuft" over it
+      indefinitely. %>
+  <% index_state, index_state_title =
+       if ai_on && @index_health.failed.positive?
+         [:alert, t('views.organisations.ai_overview.rows.index.state_failed')]
+       end %>
+  <%= render 'organisations/ai_overviews/row',
+        path: organisation_ai_sync_status_path(@organisation),
+        locked: !ai_on,
+        title: t('views.organisations.ai_overview.rows.index.title'),
+        value: if @index_health.failed.positive?
+                 t('views.organisations.ai_overview.rows.index.value_failed_html',
+                   failed: ai_overview_figure(number_with_delimiter(@index_health.failed)))
+               elsif @index_health.pending.positive?
+                 t('views.organisations.ai_overview.rows.index.value_pending_html',
+                   pending: ai_overview_figure(number_with_delimiter(@index_health.pending)))
+               else
+                 t('views.organisations.ai_overview.rows.index.value_clear')
+               end,
+        state: index_state,
+        state_title: index_state_title,
+        description: if @index_health.paused?
+                       t('views.organisations.ai_overview.rows.index.description_paused')
+                     elsif @index_health.failed.positive? && @index_health.pending.positive?
+                       t('views.organisations.ai_overview.rows.index.description_failed_pending',
+                         pending: number_with_delimiter(@index_health.pending))
+                     elsif @index_health.failed.positive?
+                       t('views.organisations.ai_overview.rows.index.description_failed')
+                     elsif @index_health.pending.positive?
+                       t('views.organisations.ai_overview.rows.index.description_pending')
+                     else
+                       t('views.organisations.ai_overview.rows.index.description_clear')
+                     end %>
+
+  <%# ── Chat-Personas ────────────────────────────────────────────────────────
+      Purely informative (§3.2) — no dot, because there is no bad number here. %>
+  <%= render 'organisations/ai_overviews/row',
+        path: organisation_prompt_personas_path(@organisation),
+        locked: !ai_on,
+        title: t('views.organisations.ai_overview.rows.personas.title'),
+        value: t('views.organisations.ai_overview.rows.personas.value_html',
+                 count: @persona_count,
+                 number: ai_overview_figure(number_with_delimiter(@persona_count))),
+        description: t('views.organisations.ai_overview.rows.personas.description') %>
+
+  <%# ── Protokoll ────────────────────────────────────────────────────────────
+      NOT locked while AI is off. Every other locked row leads somewhere that only
+      means something with AI on; this one leads to the record of the switch that was
+      just thrown. Locking it would hide the evidence of a deactivation at exactly the
+      moment somebody goes looking for it.
+
+      The value is the trail's first entry (AiOverviewsController#protocol_since), and
+      it is the one audit figure this page keeps: the sentence at the top no longer
+      names who switched on and when, this row says where that is written. %>
+  <%= render 'organisations/ai_overviews/row',
+        path: organisation_ai_protocol_path(@organisation),
+        locked: false,
+        title: t('views.organisations.ai_overview.rows.protocol.title'),
+        value: if @protocol_since
+                 t('views.organisations.ai_overview.rows.protocol.value_since_html',
+                   date: ai_overview_figure(l(@protocol_since.to_date)))
+               else
+                 t('views.organisations.ai_overview.rows.protocol.value_empty')
+               end,
+        description: t('views.organisations.ai_overview.rows.protocol.description') %>
+</ul>
+</div>

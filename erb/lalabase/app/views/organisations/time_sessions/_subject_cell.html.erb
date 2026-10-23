@@ -1,0 +1,31 @@
+<%# locals: (subject:, link_access:, truncate_length: 40, link_class: "text-cobalt-600 hover:text-cobalt-800", muted_class: "text-gray-500") %>
+<%# The "Bezug" of a booked time: its ticket, its meeting, or nothing. One cell for
+    all three billing views (aggregated / chronological / customer_export) so a
+    fourth subject type is added in time_session_subject_presentation alone. Before
+    this cell existed each view read .ticket directly and rendered meeting-booked
+    time as "Ohne Ticket" — a billing line the customer could not account for.
+
+    link_access is the (project_id, area) => bool map the controller precomputed
+    (see #build_subject_link_access). Deliberately NOT asked per row: each answer
+    costs a project_permissions query. Unknown key means "not allowed" — a cell
+    rendered without its map shows titles without links rather than leaking one.
+
+    Both types keep their glyph HERE, deliberately, while the time list shows a
+    glyph only where there is no number (SubjectPresentation#glyph_as_handle?).
+    The list has a column per part and a "#89" of its own to identify a ticket
+    with; this cell has one line holding both types at once, where a glyph on
+    only one of them reads as a flag rather than as a type. %>
+<% if (parts = time_session_subject_presentation(subject)) %>
+  <% label = truncate(parts.label, length: truncate_length) %>
+  <% if link_access[[subject.project_id, parts.read_area]] %>
+    <%= link_to parts.path, class: "#{link_class} inline-flex items-baseline gap-1.5 break-words", data: { turbo_frame: "_top" } do %>
+      <i class="bi <%= parts.icon %>"></i><%= label %>
+    <% end %>
+  <% else %>
+    <span class="<%= muted_class %> inline-flex items-baseline gap-1.5 break-words">
+      <i class="bi <%= parts.icon %>"></i><%= label %>
+    </span>
+  <% end %>
+<% else %>
+  <span class="<%= muted_class %> italic"><%= t('views.organisations.time_sessions.index_table.without_subject') %></span>
+<% end %>

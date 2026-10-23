@@ -1,0 +1,56 @@
+<%# locals: (run:, user:, error: nil, announce: false, announce_links: false) %>
+<%# A run keeps its post optional (belongs_to :chatpost, optional: true), and without a post there
+    is no chat to poll and nothing to show. The line below always knew that; the frame tag
+    dereferenced it anyway and took the page down with it -- as a NoMethodError, or as an
+    unroutable path when only the chat was gone. Without a chat the frame carries no controller,
+    and it still carries its id, because a broadcast has to find its target either way. %>
+<% chat = run.chatpost&.chat %>
+<% readable = user && chat && ChatPolicy.new(user, chat).show? && run.readable_by?(user) %>
+<% frame_data = if chat
+                  { controller: 'assistant-suggestion-result',
+                    assistant_suggestion_result_url_value: organisation_assistant_chat_ticket_suggestion_run_path(run.organisation, chat, run),
+                    assistant_suggestion_result_active_value: readable && run.active? && !run.stale?,
+                    assistant_suggestion_result_digest_value: run.presentation_digest(user, error: error),
+                    assistant_suggestion_result_meeting_value: run.meeting_id,
+                    assistant_suggestion_result_error_value: t('assistant_suggestions.unavailable'),
+                    assistant_suggestion_result_announce_value: announce,
+                    assistant_suggestion_result_announce_links_value: announce_links }
+                else
+                  {}
+                end %>
+<%= turbo_frame_tag dom_id(run), data: frame_data do %>
+  <% if readable %>
+    <div class="rounded-xl border border-cream-300 p-3 mb-3 text-sm break-words">
+      <p class="font-medium"><%= t('assistant_suggestions.heading') %> · <%= run.meeting_title %></p>
+      <p class="text-xs text-muted"><%= t('assistant_suggestions.project') %>: <%= run.project_title %></p>
+      <p class="mt-2 whitespace-pre-line"><%= run.instruction %></p>
+      <% if run.source_truncated? %><p class="mt-2 text-xs text-amber-700"><%= t('assistant_suggestions.source_truncated', limit: number_with_delimiter(Meetings::AssistantSource::MAX_TEXT_CHARS)) %></p><% end %>
+      <% if run.result_truncated? %><p class="mt-2 text-xs text-amber-700"><%= t('assistant_suggestions.result_truncated', count: Meetings::TicketSuggestionService::MAX_SUGGESTIONS, title_limit: Meetings::TicketSuggestionService::MAX_TITLE_LENGTH, description_limit: number_with_delimiter(Meetings::TicketSuggestionService::MAX_DESCRIPTION_LENGTH)) %></p><% end %>
+      <% if error.present? %><p role="alert" class="mt-2 text-red-700"><%= error %></p><% end %>
+      <% if run.active? && !run.stale? %>
+        <p role="status" class="mt-2"><%= t('assistant_suggestions.running', meeting: run.meeting_title) %></p>
+      <% elsif run.failed? || run.stale? %>
+        <p role="alert" class="mt-2 text-red-700"><%= run.stale? ? t('assistant_suggestions.interrupted') : run.error %></p>
+        <% if run.retryable? && run.writable_by?(user) %>
+          <%= button_to t('assistant_suggestions.retry'), retry_organisation_assistant_chat_ticket_suggestion_run_path(run.organisation, chat, run), class: 'mt-2 underline' %>
+        <% elsif run.retried_at? %>
+          <p class="mt-2 text-xs text-muted"><%= t('assistant_suggestions.retried') %></p>
+        <% end %>
+      <% elsif run.results.empty? %>
+        <p class="mt-2"><%= t('assistant_suggestions.empty') %></p>
+      <% else %>
+        <% rows = run.meeting_ticket_suggestions.to_a.index_by(&:id) %>
+        <ul class="mt-3 divide-y divide-cream-200">
+          <% run.results.each do |snapshot| %>
+            <%= render 'organisations/meetings/ticket_suggestion', suggestion: rows[snapshot['id']], snapshot: snapshot, meeting: run.meeting, user: user, run: run %>
+          <% end %>
+        </ul>
+      <% end %>
+      <% unless run.active? && !run.stale? %>
+        <button type="button" class="mt-2 text-xs underline" data-action="assistant-suggestion-result#reload"><%= t('assistant_suggestions.refresh') %></button>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-sm text-muted"><%= t('assistant_suggestions.unavailable') %></p>
+  <% end %>
+<% end %>

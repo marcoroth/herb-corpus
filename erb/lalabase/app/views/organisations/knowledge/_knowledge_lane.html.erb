@@ -1,0 +1,41 @@
+<%# locals: (selected_item:, new_type: nil, preview_version: nil) %>
+<%# The lane's frame, the ONE owner of what it holds on a page load (S1 of
+    doc/wissen_als_bahn_plan.md, after tickets/_ticket_lane): the note, the
+    document, or the placeholder. Rendered by the desktop content slot and the
+    mobile detail slot. A frame request goes to notes#show / documents#show
+    with frame=content, which render the SAME root partials, so a note opened
+    by click and a note opened by address have one root (.note-content /
+    .document-content), which is what layout-toggle and index-page look for.
+    ⚠️ Keys fully qualified: a lazy t('.') here answers to THIS partial's name. %>
+<turbo-frame id="knowledge_display_frame">
+  <% if new_type == 'note' %>
+    <%# ?new=note|document (S2): the new form as a state of the page address,
+        the way the phone reaches it (no frame to fill there) and a deep link
+        can. @note / @document come from KnowledgeController#set_new_type. %>
+    <%= render 'organisations/notes/note_new_for_frame', note: @note, detail_frame_id: 'knowledge_display_frame' %>
+  <% elsif new_type == 'document' %>
+    <%= render 'organisations/documents/document_new_for_frame', document: @document, detail_frame_id: 'knowledge_display_frame' %>
+  <% elsif selected_item.is_a?(Note) %>
+    <%= render 'organisations/notes/note_show', note: selected_item, detail_frame_id: 'knowledge_display_frame' %>
+  <% elsif selected_item.is_a?(Document) && preview_version %>
+    <%# ?preview=V (doc/dateivorschau_plan.md, D1): one version of the open
+        document in the lane; the frame road is documents#preview, the same root. %>
+    <%= render 'organisations/documents/preview', document: selected_item, version: preview_version, detail_frame_id: 'knowledge_display_frame' %>
+  <% elsif selected_item.is_a?(Document) %>
+    <% versions = selected_item.document_versions.listed %>
+    <%= render 'organisations/documents/document_content_for_frame',
+               document: selected_item,
+               versions: versions,
+               current_version: selected_item.current_version,
+               new_version: DocumentVersion.new,
+               detail_frame_id: 'knowledge_display_frame' %>
+  <% else %>
+    <%# The same two texts index-page writes when it cleans the frame
+        (placeholder-title/-body values on the page wrapper): one state, one
+        wording. The old _display_item carried a third text for it. %>
+    <div id="knowledge-display-placeholder" class="ticket-placeholder px-4">
+      <h1><%= t('views.organisations.knowledge.index.placeholder_title') %></h1>
+      <p><%= t('views.organisations.knowledge.index.placeholder_body') %></p>
+    </div>
+  <% end %>
+</turbo-frame>

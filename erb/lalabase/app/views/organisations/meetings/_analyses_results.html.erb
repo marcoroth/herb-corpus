@@ -1,0 +1,71 @@
+<%# locals: (meeting:, analyses:, can_write:, **) %>
+<%# Stored analyses on the meeting detail. `analyses` is ALREADY visibility-filtered by the caller
+    (visible_meeting_analyses — public ∪ own private). Own turbo-frame so
+    create/flip/delete/retry refresh just this list. Legacy job completions broadcast
+    only the inner result list; request-rendered creation controls remain mounted.
+    Only ever request-rendered (_meeting_show, MeetingAnalysesStreams#results_replace), so
+    current_user and assistant_available? are safe here, unlike in _analyses_list. %>
+<% org = meeting.organisation %>
+<% gate_open = assistant_available? %>
+<% assistant = can_write && assistant_trigger_data(meeting, intent: :analysis) %>
+<%# Rollout decision A: creation is assistant-only, but never silently gone. A writer in an
+    AI org whose assistant gate is closed keeps the section and is told where creation went. %>
+<% assistant_blocked = can_write && !gate_open && org&.ai_enabled? %>
+<% ai_available = org&.ai_available_for?(:chat)&.available? %>
+<% has_source = meeting.summary_source.present? %>
+<% create_disabled = !ai_available || !has_source %>
+<%# At most ONE reason creation is off. It stands in for the empty-list line, and a
+    disabled button points at it instead of a title that describes the enabled action. %>
+<% creation_hint, creation_hint_class = if assistant_blocked
+                                          [t('views.organisations.meetings.analyses.assistant_not_enabled'), 'text-amber-700']
+                                        elsif assistant && !ai_available
+                                          [t('views.organisations.meetings.analyses.assistant_unavailable'), 'text-amber-700']
+                                        elsif assistant && !has_source
+                                          [t('views.organisations.meetings.analyses.no_content_hint'), 'italic text-cream-600']
+                                        end %>
+<% hint_id = "#{meeting_analyses_frame_id(meeting)}_creation_hint" %>
+<%# The sync values mirror _ticket_suggestions_section: an analysis saved from the assistant
+    announces assistant:analyses-changed, and this frame refetches itself from the detail page. %>
+<%= turbo_frame_tag meeting_analyses_frame_id(meeting), data: {
+      controller: 'meeting-section-sync',
+      meeting_section_sync_meeting_value: meeting.id,
+      meeting_section_sync_url_value: organisation_project_meeting_path(org, meeting.project, meeting, frame: 'content'),
+      meeting_section_sync_event_value: 'assistant:analyses-changed'
+    } do %>
+  <%# Creator-scoped updates while a legacy run of THIS user is pending. Never meeting-wide:
+      private results must only reach their creator. Inside the frame and not in
+      _meeting_show, because a retry started after page load replaces only this frame; a
+      subscription decided at page load would not exist for that run and its spinner would
+      never settle. Outside #analyses_list, so the completion broadcast does not remove it. %>
+  <% if current_user && analyses.any? { |analysis| analysis.creation_flag? && analysis.creator_id == current_user.id } %>
+    <%= turbo_stream_from meeting, current_user, :analyses %>
+  <% end %>
+  <% if analyses.any? || assistant || assistant_blocked %>
+    <section class="meeting-content">
+      <%# No standing refresh link: a legacy run's creator gets the finished result pushed
+          into the inner list (MeetingAnalysis#broadcast_completion → _analyses_list), so the
+          assistant entry in this header stays mounted. saved_heading leads the AI zone
+          (stored analyses, ticket suggestions below, see _meeting_show). %>
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <h3 class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-cream-600">
+          <i class="bi bi-robot text-sm" aria-hidden="true"></i>
+          <%= t('views.organisations.meetings.analyses.saved_heading') %>
+        </h3>
+        <% if assistant %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :ai, size: :small, icon: 'magic', disabled: create_disabled,
+                **(create_disabled ? { aria: { describedby: hint_id } } : { title: t('views.organisations.meetings.analyses.create_with_assistant_hint'), data: assistant })
+              ) do %>
+            <%= t('views.organisations.meetings.analyses.create_with_assistant') %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <%= render 'organisations/meetings/analyses_list', analyses: analyses, meeting: meeting, can_write: can_write,
+                                                          can_rerun: gate_open, show_empty: creation_hint.nil? %>
+      <% if creation_hint %>
+        <p id="<%= hint_id %>" class="<%= class_names('text-sm', creation_hint_class, 'border-t border-cream-200 pt-2' => analyses.none?) %>"><%= creation_hint %></p>
+      <% end %>
+    </section>
+  <% end %>
+<% end %>

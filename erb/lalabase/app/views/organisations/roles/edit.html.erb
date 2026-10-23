@@ -1,0 +1,470 @@
+<div class="pt-6">
+  <%= render NeoTitleBoxComponent.new(
+    title: t('views.organisations.roles.edit.title'),
+    subtitle: @role.title,
+    variant: :organisation
+  ) do |component| %>
+    <% component.with_right_content do %>
+      <%= render Neo::Buttons::HeaderButtonComponent.new(
+        variant: :secondary,
+        icon: "arrow-left",
+        label: t('views.organisations.roles.edit.back'),
+        url: organisation_roles_path(@current_organisation)
+      ) %>
+    <% end %>
+  <% end %>
+  
+  <% if @role.is_default || @role.account_admin? || true %>
+    <div class="max-w-6xl mt-4 mb-4">
+      <% if @role.is_default %>
+        <span class="inline-flex items-center rounded-md bg-green-100 px-3 py-1 text-sm font-medium text-green-700 border-2 border-green-600">
+          <i class="bi bi-star-fill mr-1"></i><%= t('views.organisations.roles.edit.badge_default') %>
+        </span>
+      <% elsif @role.account_admin? %>
+        <span class="inline-flex items-center rounded-md bg-purple-100 px-3 py-1 text-sm font-medium text-purple-700 border-2 border-purple-600">
+          <i class="bi bi-shield-fill-check mr-1"></i><%= t('views.organisations.roles.edit.badge_admin') %>
+        </span>
+      <% else %>
+        <span class="inline-flex items-center rounded-md bg-cobalt-100 px-3 py-1 text-sm font-medium text-cobalt-700 border-2 border-cobalt-600">
+          <%= t('views.organisations.roles.edit.badge_custom') %>
+        </span>
+      <% end %>
+    </div>
+  <% end %>
+
+<% if notice %>
+  <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4 max-w-6xl" role="alert">
+    <%= notice %>
+  </div>
+<% end %>
+
+<% if alert %>
+  <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 max-w-6xl" role="alert">
+    <%= alert %>
+  </div>
+<% end %>
+
+  <!-- Form -->
+  <div class="max-w-6xl mt-6">
+    <%= form_with(model: [@current_organisation, @role], local: true) do |form| %>
+  <% if @role.errors.any? %>
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+      <h2 class="font-bold"><%= pluralize(@role.errors.count, t('views.organisations.roles.edit.error_noun')) %> <%= t('views.organisations.roles.edit.error_prevented') %></h2>
+      <ul class="list-disc list-inside">
+        <% @role.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+      <!-- Basic information -->
+      <div class="bg-cream-50 border border-cream-300 rounded-lg p-6 mb-6">
+        <h3 class="text-lg font-semibold mb-4">
+          <%= t('views.organisations.roles.edit.basic_info') %>
+        </h3>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <%= form.label :title, t('views.organisations.roles.edit.label_title'), class: 'block text-sm font-medium text-gray-700 mb-2' %>
+          <%= form.text_field :title,
+              class: 'w-full px-3 py-2 border border-cream-300 bg-cream-50 rounded text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all' %>
+      </div>
+      
+      <div class="md:col-span-2">
+        <%= form.label :description, t('views.organisations.roles.edit.label_description'), class: 'block text-sm font-medium text-gray-700 mb-2' %>
+          <%= form.text_area :description, rows: 3,
+              class: 'w-full px-3 py-2 border border-cream-300 bg-cream-50 rounded text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all' %>
+      </div>
+    </div>
+  </div>
+
+      <!-- Permissions -->
+      <div class="bg-cream-50 border border-cream-300 rounded-lg p-6 mb-6">
+    <h3 class="text-lg font-semibold mb-4 flex items-center">
+      <i class="bi bi-shield-check mr-2"></i>
+      <%= t('views.organisations.roles.edit.permissions') %>
+    </h3>
+    <p class="text-gray-600 mb-6">
+      <%= t('views.organisations.roles.edit.permissions_intro') %>
+    </p>
+
+    <!-- Search field -->
+    <div class="mb-6 flex items-center gap-4">
+      <div class="relative flex-grow max-w-md">
+        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+          <i class="bi bi-search text-gray-400"></i>
+        </div>
+          <input type="text" id="permission-search"
+                class="w-full pl-10 pr-3 py-2 border border-cream-300 bg-cream-50 rounded text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all"
+                placeholder="<%= t('views.organisations.roles.edit.search_placeholder') %>"
+                onkeyup="filterPermissions()">
+      </div>
+      
+      <div class="text-sm text-gray-500">
+        <%= t('views.organisations.roles.edit.category_hint') %>
+      </div>
+    </div>
+
+    <!-- Simplified tab navigation -->
+    <div class="mb-6">
+      <div class="flex border-b border-cream-300">
+        <button class="py-3 px-4 border-b border-ink bg-cream-200 text-cream-900 font-semibold text-sm active"
+                id="all-tab" data-tabs-target="#all" type="button" role="tab" aria-controls="all" aria-selected="true">
+          <i class="bi bi-list-check mr-2"></i><%= t('views.organisations.roles.edit.tab_all') %>
+        </button>
+        <button class="py-3 px-4 border-b-2 border-transparent hover:border-cream-400 bg-cream-50 text-cream-600 font-medium text-sm"
+                id="projects-tab" data-tabs-target="#projects" type="button" role="tab" aria-controls="projects" aria-selected="false">
+          <i class="bi bi-folder mr-2"></i><%= t('views.organisations.roles.edit.tab_project_details') %>
+        </button>
+      </div>
+    </div>
+
+        <!-- Tab contents -->
+        <div id="tab-content">
+          <!-- All permissions tab -->
+          <div class="block" id="all" role="tabpanel" aria-labelledby="all-tab">
+            <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <% @permission_categories.each do |category, actions| %>
+                <div class="bg-cream-50 rounded-lg p-4 border border-cream-300 permission-category" data-category="<%= category %>">
+                  <div class="flex items-center mb-4">
+                    <% category_icon = case category.to_s
+                                    when 'accounts' then 'bi-building'
+                                    when 'projects' then 'bi-folder'
+                                    when 'tickets' then 'bi-ticket'
+                                    when 'users' then 'bi-people'
+                                    when 'assistant' then 'bi-chat-square-text'
+                                    else 'bi-list-check'
+                                    end %>
+                    <i class="bi <%= category_icon %> text-xl mr-2"></i>
+                    <h2 class="text-xl font-semibold"><%= category_name(category.to_s) %></h2>
+                    
+                    <!-- Select all permissions in this category -->
+                    <div class="ml-auto">
+                      <button type="button" onclick="toggleCategoryPermissions('<%= category %>', true)"
+                              class="text-sm text-cobalt-600 hover:underline ml-2">
+                        <%= t('views.organisations.roles.edit.select_all') %>
+                      </button>
+                      <button type="button" onclick="toggleCategoryPermissions('<%= category %>', false)"
+                              class="text-sm text-cobalt-600 hover:underline ml-2">
+                        <%= t('views.organisations.roles.edit.deselect_all') %>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="space-y-3">
+                    <%
+                      # Sort and group permissions sensibly
+                      grouped_actions = {}
+
+                      if category.to_s == 'projects'
+                        # Group project permissions by type
+                        read_permissions = []
+                        write_permissions = []
+                        other_permissions = []
+                        
+                        actions.each do |action|
+                          if action.start_with?('read_access_')
+                            read_permissions << action
+                          elsif action.start_with?('write_access_')
+                            write_permissions << action
+                          else
+                            other_permissions << action
+                          end
+                        end
+                        
+                        # Filter old read/write permissions (deprecated) - these should no longer be used
+                        old_permissions = []
+                        if read_permissions.include?('read_access_all_projects')
+                          # No longer show old permissions and remove them from the list
+                          read_permissions.delete('read_access_all_projects')
+                        end
+
+                        if write_permissions.include?('write_access_all_projects')
+                          # No longer show old permissions and remove them from the list
+                          write_permissions.delete('write_access_all_projects')
+                        end
+
+                        # Sort the permissions alphabetically within their group
+                        read_permissions.sort!
+                        write_permissions.sort!
+                        other_permissions.sort!
+                        
+                        grouped_actions = {
+                          t('views.organisations.roles.edit.group_read') => read_permissions,
+                          t('views.organisations.roles.edit.group_write') => write_permissions,
+                          t('views.organisations.roles.edit.group_other') => other_permissions
+                        }
+                      else
+                        # No grouping for other categories
+                        grouped_actions[t('views.organisations.roles.edit.group_permissions')] = actions
+                      end
+                    %>
+                    
+                    <% grouped_actions.each do |group_name, group_actions| %>
+                      <% if group_actions.any? %>
+                        <div class="mt-3 mb-2">
+                          <h3 class="text-sm font-semibold text-cream-600 pb-1 border-b border-cream-200"><%= group_name %></h3>
+
+                          <div class="mt-2 space-y-2">
+                            <% group_actions.each do |action| %>
+                              <div class="flex items-start hover:bg-cream-100 p-2 rounded permission-item"
+                                  data-name="<%= action %>" data-category="<%= category %>">
+                                <div class="flex items-center h-5">
+                                  <%= check_box_tag "permissions[#{category}][#{action}]", 1, @permissions[category][action], 
+                                                 class: "h-5 w-5 rounded border-gray-300 text-cobalt-600 focus:ring-cobalt-500 permission-checkbox",
+                                                 'data-category': category, 'data-action': action %>
+                                </div>
+                                <div class="ml-3">
+                                  <label for="permissions[<%= category %>][<%= action %>]" 
+                                        class="font-medium text-gray-700 cursor-pointer">
+                                    <%= action.humanize.gsub('_', ' ') %>
+                                  </label>
+                                  <p class="text-gray-500 text-xs mt-1">
+                                    <%= get_permission_description(category.to_s, action) %>
+                                  </p>
+                                </div>
+                              </div>
+                            <% end %>
+                          </div>
+                        </div>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          
+          <!-- Project permissions tab -->
+          <div class="hidden" id="projects" role="tabpanel" aria-labelledby="projects-tab">
+            <div class="bg-cobalt-50 border-l-4 border-cobalt-400 p-4 mb-6">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="bi bi-info-circle text-cobalt-400"></i>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm text-cobalt-700">
+                    <%= t('views.organisations.roles.edit.project_scope_info') %>
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <% category = :projects %>
+            <% actions = @permission_categories[category] %>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Read-access permissions -->
+              <div class="bg-cobalt-50 rounded-lg shadow p-4 border border-cobalt-200">
+                <div class="flex items-center mb-4">
+                  <i class="bi bi-eye text-xl mr-2 text-cobalt-600"></i>
+                  <h2 class="text-xl font-semibold text-cobalt-800"><%= t('views.organisations.roles.edit.read_access') %></h2>
+
+                  <div class="ml-auto">
+                    <button type="button" onclick="toggleReadPermissions(true)"
+                            class="text-sm text-cobalt-600 hover:underline ml-2">
+                      <%= t('views.organisations.roles.edit.select_all') %>
+                    </button>
+                    <button type="button" onclick="toggleReadPermissions(false)"
+                            class="text-sm text-cobalt-600 hover:underline ml-2">
+                      <%= t('views.organisations.roles.edit.deselect_all') %>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="space-y-2">
+                  <% read_actions = actions.select { |a| a.start_with?('read_access_') } %>
+                  <% read_actions.each do |action| %>
+                    <div class="flex items-start hover:bg-cobalt-100 p-2 rounded permission-item"
+                        data-name="<%= action %>" data-category="<%= category %>">
+                      <div class="flex items-center h-5">
+                        <%= check_box_tag "permissions[#{category}][#{action}]", 1, @permissions[category][action], 
+                                      class: "h-5 w-5 rounded border-gray-300 text-cobalt-600 focus:ring-cobalt-500 permission-checkbox read-permission",
+                                      'data-category': category, 'data-action': action %>
+                      </div>
+                      <div class="ml-3">
+                        <label for="permissions[<%= category %>][<%= action %>]" 
+                              class="font-medium text-gray-700 cursor-pointer">
+                          <%= action.humanize.gsub('_', ' ') %>
+                        </label>
+                        <p class="text-gray-500 text-xs mt-1">
+                          <%= get_permission_description(category.to_s, action) %>
+                        </p>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+              
+              <!-- Write-access permissions -->
+              <div class="bg-green-50 rounded-lg shadow p-4 border border-green-200">
+                <div class="flex items-center mb-4">
+                  <i class="bi bi-pencil-square text-xl mr-2 text-green-600"></i>
+                  <h2 class="text-xl font-semibold text-green-800"><%= t('views.organisations.roles.edit.write_access') %></h2>
+
+                  <div class="ml-auto">
+                    <button type="button" onclick="toggleWritePermissions(true)"
+                            class="text-sm text-green-600 hover:underline ml-2">
+                      <%= t('views.organisations.roles.edit.select_all') %>
+                    </button>
+                    <button type="button" onclick="toggleWritePermissions(false)"
+                            class="text-sm text-green-600 hover:underline ml-2">
+                      <%= t('views.organisations.roles.edit.deselect_all') %>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="space-y-2">
+                  <% write_actions = actions.select { |a| a.start_with?('write_access_') } %>
+                  <% write_actions.each do |action| %>
+                    <div class="flex items-start hover:bg-green-100 p-2 rounded permission-item"
+                        data-name="<%= action %>" data-category="<%= category %>">
+                      <div class="flex items-center h-5">
+                        <%= check_box_tag "permissions[#{category}][#{action}]", 1, @permissions[category][action], 
+                                      class: "h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 permission-checkbox write-permission",
+                                      'data-category': category, 'data-action': action %>
+                      </div>
+                      <div class="ml-3">
+                        <label for="permissions[<%= category %>][<%= action %>]" 
+                              class="font-medium text-gray-700 cursor-pointer">
+                          <%= action.humanize.gsub('_', ' ') %>
+                        </label>
+                        <p class="text-gray-500 text-xs mt-1">
+                          <%= get_permission_description(category.to_s, action) %>
+                        </p>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+              
+              <!-- Project management permissions -->
+              <div class="bg-purple-50 rounded-lg shadow p-4 border border-purple-200 md:col-span-2">
+                <div class="flex items-center mb-4">
+                  <i class="bi bi-gear text-xl mr-2 text-purple-600"></i>
+                  <h2 class="text-xl font-semibold text-purple-800"><%= t('views.organisations.roles.edit.project_management') %></h2>
+                </div>
+                
+                <div class="space-y-2">
+                  <% other_actions = actions.reject { |a| a.start_with?('read_access_') || a.start_with?('write_access_') } %>
+                  <% other_actions.each do |action| %>
+                    <div class="flex items-start hover:bg-purple-100 p-2 rounded permission-item"
+                        data-name="<%= action %>" data-category="<%= category %>">
+                      <div class="flex items-center h-5">
+                        <%= check_box_tag "permissions[#{category}][#{action}]", 1, @permissions[category][action], 
+                                      class: "h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 permission-checkbox",
+                                      'data-category': category, 'data-action': action %>
+                      </div>
+                      <div class="ml-3">
+                        <label for="permissions[<%= category %>][<%= action %>]" 
+                              class="font-medium text-gray-700 cursor-pointer">
+                          <%= action.humanize.gsub('_', ' ') %>
+                        </label>
+                        <p class="text-gray-500 text-xs mt-1">
+                          <%= get_permission_description(category.to_s, action) %>
+                        </p>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+
+    <!-- JavaScript for tabs and functions -->
+    <script>
+      // Simplified tab functionality
+      function setupTabs() {
+        const tabButtons = document.querySelectorAll('[role="tab"]');
+        const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+
+        tabButtons.forEach(button => {
+          button.addEventListener('click', () => {
+            // Deactivate all tabs
+            tabButtons.forEach(btn => {
+              btn.classList.remove('border-ink', 'bg-cream-200', 'active');
+              btn.classList.add('border-transparent', 'bg-cream-50');
+              btn.setAttribute('aria-selected', 'false');
+            });
+
+            // Hide all tab panels
+            tabPanels.forEach(panel => {
+              panel.classList.add('hidden');
+            });
+
+            // Activate the clicked tab
+            button.classList.remove('border-transparent', 'bg-cream-50');
+            button.classList.add('border-ink', 'bg-cream-200', 'active');
+            button.setAttribute('aria-selected', 'true');
+
+            // Show the corresponding panel
+            const panelId = button.getAttribute('data-tabs-target').substring(1);
+            document.getElementById(panelId).classList.remove('hidden');
+          });
+        });
+      }
+
+      // Search function for permissions
+      function filterPermissions() {
+        const searchTerm = document.getElementById('permission-search').value.toLowerCase();
+        const items = document.querySelectorAll('.permission-item');
+        
+        items.forEach(item => {
+          const name = item.getAttribute('data-name').toLowerCase();
+          const description = item.querySelector('p').textContent.toLowerCase();
+          
+          if (name.includes(searchTerm) || description.includes(searchTerm)) {
+            item.style.display = '';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      }
+      
+      // Bulk selection for categories
+      function toggleCategoryPermissions(category, state) {
+        const checkboxes = document.querySelectorAll(`.permission-checkbox[data-category="${category}"]`);
+        checkboxes.forEach(checkbox => {
+          checkbox.checked = state;
+        });
+      }
+      
+      function toggleReadPermissions(state) {
+        const readCheckboxes = document.querySelectorAll('.read-permission');
+        readCheckboxes.forEach(checkbox => {
+          checkbox.checked = state;
+        });
+      }
+      
+      function toggleWritePermissions(state) {
+        const writeCheckboxes = document.querySelectorAll('.write-permission');
+        writeCheckboxes.forEach(checkbox => {
+          checkbox.checked = state;
+        });
+      }
+      
+      // Initialization
+      document.addEventListener('DOMContentLoaded', () => {
+        setupTabs();
+      });
+    </script>
+
+  </div>
+  
+      <!-- Footer with buttons -->
+      <div class="flex items-center justify-end gap-4 pt-6">
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :large,
+              url: organisation_roles_path(@current_organisation)) do %>
+          <%= t('views.organisations.roles.edit.cancel') %>
+        <% end %>
+
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, tag: :button, type: "submit") do %>
+          <%= t('views.organisations.roles.edit.save') %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

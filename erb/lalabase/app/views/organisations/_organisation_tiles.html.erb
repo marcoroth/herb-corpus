@@ -1,0 +1,91 @@
+<%# Org switcher tiles (the existing picker). `organisations`, `unread_counts` and
+    `member_counts` are passed from organisations#select. The unread badge now comes
+    from the permission-correct per-org count (Dashboard::CrossOrgActionSummary), not the old
+    without_tenant grouped query.
+
+    NO billing link any more (K1, doc/konto_ebene_plan.md): the accounts have their own block
+    above the organisations. That is the level they actually talk about, and it shows in all
+    three cockpit layouts instead of only in these tiles. %>
+<section class="mb-12">
+  <h2 class="font-black uppercase text-xs tracking-tight mb-3 text-cream-500">
+    <%= t('views.organisations.select.your_organisations') %>
+  </h2>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4"
+       data-controller="new-organisation-modal"
+       data-action="keydown@window->new-organisation-modal#closeOnEscape">
+
+    <% if organisations.any? %>
+      <% organisations.each do |org| %>
+        <%= form_with url: set_organisation_path, method: :post, data: { turbo: false }, class: 'flex' do %>
+          <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+          <%= hidden_field_tag :organisation_id, org.id %>
+
+          <button type="submit" class="w-full h-full p-5 border border-ink rounded-lg shadow-[2px_2px_0_0_#14110c] bg-cream-50 hover:bg-cream-100 hover:shadow-[4px_4px_0_0_#14110c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all text-left group">
+            <div class="flex items-center gap-4 mb-3">
+              <%# Org recognition colour as a banderole: the avatar box carries the org colour
+                  -> links colour <-> org (mirrors the sidebar chip). Source = resolver
+                  (org_colors.effective_color) -> ≥2 gate + OFF in one place; without a colour (1 org / off)
+                  it stays cream-200 (pixel-identical). Inline instead of bg-brand, because every tile
+                  carries a DIFFERENT colour (--brand is a single value). Memoised -> 1 COUNT per page. %>
+              <% org_color = current_user.org_colors.effective_color(org) %>
+              <div class="flex-shrink-0 w-12 h-12 rounded-lg <%= 'bg-cream-200' unless org_color %> border border-cream-300 flex items-center justify-center text-xl font-black text-cream-900"
+                   <% if org_color %> style="background-color: <%= org_color %>;"<% end %>>
+                <%= org.name.first.upcase %>
+              </div>
+              <i class="bi bi-arrow-right text-cream-500 group-hover:text-cream-900 ml-auto transition-colors text-lg"></i>
+            </div>
+            <h3 class="font-bold text-base truncate flex items-center gap-2 text-cream-900">
+              <%= org.name %>
+              <% unread = unread_counts[org.id].to_i %>
+              <%= render Neo::UnreadMarkerComponent.new(count: unread,
+                                                        label: t('views.organisations.select.unread_title', count: unread)) %>
+            </h3>
+            <% members = member_counts[org.id].to_i %>
+            <p class="text-xs text-cream-500 mt-1"><%= t('views.organisations.select.member_count', count: members) %></p>
+          </button>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <!-- New organisation tile (modal trigger) -->
+    <button type="button"
+            class="w-full h-full p-5 border-2 border-dashed border-cream-300 rounded-lg bg-cream-50 hover:border-ink hover:border-solid hover:bg-cream-100 hover:shadow-[4px_4px_0_0_#14110c] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all text-left group flex flex-col items-center justify-center min-h-[140px]"
+            data-action="click->new-organisation-modal#open">
+      <div class="w-12 h-12 rounded-lg border-2 border-dashed border-cream-300 group-hover:border-ink flex items-center justify-center mb-3 transition-colors">
+        <i class="bi bi-plus-lg text-cream-500 group-hover:text-cream-900 text-xl transition-colors"></i>
+      </div>
+      <span class="font-bold text-sm text-cream-500 group-hover:text-cream-900 transition-colors"><%= t('views.organisations.select.new_organisation') %></span>
+    </button>
+
+    <!-- Modal -->
+    <div class="fixed z-50 inset-0 overflow-y-auto hidden"
+         data-new-organisation-modal-target="modal"
+         data-action="click->new-organisation-modal#closeOnBackdrop">
+
+      <!-- Backdrop -->
+      <div class="fixed inset-0 bg-ink bg-opacity-60 backdrop-blur-sm"></div>
+
+      <!-- Modal Content -->
+      <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-surface-raised rounded-lg shadow-[4px_4px_0_0_#14110c] border border-cream-300 max-w-md w-full relative">
+
+          <!-- Header -->
+          <div class="flex justify-between items-center p-4 border-b border-cream-200">
+            <h3 class="text-lg font-bold text-cream-900"><%= t('views.organisations.select.new_organisation_modal_title') %></h3>
+            <button type="button"
+                    class="text-cream-500 hover:text-cream-700"
+                    data-action="click->new-organisation-modal#close">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+
+          <!-- Form -->
+          <div class="p-5" data-new-organisation-modal-target="form">
+            <%= render "organisations/new_organisation_form", organisation: Organisation.new %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

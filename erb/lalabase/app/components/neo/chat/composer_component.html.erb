@@ -1,0 +1,64 @@
+<%= composer_wrapper do %>
+  <%= form_with(**form_options) do |form| %>
+    <% if new_chat? %>
+      <%= render Neo::Chat::DraftReferencesComponent.new(chat: @chat, current_user: @current_user) %>
+    <% end %>
+    <% unless new_chat? %>
+      <% if @chatpost.errors.any? %>
+        <p role="alert" class="text-sm text-red-700"><%= @chatpost.errors.full_messages.to_sentence %></p>
+      <% end %>
+      <%= form.hidden_field :revision_answer_id, value: @chatpost.analysis_context&.dig('revision_answer_id'), data: { meeting_analysis_composer_target: 'revisionId' } %>
+      <%= form.hidden_field :revision_answer_key, value: @chatpost.analysis_context&.dig('revision_answer_key'), data: { meeting_analysis_composer_target: 'revisionKey' } %>
+      <p <%= 'hidden' unless @chatpost.analysis_context&.dig('revision_answer_id').present? %> data-meeting-analysis-composer-target="revision" class="text-sm text-muted">
+        <%= t('assistant_analysis.revising') %>
+        <button type="button" class="underline hover:text-ink focus-visible:outline" data-action="meeting-analysis-composer#cancelRevision"><%= t('assistant_analysis.cancel') %></button>
+      </p>
+    <% end %>
+    <%= render 'neo/chat/analysis_tools' %>
+    <%= render 'neo/chat/ticket_suggestion_tools' %>
+    <%# Why the panel refused to send this form (assistant_panel#guardPendingMeetingIntentSubmit):
+        a meeting reference requested from a meeting page is still being added.
+        Rendered in BOTH modes, and deliberately not in DraftReferencesComponent:
+        that one exists for a new chat only, while an open thread is exactly where
+        a pending intent occurs -- a block there used to be silent. Looked up via
+        the form (data-composer-status), not as a panel target, because a marker in
+        the permanent panel node is not unique. role="alert" and filled in the task
+        it is revealed, like the draft reference status. %>
+    <p hidden role="alert" data-composer-status
+       data-pending-reference-label="<%= t('assistant_suggestions.pending_reference') %>"
+       class="mb-1 text-xs text-amber-700"></p>
+    <div class="mb-2 relative">
+      <%# rows=1 + resize-none: the field starts single-line and autogrows with
+          its content (neo-chat-composer#autogrow); manual resize would fight
+          the JS-managed height. pr-12 keeps text clear of the send icon.
+          Both modes render the SAME field via #message_field_options — only the
+          param nesting differs (chats#create takes the post as a nested attribute). %>
+      <% if new_chat? %>
+        <%= form.fields_for :chatposts, first_chatpost do |chatpost_form| %>
+          <%= chatpost_form.hidden_field :ticket_suggestion_meeting_id, data: { assistant_suggestion_composer_target: "intent" } %>
+          <%= chatpost_form.text_area :content, **message_field_options %>
+          <%= chatpost_form.hidden_field :user_id, value: @current_user.id %>
+        <% end %>
+      <% else %>
+        <%= form.hidden_field :ticket_suggestion_meeting_id, data: { assistant_suggestion_composer_target: "intent" } %>
+        <%= form.text_area :content, **message_field_options %>
+      <% end %>
+      <%# Icon-only send button INSIDE the field, revealed only once there is
+          content (neo-chat-composer#syncSend) — the empty composer shows no
+          affordance at all. Styled as a small primary button (bg-btn-primary =
+          the design system's one-main-action token): a bare glyph was not
+          recognisable as clickable. %>
+      <%# Round like the field it sits in, and with the same softened outline the
+          field gave up its border-2 black for -- a hard-edged black box inside a
+          rounded hairline field reads as two unrelated things. It stays the
+          primary token: this IS the one main action on the surface. %>
+      <button type="submit"
+              class="hidden absolute end-2 bottom-2 px-2 py-1 leading-none border border-stroke/30 rounded-full bg-btn-primary hover:brightness-95 hover:-translate-y-px transition-all"
+              data-neo-chat-composer-target="send"
+              title="<%= send_label %>"
+              aria-label="<%= send_label %>">
+        <i class="bi bi-send" aria-hidden="true"></i>
+      </button>
+    </div>
+  <% end %>
+<% end %>

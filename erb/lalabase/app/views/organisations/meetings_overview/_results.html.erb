@@ -1,0 +1,50 @@
+<%# locals: (meetings:, selected_meeting: nil, first_use: false) %>
+<%# The meetings_overview_results frame, brought by this partial ITSELF: the
+    filter bar, the column heads and the pages reload it, and MeetingsController
+    REPLACES it after a save in the lane (list_stream). A partial without the frame would leave a plain <div> behind,
+    and from then on every reload would target a frame that no longer exists.
+    Rendered from two controllers, so it reads no helper only one of them has:
+    first_use and selected_meeting (the row the lane shows) are locals.
+
+    data-list-filter-query is the list state as the server applied it;
+    layout-toggle writes it into the address after every load of the list, and
+    from there the lane's forms take it at submit, so the list after a save
+    keeps its conditions, view, search and sort. %>
+<% frame_id = Organisations::MeetingsController::OVERVIEW_LIST_FRAME_ID %>
+<% base_path = organisation_meetings_path(@current_organisation) %>
+<turbo-frame id="<%= frame_id %>" data-keyboard-navigation-target="listContainer">
+  <%# One query, not two: .empty? on an unloaded relation asks the database, then
+      the loop asks it again. %>
+  <% rows = meetings.to_a %>
+  <div data-fb-hits-total="<%= @pagy.count %>" class="text-base min-h-[60vh]" data-list-filter-query="<%= meeting_list_state(pagy: @pagy).to_query %>">
+    <% if rows.empty? %>
+      <div class="flex items-center justify-center min-h-[40vh]">
+        <% if first_use %>
+          <%# No readable meetings exist yet in any project. %>
+          <%= render 'shared/empty_content',
+              variant: :first_time,
+              icon_class: 'bi bi-chat-quote',
+              title: t('views.organisations.meetings_overview.index.empty_first_time_title'),
+              description: t('views.organisations.meetings_overview.index.empty_first_time_description') %>
+        <% else %>
+          <%# Meetings exist, but the view, a condition or the search matched none. %>
+          <%= render 'shared/empty_content',
+              variant: :no_results,
+              icon_class: 'bi bi-search',
+              title: t('views.organisations.meetings.index.empty_no_results') %>
+        <% end %>
+      </div>
+    <% else %>
+      <%# The project page's table (meetings/_meetings_table): the columns of the
+          picker, folded by rank, pinned values under the title; on a phone
+          all of them stand under the title. A row opens the meeting in the
+          lane beside the list. %>
+      <%= render 'organisations/meetings/meetings_table', meetings: rows, selected_meeting: selected_meeting,
+                 base_path: base_path, frame_id: frame_id %>
+    <% end %>
+    <% if @pagy.count.positive? %>
+      <%= render 'shared/pagination_nav_compact', pagy: @pagy, frame_id: frame_id, items_per_page: @pagy.limit,
+                 smart_folder_id: @active_smart_folder&.id, current_organisation: @current_organisation, base_path: base_path %>
+    <% end %>
+  </div>
+</turbo-frame>

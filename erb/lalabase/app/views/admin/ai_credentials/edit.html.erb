@@ -1,0 +1,449 @@
+<div class="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
+  <div class="px-4 py-6 sm:px-0">
+    <!-- Header -->
+    <div class="mb-8">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <%= link_to admin_ai_credentials_path, class: "text-gray-500 hover:text-gray-700 mr-4" do %>
+            <i class="bi bi-arrow-left text-xl"></i>
+          <% end %>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900"><%= t('views.admin.ai_credentials.edit.title') %></h1>
+            <p class="mt-2 text-sm text-gray-600">
+              <%= t('views.admin.ai_credentials.edit.subtitle_html', name: @ai_credential.name, provider: @ai_credential.provider_display_name) %>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <%# button_to (native form POST) — not link_to+turbo_method: rails-ujs
+              is disabled and data-turbo-method is unreliable in the admin area,
+              so the link navigated as GET onto a POST-only route and rendered a
+              blank page. Same fix and reason as the vertex-availability button. %>
+          <%= button_to test_connection_admin_ai_credential_path(@ai_credential),
+              form_class: "inline-block",
+              class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+            <i class="bi bi-wifi mr-2"></i>
+            <%= t('views.admin.ai_credentials.edit.btn_test_connection') %>
+          <% end %>
+
+          <% unless @ai_credential.active? %>
+            <%# Sets this credential as the provider's default — button_to for the
+                same reason as the test-connection button above. %>
+            <%= button_to activate_admin_ai_credential_path(@ai_credential),
+                method: :patch,
+                form_class: "inline-block",
+                class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-lime-200 hover:bg-lime-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+              <i class="bi bi-star mr-2"></i>
+              <%= t('views.admin.ai_credentials.edit.btn_activate') %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-<%= @ai_credential.active? ? 'star-fill text-yellow-500' : 'star text-gray-400' %> text-xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.edit.stat_status') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  <%= @ai_credential.active? ? t('views.admin.ai_credentials.edit.stat_active') : t('views.admin.ai_credentials.edit.stat_inactive') %>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-graph-up text-lime-600 text-xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.edit.stat_usage_30d') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  <%= number_with_delimiter(@ai_credential.usage_stats(30)[@ai_credential.provider] || 0) %> Tokens
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white overflow-hidden border border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="p-5">
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <i class="bi bi-calendar text-green-600 text-xl"></i>
+            </div>
+            <div class="ml-5 w-0 flex-1">
+              <dl>
+                <dt class="text-sm font-medium text-gray-500 truncate"><%= t('views.admin.ai_credentials.edit.stat_created') %></dt>
+                <dd class="text-lg font-medium text-gray-900">
+                  <%= @ai_credential.created_at.strftime("%d.%m.%Y") %>
+                </dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Card -->
+    <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+      <div class="px-6 py-6">
+        <%# The token-field controller swaps the secret input between API key and
+          service-account JSON (google); initial state rendered server-side. %>
+        <% sa_json_provider = @ai_credential.provider == AiCredential::PROVIDER_GOOGLE %>
+        <%= form_with model: [:admin, @ai_credential], local: true, class: "space-y-6",
+            data: { controller: "admin-ai-credential-token-field" } do |form| %>
+
+          <!-- Error Display -->
+          <% if @ai_credential.errors.any? %>
+            <div class="border-2 border-red-500 bg-red-50 rounded-lg p-4 shadow-[2px_2px_0_0_#ef4444]">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <i class="bi bi-exclamation-triangle text-red-400 text-xl"></i>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-red-800">
+                    <%= t('views.admin.ai_credentials.edit.errors_title', count: @ai_credential.errors.count) %>
+                  </h3>
+                  <div class="mt-2 text-sm text-red-700">
+                    <ul class="list-disc pl-5 space-y-1">
+                      <% @ai_credential.errors.full_messages.each do |message| %>
+                        <li><%= message %></li>
+                      <% end %>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <!-- Basic Information Section -->
+          <div class="border-b-2 border-black pb-6">
+            <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">
+              <i class="bi bi-info-circle text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.edit.section_basic') %>
+            </h3>
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div>
+                <%= form.label :name, t('views.admin.ai_credentials.edit.label_name'), class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <%= form.text_field :name,
+                      class: "w-full px-4 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      placeholder: t('views.admin.ai_credentials.edit.placeholder_name') %>
+                </div>
+              </div>
+
+              <div>
+                <%= form.label :provider, t('views.admin.ai_credentials.edit.label_provider'), class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1">
+                  <%# Options from AiCredential.provider_options_for_select — implemented
+                    providers only (S1); current: keeps a legacy row's own provider
+                    selected instead of silently jumping to the first option. %>
+                  <%= form.select :provider,
+                      options_for_select(
+                        AiCredential.provider_options_for_select(current: @ai_credential.provider),
+                        @ai_credential.provider
+                      ),
+                      { include_blank: false },
+                      class: "w-full px-4 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      data: {
+                        admin_ai_credential_token_field_target: "provider",
+                        action: "change->admin-ai-credential-token-field#toggle"
+                      } %>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6">
+              <%= form.label :description, t('views.admin.ai_credentials.edit.label_description'), class: "block text-sm font-bold text-gray-900" %>
+              <div class="mt-1">
+                <%= form.text_area :description,
+                    rows: 3,
+                    class: "w-full px-4 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                    placeholder: t('views.admin.ai_credentials.edit.placeholder_description') %>
+              </div>
+            </div>
+          </div>
+
+          <!-- API Configuration Section -->
+          <div class="border-b-2 border-black pb-6">
+            <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">
+              <i class="bi bi-key text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.edit.section_api') %>
+            </h3>
+
+            <!-- Token Visibility Toggle -->
+            <div class="mb-6">
+              <div class="flex items-center justify-between">
+                <h4 class="text-sm font-medium text-gray-900"><%= t('views.admin.ai_credentials.edit.label_api_key') %></h4>
+                <div class="flex items-center space-x-2">
+                  <% unless @show_full_token %>
+                    <%= link_to edit_admin_ai_credential_path(@ai_credential, show_token: 'true'),
+                        class: "text-sm text-lime-700 hover:text-lime-900 font-medium" do %>
+                      <i class="bi bi-eye mr-1"></i>
+                      <%= t('views.admin.ai_credentials.edit.show_full_key') %>
+                    <% end %>
+                  <% else %>
+                    <%= link_to edit_admin_ai_credential_path(@ai_credential),
+                        class: "text-sm text-lime-700 hover:text-lime-900 font-medium" do %>
+                      <i class="bi bi-eye-slash mr-1"></i>
+                      <%= t('views.admin.ai_credentials.edit.hide_key') %>
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="border-2 border-yellow-500 bg-yellow-50 rounded-lg p-4 shadow-[2px_2px_0_0_#d97706] mb-4">
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <i class="bi bi-shield-exclamation text-yellow-400"></i>
+                  </div>
+                  <div class="ml-3">
+                    <p class="text-sm text-yellow-700">
+                      <%= t('views.admin.ai_credentials.edit.security_notice_html') %>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div class="sm:col-span-2" data-admin-ai-credential-token-field-target="apiKey" <%= 'hidden' if sa_json_provider %>>
+                <%= form.label :access_token, t('views.admin.ai_credentials.edit.label_api_key_keep'), class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-key text-gray-400"></i>
+                  </div>
+                  <%= form.password_field :access_token,
+                      value: @show_full_token ? @ai_credential.access_token : @ai_credential.masked_token,
+                      class: "w-full pl-10 pr-3 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      placeholder: t('views.admin.ai_credentials.edit.placeholder_api_key'),
+                      autocomplete: "new-password",
+                      disabled: sa_json_provider %>
+                </div>
+              </div>
+
+              <%# google: multi-line service-account JSON instead of an API key.
+                A masked value round-trips safely — the controller drops any
+                access_token containing '*' on update (write-back guard). %>
+              <div class="sm:col-span-2" data-admin-ai-credential-token-field-target="saJson" <%= 'hidden' unless sa_json_provider %>>
+                <%= form.label :access_token, t('views.admin.ai_credentials.edit.label_sa_json_keep'),
+                    for: 'ai_credential_access_token_sa_json', class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1">
+                  <%= form.text_area :access_token,
+                      id: 'ai_credential_access_token_sa_json',
+                      value: @show_full_token ? @ai_credential.access_token : @ai_credential.masked_token,
+                      rows: 8,
+                      class: "w-full px-4 py-2 border border-black rounded text-sm font-mono focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      placeholder: t('views.admin.ai_credentials.edit.placeholder_sa_json'),
+                      autocomplete: "off",
+                      disabled: !sa_json_provider %>
+                </div>
+                <p class="mt-1 text-sm text-gray-500">
+                  <%= t('views.admin.ai_credentials.edit.sa_json_help') %>
+                </p>
+              </div>
+
+              <div>
+                <%= form.label :organization_id, t('views.admin.ai_credentials.edit.label_org_id'), class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-building text-gray-400"></i>
+                  </div>
+                  <%= form.text_field :organization_id,
+                      class: "w-full pl-10 pr-3 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      placeholder: "org-..." %>
+                </div>
+              </div>
+
+              <div>
+                <%= form.label :default_model, t('views.admin.ai_credentials.edit.label_default_model'), class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-cpu text-gray-400"></i>
+                  </div>
+                  <%= form.text_field :default_model,
+                      class: "w-full pl-10 pr-3 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      placeholder: "gpt-4o-mini" %>
+                </div>
+              </div>
+
+              <div class="sm:col-span-2">
+                <%= label_tag 'ai_credential_additional_config_uri_base',
+                    t('views.admin.ai_credentials.edit.label_uri_base'),
+                    class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-hdd-network text-gray-400"></i>
+                  </div>
+                  <%= text_field_tag 'ai_credential[additional_config][uri_base]',
+                      @ai_credential.additional_config&.dig('uri_base'),
+                      id: 'ai_credential_additional_config_uri_base',
+                      class: "w-full pl-10 pr-3 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      autocomplete: "off",
+                      placeholder: t('views.admin.ai_credentials.edit.placeholder_uri_base') %>
+                </div>
+                <p class="mt-1 text-sm text-gray-500">
+                  <%= t('views.admin.ai_credentials.edit.uri_base_help') %>
+                </p>
+              </div>
+
+              <%# Google Vertex AI routing (non-secret, hence additional_config —
+                the SA JSON itself stays in the encrypted access_token above). %>
+              <div>
+                <%= label_tag 'ai_credential_additional_config_project_id',
+                    t('views.admin.ai_credentials.edit.label_project_id'),
+                    class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-google text-gray-400"></i>
+                  </div>
+                  <%= text_field_tag 'ai_credential[additional_config][project_id]',
+                      @ai_credential.additional_config&.dig('project_id'),
+                      id: 'ai_credential_additional_config_project_id',
+                      class: "w-full pl-10 pr-3 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      autocomplete: "off",
+                      placeholder: t('views.admin.ai_credentials.edit.placeholder_project_id') %>
+                </div>
+                <p class="mt-1 text-sm text-gray-500">
+                  <%= t('views.admin.ai_credentials.edit.project_id_help') %>
+                </p>
+              </div>
+
+              <div>
+                <%= label_tag 'ai_credential_additional_config_location',
+                    t('views.admin.ai_credentials.edit.label_location'),
+                    class: "block text-sm font-bold text-gray-900" %>
+                <div class="mt-1 relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-geo-alt text-gray-400"></i>
+                  </div>
+                  <%= text_field_tag 'ai_credential[additional_config][location]',
+                      @ai_credential.additional_config&.dig('location'),
+                      id: 'ai_credential_additional_config_location',
+                      class: "w-full pl-10 pr-3 py-2 border border-black rounded text-sm focus:outline-none focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[2px_2px_0_0_#000000] focus:ring-0 transition-all",
+                      autocomplete: "off",
+                      placeholder: t('views.admin.ai_credentials.edit.placeholder_location') %>
+                </div>
+                <p class="mt-1 text-sm text-gray-500">
+                  <%= t('views.admin.ai_credentials.edit.location_help') %>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <%= render 'seam_fields', form: form %>
+
+          <!-- Settings Section -->
+          <div class="pb-6">
+            <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">
+              <i class="bi bi-gear text-gray-400 mr-2"></i>
+              <%= t('views.admin.ai_credentials.edit.section_settings') %>
+            </h3>
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div class="flex items-center">
+                <div class="flex items-center h-5">
+                  <%= form.check_box :enabled,
+                      class: "w-4 h-4 border-2 border-black rounded focus:ring-2 focus:ring-black accent-lime-500",
+                      id: "enabled_checkbox" %>
+                </div>
+                <div class="ml-3 text-sm">
+                  <%= form.label :enabled, t('views.admin.ai_credentials.edit.label_enabled'),
+                      class: "font-medium text-gray-700",
+                      for: "enabled_checkbox" %>
+                  <p class="text-gray-500"><%= t('views.admin.ai_credentials.edit.enabled_help') %></p>
+                </div>
+              </div>
+
+              <div class="flex items-center">
+                <div class="flex items-center h-5">
+                  <%= form.check_box :active,
+                      class: "w-4 h-4 border-2 border-black rounded focus:ring-2 focus:ring-black accent-lime-500",
+                      id: "active_checkbox" %>
+                </div>
+                <div class="ml-3 text-sm">
+                  <%= form.label :active, t('views.admin.ai_credentials.edit.label_active', provider: @ai_credential.provider_display_name),
+                      class: "font-medium text-gray-700",
+                      for: "active_checkbox" %>
+                  <p class="text-gray-500"><%= t('views.admin.ai_credentials.edit.active_help') %></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex justify-end space-x-3 pt-6 border-t-2 border-black">
+            <%= link_to admin_ai_credentials_path,
+                class: "py-2 px-4 border border-black rounded text-sm font-medium bg-gray-200 hover:bg-gray-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+              <%= t('views.admin.ai_credentials.edit.btn_cancel') %>
+            <% end %>
+            <%= form.submit t('views.admin.ai_credentials.edit.btn_save'),
+                class: "inline-flex justify-center py-2 px-4 border border-black rounded text-sm font-medium bg-lime-200 hover:bg-lime-300 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Recent Usage (if available) -->
+    <% if @ai_credential.ai_usages.any? %>
+      <div class="mt-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+        <div class="px-6 py-4 border-b-2 border-black">
+          <h3 class="text-lg font-medium text-gray-900">
+            <i class="bi bi-graph-up text-gray-400 mr-2"></i>
+            <%= t('views.admin.ai_credentials.edit.recent_usage_title') %>
+          </h3>
+        </div>
+        <div class="px-6 py-4">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"><%= t('views.admin.ai_credentials.edit.usage_th_date') %></th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"><%= t('views.admin.ai_credentials.edit.usage_th_organisation') %></th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"><%= t('views.admin.ai_credentials.edit.usage_th_model') %></th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"><%= t('views.admin.ai_credentials.edit.usage_th_tokens') %></th>
+                  <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase"><%= t('views.admin.ai_credentials.edit.usage_th_cost') %></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                <% @ai_credential.ai_usages.recent(7).limit(5).each do |usage| %>
+                  <tr>
+                    <td class="px-3 py-2 text-sm text-gray-900">
+                      <%= usage.used_at.strftime("%d.%m.%Y %H:%M") %>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-900">
+                      <%= usage.organisation.name %>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-900">
+                      <%= usage.model_used || '-' %>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-900">
+                      <%= number_with_delimiter(usage.tokens_used) %>
+                    </td>
+                    <td class="px-3 py-2 text-sm text-gray-900">
+                      <%= usage.cost_formatted %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

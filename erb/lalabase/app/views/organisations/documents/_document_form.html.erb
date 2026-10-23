@@ -1,0 +1,62 @@
+<%# The standalone new-document page (documents/new, reachable by address; the
+    knowledge lane has _document_new_for_frame). The same form as the lane's
+    (S4 of doc/dokumentansicht_plan.md): the file first, the title from its
+    name, the button off until a file is chosen. The inline script that used to
+    check the file at submit time went with the off state. %>
+<% df = 'views.organisations.documents.document_form' %>
+<% field = 'w-full rounded-md border border-cream-300 px-3 py-2 bg-surface-raised focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink' %>
+<%= form_with(model: [@current_organisation, @project, @document], local: true, html: { multipart: true, id: 'document-form', class: 'space-y-5' },
+              data: { controller: 'upload-zone', upload_zone_over_class: 'border-ink bg-cream-100',
+                      upload_zone_empty_label_value: t('views.organisations.documents.upload_zone.none_chosen') }) do |form| %>
+  <%= form.fields_for :document_versions do |dv_form| %>
+    <% if @document.id.blank? %>
+      <%= render 'organisations/documents/upload_zone', form: dv_form %>
+      <% if @document.errors[:document_version_file].any? %>
+        <p class="text-sm font-bold text-red-600"><%= @document.errors[:document_version_file].first %></p>
+      <% end %>
+      <% if dv_form.object&.errors&.include?(:document_version_file) %>
+        <p class="text-sm font-bold text-red-600"><%= dv_form.object.errors[:document_version_file].first %></p>
+      <% end %>
+    <% end %>
+
+    <div class="space-y-1">
+      <%= dv_form.label :title, t("#{df}.title_label"), class: 'block text-sm font-medium text-cream-700' %>
+      <%= dv_form.text_field :title, class: field, data: { upload_zone_target: 'title' } %>
+      <% if @document.errors[:title].any? %>
+        <p class="text-sm text-red-600"><%= @document.errors[:title].first %></p>
+      <% end %>
+    </div>
+
+    <div class="space-y-1">
+      <%= dv_form.label :description, class: 'block text-sm font-medium text-cream-700' do %>
+        <%= t("#{df}.description_label") %>
+        <span class="font-normal text-cream-500"><%= t("#{df}.optional") %></span>
+      <% end %>
+      <%= dv_form.text_area :description, rows: 4, class: field %>
+      <% if @document.errors[:description].any? %>
+        <p class="text-sm text-red-600"><%= @document.errors[:description].first %></p>
+      <% end %>
+    </div>
+
+    <%# One switch, the summary (chat lane, :document_summary), asking its own row (R4). %>
+    <% document_summary = @current_organisation&.ai_available_for?(:document_summary) %>
+    <% if document_summary&.available? %>
+      <label class="flex items-start gap-2 text-sm text-cream-700">
+        <%= dv_form.check_box :create_summary, class: 'mt-0.5 h-4 w-4 rounded border-cream-300 accent-ink' %>
+        <span>
+          <%= t("#{df}.create_summary") %>
+          <span class="block text-xs text-cream-600"><%= t("#{df}.summary_description") %></span>
+        </span>
+      </label>
+    <% else %>
+      <%= render Neo::Ai::UnavailableHintComponent.new(availability: document_summary, organisation: @current_organisation, feature: :document_summary) %>
+    <% end %>
+    <%= render 'organisations/documents/ai_locked_state' %>
+  <% end %>
+
+  <div class="flex items-center justify-end gap-3">
+    <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, type: 'submit', disabled: true, data: { upload_zone_target: 'submit' }) do %>
+      <%= t("#{df}.save") %>
+    <% end %>
+  </div>
+<% end %>

@@ -1,0 +1,75 @@
+<%# One editable row: row drag handle + keyboard reorder/remove (up/down/trash) + its widget slots
+    + a trailing "+ widget" affordance. Rendered for the server layout AND cloned from a hidden
+    <template> on "+ Zeile" (row = empty). Indices are placeholders; the controller reindexes by DOM
+    position before submit.
+
+    A row is a 6-unit flex track: each widget's width is proportional to its units; the "+" box adds
+    another widget while there is still room (Σ units < 6).
+
+    Locals: row, row_idx, available_widgets, smart_folders, projects (overview project picker),
+    registry (surface widget catalogue), base_params (component context), widget_settings_partial
+    (surface settings form). %>
+<% row ||= {} %>
+<% widgets = dashboard_edit_widgets(row['widgets'], registry: registry) %>
+<%# Split-pane widths: distribute so the row's units sum to ROW_UNITS (no hidden free space), the
+    same invariant the JS keeps on every edit. Each slot is handed its effective width. %>
+<% effective_units = Dashboards::LayoutEngine.distribute_row_units(
+     widgets.map { |w| Dashboards::LayoutEngine.widget_units(w, registry: registry) },
+     widgets.map { |w| Dashboards::LayoutEngine.widget_min_units(w, registry: registry) }) %>
+
+<div data-row data-dashboard-inline-edit-target="row"
+     class="dashboard-edit-row border-2 border-stroke rounded-lg p-3 bg-cream-100 mb-3">
+  <div class="flex items-center gap-2 mb-2">
+    <span class="dashboard-edit-touch">
+      <button type="button" data-row-handle aria-label="<%= t('dashboard.configuration.drag_handle') %>"
+              class="dashboard-edit-handle">
+        <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+      </button>
+    </span>
+
+    <div class="flex-1"></div>
+    <span class="dashboard-edit-touch">
+      <button type="button" data-action="click->dashboard-inline-edit#moveRowUp"
+              class="dashboard-edit-row-btn" aria-label="<%= t('dashboard.configuration.move_up') %>">
+        <i class="bi bi-chevron-up" aria-hidden="true"></i>
+      </button>
+    </span>
+    <span class="dashboard-edit-touch">
+      <button type="button" data-action="click->dashboard-inline-edit#moveRowDown"
+              class="dashboard-edit-row-btn" aria-label="<%= t('dashboard.configuration.move_down') %>">
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+    </span>
+    <span class="dashboard-edit-touch">
+      <button type="button" data-action="click->dashboard-inline-edit#removeRow"
+              class="dashboard-edit-row-btn dashboard-edit-menu-danger" aria-label="<%= t('dashboard.configuration.remove_row') %>">
+        <i class="bi bi-trash" aria-hidden="true"></i>
+      </button>
+    </span>
+  </div>
+
+  <%# Widget slots + trailing add affordance. The slots container IS the flex track; each slot
+      carries its own unit-flex width class. The index is the DOM position (= the slot index reindex
+      assigns). %>
+  <%# Wider lg gap (gap-5) than the read-only dashboard: it's the grey channel the resize handle sits
+      in, so the handle reads as a divider between two boxes rather than blurring into a box border. %>
+  <div data-slots class="flex flex-col gap-2 lg:flex-row lg:gap-5">
+    <% widgets.each_with_index do |widget_data, slot_idx| %>
+      <%= render 'shared/dashboards/edit_slot',
+                 row_idx: row_idx, slot_idx: slot_idx, widget_data: widget_data, units: effective_units[slot_idx],
+                 available_widgets: available_widgets, smart_folders: smart_folders, projects: projects,
+                 registry: registry, base_params: base_params, widget_settings_partial: widget_settings_partial %>
+    <% end %>
+    <%# "+ widget" column. Clicking it opens the widget picker as a popover anchored to THIS column
+        (not a panel below the row), so the choice appears where the new widget will land. The
+        controller hides the whole column when the row is full (Σ units == 6) and disables picker
+        options that no longer fit the remaining units. %>
+    <div data-add-col class="dashboard-edit-add-col">
+      <button type="button" data-add-widget data-action="click->dashboard-inline-edit#addWidget"
+              class="dashboard-edit-add-widget-col" aria-label="<%= t('dashboard.configuration.add_widget') %>">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+      </button>
+      <div data-add-picker-host class="dashboard-edit-add-picker hidden"></div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,53 @@
+<%# Inline "edit meeting" form rendered into the detail frame (no modal). Submits
+    as turbo_stream to #update; delete sits on the left, save/cancel on the right. %>
+<div id="meeting-form-card" class="meeting-content min-w-0 relative">
+  <% current_frame_id = local_assigns[:detail_frame_id] || 'meeting_display_frame' %>
+  <%= render 'organisations/meetings/form_lane_head', new_form: false %>
+  <h2 class="text-[22px] leading-snug font-bold text-cream-900 mb-6 break-words [overflow-wrap:anywhere]">
+    <%= t('views.organisations.meetings.show.edit_meeting') %>
+  </h2>
+  <%= form_with(model: [@current_organisation, @project, meeting], format: :turbo_stream,
+                data: { turbo_frame: current_frame_id }) do |form| %>
+    <%= hidden_field_tag :frame_id, current_frame_id %>
+    <%# Carry the active list filter through the write flow (see _meeting_new_for_frame). %>
+    <%= meeting_list_hidden_fields %>
+    <%= render 'organisations/meetings/form_fields', form: form, meeting: meeting %>
+
+    <div class="flex justify-between items-center mt-6">
+      <div>
+        <% if policy(meeting).destroy? %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :danger,
+            icon: 'trash',
+            confirm: t('views.confirm.are_you_sure'),
+            form: {
+              action: organisation_project_meeting_path(@current_organisation, @project, meeting,
+                                                        **meeting_lane_state.symbolize_keys,
+                                                        viewport: @viewport_mode),
+              method: :delete
+            }
+          ) do %>
+            <%= t('views.organisations.meetings.form.delete') %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="flex gap-2">
+        <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :edit,
+          url: organisation_project_meeting_path(@current_organisation, @project, meeting,
+                                                 frame: 'content', frame_id: current_frame_id,
+                                                 **meeting_lane_state.symbolize_keys,
+                                                 viewport: @viewport_mode),
+          data: { turbo_frame: current_frame_id }
+        ) do %>
+          <%= t('views.organisations.meetings.form.cancel') %>
+        <% end %>
+
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, type: 'submit') do %>
+          <%= t('views.organisations.meetings.form.save') %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

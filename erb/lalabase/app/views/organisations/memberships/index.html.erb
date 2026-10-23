@@ -1,0 +1,59 @@
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
+<%= render 'organisations/shared/settings_subnav', active: :members %>
+<% can_manage_members = current_user.account_admin_in?(@current_organisation) %>
+<%= turbo_frame_tag 'members_workspace', data: { controller: 'membership-workspace', action: 'click->membership-workspace#navigate keydown.esc->membership-workspace#closePanel click@document->membership-workspace#closeOutside popstate@window->membership-workspace#restore turbo:frame-load->membership-workspace#restoreFocus' } do %>
+  <div class="members-toolbar">
+    <p class="text-sm text-muted">
+      <%= t('member_management.count', count: @member_count) %>
+      <% if can_manage_members && @invitations.any? %>
+        · <%= link_to t('member_management.invitation_count', count: @invitations.size), '#pending-invitations', class: 'hover:underline' %>
+      <% end %>
+    </p>
+    <div class="members-tools">
+      <% if @member_count >= 12 || params[:q].present? %>
+        <%= form_with url: organisation_memberships_path(@current_organisation), method: :get, class: 'members-search', data: { action: 'submit->membership-workspace#search' } do |form| %>
+          <% membership_list_params.except(:q).each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+          <%= form.search_field :q, value: params[:q], placeholder: t('member_management.search'), 'aria-label': t('member_management.search'), class: 'members-search-input' %>
+          <button type="submit" class="members-more" title="<%= t('member_management.search') %>" aria-label="<%= t('member_management.search') %>"><i class="bi bi-search" aria-hidden="true"></i></button>
+        <% end %>
+      <% end %>
+      <%= render 'common/contextual_help_menu', context: :settings_members %>
+      <% if can_manage_members %>
+        <%= link_to t('views.organisations.access_matrix.link'), organisation_access_matrix_index_path(@current_organisation), class: 'members-text-action', data: { turbo_frame: '_top' } %>
+        <%= link_to t('member_management.invite'), new_organisation_invitation_path(@current_organisation), class: 'members-invite', data: { turbo_frame: '_top' } %>
+      <% end %>
+    </div>
+  </div>
+  <% if flash[:notice].present? || flash[:alert].present? %><p class="mb-3 text-sm text-muted" role="status"><%= flash[:alert] || flash[:notice] %></p><% end %>
+  <% if flash[:warning].present? %><p class="mb-3 text-sm text-muted" role="status"><%= flash[:warning] %></p><% end %>
+  <div class="members-layout <%= 'members-layout--open' if @membership %>" data-membership-workspace-url="<%= membership_list_path %>">
+    <div class="members-list">
+      <table class="members-table">
+        <thead><tr>
+          <% %w[name role since].each do |column| %>
+            <th scope="col" class="members-col-<%= column %>" aria-sort="<%= (params[:sort].presence || 'name') == column ? (params[:direction] == 'desc' ? 'descending' : 'ascending') : 'none' %>">
+              <%= link_to membership_sort_path(column) do %>
+                <%= t("member_management.#{column}") %><% if (params[:sort].presence || 'name') == column %> <span aria-hidden="true"><%= params[:direction] == 'desc' ? '↓' : '↑' %></span><% end %>
+              <% end %>
+            </th>
+          <% end %>
+          <% if can_manage_members %>
+            <th scope="col" class="members-col-actions"><span class="sr-only"><%= t('member_management.actions') %></span></th>
+          <% end %>
+        </tr></thead>
+        <tbody>
+          <% @memberships.each do |membership| %>
+            <%= render 'member', membership: membership, can_manage_members: can_manage_members %>
+          <% end %>
+        </tbody>
+      </table>
+      <% if @memberships.empty? %>
+        <p class="py-6 text-sm text-muted"><%= t('member_management.empty') %></p>
+      <% end %>
+      <% if can_manage_members && @invitations.any? %><%= render 'invitations' %><% end %>
+    </div>
+    <% if @membership %><%= render 'panel', membership: @membership %><% end %>
+  </div>
+<% end %>

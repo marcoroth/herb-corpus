@@ -1,0 +1,87 @@
+<!doctype html>
+<%# Werkstatt auth layout (design handoff round 1, 3a/3b).
+
+    THIS LAYOUT OWNS THE SKELETON of every page a visitor sees while signed out:
+    the brand row, the paper form column, the legal line and the dark context
+    panel. Deliberately NO site header and NO site footer.
+
+    A view supplies four things and nothing else:
+      yield                     the form column body (eyebrow, heading, form)
+      content_for :auth_cross   the link at the top right ("no account yet?")
+      content_for :auth_panel   the content of the dark panel
+      content_for :auth_panel_decorative
+                                set it when the panel is a mock that repeats
+                                nothing (sign-in, sign-up). It is then hidden
+                                from screen readers. A panel carrying a fact of
+                                its own -- how long a reset link is valid --
+                                leaves it unset so the fact can be read.
+
+    The skeleton was hand-copied into three views before 20.09.2026, and the four
+    remaining auth pages would have made seven copies. Guard:
+    spec/requests/auth_pages_skeleton_spec.rb. %>
+<html class="theme-lime" lang="<%= I18n.locale %>">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><%= content_for?(:title) ? yield(:title) : t('application.title', default: Lalabase::PRODUCT_NAME) %></title>
+
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= favicon_link_tag 'favicon.svg', type: 'image/svg+xml' %>
+    <%= favicon_link_tag 'favicon.png', type: 'image/png', sizes: '32x32' %>
+
+    <%# Archivo + JetBrains Mono, self-hosted (GDPR) %>
+    <%= stylesheet_link_tag "lalabase-fonts", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "tailwind", "inter-font", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%# Authentication styles, scoped under .lp %>
+    <%= stylesheet_link_tag "auth", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    <meta name="turbo-prefetch" content="false">
+  </head>
+
+  <body class="font-sans text-base font-normal text-black bg-gray-100">
+    <div class="lp lp-auth">
+      <div class="lp-auth-form-col">
+        <div class="lp-auth-top">
+          <%= link_to root_path, class: 'lp-brand' do %>
+            <%= render 'shared/brand_mark' %>
+          <% end %>
+          <%= yield :auth_cross %>
+        </div>
+
+        <div class="lp-auth-main">
+          <%# The flash sits above the heading rather than floating over the dark
+              panel, where the old fixed banner landed. %>
+          <% { notice: notice, alert: alert }.each do |kind, message| %>
+            <% next if message.blank? %>
+            <div class="lp-auth-flash lp-auth-flash--<%= kind %>" role="<%= kind == :alert ? 'alert' : 'status' %>">
+              <%= message %>
+            </div>
+          <% end %>
+
+          <%= yield %>
+        </div>
+
+        <div class="lp-auth-legal">
+          <span><%= legal_operator_credit %></span>
+          <%= legal_footer_links %>
+        </div>
+      </div>
+
+      <%= tag.aside class: 'lp-auth-panel',
+                    aria: { hidden: content_for?(:auth_panel_decorative).presence } do %>
+        <div class="lp-auth-panel-in">
+          <%= yield :auth_panel %>
+        </div>
+      <% end %>
+    </div>
+
+    <% if Rails.env.staging? %>
+      <div class="fixed bottom-0 left-0 z-40">
+        <span class="bg-yellow-500 text-black px-3 py-2 text-xs font-semibold">staging</span>
+      </div>
+    <% end %>
+  </body>
+</html>

@@ -1,0 +1,259 @@
+<!-- app/views/smart_folder_rules/_rule_fields.html.erb -->
+<!-- Called by _rule_group_fields.html.erb -->
+<!-- The 'form' variable here is the FormBuilder for the rule -->
+
+<!-- Unique ID and data for Stimulus -->
+<div class="smart-folder-rule p-3 border border-gray-200 bg-gray-50 rounded-lg flex items-center"
+     id="<%= dom_id(form.object) %>"
+     data-rule-index="<%= form.options[:child_index] %>"
+     data-group-index="<%= form.object.smart_folder_rule_group&.position || form.options[:parent_builder]&.options[:child_index] %>"
+     data-smart-folder-form-target="rule">
+
+  <%
+    # Berechne Feldoptionen direkt im Partial falls nicht verfügbar
+    unless defined?(@field_options) && @field_options
+      target_type = form.object.smart_folder_rule_group&.smart_folder&.target_object_type || 'All'
+      sf_fallback_project = form.object.smart_folder_rule_group&.smart_folder&.project || @smart_folder&.project
+      @field_options = available_field_options(target_type, @current_organisation, project: sf_fallback_project)
+    end
+  %>
+
+  <div class="flex gap-3 flex-grow-1">
+    <div class="flex-grow-1">
+      <!-- Field dropdown -->
+      <div class="flex flex-col md:flex-row gap-2">
+        <%= form.select :field,
+                      options_for_select(
+                        @field_options.map { |opt|
+                          option = [opt[:label], opt[:value]]
+                          # Füge data-Attribute für client-seitige Filterung hinzu
+                          option << { data: {
+                            applicable_types: opt[:applicable_types].to_json,
+                            value_type: opt[:value_type],
+                            reference_model: opt[:reference_model]
+                          }}
+                          option
+                        },
+                        form.object.field
+                      ),
+                      { include_blank: t('helpers.select.prompt') },
+                      { class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                        required: true,
+                        data: {
+                          action: "change->smart-folder-form#fieldChanged",
+                          smart_folder_form_target: "fieldSelect"
+                        }
+                      } %>
+
+        <!-- Operator dropdown (updated dynamically based on the field) -->
+        <% sf_project = form.object.smart_folder_rule_group&.smart_folder&.project || @smart_folder&.project %>
+        <% field_config_all = SmartFolderRule.field_config_with_custom_attributes(@current_organisation, sf_project) %>
+        <%= form.select :operator,
+                      form.object.field.present? ?
+                        options_for_select(
+                          field_config_all[form.object.field]&.dig(:operators)&.map { |op|
+                            [SmartFolderRule.operator_label(form.object.field, op), op]
+                          } || [],
+                          form.object.operator
+                        ) : [],
+                      { include_blank: t('helpers.select.prompt') },
+                      { class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                        required: true,
+                        data: {
+                          action: "change->smart-folder-form#operatorChanged",
+                          smart_folder_form_target: "operatorSelect"
+                        }
+                      } %>
+      </div>
+    </div>
+
+    <!-- Value container (display varies depending on field type) -->
+    <div class="flex-grow-1" data-smart-folder-form-target="valueContainer">
+      <% if form.object.field.present? && form.object.operator.present? %>
+        <% field_config = field_config_all[form.object.field] %>
+        <% case field_config[:value_type] %>
+        <% when :reference_set %>
+          <%= render 'organisations/smart_folder_rules/reference_set', form: form, project: sf_project %>
+        <% when :text %>
+          <% if field_config[:custom] && field_config[:attribute_definition] && ['select', 'multiselect'].include?(field_config[:attribute_definition].field_type) %>
+            <%# Custom attribute with select options %>
+            <% allowed_values = field_config[:attribute_definition].allowed_values %>
+            <% is_list_operator = SmartFolders::Operators::LIST_MEMBERSHIP.include?(form.object.operator) %>
+            <% selected_values = is_list_operator ? form.object.value.to_s.split(',').map(&:strip) : form.object.value %>
+            <% if is_list_operator %>
+              <%# Checkbox list for in_list/not_in_list — values are stored as a comma string %>
+              <div class="border border-gray-300 rounded-md max-h-48 overflow-y-auto py-1"
+                   data-smart-folder-form-target="multiSelect">
+                <% allowed_values.each do |opt| %>
+                  <% opt_value = opt['value'] %>
+                  <% opt_label = opt['labels']&.dig(I18n.locale.to_s) || opt['labels']&.dig(I18n.default_locale.to_s) || opt_value %>
+                  <label class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-100 cursor-pointer transition-colors">
+                    <input type="checkbox"
+                           value="<%= opt_value %>"
+                           <%= 'checked' if selected_values.include?(opt_value) %>
+                           data-action="change->smart-folder-form#checkboxListChanged"
+                           class="w-4 h-4 rounded border border-slate-200 text-cream-900 focus:ring-black focus:ring-offset-0">
+                    <span class="text-xs"><%= opt_label %></span>
+                  </label>
+                <% end %>
+              </div>
+              <%# Hidden field holds the comma string for the server %>
+              <%= form.hidden_field :value, data: { smart_folder_form_target: "multiSelectHidden" } %>
+            <% else %>
+              <%= form.select :value,
+                            options_for_select(
+                              allowed_values.map { |opt|
+                                label = opt['labels']&.dig(I18n.locale.to_s) ||
+                                       opt['labels']&.dig(I18n.default_locale.to_s) ||
+                                       opt['value']
+                                [label, opt['value']]
+                              },
+                              form.object.value
+                            ),
+                            { include_blank: t('helpers.select.prompt') },
+                            { class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm' } %>
+            <% end %>
+          <% else %>
+            <%= form.text_field :value, autocomplete: 'off',
+                              class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                              placeholder: t('smart_folders.value_placeholder') %>
+          <% end %>
+        <% when :number %>
+          <% if form.object.operator == SmartFolders::Operators::BETWEEN %>
+            <div class="flex items-center space-x-2">
+              <%= text_field_tag nil, form.object.value.to_s.split(',').first, autocomplete: 'off',
+                    class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                    placeholder: t('smart_folders.min_value'),
+                    type: 'number',
+                    data: {
+                      action: "blur->smart-folder-form#updateCombinedValue",
+                      smart_folder_form_target: "rangeStartInput",
+                      field_type: 'number'
+                    } %>
+              <span class="px-2 text-gray-500">-</span>
+              <%= text_field_tag nil, form.object.value.to_s.split(',').last, autocomplete: 'off',
+                    class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                    placeholder: t('smart_folders.max_value'),
+                    type: 'number',
+                    data: {
+                      action: "blur->smart-folder-form#updateCombinedValue",
+                      smart_folder_form_target: "rangeEndInput",
+                      field_type: 'number'
+                    } %>
+              <%= form.hidden_field :value, data: { smart_folder_form_target: "hiddenValueField" } %>
+            </div>
+          <% else %>
+            <%= form.number_field :value,
+                                class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                                min: 0,
+                                step: 'any' %>
+          <% end %>
+        <% when :date %>
+          <% if SmartFolderRule.optional_value_operators.include?(form.object.operator) %>
+            <%# Valueless operator (presence, a deadline preset, a date preset): nothing to enter %>
+            <%= form.hidden_field :value, value: nil %>
+          <% elsif form.object.operator == SmartFolders::Operators::BETWEEN %>
+            <div class="flex items-center space-x-2">
+              <%= text_field_tag nil, form.object.value.to_s.split(',').first, autocomplete: 'off',
+                    type: 'date',
+                    class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                    data: {
+                      action: "change->smart-folder-form#updateCombinedValue",
+                      smart_folder_form_target: "rangeStartInput",
+                      field_type: 'date'
+                    } %>
+              <span class="px-2 text-gray-500">-</span>
+              <%= text_field_tag nil, form.object.value.to_s.split(',').last, autocomplete: 'off',
+                    type: 'date',
+                    class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                    data: {
+                      action: "change->smart-folder-form#updateCombinedValue",
+                      smart_folder_form_target: "rangeEndInput",
+                      field_type: 'date'
+                    } %>
+              <%= form.hidden_field :value, data: { smart_folder_form_target: "hiddenValueField" } %>
+            </div>
+          <% elsif SmartFolders::Operators::RELATIVE_DATE.include?(form.object.operator) %>
+            <div class="flex items-center">
+              <%= form.number_field :value,
+                                  class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                                  min: 1 %>
+              <span class="pl-2 text-gray-700"><%= t('generic.days') %></span>
+            </div>
+          <% else %>
+            <%= form.date_field :value,
+                              class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm' %>
+          <% end %>
+        <% when :boolean %>
+          <%= form.select :value,
+                        options_for_select([
+                          [t('generic.yes'), true],
+                          [t('generic.no'), false]
+                        ], form.object.value),
+                        { include_blank: t('helpers.select.prompt') },
+                        { class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm' } %>
+        <% when :reference %>
+          <% if field_config[:reference_model].present? %>
+            <% reference_options = available_reference_options(form.object.field, @current_organisation, project: sf_project, area: (@smart_folder&.column_view_type || 'tickets').to_sym) %>
+            <%= form.select :value,
+                          options_for_select(
+                            reference_options.map { |opt| [opt[:label], opt[:value].to_s] },
+                            form.object.value.to_s
+                          ),
+                          { include_blank: t('helpers.select.prompt') },
+                          { class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm js-reference-select',
+                            data: {
+                              smart_folder_form_target: "referenceSelect",
+                              reference_model: field_config[:reference_model],
+                              field: form.object.field
+                            }
+                          } %>
+          <% else %>
+            <%= form.text_field :value, autocomplete: 'off',
+                              class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                              placeholder: t('smart_folders.value_placeholder') %>
+          <% end %>
+        <% else %>
+          <%= form.text_field :value, autocomplete: 'off',
+                            class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                            placeholder: t('smart_folders.value_placeholder') %>
+        <% end %>
+      <% else %>
+        <%= form.text_field :value, autocomplete: 'off',
+                          class: 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cobalt-500 focus:border-cobalt-500 sm:text-sm',
+                          placeholder: t('smart_folders.value_placeholder'),
+                          style: 'visibility: hidden' %>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Button group for adding and removing rules -->
+  <div class="ml-3 flex space-x-2">
+
+    <!-- Button to remove this rule -->
+    <!-- The icon (not the button) is dynamically greyed out when this is the last rule -->
+    <%= button_tag type: 'button',
+      class: 'w-6 h-6 relative inline-flex flex-row items-center justify-center rounded-full text-base tracking-[.00714em] font-medium border border-stroke hover:shadow-sm focus:shadow-sm bg-surface-raised text-cream-900 remove-rule-btn',
+      title: t('smart_folders.remove_rule', default: 'Regel entfernen'),
+      data: {
+        action: "click->smart-folder-form#removeRule",
+        smart_folder_form_target: "removeRuleBtn"
+      } do %>
+      <i class="bi bi-dash font-bold text-sm"></i>
+    <% end %>
+
+    <!-- Hidden field for _destroy -->
+    <%= form.hidden_field :_destroy %>
+    <!-- Position (hidden if applicable) -->
+    <%= form.hidden_field :position %>
+
+        <!-- Button to add a new rule -->
+    <%= button_tag type: 'button',
+                  class: 'w-6 h-6 relative inline-flex flex-row items-center justify-center rounded-full text-base tracking-[.00714em] font-medium border border-stroke hover:shadow-sm focus:shadow-sm bg-surface-raised text-cream-900',
+                  title: t('smart_folders.add_rule', default: 'Regel hinzufügen'),
+                  data: { action: "click->smart-folder-form#addRule" } do %>
+      <i class="bi bi-plus font-bold text-sm"></i>
+    <% end %>
+
+  </div>
+</div>

@@ -1,0 +1,36 @@
+<%# locals: (meeting:, selected_meeting: nil) %>
+<%
+  selected_id = selected_meeting&.id || params[:meeting_id]
+  is_selected = selected_id == meeting.id
+  # Both lists open the meeting in their lane. The detail is project-nested,
+  # so the address names the meeting's own project (on "Alle Meetings" there is
+  # no @project), and on "Alle Meetings" it says which list the lane belongs to
+  # (list_context, MeetingList): a save there redraws that list.
+  detail_url = organisation_project_meeting_path(@current_organisation, meeting.project_id, meeting,
+                                                 Meetings::ListState.context_query(organisation: meeting_organisation_list?))
+  row_data = { controller: 'list-row', list_row_url_value: detail_url, list_row_id_value: meeting.id, list_row_param_value: 'meeting_id',
+               list_row_params_value: %w[meeting_id].to_json, list_row_frame_value: 'meeting_display_frame',
+               meetings_row_item_id_value: meeting.id, meeting_id: meeting.id, action: 'click->list-row#click' }
+  # Cell widths MUST stay in sync with the <th> widths in _meetings_table.
+%>
+<%= tag.tr data: row_data, tabindex: -1,
+           class: "transition-colors duration-100 ease-in-out cursor-pointer focus:outline-none hover:bg-cream-100 #{'selected-row' if is_selected}" do %>
+  <% @columns.each do |column| %>
+    <td data-column="<%= column[:key] %>" <%= tag.attributes(data: { rank: column[:rank] }) %>
+        style="<%= column_min_width_style(column) %>" class="p-3 text-sm <%= column[:required] ? 'title-column' : column_align_class(column) %>">
+      <% if column[:key] == 'title' %>
+        <h5 class="text-sm font-medium truncate">
+          <%= meeting.title %>
+        </h5>
+        <div class="ticket-meta text-[11px] text-muted truncate">
+          <% @columns.reject { |item| item[:required] }.each do |item| %>
+            <% value = meeting_column_value(meeting, item) %>
+            <span class="ticket-meta__item" data-rank="<%= item[:rank] %>" <%= 'hidden' unless item[:pinned] && value.present? %> title="<%= item[:label] %>"><%= value %></span>
+          <% end %>
+        </div>
+      <% else %>
+        <%= tag.div meeting_column_value(meeting, column), class: 'truncate', title: strip_tags(meeting_column_value(meeting, column).to_s) %>
+      <% end %>
+    </td>
+  <% end %>
+<% end %>

@@ -1,0 +1,64 @@
+<%# Important: This partial is used for replacing the note-display div - NO turbo-frame tag needed here %>
+<%# The note's one root, on every road (page load, frame request, update
+    stream): .note-content is what layout-toggle and index-page look for,
+    No surface, no
+    border, no radius and no sideways padding: the lane column holds its
+    content off its edges once (layout.css, .layout--lane .column.content),
+    and a card inside it was a box on the workbench. Guard:
+    one_page_edge_guard_spec, "the lane". %>
+<%# assistant_context_attributes: the page NAMES its note so the assistant
+    panel can offer to take it over (doc/assistent_wissen_kontext_plan.md,
+    step 3). On this root because it is the one root on every road; the forms
+    carry none, an unsaved draft is nothing the assistant can read. %>
+<div id="note-header" class="note-content relative" data-controller="note-actions" data-note-actions-note-id-value="<%= note.id %>" data-action="turbo:submit-end->note-actions#refreshEditButton"
+     <%= assistant_context_attributes(note) %>>
+    <% current_frame_id = local_assigns[:detail_frame_id] || 'note_display_frame' %>
+    <%# The head (S3): type word, pencil, the assistant, ✕, then the title one
+        step under the page title. note-edit-button stays as the hook
+        note_actions and the Lexxy round-trip system spec find the pencil by. %>
+    <%= render 'organisations/knowledge/lane_head',
+               type_word: t('views.organisations.knowledge.knowledge_row.note_type'),
+               assistant_record: note,
+               edit: (policy(note.project).area_access?(:notes, :write) ? {
+                 href: edit_organisation_project_note_path(@current_organisation, note.project, note, format: :turbo_stream, frame_id: current_frame_id, _: local_assigns[:timestamp] || Time.now.to_i),
+                 title: t('views.organisations.notes.note_show.edit_title'),
+                 frame: current_frame_id,
+                 hook: 'note-edit-button'
+               } : nil) %>
+
+    <div class="flex flex-col gap-2 mb-4">
+      <h2 class="text-[22px] leading-snug font-bold tracking-tight text-cream-900" data-lane-title><%= note.title %></h2>
+      <%# The meta line under the title, as the ticket has its metadata row. %>
+      <div class="text-sm text-cream-600 flex items-center gap-2">
+        <span><%= note.created_at.strftime("%d.%m.%Y %H:%M") %></span>
+        <%= link_to t("views.organisations.note_versions.shared.history_link"),
+                    organisation_project_note_versions_path(@current_organisation, note.project, note, frame_id: current_frame_id),
+                    data: { turbo_frame: current_frame_id },
+                    class: "underline hover:text-ink" %>
+      </div>
+      <% if note.tags.any? %>
+        <div class="flex flex-wrap gap-2">
+          <% note.tags.each do |tag| %>
+            <%= render NeoTagComponent.new(text: tag.name, variant: :warning, size: :small) %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <%# The rendered rich text brings its own lexxy-content wrapper (layouts/action_text/contents). %>
+    <div class="text-cream-800"><%= note.content %></div>
+
+    <%# Of the three indexing chips only the ERROR stays (user, 10.09.2026):
+        "searchable" and "processing" told a reader about a mechanism that runs by
+        itself now; a failure is the one state somebody can act on. %>
+    <% if note.embedding_creation_error.present? %>
+      <div class="flex flex-wrap gap-2 mt-4 justify-end">
+        <%= render NeoInfoTagComponent.new(
+          text: t('views.organisations.notes.note_show.embedding_error'),
+          variant: :danger,
+          icon: "exclamation-triangle-fill",
+          title: t('views.organisations.notes.note_show.embedding_error_title', error: note.embedding_creation_error)
+        ) %>
+      </div>
+    <% end %>
+  </div>

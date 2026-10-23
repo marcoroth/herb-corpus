@@ -1,0 +1,86 @@
+<%# locals: () %>
+<%# The meetings page head belongs to its list column, matching tickets and
+    knowledge. It stays outside #meetings_results so filtering only replaces
+    the rows and never the controls that initiated the request. %>
+<%= render NeoProjectLayoutHeaderComponent.new(
+  title: t('views.organisations.meetings.index.title'),
+  subtitle: @project.name,
+  project: @project,
+  selected_item: @selected_meeting || @new_meeting,
+  content_open: @selected_meeting.present? || @new_meeting.present?,
+  context_type: :meetings,
+  margin_bottom: 'mb-3.5'
+) do |header| %>
+  <%# The "+" opens the form as a state of the lane (?new=meeting), as the "+"
+      of "Alle Meetings" opens its project select: a lane-link, so the address
+      says new instead of the meeting that was open, and that meeting's row
+      loses its mark. The address bar at click time gives the list state, and
+      below the lane width the page itself is visited. The href is the same
+      state for a new tab, a page without JavaScript and the phone layout,
+      which has no lane. %>
+  <% if policy(@project).area_access?(:meetings, :write) %>
+    <% header.with_title_action do %>
+      <% lane_data = {
+           controller: 'lane-link',
+           action: 'click->lane-link#click',
+           lane_link_url_value: new_organisation_project_meeting_path(@current_organisation, @project),
+           lane_link_frame_value: Organisations::MeetingsController::DETAIL_FRAME_ID,
+           lane_link_set_value: { new: 'meeting' }.to_json,
+           lane_link_remove_value: %w[meeting_id].to_json
+         } %>
+      <%= render Neo::Buttons::IconButtonComponent.new(
+        variant: :primary,
+        icon: 'plus-lg',
+        size: :medium,
+        title: t('views.organisations.meetings.index.new_meeting'),
+        url: organisation_project_meetings_path(@current_organisation, @project, meeting_list_state.merge('new' => 'meeting')),
+        data: @viewport_mode == 'mobile' ? { turbo_frame: '_top' } : lane_data
+      ) %>
+    <% end %>
+  <% end %>
+
+  <% header.with_right_content do %>
+    <div class="flex items-center gap-2">
+      <%# No time button here (16.09.2026). Time is booked on a meeting at the
+          hours chip in its detail meta row, as on a ticket; project time
+          without a subject is booked on the times page. %>
+      <%= render 'common/contextual_help_menu', context: :meetings %>
+    </div>
+  <% end %>
+<% end %>
+
+<%= render 'organisations/meetings/claim_suggestions', matches: meeting_claim_matches %>
+
+<% unless meetings_first_use?(@project) %>
+<%= render NeoFilterBarComponent.new(
+  current_user_id: current_user.id,
+  smart_folders: @meeting_smart_folders,
+  url: organisation_project_meetings_path(@current_organisation, @project),
+  frame_id: 'meetings_results',
+  i18n_scope: 'views.organisations.meetings.index',
+  all_items_label: t('smart_folders.all_meetings'),
+  smart_folder_context_type: 'Meeting',
+  smart_folder_return_to: 'meetings',
+  save_target_object_type: 'Meeting',
+  return_params: meeting_list_state.merge(params.permit(:meeting_id, :new).to_h),
+  return_keys: Meetings::ListState::KEYS + %w[meeting_id new],
+  active_smart_folder: @active_smart_folder,
+  active_view_permissions: filter_bar_view_permissions(@active_smart_folder),
+  dissolver_result: @dissolver_result,
+  ad_hoc_filters: ad_hoc_filter_params,
+  ad_hoc_operators: ad_hoc_filter_op_params,
+  dropped_categories: dropped_filter_categories,
+  filter_categories_json: meeting_filter_categories_json(scope: policy_scope(@project.meetings), organisation: @current_organisation),
+  search_value: params[:search],
+  search_mode: @current_search_mode,
+  search_modes: %w[title_only content],
+  keyboard_navigation: true,
+  project: @project,
+  organisation: @current_organisation
+) do |bar| %>
+  <% bar.with_view_tool do %>
+    <%= render 'organisations/meetings/column_picker_trigger' %>
+  <% end %>
+<% end %>
+
+<% end %>

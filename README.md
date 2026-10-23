@@ -9,9 +9,9 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **354** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **39,335** from 284 apps |
-| Size of `erb/` | ~61 MB |
+| Applications and engines | **355** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **40,047** from 285 apps |
+| Size of `erb/` | ~64 MB |
 | Excluded pending license review | 70 apps |
 
 <!-- corpus:stats:end -->
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**143 of 354** applications use Herb: `herb` 91, `@herb-tools/linter` 58, `@herb-tools/formatter` 36, `.herb.yml` 109, `.herb/` 1.
+**143 of 355** applications use Herb: `herb` 91, `@herb-tools/linter` 58, `@herb-tools/formatter` 36, `.herb.yml` 109, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -661,7 +661,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**28 of 354** applications use ReActionView: `reactionview` 28.
+**28 of 355** applications use ReActionView: `reactionview` 28.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -789,7 +789,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**38 of 354** applications use `erb_lint` directly. 6 dropped it and now use Herb, and 22 run both.
+**39 of 355** applications use `erb_lint` directly. 6 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -855,7 +855,7 @@ the commit that removed it.
 - [neighbourly](https://github.com/sofiabesenski4/neighbourly/tree/ea4316a61617092a3edfef717c1dd435bccd7aa1): Adopted `erb_lint` in 2026, still using it 1 month later, started Herb in 2026.
   [2026-09-30](https://github.com/sofiabesenski4/neighbourly/commit/81ee758b5b96d8dee2c45df1e8f537b24bfb5ccd "added Gemfile") · gem `0.9.0` · [herb 2026-09-30](https://github.com/sofiabesenski4/neighbourly/commit/81ee758b5b96d8dee2c45df1e8f537b24bfb5ccd "first seen in Gemfile")
 
-**Still on erb_lint** (16)
+**Still on erb_lint** (17)
 
 - [publify](https://github.com/publify/publify/tree/c1622c1427e9a8a3f0880a4382a7632e97062409): Adopted `erb_lint` in 2018, still using it 7 years later.
   [2018-12-30](https://github.com/publify/publify/commit/12cb58660970a90f74b7f8e8a9ba8ce74b10583f "added .erb-lint.yml") · `.erb-lint.yml`
@@ -887,12 +887,14 @@ the commit that removed it.
   [2025-06-09](https://github.com/MarkUsProject/Markus/commit/ab3637bac2b511d736276cb19dda4d3e6950b95f "added .erb_lint.yml") · gem `0.9.0` · `.erb_lint.yml`
 - [annict](https://github.com/annict/annict/tree/75a8e42640eb3f16c5a08ee3049b1f87d38d708f): Adopted `erb_lint` in 2025, still using it 11 months later.
   [2025-11-29](https://github.com/annict/annict/commit/1afb57063803b033eb77d0a5c47efa333cc95f8a "added Gemfile") · gem `0.8.0` · `.erb_lint.yml`
+- [lalabase](https://github.com/lalabase/lalabase/tree/1572c328fef9407b6b2215b22404584db333305b): Adopted `erb_lint` in 2026, still using it 1 month later.
+  [2026-10-12](https://github.com/lalabase/lalabase/commit/c8f6e4acf5deca9444ea3b87c75251c9246e8ec4 "added Gemfile") · gem `0.9.0` · `.erb-lint.yml`
 - [website](https://github.com/crimethinc/website/tree/49808de8bcaa860dd8b15ff62d1778f923c27964): Uses `erb_lint`.
   gem `0.9.0`
 
 ### better_html
 
-**10 of 354** applications use `better_html` directly. 3 dropped it and now use Herb, and 7 run both.
+**10 of 355** applications use `better_html` directly. 3 dropped it and now use Herb, and 7 run both.
 
 > History could not be searched in 96 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -933,7 +935,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 354** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 355** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
 

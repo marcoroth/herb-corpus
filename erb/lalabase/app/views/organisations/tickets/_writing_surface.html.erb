@@ -1,0 +1,137 @@
+<%# The ONE ticket form (doc/inline_bilder_paket_3_plan.md, P3-E1/E2/E3): creating from the %>
+<%# ticket list or the dashboard and editing from the detail view all render this into %>
+<%# turbo-frame#writing_surface as a viewport-filling layer. Left: title and description (Lexxy with the %>
+<%# image rule, grows to the available height). Right: assignment, attributes, tags, %>
+<%# attachments, buttons. Saving answers with Turbo Streams that clear the frame; errors %>
+<%# re-render the surface in place. Escape closes only an unchanged form %>
+<%# (neo_writing_surface_controller). %>
+<%# Locals: ticket, project, source ('index_page' | 'dashboard'). %>
+<% source = local_assigns[:source] || 'index_page' %>
+<% editing = ticket.persisted? %>
+<turbo-frame id="writing_surface">
+  <div class="writing-surface"
+       role="dialog" aria-modal="true"
+       aria-label="<%= editing ? t('views.organisations.tickets.writing_surface.edit_title') : t('views.organisations.tickets.writing_surface.new_title') %>"
+       data-controller="neo-writing-surface"
+       data-neo-writing-surface-unsaved-message-value="<%= t('views.organisations.tickets.writing_surface.unsaved_changes') %>"
+       data-action="keydown.esc@window->neo-writing-surface#escape">
+    <%= form_with(model: [@current_organisation, project, ticket],
+                  url: editing ? organisation_project_ticket_path(@current_organisation, project, ticket) : organisation_project_tickets_path(@current_organisation, project),
+                  format: :turbo_stream,
+                  class: "writing-surface__form",
+                  data: { controller: "file-upload", neo_writing_surface_target: "form" }) do |form| %>
+      <%= hidden_field_tag :source, source %>
+      <%= hidden_field_tag :viewport, @viewport_mode if @viewport_mode.present? %>
+
+      <header class="writing-surface__header">
+        <h2 class="writing-surface__heading">
+          <%= editing ? t('views.organisations.tickets.writing_surface.edit_title') : t('views.organisations.tickets.writing_surface.new_title') %>
+        </h2>
+        <%= render Neo::Buttons::IconButtonComponent.new(
+              variant: :plain, icon: "x-lg",
+              title: t('views.organisations.tickets.writing_surface.close_title'),
+              data: { action: "click->neo-writing-surface#cancel" }
+            ) %>
+      </header>
+
+      <% if ticket.errors.any? %>
+        <div class="writing-surface__errors" role="alert">
+          <strong><%= t('views.organisations.tickets.writing_surface.errors_title') %></strong>
+          <ul>
+            <% ticket.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <div class="writing-surface__columns">
+        <div class="writing-surface__main">
+          <%= form.label :title, t('views.organisations.tickets.writing_surface.title_label'), class: "writing-surface__label" %>
+          <%= form.text_field :title,
+                placeholder: t('views.organisations.tickets.writing_surface.title_placeholder'),
+                maxlength: Ticket::TITLE_MAX_LENGTH,
+                autofocus: true,
+                class: "writing-surface__title #{ticket.errors[:title].any? ? 'writing-surface__field--invalid' : ''}",
+                data: { neo_writing_surface_target: "title" } %>
+
+          <%= form.label :content, t('views.organisations.tickets.writing_surface.description_label'), class: "writing-surface__label mt-4" %>
+          <p class="writing-surface__hint"><%= t('views.organisations.tickets.writing_surface.description_hint') %></p>
+          <%= form.lexxy_rich_text_area :content,
+                **lexxy_embed_editor_options(attachment_field: "ticket[ticket_document_files][]"),
+                class: "lexxy-content writing-surface__editor #{ticket.errors[:content].any? ? 'writing-surface__field--invalid' : ''}" %>
+        </div>
+
+        <aside class="writing-surface__meta">
+          <div data-controller="slim-select">
+            <%= form.label :assignee_ids, t('views.organisations.tickets.writing_surface.assigned_users'), class: "writing-surface__label" %>
+            <%= form.collection_select :assignee_ids,
+                  assignable_users_for(project, form.object), :id, :full_name,
+                  { prompt: t('views.organisations.tickets.writing_surface.select_user_prompt') },
+                  { class: "select writing-surface__select", multiple: true, data: { slim_select_target: "select" } } %>
+            <%# Empty array when nothing is selected, so an emptied assignment is saved. %>
+            <input type="hidden" name="ticket[assignee_ids][]" value="">
+          </div>
+
+          <% if ticket.visible_attribute_definitions.any? %>
+            <div class="writing-surface__attributes">
+              <% ticket.visible_attribute_definitions.each do |attr_def| %>
+                <%= render DynamicFieldComponent.new(form: form, attribute_definition: attr_def, ticket: ticket) %>
+              <% end %>
+            </div>
+          <% end %>
+
+          <%= render 'organisations/tags/tag_form', form: form, taggable: ticket, model_name: 'ticket' %>
+
+          <div>
+            <% if editing && ticket.ticket_documents.any? %>
+              <span class="writing-surface__label"><i class="bi bi-paperclip mr-1"></i><%= t('views.organisations.tickets.writing_surface.attachments_label') %></span>
+              <ul class="writing-surface__attachments">
+                <% ticket.ticket_documents.each do |doc| %>
+                  <li>
+                    <span class="truncate"><%= doc.ticket_document_file.filename %></span>
+                    <label class="writing-surface__remove">
+                      <%= check_box_tag "ticket[remove_document_ids][]", doc.id, false %>
+                      <%= t('views.organisations.tickets.writing_surface.remove_attachment') %>
+                    </label>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+            <%= form.label :ticket_document_files, t('views.organisations.tickets.writing_surface.add_attachments'), class: "writing-surface__label" %>
+            <%= form.file_field :ticket_document_files, multiple: true, direct_upload: true,
+                  class: "writing-surface__file",
+                  data: { file_upload_target: "input", action: "change->file-upload#filesSelected" } %>
+            <div data-file-upload-target="fileList" class="hidden mt-2 space-y-1"></div>
+          </div>
+
+        </aside>
+      </div>
+
+      <footer class="writing-surface__actions">
+        <%# A link with turbo_method, not a button_to: a nested form inside the surface
+            form would be invalid HTML. The delete stream clears this frame itself.
+            ButtonComponent directly, not DeleteButtonComponent: its icon_only: false
+            path drops the block label (icon-only button; same in the style guide). %>
+        <% if editing && policy(ticket).destroy? %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :danger, size: :large, tag: :a, icon: "trash",
+                href: organisation_project_ticket_path(@current_organisation, project, ticket),
+                confirm: t('views.confirm.are_you_sure'),
+                class: "writing-surface__delete",
+                data: { turbo_method: :delete }) do %>
+            <%= t('views.organisations.tickets.writing_surface.delete') %>
+          <% end %>
+        <% end %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :large, tag: :button, type: "button",
+              data: { action: "click->neo-writing-surface#cancel" }) do %>
+          <%= t('views.organisations.tickets.writing_surface.cancel') %>
+        <% end %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, tag: :button, type: "submit",
+              data: { file_upload_target: "submit" }) do %>
+          <%= t('views.organisations.tickets.writing_surface.save') %>
+        <% end %>
+      </footer>
+    <% end %>
+  </div>
+</turbo-frame>

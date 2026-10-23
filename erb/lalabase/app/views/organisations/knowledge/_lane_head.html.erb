@@ -1,0 +1,102 @@
+<%# locals: (type_word:, edit: nil, menu: nil, back: nil, assistant_record: nil) %>
+<%# The lane's head for a note, a document and their forms (S3 of
+    doc/wissen_als_bahn_plan.md, D4), after tickets/_ticket_header_show: a
+    quiet chrome row, then the object's title one step UNDER the page title.
+    Where the ticket has its number, the knowledge object has its type word
+    in mono ("Notiz", "Datei"): a note has no number, and the word says what
+    the lane holds without a second heading beside "Wissen".
+    Right: the pencil (writers only), the "···" for the rare and the
+    consequential (menu:, an array of Neo::OverflowMenuComponent item kwargs;
+    the document passes rename and delete, S3 of doc/dokumentansicht_plan.md,
+    the note passes none yet), a divider, the ✕. Everything on ONE rank,
+    32x32, frameless, cream-500 at rest (the ticket's action bar).
+    back: (the file preview, doc/dateivorschau_plan.md D4) is an unconditional
+    way back to the OBJECT, a word at the left where the type word stands,
+    visible at every width; a lane-link that takes the preview out of the
+    address and loads the object's frame (href: the plain fallback), and hands
+    the focus to what opened the preview (focus:).
+    Below lg the ✕ steps aside and the way back becomes a WORD, because there
+    the lane covers the list and a way back to something visible is not a
+    way. It is a real link to the page address without the selection and
+    WITH the live query (the frame fetch carries it, list_row_controller), so
+    it works on both templates. Not on the mobile page: that one renders its
+    own "Listenansicht" above the detail (NeoMobileTicketViewComponent).
+    History, versions, download and the danger zone stay in the body.
+    assistant_record: (doc/assistent_wissen_kontext_plan.md, step 3) is the
+    SAVED note or document this head crowns; the display roots and the preview
+    pass it, the forms do not (an unsaved draft is nothing the assistant can
+    read). It renders the "Assistent" button of the ticket's action bar in this
+    row: on the same rank as the pencil, outside the write-right condition (a
+    reader may ask about what they may read), lg only like the ✕ (below that
+    breakpoint there is no companion lane), attributes from the one owner of
+    the page-to-panel seam (assistant_trigger_attributes, nil = no assistant). %>
+<% icon_button = "flex h-8 w-8 items-center justify-center rounded-md text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 focus-visible:bg-cream-200 focus-visible:text-cream-900" %>
+<% assistant = assistant_record && assistant_trigger_attributes(assistant_record) %>
+<% back_query = request.query_parameters.except('frame', 'frame_id', 'format', *knowledge_lane_state_params) %>
+<div class="flex items-center gap-4 mb-2" data-lane-head>
+  <% if back %>
+    <a href="<%= back[:href] %>"
+       data-lane-back-to-object
+       data-controller="lane-link"
+       data-lane-link-url-value="<%= back[:url] %>"
+       data-lane-link-frame-value="<%= back[:frame] %>"
+       data-lane-link-remove-value="<%= back[:remove].to_json %>"
+       data-lane-link-focus-value="<%= back[:focus] %>"
+       data-action="click->lane-link#click"
+       autofocus
+       class="inline-flex h-8 items-center gap-1 rounded-lg px-2 -ml-2 text-[13px] font-normal text-cream-600 transition-colors hover:bg-cream-100 hover:text-cream-900 focus-visible:bg-cream-100 focus-visible:text-cream-900">
+      <span aria-hidden="true">&lsaquo;</span>
+      <%= back[:label] %>
+    </a>
+  <% else %>
+  <span class="hidden lg:inline font-mono text-[13px] tracking-wide text-cream-500"><%= type_word %></span>
+  <% end %>
+
+  <% unless @viewport_mode == 'mobile' || back %>
+    <a href="<%= organisation_project_knowledge_index_path(@current_organisation, @project, back_query) %>"
+       data-lane-back
+       data-turbo-frame="_top"
+       class="inline-flex lg:hidden h-8 items-center gap-1 rounded-lg px-2 -ml-2 text-[13px] font-normal text-cream-600 transition-colors hover:bg-cream-100 hover:text-cream-900 focus-visible:bg-cream-100 focus-visible:text-cream-900">
+      <span aria-hidden="true">&lsaquo;</span>
+      <%= t('views.organisations.knowledge.lane.back_to_list') %>
+    </a>
+  <% end %>
+
+  <div class="ml-auto flex items-center gap-1">
+    <% if edit %>
+      <a href="<%= edit[:href] %>"
+         class="<%= edit[:hook] %> <%= icon_button %>"
+         title="<%= edit[:title] %>"
+         data-turbo-frame="<%= edit[:frame] %>">
+        <i class="bi bi-pencil"></i>
+      </a>
+    <% end %>
+    <% if menu.present? %>
+      <%= render Neo::OverflowMenuComponent.new do |overflow| %>
+        <% menu.each { |item| overflow.with_item(**item) } %>
+      <% end %>
+    <% end %>
+    <% if assistant %>
+      <%# Icon-only like the ticket's; the title says what it does and, for a
+          document, that the CURRENT version is what the assistant reads,
+          whatever version the preview shows. %>
+      <button type="button"
+              class="hidden lg:<%= icon_button %>"
+              title="<%= t("views.organisations.knowledge.lane.ask_assistant.#{assistant_record.class.name.underscore}") %>"
+              data-lane-assistant
+              <%= assistant %>>
+        <i class="bi bi-stars"></i>
+      </button>
+    <% end %>
+    <% if edit || menu.present? || assistant %>
+      <span class="hidden lg:block h-5 w-px bg-cream-300" aria-hidden="true"></span>
+    <% end %>
+    <button type="button"
+            class="hidden lg:flex h-8 w-8 items-center justify-center rounded-md text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 focus-visible:bg-cream-200 focus-visible:text-cream-900"
+            title="<%= t('views.organisations.knowledge.lane.close') %>"
+            data-lane-close
+            data-action="click->layout-toggle#closeContent">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+</div>

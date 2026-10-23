@@ -1,0 +1,220 @@
+<div id="<%= dom_id %>"
+     class="mt-2"
+     data-controller="subscriber-picker"
+     data-subscriber-picker-url-value="<%= available_users_url %>">
+  <% if compact? %>
+    <%# Compact mode: Bell icon + count, popover with full list on hover %>
+    <div class="relative inline-block" data-controller="popover">
+      <button type="button"
+              class="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-cream-900 transition-colors"
+              data-action="mouseenter->popover#show mouseleave->popover#hide"
+              title="<%= t('views.shared.subscriber_list.label') %>">
+        <% if active_subscriber_count > 0 %>
+          <i class="bi bi-bell" style="font-size: 12px;"></i>
+          <span class="font-medium"><%= active_subscriber_count %></span>
+        <% else %>
+          <i class="bi bi-bell-slash" style="font-size: 12px;"></i>
+        <% end %>
+      </button>
+      <div class="hidden w-64 bg-surface-raised border border-slate-200 rounded-lg shadow-md p-3"
+           data-popover-target="content"
+           data-action="mouseenter->popover#show mouseleave->popover#hide">
+        <div class="text-xs font-semibold mb-2"><%= t('views.shared.subscriber_list.label') %></div>
+        <div class="flex flex-wrap gap-1">
+          <%# Current user — interactive toggle %>
+          <% entry = current_user_entry %>
+          <% if entry[:watching] %>
+            <%= button_to toggle_url,
+                  method: :post,
+                  params: { subscriber_mode: mode },
+                  class: "inline-flex items-center gap-1 px-2 py-0.5 bg-cream-200 border border-cream-400 rounded-full text-xs text-cream-900 hover:border-cream-500 cursor-pointer transition-colors",
+                  title: t('views.shared.subscriber_list.toggle_mute'),
+                  form_class: "inline" do %>
+              <i class="bi bi-bell text-cream-700" style="font-size: 10px;"></i>
+              <span class="font-medium"><%= t('views.shared.subscriber_list.you') %></span>
+            <% end %>
+          <% else %>
+            <%= button_to toggle_url,
+                  method: :post,
+                  params: { subscriber_mode: mode },
+                  class: "inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 border border-dashed border-slate-400 rounded-full text-xs text-gray-400 hover:bg-gray-50 hover:border-slate-600 hover:text-gray-600 cursor-pointer transition-colors",
+                  title: t('views.shared.subscriber_list.toggle_follow'),
+                  form_class: "inline" do %>
+              <i class="bi bi-bell-slash" style="font-size: 10px;"></i>
+              <span class="font-medium"><%= t('views.shared.subscriber_list.you') %></span>
+            <% end %>
+          <% end %>
+
+          <%# Other subscribers — with remove button if removable %>
+          <% other_subscriber_entries.each do |other_entry| %>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-cream-200 border border-cream-400 rounded-full text-xs text-cream-900">
+              <%= display_name(other_entry) %>
+              <% if other_entry[:removable] %>
+                <%= button_to unsubscribe_url(other_entry[:subscription]),
+                      method: :delete,
+                      params: { subscriber_mode: mode },
+                      class: "ml-0.5 text-gray-400 hover:text-red-600 leading-none",
+                      title: t('views.shared.subscriber_list.remove'),
+                      data: {
+                        turbo_confirm: t('views.shared.subscriber_list.confirm_remove', name: other_entry[:user].full_name)
+                      },
+                      form_class: "inline" do %>
+                  <i class="bi bi-x" style="font-size: 12px;"></i>
+                <% end %>
+              <% end %>
+            </span>
+          <% end %>
+
+          <%# Quick-add inactive members %>
+          <% if subscribe_other_url %>
+            <% inactive_member_entries.each do |inactive_entry| %>
+              <%= button_to subscribe_other_url,
+                    method: :post,
+                    params: { user_id: inactive_entry[:user].id, subscriber_mode: mode },
+                    class: "inline-flex items-center gap-1 px-2 py-0.5 bg-gray-50 border border-dashed border-slate-400 rounded-full text-xs text-gray-400 hover:bg-surface-raised hover:border-slate-600 hover:text-gray-700 cursor-pointer transition-colors",
+                    title: t('views.shared.subscriber_list.click_to_add', name: inactive_entry[:user].full_name),
+                    form_class: "inline" do %>
+                <i class="bi bi-plus" style="font-size: 10px;"></i>
+                <span><%= user_label(inactive_entry[:user]) %></span>
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% else %>
+  <%# Slack-flat notified line (user mockup 05.09.2026): one text line in the
+      70ch column; "aendern" swaps it for the checkbox editor IN PLACE, and
+      "fertig" swaps back (subscriber-picker controller). Every checkbox is a
+      form that submits immediately - the Turbo replace re-renders this
+      component with the editor kept open (subscriber_open param), so the
+      names in the text line follow the selection. %>
+  <div class="max-w-[70ch] text-[13px]">
+    <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 <%= 'hidden' if open? %>"
+         data-subscriber-picker-target="summary">
+      <span class="text-cream-800">
+        <span class="text-cream-500"><%= t('views.shared.subscriber_list.label') %></span>
+        <%= collapsed_names_text %>
+      </span>
+      <button type="button"
+              class="text-cream-500 transition-colors hover:text-cream-900 hover:underline"
+              data-action="click->subscriber-picker#openEditor">
+        <%= t('views.shared.subscriber_list.change') %>
+      </button>
+    </div>
+
+    <%# w-fit: the box hugs the checkbox list (min 320px), so "fertig" on the
+        justify-between header sits at ITS edge - not 300px away at the 70ch
+        column edge (user report 05.09.2026). %>
+    <div class="w-fit min-w-[320px] rounded-lg bg-cream-200/60 px-4 py-3 <%= 'hidden' unless open? %>"
+         data-subscriber-picker-target="editor">
+      <div class="mb-2 flex items-baseline justify-between gap-3">
+        <span class="font-medium text-cream-800"><%= t('views.shared.subscriber_list.heading') %></span>
+        <button type="button"
+                class="text-cream-600 transition-colors hover:text-cream-900 hover:underline"
+                data-action="click->subscriber-picker#closeEditor">
+          <%= t('views.shared.subscriber_list.done') %>
+        </button>
+      </div>
+
+      <% row_classes = 'flex w-full items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-cream-100' %>
+      <% checked_box = capture do %>
+        <span class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-cream-900 bg-cream-900 text-white" aria-hidden="true"><i class="bi bi-check-lg text-[11px]"></i></span>
+      <% end %>
+      <% unchecked_box = capture do %>
+        <span class="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-cream-400 bg-surface-raised" aria-hidden="true"></span>
+      <% end %>
+
+      <div class="space-y-0.5">
+        <%# The viewer's own row - always toggleable. %>
+        <% entry = current_user_entry %>
+        <%= button_to toggle_url,
+              method: :post,
+              params: { subscriber_mode: mode, subscriber_open: 1 },
+              class: row_classes, form_class: 'block',
+              title: entry[:watching] ? t('views.shared.subscriber_list.toggle_mute') : t('views.shared.subscriber_list.toggle_follow') do %>
+          <%= entry[:watching] ? checked_box : unchecked_box %>
+          <%= render Neo::Users::AvatarComponent.new(user: @current_user, size: :xs) %>
+          <%# Just "Du": next to the own chip, name plus marker were three
+              labels for one person (user correction 05.09.2026). The
+              collapsed text line has no chip and keeps "G. Boyke (Du)". %>
+          <span class="text-cream-900"><%= t('views.shared.subscriber_list.you') %></span>
+          <% if entry[:watching] && @current_user_subscription %>
+            <span class="text-cream-500">· <%= source_label(@current_user_subscription) %></span>
+          <% elsif entry[:muted] %>
+            <span class="text-cream-500">· <%= t('views.shared.subscriber_list.muted_label') %></span>
+          <% end %>
+        <% end %>
+
+        <%# Subscribed others: uncheckable when the subscription is manual and
+            the viewer may manage; system subscriptions (creator, assignee)
+            explain themselves through the annotation and stay. %>
+        <% other_subscriber_entries.each do |other_entry| %>
+          <% if other_entry[:removable] && can_manage_others? %>
+            <%= button_to unsubscribe_url(other_entry[:subscription]),
+                  method: :delete,
+                  params: { subscriber_mode: mode, subscriber_open: 1 },
+                  class: row_classes, form_class: 'block',
+                  title: t('views.shared.subscriber_list.remove') do %>
+              <%= checked_box %>
+              <%= render Neo::Users::AvatarComponent.new(user: other_entry[:user], size: :xs) %>
+              <%= render Neo::Users::NameComponent.new(user: other_entry[:user], text_class: 'text-cream-900') %>
+            <% end %>
+          <% else %>
+            <div class="flex w-full items-center gap-2.5 px-1.5 py-1">
+              <%= checked_box %>
+              <%= render Neo::Users::AvatarComponent.new(user: other_entry[:user], size: :xs) %>
+              <%= render Neo::Users::NameComponent.new(user: other_entry[:user], text_class: 'text-cream-900') %>
+              <span class="text-cream-500">· <%= other_entry[:label] %></span>
+            </div>
+          <% end %>
+        <% end %>
+
+        <%# A handful of not-yet-subscribed people as unchecked rows. %>
+        <% if can_manage_others? && subscribe_other_url %>
+          <% editor_inactive_entries.each do |inactive_entry| %>
+            <%= button_to subscribe_other_url,
+                  method: :post,
+                  params: { user_id: inactive_entry[:user].id, subscriber_mode: mode, subscriber_open: 1 },
+                  class: row_classes, form_class: 'block',
+                  title: t('views.shared.subscriber_list.click_to_add', name: inactive_entry[:user].full_name) do %>
+              <%= unchecked_box %>
+              <%= render Neo::Users::AvatarComponent.new(user: inactive_entry[:user], size: :xs) %>
+              <%= render Neo::Users::NameComponent.new(user: inactive_entry[:user], text_class: 'text-cream-800') %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <%# Everyone beyond the handful: the search, same endpoint as before. %>
+      <% if can_manage_others? && subscribe_other_url %>
+        <div class="mt-2">
+          <button type="button"
+                  class="text-green-700 transition-colors hover:text-green-800 hover:underline"
+                  data-action="click->subscriber-picker#toggle"
+                  data-subscriber-picker-target="trigger">
+            <%= t('views.shared.subscriber_list.search_person') %>
+          </button>
+          <div class="mt-2 hidden rounded-md border border-cream-300 bg-surface-raised"
+               data-subscriber-picker-target="dropdown">
+            <div class="p-2 border-b border-cream-200">
+              <input type="text"
+                     class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-stroke"
+                     placeholder="<%= t('views.shared.subscriber_list.search_placeholder') %>"
+                     data-action="input->subscriber-picker#search"
+                     data-subscriber-picker-target="input"
+                     autocomplete="off">
+            </div>
+            <div class="max-h-48 overflow-y-auto"
+                 data-subscriber-picker-target="results">
+              <div class="p-3 text-center text-xs text-gray-400" data-no-results>
+                <%= t('views.shared.subscriber_list.no_results') %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <% end %>
+</div>

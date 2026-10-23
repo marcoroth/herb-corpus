@@ -1,0 +1,97 @@
+<div class="container mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold mb-2"><%= t('.title') %></h1>
+    <p class="text-gray-600"><%= t('.subtitle') %></p>
+  </div>
+
+  <!-- <%= t('.registration_settings_section') %> -->
+  <div id="registration-settings" class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden mb-8">
+    <%= render 'registration_settings',
+               registration_allowed: @registration_allowed,
+               registration_message: @registration_message %>
+  </div>
+
+  <!-- <%= t('.deletion_settings_section') %> -->
+  <div id="deletion-settings" class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden mb-8">
+    <%= render 'deletion_settings',
+               grace_period_days: @grace_period_days %>
+  </div>
+
+  <!-- AI quota (S3): system-wide default budget + grace buffer (credits). -->
+  <div id="ai-quota-settings" class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+    <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+      <h2 class="text-lg font-bold"><%= t('.ai_quota_section') %></h2>
+    </div>
+    <div class="p-4">
+      <p class="text-sm text-gray-600 mb-4"><%= t('.ai_quota_hint') %></p>
+      <%= form_with url: admin_update_ai_quota_path, method: :patch, local: true do %>
+        <div class="mb-4">
+          <%= label_tag :ai_quota_monthly_credits, t('.ai_quota_monthly_label'), class: 'block text-sm font-medium text-gray-700 mb-1' %>
+          <%= number_field_tag :ai_quota_monthly_credits, @ai_quota_monthly_credits, min: 0, autocomplete: 'off', class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+        </div>
+        <div class="mb-4">
+          <%= label_tag :ai_quota_grace_buffer_credits, t('.ai_quota_buffer_label'), class: 'block text-sm font-medium text-gray-700 mb-1' %>
+          <%= number_field_tag :ai_quota_grace_buffer_credits, @ai_quota_grace_buffer_credits, min: 0, autocomplete: 'off', class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+        </div>
+        <%= submit_tag t('.ai_quota_save'), class: 'px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+      <% end %>
+    </div>
+  </div>
+
+  <%= admin_extension_slot(:system_settings_sections) %>
+
+  <%# Operator identity (LegalIdentity): what the core shows about whoever runs this
+      instance. Instance settings, not code or ENV, because the core is open source. %>
+  <div id="legal-identity-settings" class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden mt-8">
+    <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+      <h2 class="text-lg font-bold"><%= t('.legal_identity_section') %></h2>
+    </div>
+    <div class="p-4">
+      <p class="text-sm text-gray-600 mb-4"><%= t('.legal_identity_hint') %></p>
+
+      <% missing_pages = LegalIdentity::PAGES.reject { |page| @legal_identity.url_for(page) } %>
+      <% if missing_pages.any? && @legal_identity.errors.none? %>
+        <p class="mb-4 p-3 text-sm bg-amber-50 border-2 border-black rounded-md">
+          <%= t('.legal_identity_missing', pages: missing_pages.map { |page| t("views.shared.legal.#{page}") }.to_sentence) %>
+        </p>
+      <% end %>
+
+      <%= form_with model: @legal_identity, scope: :legal_identity, url: admin_update_legal_identity_path, method: :patch, local: true do |f| %>
+        <% if @legal_identity.errors.any? %>
+          <div class="mb-4 p-3 text-sm text-red-800 bg-red-50 border-2 border-black rounded-md" role="alert">
+            <p class="font-medium"><%= t('.legal_identity_errors_title') %></p>
+            <ul class="list-disc pl-5 mt-1">
+              <% @legal_identity.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+        <div class="mb-4">
+          <%= f.label :operator_name, class: 'block text-sm font-medium text-gray-700 mb-1' %>
+          <%= f.text_field :operator_name, autocomplete: 'off',
+                placeholder: t('.legal_identity_operator_placeholder'),
+                class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+        </div>
+        <%# Per page an address OR a text. The address wins: whoever has their
+            own website links it. Whoever has none writes the text here, and
+            this instance serves it under /legal/<seite>. %>
+        <% LegalIdentity::PAGES.each do |page| %>
+          <div class="mb-4">
+            <%= f.label :"#{page}_page_url", class: 'block text-sm font-medium text-gray-700 mb-1' %>
+            <%= f.url_field :"#{page}_page_url", autocomplete: 'off',
+                  placeholder: t('.legal_identity_url_placeholder'),
+                  class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+
+            <%= f.label :"#{page}_body", class: 'block text-sm font-medium text-gray-700 mt-2 mb-1' %>
+            <%= f.text_area :"#{page}_body", rows: 6,
+                  class: 'w-full border-2 border-black rounded-md px-3 py-2 font-mono text-sm' %>
+            <p class="text-xs text-gray-500 mt-1"><%= t('views.shared.legal.body_hint') %></p>
+          </div>
+        <% end %>
+        <%= f.submit t('.legal_identity_save'), class: 'px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+      <% end %>
+    </div>
+  </div>
+</div>

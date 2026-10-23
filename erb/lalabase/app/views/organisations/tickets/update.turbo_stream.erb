@@ -1,0 +1,27 @@
+<% if @ticket.errors.any? %>
+  <%# Errors stay inside the writing surface (turbo-frame#writing_surface), re-rendered as a whole. %>
+  <%= turbo_stream.replace 'writing_surface' do %>
+    <%= render 'organisations/tickets/writing_surface', ticket: @ticket, project: @project, source: 'index_page' %>
+  <% end %>
+<% else %>
+  <%# On success: close the writing surface and replace the entire display frame (as with notes) %>
+  <%= turbo_stream.update 'writing_surface', '' %>
+  <%= turbo_stream.update 'ticket_display_frame' do %>
+    <%= render 'ticket_display',
+               ticket: @ticket,
+               post: @post,
+               project: @project,
+               current_organisation: @current_organisation %>
+  <% end %>
+
+  <%# Flash message %>
+  <% flash.now[:notice] = t('views.organisations.tickets.update.success_message') %>
+  <%= turbo_stream.update "flash" do %>
+    <%= render partial: "layouts/flash" %>
+  <% end %>
+
+  <%# Update the ticket in the list, and its parent's row (TicketListColumns#ticket_list_row_streams) %>
+  <% if @tickets %>
+    <%= safe_join(ticket_list_row_streams(@ticket, columns: @columns)) %>
+  <% end %>
+<% end %>

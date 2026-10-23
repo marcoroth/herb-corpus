@@ -1,0 +1,159 @@
+<% content_for :title, t('views.billing_accounts.edit.title') %>
+
+<%# The invoice master data form (B3, doc/billing_stammdaten_plan.md §8/§9).
+
+    NO HTML5 `required` anywhere, on purpose, and that is a decision rather than an
+    omission. E3 lets an owner CLEAR the billing data completely; a browser-enforced
+    required attribute would make the empty form unsubmittable and take that path away.
+    It also sidesteps the trap the plan warns about (a hidden required field blocks the
+    submit invisibly), because there is nothing to keep in sync with visibility. What the
+    customer sees is the asterisk; what decides is the server, in the :billing context.
+
+    NO settings subnav: like the page it belongs to, this form runs without a tenant
+    (K2, doc/konto_ebene_plan.md), so there is no organisation whose tabs it could render.
+
+    Full i18n keys, not lazy `t('.x')`: lazy lookup would search `billing_accounts.edit.*`,
+    and the keys live under `views.billing_accounts.*` (CLAUDE.md key convention).
+
+    Capped and on the page edge like the page it belongs to (layout.css, "Page widths"). %>
+<div class="width-capped py-10">
+  <div>
+    <div class="mb-6">
+      <%= link_to billing_account_path(@account),
+                  class: 'text-sm font-bold text-cream-500 hover:text-cream-900 inline-flex items-center gap-1.5 mb-3' do %>
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+        <%= t('views.billing_accounts.edit.back') %>
+      <% end %>
+      <h3 class="text-sm font-bold text-cream-900 mb-1">
+        <%= t('views.billing_accounts.edit.heading') %>
+      </h3>
+      <p class="text-sm text-cream-600">
+        <%= t('views.billing_accounts.edit.intro') %>
+      </p>
+    </div>
+
+    <%= form_with model: @account,
+                  url: billing_account_path(@account),
+                  method: :patch, local: true,
+                  data: {
+                    controller: 'billing-form',
+                    billing_form_region_countries_value: Accounts::BillingRules::REGION_REQUIRED_COUNTRIES.to_json,
+                    billing_form_vat_offered_countries_value: Accounts::BillingRules::VAT_ID_OFFERED_COUNTRIES.to_json,
+                    billing_form_vat_required_countries_value: Accounts::BillingRules::VAT_ID_REQUIRED_COUNTRIES.to_json,
+                    billing_form_subdivisions_value: billing_subdivision_options.to_json,
+                    billing_form_blank_option_value: t('views.billing_accounts.edit.region_blank_option')
+                  } do |form| %>
+
+      <% if @account.errors.any? %>
+        <div class="border border-cream-300 bg-red-50 rounded-lg p-4 mb-6">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <i class="bi bi-exclamation-triangle-fill text-red-600"></i>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-bold text-red-800">
+                <%= t('views.billing_accounts.edit.errors_title', count: @account.errors.count) %>
+              </h3>
+              <div class="mt-2 text-sm text-red-700">
+                <ul class="list-disc pl-5 space-y-1">
+                  <% @account.errors.full_messages.each do |message| %>
+                    <li><%= message %></li>
+                  <% end %>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_name, required: true,
+                 hint: t('views.billing_accounts.edit.billing_name_hint'), autocomplete: 'organization' %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_addressee,
+                 hint: t('views.billing_accounts.edit.billing_addressee_hint') %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_street, required: true,
+                 autocomplete: 'address-line1' %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_street_2,
+                 autocomplete: 'address-line2' %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_postal_code, required: true,
+                 autocomplete: 'postal-code' %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_city, required: true,
+                 autocomplete: 'address-level2' %>
+
+      <%# Land: the field everything else on this form reacts to. %>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 py-5 border-t border-cream-200">
+        <div class="md:col-span-1">
+          <%= form.label :billing_country, class: 'block text-sm font-bold text-cream-900' do %>
+            <%= Account.human_attribute_name(:billing_country) %><span class="text-cream-500"> *</span>
+          <% end %>
+        </div>
+        <div class="md:col-span-2">
+          <%= form.select :billing_country,
+                          billing_country_options,
+                          { include_blank: t('views.billing_accounts.edit.country_blank_option') },
+                          class: billing_input_classes,
+                          data: { billing_form_target: 'country', action: 'change->billing-form#countryChanged' } %>
+        </div>
+      </div>
+
+      <%# Bundesstaat/Provinz: shown only where the tax treatment needs one. Rendered
+          server-side with the options of the CURRENT country, so the stored value is
+          preselected and the page also works without JavaScript; the Stimulus controller
+          only swaps the list when the country actually changes. %>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 py-5 border-t border-cream-200 hidden"
+           data-billing-form-target="regionBlock">
+        <div class="md:col-span-1">
+          <%= form.label :billing_region, class: 'block text-sm font-bold text-cream-900' do %>
+            <%= Account.human_attribute_name(:billing_region) %><span class="text-cream-500"> *</span>
+          <% end %>
+        </div>
+        <div class="md:col-span-2">
+          <%= form.select :billing_region,
+                          billing_subdivision_options.fetch(@account.billing_country, []),
+                          { include_blank: t('views.billing_accounts.edit.region_blank_option') },
+                          class: billing_input_classes,
+                          data: { billing_form_target: 'regionField' } %>
+        </div>
+      </div>
+
+      <%# USt-IdNr.: offered wider than it is required (EU plus GB/CH). The explanation is
+          not decoration -- E11 makes this a mandatory field for EU customers outside
+          Germany, and an unexplained mandatory field at this point costs conversions. %>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 py-5 border-t border-cream-200 hidden"
+           data-billing-form-target="vatBlock">
+        <div class="md:col-span-1">
+          <%= form.label :vat_id, class: 'block text-sm font-bold text-cream-900' do %>
+            <%= Account.human_attribute_name(:vat_id) %><span class="text-cream-500 hidden"
+                                                              data-billing-form-target="vatRequiredMarker"> *</span>
+          <% end %>
+          <p class="text-xs text-cream-600 mt-1 hidden" data-billing-form-target="vatRequiredHint">
+            <%= t('views.billing_accounts.edit.vat_id_required_hint') %>
+          </p>
+        </div>
+        <div class="md:col-span-2">
+          <%= form.text_field :vat_id, class: billing_input_classes, autocomplete: 'off',
+                              data: { billing_form_target: 'vatField' } %>
+        </div>
+      </div>
+
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_email, required: true,
+                 type: :email_field, hint: t('views.billing_accounts.edit.billing_email_hint') %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_email_cc,
+                 type: :email_field %>
+      <%= render 'billing_accounts/field_row', form: form, field: :billing_reference,
+                 hint: t('views.billing_accounts.edit.billing_reference_hint') %>
+
+      <p class="text-xs text-cream-600 pt-5 border-t border-cream-200">
+        <%= t('views.billing_accounts.edit.required_legend') %>
+      </p>
+
+      <div class="flex items-center justify-end gap-4 pt-6">
+        <%= link_to t('views.billing_accounts.edit.cancel'),
+                    billing_account_path(@account),
+                    class: 'text-sm font-bold text-cream-600 hover:text-cream-900' %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, type: 'submit') do %>
+          <%= t('views.billing_accounts.edit.save') %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

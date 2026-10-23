@@ -1,0 +1,504 @@
+<%# The filter bar rebuilt along the Belegungstabelle (doc/filterleiste_s1_s4_plan.md).
+    Row 1: the saved views as tabs (F10), the base view first, then "+ Filter" (F2)
+    and the search (F35). Row 2: one pill per condition (F13), rendered by the
+    Stimulus controller, gone while there is none. Row 3: the save row (F23).
+    No offset against the page header and no horizontal padding: the tab row sits
+    flush with the page title and the list surface below (header unification 2026-07). %>
+<%# The list's workbench: a raised surface (the same step the times list's
+    filter stripe makes), one hairline below, no radius and no border - that is
+    the language of dropdowns.
+    ⚠️ No side margins and no side padding of its own. It sets its width from
+    the column it is rendered into, and a head reaches exactly as far as the
+    thing it belongs to. Full bleed here (which it had briefly) made it span
+    both columns, so the column tool stood over the detail lane although it is
+    the list that has columns. Tint stays reserved for "selected". %>
+<div class="filter-bar relative z-sticky bg-surface-raised border-b border-cream-300 pt-2 flex flex-col mb-3.5"
+     data-controller="filter-bar"
+     data-filter-bar-return-keys-value="<%= return_keys.to_json %>"
+     data-filter-bar-url-value="<%= base_url %>"
+     data-filter-bar-view-key-value="<%= view_key %>"
+     data-filter-bar-type-targets-value="<%= type_targets.to_json %>"
+     data-filter-bar-frame-value="<%= frame_id %>"
+     data-filter-bar-categories-value="<%= categories_json_for_bar %>"
+     data-filter-bar-active-filters-value="<%= ad_hoc_filters.to_json %>"
+     data-filter-bar-active-operators-value="<%= ad_hoc_operators.to_json %>"
+     data-filter-bar-dropped-value="<%= dropped_categories.to_json %>"
+     data-filter-bar-labels-value="<%= filter_bar_labels_json %>"
+     data-filter-bar-operator-labels-value="<%= operator_labels_json %>"
+     data-filter-bar-save-url-value="<%= save_smart_folder_path %>"
+     data-filter-bar-project-id-value="<%= project&.id %>"
+     data-filter-bar-save-labels-value="<%= save_labels_json %>"
+     data-filter-bar-search-mode-value="<%= search_mode %>"
+     data-filter-bar-smart-folder-id-value="<%= active_smart_folder&.id %>"
+     data-filter-bar-smart-folders-value="<%= smart_folders_json %>"
+     data-filter-bar-dissolver-value="<%= dissolver_data_json %>"
+     data-filter-bar-value-labels-value="<%= value_labels_json %>">
+
+  <%# === ROW 1: view tabs + "+ Filter" + search === %>
+  <%# The strip carries -mb-px so the active tab's 2 px ink line lies ON the row's
+      1 px divider instead of above it; a negative margin on the tabs themselves
+      would be clipped by the strip's overflow. data-fb-tabrow lets the row wrap
+      narrow, when the open search takes a line of its own (components/filter_bar.css). %>
+  <div class="flex items-end gap-2 min-h-[40px] border-b border-divider" data-fb-tabrow>
+    <%# The views (F10). Each tab is a link to the view's address, so it works
+        without JavaScript; the action only carries the typed search along.
+        Only the first few stand here, the rest folds into the menu beside them
+        (20a, D1). The strip keeps its scroll as the narrow fallback: five short
+        tabs fit a desk and not a phone, and rule 7 says leave out or move, not
+        shrink. %>
+    <div role="tablist"
+         aria-label="<%= t('components.filter_bar.view_tabs_label') %>"
+         <%# No flex-1: the strip takes the width of its tabs and no more, so the
+             tools sit right behind them. With flex-1 it swallowed the whole row
+             and pushed them flush right, where they wander with the content
+             width and end up standing over the detail lane. It may still SHRINK
+             (min-w-0 plus the default flex-shrink), which is what keeps the
+             overflow scroll working on a narrow head. %>
+         class="flex items-end gap-0.5 min-w-0 overflow-x-auto scrollbar-hide -mb-px"
+         data-filter-bar-target="tabStrip">
+      <% visible_views.each do |view| %>
+        <%# The active tab is a slot: the link, then the chevron (F22) that opens
+            the menu of the view. Two targets (designer, 09.09.2026): the word
+            chooses the view, the chevron opens its menu. The ink line lies under
+            the WORD alone, as its mark; the chevron stands beside it without
+            one, vertically centred. Only the active tab has the chevron, the
+            base view too. %>
+        <span class="inline-flex items-center flex-shrink-0">
+          <a href="<%= view[:url] %>"
+             role="tab"
+             aria-selected="<%= view[:active] %>"
+             data-filter-bar-target="tab"
+             data-action="click->filter-bar#selectView"
+             class="<%= tab_classes(view[:active]) %>">
+            <% if view[:badge_icon] %>
+              <i class="bi <%= view[:badge_icon] %> text-[10px] opacity-60" aria-hidden="true"></i>
+            <% end %>
+            <span data-view-name><%= view[:name] %></span>
+            <% if view[:active] && (view[:id] || view[:key]) %>
+              <%# F23: the amber dot for "not saved yet". Only a saved view (a folder
+                  or a built-in type view) can hold a change; the base view has
+                  nothing to differ from. Shown by the controller. %>
+              <span data-filter-bar-target="unsavedDot"
+                    class="hidden h-1.5 w-1.5 rounded-full bg-amber-500"
+                    title="<%= t('components.filter_bar.unsaved') %>"></span>
+            <% end %>
+          </a>
+          <% if view[:active] %>
+            <%# A tile of 28 x 28 (grid, centred), not padding around a glyph:
+                with padding alone the hit area fell under 24px. The one chevron
+                of the row: "n weitere" is a listing of its own and the search
+                a magnifier, neither wears one any more, so this one is not
+                confused with them. %>
+            <button type="button"
+                    data-action="click->filter-bar#toggleViewMenu"
+                    data-filter-bar-target="viewMenuButton"
+                    aria-haspopup="dialog"
+                    aria-expanded="false"
+                    aria-label="<%= t('components.filter_bar.view_menu') %>"
+                    title="<%= t('components.filter_bar.view_menu') %>"
+                    class="<%= CHEVRON_TILE_CLASSES %>">
+              <svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.7"
+                   stroke-linecap="round" stroke-linejoin="round" class="transition-transform"
+                   data-filter-bar-target="viewMenuChevron" aria-hidden="true">
+                <path d="M3.5 6l4.5 4.5L12.5 6" />
+              </svg>
+            </button>
+          <% end %>
+        </span>
+      <% end %>
+    </div>
+
+    <%# The views that did not fit (20a, D1). The trigger stands OUTSIDE the
+        scrolling strip, so it cannot scroll away with what it is hiding, and
+        its layer needs no head: "2 weitere" already says what is in it. %>
+    <% if overflow_views.any? %>
+      <div class="relative flex-shrink-0">
+        <button type="button"
+                data-action="click->filter-bar#toggleOverflowMenu"
+                data-filter-bar-target="overflowButton"
+                data-fb-overflow
+                aria-haspopup="menu"
+                aria-expanded="false"
+                class="h-8 px-2 text-[13px] font-normal rounded-md text-muted hover:text-heading hover:bg-cream-100
+                       transition-colors inline-flex items-center gap-1.5
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+          <%# The word alone (designer, 09.09.2026): "n weitere" is a listing,
+              not a second kind of opener, and the row's one chevron belongs to
+              the active tab. %>
+          <%= t('components.filter_bar.more_views', count: overflow_views.size) %>
+        </button>
+
+        <div data-filter-bar-target="overflowMenu"
+             role="menu"
+             aria-label="<%= t('components.filter_bar.more_views', count: overflow_views.size) %>"
+             class="hidden absolute left-0 top-full mt-1 w-56 bg-surface-raised border border-cream-300 rounded-lg shadow-md z-dropdown p-1">
+          <% overflow_views.each do |view| %>
+            <a href="<%= view[:url] %>"
+               role="menuitem"
+               data-action="click->filter-bar#selectView"
+               class="<%= MENU_ROW_CLASSES %>"><%= view[:name] %></a>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# The tools of this list, as ONE group at the RIGHT END of the row
+        (designer, 07.09.2026): narrow it down, search it, choose its columns.
+        ms-auto rather than a spacer element - the group has an edge to sit on,
+        it does not need something pushing it.
+        self-center: the row is items-end so the tabs keep their bottom edge and
+        the active tab's underline lands on the row's hairline. The tools have no
+        business on that line, so they sit centred ABOVE it.
+        ⚠️ It does not wander with the content width, although it is flush right:
+        the row ends at the LIST column's edge (the head lives inside that
+        column), so its right edge is the list's. %>
+    <%# Three tools of equal rank in ONE group (designer, 09.09.2026): filter,
+        magnifier, columns, 4px apart, all 28px high; the filter word too,
+        which used to stand lower than the icon tiles. %>
+    <div class="ms-auto self-center flex items-center gap-1" data-fb-tools>
+    <%# "+ Filter" is a secondary action (F2), rounded-md and not a pill: a pill
+          is a condition, and this trigger makes one. No count badge; the
+          conditions themselves stand in the row below.
+
+          It stands FLAT, without the edge F2 gives a secondary action elsewhere:
+          in a toolbar exactly one element wears the fassung of an input field,
+          and that is the field (F40, revised 07.09.2026). Three framed boxes of
+          which one can be typed into hide the only difference that matters. What
+          stays bound is the height, the radius and the font size. %>
+      <div class="relative flex-shrink-0">
+        <%# Tight (components/filter_bar.css, 760px) the word and its plus are
+            left out and the funnel stands in their place, 32 px like the
+            magnifier and the column tool beside it. The funnel, because it is
+            the sign the app already uses for filtering; not the sliders, which
+            are the column tool next door (F39: one symbol, one meaning). A
+            sign carries its word in the title, with the count: "Filter · 2
+            Bedingungen". The server writes it for the first paint, the
+            controller keeps it current on every state render (_renderAddSign),
+            because the bar lives outside the frame that reloads. D2 of
+            doc/kanban_ticket_als_bahn_plan.md, S5. %>
+        <button type="button"
+                data-action="click->filter-bar#toggleFilterMenu"
+                data-filter-bar-target="filterButton"
+                data-fb-add
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-label="<%= filter_sign_title %>"
+                title="<%= filter_sign_title %>"
+                class="h-7 px-2 text-[13px] font-normal rounded-md text-body
+                       hover:bg-cream-100 hover:text-heading transition-colors inline-flex items-center gap-1.5
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+          <i class="bi bi-plus-lg text-xs" aria-hidden="true" data-fb-add-plus></i>
+          <span data-fb-add-label><%= scoped_t('filter_bar.add_filter') %></span>
+          <i class="bi bi-funnel text-sm" aria-hidden="true" data-fb-add-sign></i>
+        </button>
+
+      </div>
+
+    <%# The search (F35): a magnifier of 28 x 28 that grows into a field on a
+          click, at every width (designer, 09.09.2026; the rule
+          components/filter_bar.css applied to tight containers only): the size
+          follows the frequency, not the room. Searching is a rare act and must
+          not be the largest element of the tool group. The field opens at the
+          right end of THIS row; a term already typed keeps it open. Inside the
+          open field the magnifier is the search-depth trigger where more than
+          one depth exists, without a chevron. %>
+      <div class="relative flex-shrink-0"
+           data-filter-bar-target="search"
+           data-fb-search<%= ' data-fb-search-open' if search_value.present? %>>
+        <button type="button"
+                data-action="click->filter-bar#openSearch"
+                data-fb-search-open-button
+                aria-label="<%= scoped_t('filter_bar.search_placeholder') %>"
+                title="<%= scoped_t('filter_bar.search_placeholder') %>"
+                class="grid place-items-center h-7 w-7 rounded-md text-muted hover:bg-cream-100 hover:text-heading transition-colors
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+          <i class="bi bi-search text-xs" aria-hidden="true"></i>
+        </button>
+        <% if show_search_depth_selector? %>
+          <button type="button"
+                  data-action="click->filter-bar#toggleSearchDepthMenu"
+                  data-filter-bar-target="searchDepthButton"
+                  data-fb-depth
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-label="<%= scoped_t('filter_bar.search_depth_label') %>"
+                  class="absolute inset-y-0 left-0 flex items-center pl-2.5 pr-1 text-faint hover:text-heading transition-colors z-10"
+                  title="<%= scoped_t('filter_bar.search_depth_label') %>">
+            <i class="bi <%= search_mode_icon %> text-xs" aria-hidden="true"></i>
+          </button>
+        <% else %>
+          <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 pr-1 text-faint pointer-events-none z-10" data-fb-depth>
+            <i class="bi <%= search_mode_icon %> text-xs"></i>
+          </span>
+        <% end %>
+
+        <input type="search" name="search"
+               data-filter-bar-target="searchInput"
+               <%= 'data-keyboard-navigation-target=searchInput' if keyboard_navigation %>
+               data-action="input->filter-bar#onSearchInput search->filter-bar#onSearchClear keydown.esc->filter-bar#closeSearch focusout->filter-bar#searchBlur"
+               value="<%= search_value %>"
+               placeholder="<%= scoped_t('filter_bar.search_placeholder') %>"
+               aria-label="<%= scoped_t('filter_bar.search_placeholder') %>"
+               autocomplete="off"
+               class="w-full h-7 <%= show_search_depth_selector? ? 'pl-9' : 'pl-7' %> pr-2 text-[13px] rounded-md border border-cream-300 bg-surface-raised text-body
+                      placeholder:text-faint focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10 transition-colors">
+
+        <% if show_search_depth_selector? %>
+          <%# Search depth, a floating layer (F29) with F33 rows %>
+          <div data-filter-bar-target="searchDepthMenu"
+               role="menu"
+               aria-label="<%= scoped_t('filter_bar.search_depth_label') %>"
+               class="hidden absolute right-0 top-full mt-1 w-56 bg-surface-raised border border-cream-300 rounded-lg shadow-md z-dropdown p-1">
+            <div class="px-2 py-1.5 text-[10px] font-semibold text-muted uppercase tracking-wider">
+              <%= scoped_t('filter_bar.search_depth_label') %>
+            </div>
+            <% search_depth_options.each do |mode, icon, label, description| %>
+              <button type="button"
+                      role="menuitem"
+                      data-action="click->filter-bar#setSearchMode"
+                      data-mode="<%= mode %>"
+                      class="w-full text-left px-2 py-1.5 text-xs text-body hover:bg-cream-100 rounded flex items-center gap-3 transition-colors <%= 'bg-cream-100' if search_mode == mode %>">
+                <i class="bi <%= icon %> text-muted"></i>
+                <div>
+                  <div class="font-medium"><%= label %></div>
+                  <div class="text-[10px] text-muted"><%= description %></div>
+                </div>
+                <% if search_mode == mode %>
+                  <i class="bi bi-check2 text-heading ml-auto"></i>
+                <% end %>
+              </button>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+    <%# The tool of the view (20a, S2): the column picker's trigger on the
+          ticket list, nothing on the knowledge list. Flat like "+ Filter", for
+          the same reason. %>
+      <% if view_tool? %>
+        <div class="flex-shrink-0" data-fb-view-tool><%= view_tool %></div>
+      <% end %>
+
+    </div>
+
+    <%# Filter Menu (Level 1: categories), a floating layer (F29). A dialog,
+        not a menu: it opens with a head that holds a close, and a menu may own
+        nothing but its items. The list inside keeps role="menu", so the arrow
+        keys still walk it. Head and list are built by the controller, in the
+        same place as the head of level 2, so the two cannot drift.
+
+        It hangs at the bar's root and is placed by the controller, because two
+        triggers open it: "+ Filter" up here, and "+ Bedingung" down in the
+        condition row (20a, § 6). A layer nailed to one of them would open in
+        the wrong place for the other. %>
+    <div data-filter-bar-target="filterMenu"
+         role="dialog"
+         aria-modal="false"
+         aria-label="<%= scoped_t('filter_bar.add_filter') %>"
+         class="hidden absolute w-56 bg-surface-raised border border-cream-300 rounded-lg shadow-md z-dropdown">
+      <div data-filter-bar-target="categoryList"></div>
+    </div>
+
+    <%# Filter Value Menu (Level 2). It sits inside row 1 but is positioned
+        against the controller root, the nearest positioned ancestor: the row
+        container must never become position: relative. A dialog: the
+        controller names it after the category and moves the focus in and out. %>
+    <div data-filter-bar-target="valueMenu"
+         role="dialog"
+         aria-modal="false"
+         class="hidden absolute w-60 bg-surface-raised border border-cream-300 rounded-lg shadow-md z-dropdown">
+    </div>
+
+  </div>
+
+  <%# The menu of the active view (S5): a floating list (F29, F33) under the
+      chevron, positioned by the controller against the bar's root (the strip
+      clips what overflows it). Entries appear only where the policy allows;
+      rename happens in this layer, the destructive entry sits under a divider
+      (F27), the expert filter opens the unchanged modal (F34: it opens
+      something else). A dialog, not a menu: it holds a form (the rename), and a
+      menu may own only items; the controller moves the focus in and out. %>
+  <div data-filter-bar-target="viewMenu"
+       role="dialog"
+       aria-modal="false"
+       aria-label="<%= t('components.filter_bar.view_menu') %>"
+       data-view-name="<%= view_menu[:name] %>"
+       data-rename-url="<%= view_menu[:rename_url] %>"
+       data-delete-url="<%= view_menu[:delete_url] %>"
+       class="hidden absolute w-60 bg-surface-raised border border-cream-300 rounded-lg shadow-md z-dropdown p-1">
+    <div data-filter-bar-target="viewMenuList">
+      <% if view_menu[:rename_url] %>
+        <button type="button"
+                data-action="click->filter-bar#startRename"
+                class="<%= MENU_ROW_CLASSES %>"><%= t('components.filter_bar.rename') %></button>
+      <% end %>
+      <% if view_menu[:share_url] %>
+        <a href="<%= view_menu[:share_url] %>"
+           class="<%= MENU_ROW_CLASSES %>"><%= t('components.filter_bar.share') %></a>
+      <% end %>
+      <% if view_menu[:duplicate_url] %>
+        <button type="button"
+                data-action="click->filter-bar#duplicateView"
+                data-url="<%= view_menu[:duplicate_url] %>"
+                class="<%= MENU_ROW_CLASSES %>"><%= t('components.filter_bar.duplicate_view') %></button>
+      <% end %>
+      <a href="<%= view_menu[:expert_url] %>"
+         data-turbo-frame="modal"
+         data-action="click->filter-bar#carryReturnContext click->filter-bar#closeAllMenus"
+         class="<%= MENU_ROW_CLASSES %>"><%= t('components.filter_bar.open_expert_filter') %></a>
+      <% if view_menu[:delete_url] %>
+        <div class="border-t border-divider my-1" role="separator"></div>
+        <button type="button"
+                data-action="click->filter-bar#deleteView"
+                class="<%= MENU_ROW_CLASSES %> text-red-700 hover:text-red-900"><%= t('components.filter_bar.delete_view') %></button>
+      <% end %>
+    </div>
+    <% if view_menu[:rename_url] %>
+      <form data-filter-bar-target="renameForm"
+            data-action="submit->filter-bar#submitRename"
+            class="hidden flex-wrap items-center gap-2 p-1">
+        <input type="text" name="name"
+               value="<%= view_menu[:name] %>"
+               data-filter-bar-target="renameInput"
+               aria-label="<%= t('components.filter_bar.rename') %>"
+               aria-describedby="filter-bar-rename-error"
+               autocomplete="off" required maxlength="255"
+               class="h-8 flex-1 min-w-0 px-2 text-xs rounded-md border border-cream-300 bg-surface-raised text-body
+                      focus:outline-none focus:border-ink focus:ring-2 focus:ring-ink/10">
+        <button type="submit" data-fb-word
+                class="<%= TEXT_ACTION_CLASSES %>"><%= t('components.filter_bar.rename_save') %></button>
+        <button type="button" data-fb-word
+                data-action="click->filter-bar#cancelRename"
+                class="<%= TEXT_ACTION_CLASSES %>"><%= t('components.filter_bar.rename_cancel') %></button>
+        <%# The server's reason for a refused name (blank, too long) lands here;
+            empty and hidden until then. %>
+        <p id="filter-bar-rename-error" data-filter-bar-target="renameError"
+           class="hidden basis-full text-xs text-red-700"></p>
+      </form>
+    <% end %>
+  </div>
+
+  <%# === ROW 2a: the conditions as a sentence (20a, S1). This is the resting
+      state: a filter is read many times and changed once. The values are the
+      only targets in it, because changing one value is the commonest move and
+      needs no change of form; "ändern" opens the whole condition row below.
+
+      The sentence is built on the server (FilterSentenceService), so the rule
+      exists once and can be tested; the frame lets an edit leave it alone and
+      the end of the edit refresh it, one request per editing session instead
+      of one per tick. === %>
+  <turbo-frame id="<%= sentence_frame_id %>" data-filter-bar-target="sentenceFrame">
+    <div class="<%= 'hidden' unless has_any_chips? %>" data-filter-bar-target="sentenceRow">
+      <%# Without a condition there is no sentence, and then there is no row:
+          "ändern" on its own says nothing and would still take a line. The
+          way in without a condition is "+ Filter" up in the tab row (§ 7). %>
+      <%# text-wrap: pretty keeps the last line from carrying a single word, and
+          the nbsp before "ändern" keeps it off the middle of the sentence. %>
+      <% unless filter_sentence.empty? %>
+      <p class="<%= SENTENCE_PROSE_CLASSES %>" data-fb-prose
+         title="<%= filter_sentence.to_s %>"><%= sentence_html %>&nbsp;<button type="button"
+              data-action="click->filter-bar#startEditing"
+              data-filter-bar-target="editWord"
+              class="<%= TEXT_ACTION_CLASSES %> whitespace-nowrap"><%= t('components.filter_bar.edit_conditions') %></button></p>
+      <% end %>
+    </div>
+  </turbo-frame>
+
+  <%# The selection row, if the list has one: it takes the sentence's place
+      while rows are ticked (D2 of doc/ticket_bulk_edit_plan.md). Hidden until
+      the list's selection controller shows it; the controller hides the
+      sentence frame at the same time. %>
+  <%= selection_row if selection_row? %>
+
+  <%# === ROW 2b: one pill per condition, the editing state. The row is gone,
+      not collapsed, while nothing is being edited. === %>
+  <div class="hidden"
+       data-filter-bar-target="chipRow">
+    <%# The SECOND LINE of the tab row's surface, exactly where the sentence
+        stands when nothing is being edited - it replaces that line, it does not
+        come on top of it. No line of its own above or below: the tab row has
+        one, and the surface's own bottom edge separates it from the table.
+        ps-3 starts the first chip under the FIRST TAB's word (designer,
+        07.09.2026); it used to begin ~22px further left, which is a second left
+        edge in two consecutive lines. %>
+    <%# pe-3 mirrors the ps-3: the count sits at the far end of the row, and
+        without it the last thing in the row touches the surface's edge. %>
+    <div class="flex flex-wrap items-center gap-2 ps-3 pe-3 pt-2 pb-1 min-w-0">
+      <div class="flex flex-wrap items-center gap-2 min-w-0"
+           data-filter-bar-target="chipZone"
+           id="filter-bar-chips">
+        <%# Pills are rendered by the Stimulus controller from the effective conditions %>
+      </div>
+      <%# "+ Bedingung" (20a, § 6): the dashed edge says "something is being
+          made here". It is not "+ Filter" and does not read like it: that one
+          means START filtering and stands in the tab row, this one means take
+          ONE more and stands where the conditions are. %>
+      <button type="button"
+              data-action="click->filter-bar#toggleFilterMenu"
+              data-fb-add-condition
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              class="h-7 px-2.5 text-[13px] font-normal rounded-full border border-dashed border-cream-400 text-body
+                     hover:border-ink hover:text-heading transition-colors inline-flex items-center gap-1.5
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+        <span aria-hidden="true">+</span> <%= t('components.filter_bar.add_condition') %>
+      </button>
+
+      <%# "fertig" ends the editing state, it saves nothing. Saving happens in
+          the row below, and only where something differs from the view.
+          Right behind "+ Bedingung" (user, 08.09.2026): both are things one
+          DOES to the row of conditions, and one more and I am done belong next
+          to each other. Not underlined at rest - a permanent underline over the
+          table makes a quiet word the loudest thing in the row; the underline
+          arrives on hover, where it says "this is a link". %>
+      <button type="button" data-fb-word
+              data-action="click->filter-bar#stopEditing"
+              class="text-xs font-medium text-muted hover:text-heading hover:underline underline-offset-2
+                     focus:outline-none focus-visible:ring-1 focus-visible:ring-ink rounded"><%= t('components.filter_bar.done_editing') %></button>
+
+    </div>
+  </div>
+
+  <%# The proposal row (F31, S6): something outside proposes a condition and the
+      reader has not decided. Its own row under the conditions with the source
+      as a mark, the sentence, and two words. Never a pill in the condition
+      row: a pill there claims it already filters. "Übernehmen" makes a normal
+      condition of it (the view differs, the save row appears); "Ablehnen"
+      removes the row. Nothing is persisted here; a producer that wants to
+      remember a decline gets a callback later. %>
+  <div data-filter-bar-target="proposalRow" class="<%= 'hidden' if proposal_rows.empty? %>">
+    <% proposal_rows.each do |proposal| %>
+      <div class="flex flex-wrap items-center gap-3 border-t border-divider py-2 text-xs text-body"
+           data-proposal
+           data-category="<%= proposal[:category] %>"
+           data-value="<%= proposal[:value] %>">
+        <span class="text-[9.5px] uppercase tracking-wider border border-cream-300 rounded px-1.5 text-muted flex-shrink-0"><%= proposal[:source] %></span>
+        <span class="mr-auto" data-fb-sentence><%= t('components.filter_bar.proposal_question_html', condition: tag.strong(proposal[:condition], class: 'font-semibold text-heading')) %></span>
+        <button type="button" data-fb-word
+                data-action="click->filter-bar#acceptProposal"
+                class="<%= TEXT_ACTION_CLASSES %>"><%= t('components.filter_bar.accept') %></button>
+        <button type="button" data-fb-word
+                data-action="click->filter-bar#declineProposal"
+                class="<%= TEXT_ACTION_CLASSES %>"><%= t('components.filter_bar.decline') %></button>
+      </div>
+    <% end %>
+  </div>
+
+  <%# === ROW 3: the save row (F23), filled by the controller while the state
+      differs from the view. Under the conditions, never between tabs and
+      conditions: appearing must not push away what was just touched. === %>
+  <%# The live region is this persistent element, not the row the controller
+      renders into it: assistive tech announces a change of content, and the
+      sentence changes here with every edit. %>
+  <div data-filter-bar-target="saveRow" class="hidden" aria-live="polite"></div>
+
+  <%# The flash the controller shows after a save or a discard (F25). Rendered
+      by NeoFlashComponent so its look lives in one place; the controller clones
+      it, sets the message and, where something was thrown away, the way back. %>
+  <template data-filter-bar-target="flashTemplate">
+    <%= render NeoFlashComponent.new(type: :success, message: 'message', hide_delay: 2500) %>
+  </template>
+  <template data-filter-bar-target="errorFlashTemplate">
+    <%= render NeoFlashComponent.new(type: :error, message: 'message', hide_delay: 4000) %>
+  </template>
+</div>

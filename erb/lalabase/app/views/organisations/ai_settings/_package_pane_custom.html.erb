@@ -1,0 +1,104 @@
+<%# The "Eigene Konfiguration" pane (doc/ki_zugang_umbau_plan.md D6/D8).
+
+    Until this rebuild the same content was a CARD below the package grid — the one entry
+    in a list that was not a member of it (P2 of the plan). It is an alternative way, so
+    it is now a pane of its own, shown instead of the grid rather than under it.
+
+    ORDER is the instruction it should read as: what is on record, then the door to
+    setting it up, then taking this way. Nothing here decides anything about jurisdiction
+    — whatever the organisation configures behind that door is what applies, which is
+    also why this way was never filterable. %>
+<%# TWO questions, and conflating them is what made the page lie (D7):
+      custom_selected — is this the way in force? (blank package id, convention E1-C)
+      configured      — is anything actually behind it? (own credentials on record)
+    "Gewählt" needs both. A fresh organisation satisfies only the first, and used to read
+    "Eigene Konfiguration · Gewählt" for a decision nobody had made. %>
+<% custom_selected = @organisation.ai_package_id.blank? %>
+<% configured = @organisation.ai_custom_access_configured? %>
+<div class="mt-6 rounded-lg border border-cream-300 bg-cream-50 p-5" id="ai_package_custom">
+  <% if custom_selected && configured %>
+    <span class="inline-flex items-center rounded border border-ink bg-ink px-2 py-1 text-xs font-bold text-cream-50">
+      <i class="bi bi-check-lg mr-1"></i><%= t('views.organisations.ai_settings.packages.custom.selected_badge') %>
+    </span>
+  <% end %>
+  <p class="mt-3 text-sm text-cream-800"><%= t('views.organisations.ai_settings.packages.custom.description') %></p>
+  <p class="mt-2 text-sm text-cream-800"><%= t('views.organisations.ai_settings.packages.custom.note') %></p>
+
+  <%# The door §3.4 asked for from the start: "Vor der Einrichtung ist das eine
+      Navigationszeile („Einrichten →"), nach der Einrichtung eine vollwertige Option
+      mit Statuszeile." Until S7 the card was the WAHL with nothing behind it — the
+      EINRICHTUNG was a form further down the same page, which is how this page came to
+      ask one question twice (E6). The link is here whether or not this way is in force:
+      preparing an access before switching to it is the natural order, and it is the
+      order the connection test follows since L6 was closed. %>
+  <div class="mt-4 border-t border-cream-300 pt-4">
+    <% if configured %>
+      <p class="mb-2 text-sm text-cream-700">
+        <%= t('views.organisations.ai_settings.packages.custom.access_present',
+              provider: @organisation.ai_provider_display_name) %>
+        <% if @organisation.ai_connection_failed? %>
+          <span class="font-bold text-red-700">
+            <i class="bi bi-exclamation-triangle mr-1"></i><%= t('views.organisations.ai_settings.packages.custom.access_failed') %>
+          </span>
+        <% end %>
+      </p>
+    <% else %>
+      <%# Absence, stated. It was silence before: the line only appeared once credentials
+          existed, so the pane said nothing at all in the state where there is most to
+          say. %>
+      <p class="mb-2 text-sm text-cream-700">
+        <%= t('views.organisations.ai_settings.packages.custom.not_configured') %>
+      </p>
+      <% if custom_selected %>
+        <%# Z3 in full: this way is in force AND nothing is behind it, so no AI call can
+            succeed. No new bar on the button that got the org here — the way back stays
+            clickable exactly as before (D7); the pane just stops pretending. %>
+        <p class="mb-2 text-sm text-amber-800">
+          <i class="bi bi-exclamation-triangle mr-1.5"></i>
+          <%= t('views.organisations.ai_settings.packages.custom.not_ready_hint') %>
+        </p>
+      <% end %>
+    <% end %>
+    <%= link_to organisation_ai_configuration_path(@organisation),
+          class: 'inline-flex items-center text-sm font-bold text-cream-900 underline underline-offset-2 hover:text-ink' do %>
+      <%= t('views.organisations.ai_settings.packages.custom.configure_link') %>
+      <i class="bi bi-arrow-right ml-1.5"></i>
+    <% end %>
+  </div>
+  <% unless custom_selected %>
+    <div class="mt-5">
+      <%# The way BACK, and it asks the SAME question the package cards ask
+          (@custom_switch_blocked ← Factory.embedding_switch?, package: nil):
+          leaving a package moves the embedding lane in exactly the cases
+          joining one does (Falle 5), so it is one rule, not two.
+          And it takes the same detour as the card door since P4b: the way back
+          re-embeds just as much corpus as the way in, so it goes through the
+          consequence dialog too. Blank id = "Eigene Konfiguration" there as
+          well (E1-C), which is why the link carries no ai_package_id. %>
+      <% if @custom_switch_blocked %>
+        <p class="text-sm text-cream-800 mb-3"><%= t('views.organisations.ai_settings.packages.custom.switch_notice') %></p>
+        <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :secondary,
+          size: :medium,
+          icon: "arrow-left-right",
+          url: confirm_package_organisation_ai_settings_path(
+            @organisation, package_mode: Organisations::AiSettingsController::MODE_CUSTOM
+          )
+        ) do %>
+          <%= t('views.organisations.ai_settings.packages.card.switch_button') %>
+        <% end %>
+      <% else %>
+        <%# Same Actor, blank id — deselecting is one write, not a second code path. %>
+        <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :secondary,
+          size: :medium,
+          form: { action: select_package_organisation_ai_settings_path(@organisation),
+                  method: :post,
+                  params: { ai_package_id: '' } }
+        ) do %>
+          <%= t('views.organisations.ai_settings.packages.custom.select_button') %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

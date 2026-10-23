@@ -1,0 +1,107 @@
+<%# Inbox filter in pill style (like the time_sessions filter).
+    Pills are links that navigate directly: no submit button, no reset.
+    Extended filters (search, project, type) stay in the collapsible area,
+    but trigger automatically on change.
+
+    Helpers for building URLs come from the component (build_url_with).
+    See app/views/organisations/time_sessions/_filter_pills.html.erb. %>
+<div class="mb-4 bg-cream-50 border border-ink shadow-[2px_2px_0_0_#14110c] rounded-lg overflow-hidden">
+  <div class="p-3 sm:p-4">
+
+    <%# Status pills: multi-select. No selection = default inbox view
+        (unread + read, without archived). Multiple selection: a click on
+        a pill toggles it individually. %>
+    <div class="flex items-center gap-2 flex-wrap mb-2">
+      <span class="font-mono text-xs uppercase tracking-wider text-cream-600 mr-1">
+        <%= t('views.organisations.notifications.filter.status_label', default: 'Status:') %>
+      </span>
+      <% state_pills.each do |key, label| %>
+        <%= link_to toggle_array_param_url(:state_filters, key),
+                    data: { turbo_frame: '_top' },
+                    class: pill_classes(state_pill_active?(key)) + ' gap-1.5' do %>
+          <%= checkbox_icon(state_pill_active?(key)) %>
+          <span><%= label %></span>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%# View mode segment (single-select, joined stadium shape): category 1 of the shape language.
+        Classes from SegmentStylesHelper (shared with the ZEITRAUM filter). %>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="font-mono text-xs uppercase tracking-wider text-cream-600 mr-1">
+        <%= t('views.organisations.notifications.filter.view_label', default: 'Ansicht:') %>
+      </span>
+      <div class="inline-flex items-center rounded-full">
+        <% view_mode_pills.each do |key, label, icon| %>
+          <%= link_to set_param_url(:view_mode, key),
+                      data: { turbo_frame: '_top' },
+                      class: segment_cell_classes(current_view_mode == key) + ' gap-1.5' do %>
+            <i class="bi bi-<%= icon %> text-[13px]"></i>
+            <span><%= label %></span>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Extended filters: collapsible, auto-submit on change %>
+    <div data-controller="toggle" class="mt-3 border-t border-cream-200 pt-3">
+      <button type="button"
+              data-action="click->toggle#toggle"
+              class="flex items-center gap-1.5 text-xs text-cream-600 hover:text-ink transition-colors">
+        <i class="bi bi-sliders2"></i>
+        <span><%= t('views.organisations.notifications.filter.extended', default: 'Erweiterte Filter') %></span>
+        <% if has_extended_filters? %>
+          <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-lime-500 text-on-fill rounded-full">!</span>
+        <% end %>
+        <i class="bi bi-chevron-down text-[10px] transition-transform duration-300 <%= 'rotate-180' if has_extended_filters? %>" data-toggle-target="icon"></i>
+      </button>
+
+      <div data-toggle-target="content"
+           class="<%= 'hidden' unless has_extended_filters? %> mt-3">
+        <%= form_with url: filter_url, method: :get, local: true,
+                      data: { controller: 'neo-notification-filter' } do |form| %>
+          <%# Keep the current state + view_mode when the extended filters are submitted %>
+          <% if current_filters[:state].present? %>
+            <%= hidden_field_tag :state, current_filters[:state] %>
+          <% end %>
+          <% if current_filters[:view_mode].present? %>
+            <%= hidden_field_tag :view_mode, current_filters[:view_mode] %>
+          <% end %>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-medium mb-1">
+                <%= t('views.organisations.notifications.filter.search_label', default: 'Suche') %>
+              </label>
+              <%= form.text_field :search,
+                                  value: current_filters[:search],
+                                  placeholder: t('views.organisations.notifications.filter.search_placeholder', default: 'Suchen...'),
+                                  class: 'block w-full border-stroke rounded text-xs px-3 py-2',
+                                  data: { action: 'input->neo-notification-filter#debounceSearch' } %>
+            </div>
+            <div>
+              <label class="block text-xs font-medium mb-1">
+                <%= t('views.organisations.notifications.filter.project_label', default: 'Projekt') %>
+              </label>
+              <%= form.select :project_id,
+                              options_for_select(project_options, current_filters[:project_id]),
+                              {},
+                              class: 'block w-full border-stroke rounded text-xs px-3 py-2',
+                              data: { action: 'change->neo-notification-filter#submitForm' } %>
+            </div>
+            <div>
+              <label class="block text-xs font-medium mb-1">
+                <%= t('views.organisations.notifications.filter.type_label', default: 'Typ') %>
+              </label>
+              <%= form.select :event_type,
+                              options_for_select(event_type_options, current_filters[:event_type]),
+                              {},
+                              class: 'block w-full border-stroke rounded text-xs px-3 py-2',
+                              data: { action: 'change->neo-notification-filter#submitForm' } %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

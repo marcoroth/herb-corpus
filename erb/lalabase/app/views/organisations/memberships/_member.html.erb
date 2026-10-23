@@ -1,0 +1,36 @@
+<% selected = @membership&.id == membership.id %>
+<tr id="<%= dom_id(membership) %>" class="members-row <%= 'members-row--selected' if selected %>" <%= tag.attributes(data: { action: 'click->membership-workspace#openRow' }) if can_manage_members %>>
+  <td><div class="flex min-w-0 items-center gap-[11px]">
+    <%# Avatar always; name follows the viewer's spelling preference. %>
+    <%= render Neo::Users::AvatarComponent.new(user: membership.user, size: :small) do %>
+      <%# Coarse peer presence only, without a last-seen trail. %>
+      <% if membership.user.online? %><span class="members-presence" title="<%= t('member_management.online') %>" aria-label="<%= t('member_management.online') %>"></span><% end %>
+    <% end %>
+    <div class="min-w-0 flex-1">
+      <div class="flex min-w-0 items-center gap-2">
+        <% if can_manage_members %>
+          <%= link_to viewer_display_name(membership.user), membership_list_path(membership_id: selected ? nil : membership.id), class: 'members-name truncate', data: { member_link: true }, 'aria-current': (selected ? 'true' : nil) %>
+        <% else %><span class="members-name truncate"><%= viewer_display_name(membership.user) %></span><% end %>
+        <% if membership.user_id == current_user.id %><span class="members-state"><%= t('member_management.you') %></span><% end %>
+        <% unless membership.active? %><span class="members-state"><span class="members-status-dot"></span><%= t('member_management.blocked') %></span><% end %>
+      </div>
+      <p class="truncate text-xs text-muted"><%= membership.user.email %></p>
+    </div>
+  </div></td>
+  <td class="members-col-role">
+    <% if can_manage_members %><%= render 'role', membership: membership, location: 'row' %><% else %><span class="text-[13px] text-heading"><%= membership_role_name(membership.role) %></span><% end %>
+  </td>
+  <td class="members-col-since"><time datetime="<%= membership.created_at.to_date.iso8601 %>"><%= l(membership.created_at.to_date, format: :default) %></time></td>
+  <% if can_manage_members %>
+    <td class="members-col-actions">
+      <details class="members-menu" data-action="keydown.esc->membership-workspace#closeMenu">
+        <summary class="members-more" title="<%= membership.user_id == current_user.id ? t('member_management.cannot_remove_self') : t('member_management.actions_for', name: viewer_display_name(membership.user)) %>" aria-label="<%= t('member_management.actions_for', name: viewer_display_name(membership.user)) %>"><i class="bi bi-three-dots" aria-hidden="true"></i></summary>
+        <div class="members-menu-items">
+          <%= link_to t('member_management.activity'), organisation_user_activities_path(@current_organisation, user_id: membership.user_id), data: { turbo_frame: '_top' } %>
+          <%= link_to t('member_management.edit_role'), membership_list_path(membership_id: membership.id) %>
+          <% if policy(membership).destroy? %><%= button_to t('member_management.remove'), organisation_membership_path(@current_organisation, membership), method: :delete, class: 'members-danger', form: { data: { turbo_confirm: t('member_management.confirm_remove', name: membership.user.full_name) } } %><% end %>
+        </div>
+      </details>
+    </td>
+  <% end %>
+</tr>

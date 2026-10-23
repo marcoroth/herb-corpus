@@ -1,0 +1,115 @@
+<%# Two motivation cards for the repository-backed features on the project
+    settings page: "chat with your code" (code index) and "show documentation"
+    (doc sync). Both CTAs lead to the SAME management page — one mechanism
+    (connect a repository), two user goals. Replaces the single, abstract
+    "connected repositories" card.
+
+    Mirrors the self-querying pattern of _custom_fields.html.erb: the partial
+    owns its own small queries and per-user gating. Server stays authoritative —
+    the repo page itself is Pundit-protected. These cards are purely visual: they
+    never grant access, they only decide what to SHOW. Three user tiers (see plan
+    "Konsistenz-Vertrag"): manage / view-only / none. %>
+<% can_manage = can_manage_repositories?(project) %>
+<%# create? ⇒ index? always holds (write implies read), so only pay the second
+    policy evaluation when the user is not already a manager. %>
+<% can_view = can_manage || can_view_repositories?(project) %>
+
+<% if can_manage || can_view %>
+  <% repositories = project.project_repositories.includes(:project_index, :documentation_sets).order(:created_at).to_a %>
+  <% manage_url = organisation_project_project_repositories_path(@current_organisation, project) %>
+
+  <%# Identical CTA on both cards (same target page, label reflects state):
+      manage tier gets connect/manage; view-only tier gets a read button, but
+      only when there is something to read (a button leading to an empty page
+      is a dead affordance). %>
+  <% repository_cta = capture do %>
+    <% if can_manage %>
+      <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :secondary, icon: 'arrow-right', icon_position: :right,
+            url: manage_url
+          ) do %>
+        <%= repositories.any? ? t('views.organisations.projects.edit.manage_repositories') : t('views.organisations.projects.edit.connect_repository') %>
+      <% end %>
+    <% elsif repositories.any? %>
+      <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :secondary, icon: 'arrow-right', icon_position: :right,
+            url: manage_url
+          ) do %>
+        <%= t('views.organisations.projects.edit.view_repositories') %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <%# --- Card: chat with your code. Only for orgs that CAN get chat code
+      context (indexing stays chat-gated) — a chat-less org would be shown a
+      dead promise. %>
+  <% if @current_organisation.code_indexing? %>
+    <div class="max-w-2xl mt-8">
+      <div class="bg-cream-50 border border-cream-200 rounded-lg p-6">
+        <h3 class="text-sm font-bold uppercase text-cream-600 mb-3"><%= t('views.organisations.projects.edit.chat_with_code_title') %></h3>
+
+        <% if repositories.any? %>
+          <%# Mini-list, one row per repo (name + index status): doubles as a
+              health display (a failed run shows red) and stays cheap — repos per
+              project are single-digit and project_index is eager loaded. %>
+          <ul class="mb-4 divide-y divide-cream-200 border border-cream-200 rounded-md bg-surface-raised">
+            <% repositories.each do |repo| %>
+              <li class="flex items-center justify-between gap-3 px-3 py-2">
+                <span class="font-mono text-sm text-cream-900 truncate"><%= repo.full_name %></span>
+                <% if repo.project_index %>
+                  <%= render Neo::Repository::IndexStatusComponent.new(index: repo.project_index) %>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        <% else %>
+          <p class="text-sm text-cream-600 mb-4"><%= t('views.organisations.projects.edit.chat_with_code_empty') %></p>
+        <% end %>
+
+        <%= repository_cta %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# --- Card: show project documentation. Same repo list, but with the
+      doc-sync status per repo (a repo without a documentation set reads as
+      "never synced" — connected, but no docs configured yet). %>
+  <div class="max-w-2xl mt-8">
+    <div class="bg-cream-50 border border-cream-200 rounded-lg p-6">
+      <h3 class="text-sm font-bold uppercase text-cream-600 mb-3"><%= t('views.organisations.projects.edit.documentation_title') %></h3>
+
+      <% if repositories.any? %>
+        <ul class="mb-4 divide-y divide-cream-200 border border-cream-200 rounded-md bg-surface-raised">
+          <% repositories.each do |repo| %>
+            <li class="flex items-center justify-between gap-3 px-3 py-2">
+              <span class="font-mono text-sm text-cream-900 truncate"><%= repo.full_name %></span>
+              <% if repo.documentation_sets.any? %>
+                <span class="flex items-center gap-1.5">
+                  <% repo.documentation_sets.each do |set| %>
+                    <%= render Documentation::SyncStatusPillComponent.new(status: set.sync_status) %>
+                  <% end %>
+                </span>
+              <% else %>
+                <%= render Documentation::SyncStatusPillComponent.new(status: 'never_synced') %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-sm text-cream-600 mb-4"><%= t('views.organisations.projects.edit.documentation_empty') %></p>
+      <% end %>
+
+      <%= repository_cta %>
+    </div>
+  </div>
+<% else %>
+  <%# Not authorised: ONE neutral card (not the same hint twice), no count (no
+      needless existence leak), no button (a disabled affordance that never
+      activates is dead — Decision 2). %>
+  <div class="max-w-2xl mt-8">
+    <div class="bg-cream-50 border border-cream-200 rounded-lg p-6">
+      <h3 class="text-sm font-bold uppercase text-cream-600 mb-3"><%= t('views.organisations.projects.edit.code_and_docs_title') %></h3>
+      <p class="text-sm text-cream-600"><%= t('views.organisations.projects.edit.repositories_no_permission') %></p>
+    </div>
+  </div>
+<% end %>

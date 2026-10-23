@@ -1,0 +1,136 @@
+<%# locals: (analysis:, meeting:, can_write:, can_rerun: false) %>
+<%# One analysis row. The list is already
+    visibility-filtered by the caller, so this row is a pure function of its locals
+    (no current_user/params/policy). Content is LLM Markdown → Neo::MarkdownPreviewComponent (safe).
+    Relative time (user: nil) keeps the partial request-independent (E21). can_rerun is
+    the assistant gate, handed in by the caller for the same reason: a retry starts a new
+    run, and runs belong to the assistant since #817. Defaults to false, fail-closed. %>
+<% org = meeting.organisation %>
+<% running = analysis.generation_running? %>
+<li class="py-3" id="<%= dom_id(analysis) %>" data-controller="analysis-result" data-analysis-id="<%= analysis.id %>">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0 flex-1">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-medium text-sm text-cream-900"><%= analysis.prompt_title %></span>
+        <% if analysis.private? %>
+          <%= render NeoTagComponent.new(text: t('views.organisations.meetings.analyses.badge_private'),
+                                         variant: :neutral, icon: 'lock-fill', size: :small) %>
+        <% else %>
+          <%= render NeoTagComponent.new(text: t('views.organisations.meetings.analyses.badge_published'),
+                                         variant: :primary, icon: 'globe', size: :small) %>
+        <% end %>
+      </div>
+      <p class="text-xs text-cream-500 mt-0.5">
+        <%= display_time(analysis.created_at, user: nil) %>
+        · <%= analysis.creator ? viewer_display_name(analysis.creator) : t('views.organisations.meetings.analyses.unknown_creator') %>
+      </p>
+    </div>
+
+    <% if can_write %>
+      <div class="flex items-center gap-1 shrink-0">
+        <% unless running %>
+          <% if analysis.private? && analysis.sources_publishable? %>
+            <%= button_to t('views.organisations.meetings.analyses.publish'),
+                          organisation_project_meeting_analysis_path(org, meeting.project, meeting, analysis),
+                          method: :patch, params: { meeting_analysis: { is_private: false } },
+                          class: 'text-xs px-2 py-1 rounded border border-cream-300 text-cream-700 hover:bg-cream-100',
+                          form: { class: 'shrink-0' } %>
+          <% elsif analysis.public? %>
+            <%= button_to t('views.organisations.meetings.analyses.unpublish'),
+                          organisation_project_meeting_analysis_path(org, meeting.project, meeting, analysis),
+                          method: :patch, params: { meeting_analysis: { is_private: true } },
+                          class: 'text-xs px-2 py-1 rounded border border-cream-300 text-cream-700 hover:bg-cream-100',
+                          form: { class: 'shrink-0' } %>
+          <% end %>
+        <% end %>
+        <%= button_to organisation_project_meeting_analysis_path(org, meeting.project, meeting, analysis),
+                      { method: :delete,
+                        class: 'shrink-0 leading-none text-cream-400 hover:text-red-600',
+                        form: { class: 'shrink-0', data: { turbo_confirm: t('views.organisations.meetings.analyses.delete_confirm') } },
+                        title: t('views.organisations.meetings.analyses.delete'),
+                        'aria-label': t('views.organisations.meetings.analyses.delete') } do %>
+          <i class="bi bi-trash"></i>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Search & chat release (Slice 7b). Only meaningful once published; disabled with a
+      hint while private. Independent of the meeting's own opt-in (D13 redaction use-case). %>
+  <% if can_write && !running && analysis.sources_publishable? %>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <% if analysis.private? %>
+        <span class="flex items-center gap-1 text-xs italic text-cream-500">
+          <i class="bi bi-search text-[10px]" aria-hidden="true"></i>
+          <%= t('views.organisations.meetings.analyses.search_locked_hint') %>
+        </span>
+      <% elsif analysis.include_in_search? %>
+        <%= render NeoTagComponent.new(text: t('views.organisations.meetings.analyses.search_on_badge'),
+                                       variant: :info, icon: 'search', size: :small) %>
+        <%= button_to t('views.organisations.meetings.analyses.search_disable'),
+                      organisation_project_meeting_analysis_path(org, meeting.project, meeting, analysis),
+                      method: :patch, params: { meeting_analysis: { include_in_search: false } },
+                      class: 'text-xs px-2 py-1 rounded border border-cream-300 text-cream-700 hover:bg-cream-100',
+                      form: { class: 'shrink-0' } %>
+      <% else %>
+        <%= button_to t('views.organisations.meetings.analyses.search_enable'),
+                      organisation_project_meeting_analysis_path(org, meeting.project, meeting, analysis),
+                      method: :patch, params: { meeting_analysis: { include_in_search: true } },
+                      class: 'text-xs px-2 py-1 rounded border border-cobalt-400 text-cobalt-700 hover:bg-cobalt-50',
+                      form: { class: 'shrink-0' } %>
+        <span class="text-xs text-cream-500"><%= t('views.organisations.meetings.analyses.search_hint') %></span>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% unless analysis.sources_publishable? %>
+    <p class="mt-2 text-xs text-muted"><%= t('assistant_analysis.private_sources') %></p>
+  <% end %>
+  <% if running %>
+    <%# role=status: no broadcast here, but the frame is swapped in via Turbo on
+        create/refresh — screen readers still get the state change. %>
+    <p role="status" class="flex items-center gap-2 text-sm italic text-cream-600 mt-2">
+      <i class="bi bi-arrow-repeat inline-block animate-spin" aria-hidden="true"></i>
+      <%= t('views.organisations.meetings.analyses.in_progress') %>
+    </p>
+  <% elsif analysis.creation_error.present? %>
+    <div class="mt-2">
+      <p class="text-sm text-red-700"><%= analysis.creation_error %></p>
+      <% if can_write && can_rerun %>
+        <%= button_to t('views.organisations.meetings.analyses.retry'),
+                      organisation_project_meeting_analysis_path(org, meeting.project, meeting, analysis),
+                      method: :patch, params: { meeting_analysis: { rerun: 1 } },
+                      class: 'mt-1 text-xs px-2 py-1 rounded border border-cream-300 text-cream-700 hover:bg-cream-100',
+                      form: { class: 'shrink-0' } %>
+      <% end %>
+    </div>
+  <% elsif analysis.content.present? %>
+    <details class="mt-2">
+      <summary class="cursor-pointer text-sm text-cream-700 hover:text-ink">
+        <%= t('views.organisations.meetings.analyses.show_result') %>
+      </summary>
+      <% if analysis.source_context.present? %>
+        <% citations = analysis.source_context['citations'] || [] %>
+        <% numbering = Lalabase::ProjectRag::SourceNumbering.for(citations) %>
+        <% targets = Lalabase::CitationTargets.for(citations: citations, organisation: org) %>
+        <% visible_citations = citations.reject { |citation| citation['used'] == false } %>
+        <div class="prose prose-sm mt-2 break-words">
+          <%= Lalabase::CitationInlineLinks.apply(html: Lalabase::SafeMarkdown.render(analysis.content),
+                citations: visible_citations.reject { |citation| targets.gone?(citation) }, organisation: org, numbering: numbering) %>
+        </div>
+        <%= render Neo::Chat::CitationListComponent.new(citations: visible_citations, organisation: org, targets: targets, numbering: numbering) %>
+        <% if analysis.private? && (coverage = Assistant::CoverageNotice.call(coverage: analysis.source_context['coverage'])) %>
+          <p class="mt-1 text-xs text-muted"><%= coverage %></p>
+        <% end %>
+        <% if analysis.private? %>
+          <details class="mt-2 text-xs">
+            <summary class="cursor-pointer"><%= t('assistant_analysis.instruction') %></summary>
+            <p class="whitespace-pre-wrap mt-1"><%= analysis.prompt_snapshot %></p>
+          </details>
+        <% end %>
+      <% else %>
+        <%= render Neo::MarkdownPreviewComponent.new(markdown: meeting_markdown_source(analysis.content), class_name: 'mt-2') %>
+      <% end %>
+    </details>
+  <% end %>
+</li>

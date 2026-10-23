@@ -1,0 +1,537 @@
+<%# Detail Settings Modal - gear feature for ticket-header configuration %>
+<%# Locals: current_organisation, project, view_config, show_time (Boolean), hide_trigger (optional) %>
+
+<div data-controller="detail-settings-modal"
+     data-detail-settings-modal-update-url-value="<%= organisation_project_view_configuration_path(current_organisation, project) %>"
+     data-action="keydown@window->detail-settings-modal#closeOnEscape">
+
+  <%# Trigger Button — hidden when opened from external menu %>
+  <% unless local_assigns[:hide_trigger] %>
+    <button type="button"
+            class="h-8 w-8 inline-flex items-center justify-center text-gray-400 hover:text-cream-900 hover:bg-gray-200 rounded transition-colors duration-200"
+            data-action="click->detail-settings-modal#open"
+            title="<%= t('views.organisations.tickets.ticket_header_show.detail_settings') %>">
+      <i class="bi bi-gear"></i>
+    </button>
+  <% end %>
+
+  <%# The chrome-row "..." menu renders INSIDE this controller scope via
+      render layout: (block -> yield below), so its settings item can address
+      detail-settings-modal#open directly. Only the action bar calls this
+      partial, always with a block. %>
+  <%= yield %>
+
+  <%# Modal Overlay %>
+  <div class="fixed z-50 inset-0 overflow-y-auto hidden"
+       data-detail-settings-modal-target="modal"
+       data-action="click->detail-settings-modal#closeOnBackdrop">
+    <div class="fixed inset-0 bg-ink bg-opacity-60 backdrop-blur-sm"></div>
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="bg-surface-raised rounded-lg border border-cream-300 shadow-[4px_4px_0_0_#14110c] max-w-4xl w-full relative">
+
+        <%# Header %>
+        <div class="flex justify-between items-center p-4 border-b border-cream-200">
+          <h3 class="text-lg font-bold text-cream-900">
+            <i class="bi bi-gear mr-1"></i>
+            <%= t('views.organisations.tickets.detail_settings_modal.title') %>
+          </h3>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-green-600 font-medium opacity-0 transition-opacity duration-300"
+                  data-detail-settings-modal-target="saveIndicator">
+              <%= t('views.organisations.tickets.detail_settings_modal.saved') %>
+            </span>
+            <button type="button"
+                    class="text-cream-500 hover:text-cream-900"
+                    data-action="click->detail-settings-modal#close">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <%# Body: Two-column layout %>
+        <% ds = view_config.detail_settings_parsed %>
+        <div class="flex p-6">
+
+          <%# Left: Preview Panel — static dummy data %>
+          <div class="w-1/2 pr-8">
+            <h4 class="text-sm font-bold mb-3 text-cream-600 uppercase tracking-wide">
+              <%= t('views.organisations.tickets.detail_settings_modal.preview_title') %>
+            </h4>
+
+            <div class="bg-cream-50 rounded-lg border border-cream-300 py-5 px-5">
+
+              <%# Heading %>
+              <div class="flex flex-col gap-1">
+                <span class="text-xs text-cream-500 <%= 'hidden' if ds['heading_date'] == 'off' %>"
+                      data-detail-settings-modal-target="previewHeadingDate"
+                      data-preview-mode="on"><%= t('views.organisations.tickets.detail_settings_modal.preview.heading_date') %></span>
+                <span class="text-xs text-cream-500 hidden"
+                      data-detail-settings-modal-target="previewHeadingDate"
+                      data-preview-mode="off"></span>
+                <%# Title format follows the real header since T1: the title first,
+                    the mono number trailing - not "#42 / ..." any more. %>
+                <h2 class="text-xl font-bold text-cream-900"><%= t('views.organisations.tickets.detail_settings_modal.preview.example_task') %> <span class="font-mono text-sm font-normal text-cream-500">#42</span></h2>
+              </div>
+
+              <%# Metadata row %>
+              <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-cream-600">
+
+                <%# Demo people for the preview - unsaved on purpose, the chip
+                    falls back to initials and the name follows the viewer's
+                    real spelling setting (Slack model, 05.09.2026). %>
+                <% demo_assignees = [User.new(first_name: 'Anna', last_name: 'Müller'),
+                                     User.new(first_name: 'Ben', last_name: 'Schmidt')] %>
+
+                <%# Assignee: full_name = chip + name in the viewer's spelling.
+                    ONE demo person: the mode is adaptive (08.09.2026) and
+                    shows the name only while one person is assigned; with
+                    both demos the preview would look exactly like "initials". %>
+                <span class="inline-flex items-center gap-2 <%= 'hidden' unless ds['assignee_display'] == 'full_name' %>"
+                      data-detail-settings-modal-target="previewAssignee"
+                      data-preview-mode="full_name">
+                  <%= viewer_user_list(demo_assignees.first(1), size: :xs) %>
+                </span>
+
+                <%# Assignee: initials = chip only (name in the hover title) %>
+                <span class="inline-flex items-center gap-2 <%= 'hidden' unless ds['assignee_display'] == 'initials' %>"
+                      data-detail-settings-modal-target="previewAssignee"
+                      data-preview-mode="initials">
+                  <%= viewer_user_chips(demo_assignees, size: :xs) %>
+                </span>
+
+                <%# Assignee: icon_only %>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless ds['assignee_display'] == 'icon_only' %>"
+                      data-detail-settings-modal-target="previewAssignee"
+                      data-preview-mode="icon_only">
+                  <i class="bi bi-person-fill" style="font-size: 12px;"></i>
+                  <span class="text-cream-500">2</span>
+                </span>
+
+                <%# Assignee: off %>
+                <span class="hidden"
+                      data-detail-settings-modal-target="previewAssignee"
+                      data-preview-mode="off">
+                </span>
+
+                <%# Custom field previews with text/colored variants %>
+                <% header_cols_for_preview = view_config.header_columns || ViewConfiguration::DEFAULT_HEADER_COLUMNS %>
+
+                <%# Status — text mode %>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless header_cols_for_preview.include?('custom_status') && view_config.custom_field_display_mode('custom_status') == 'text' %>"
+                      data-preview-field="custom_status"
+                      data-preview-custom-mode="text">
+                  <i class="bi bi-circle-fill" style="font-size: 6px;"></i>
+                  <%= t('views.organisations.tickets.detail_settings_modal.preview.status_new') %>
+                </span>
+                <%# Status — colored mode %>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless header_cols_for_preview.include?('custom_status') && view_config.custom_field_display_mode('custom_status') == 'colored' %>"
+                      data-preview-field="custom_status"
+                      data-preview-custom-mode="colored">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium bg-cobalt-400 text-ink"><%= t('views.organisations.tickets.detail_settings_modal.preview.status_new') %></span>
+                </span>
+
+                <%# Priority — text mode %>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless header_cols_for_preview.include?('custom_priority') && view_config.custom_field_display_mode('custom_priority') == 'text' %>"
+                      data-preview-field="custom_priority"
+                      data-preview-custom-mode="text">
+                  <i class="bi bi-flag-fill" style="font-size: 10px;"></i>
+                  <%= t('views.organisations.tickets.detail_settings_modal.preview.priority_high') %>
+                </span>
+                <%# Priority — colored mode %>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless header_cols_for_preview.include?('custom_priority') && view_config.custom_field_display_mode('custom_priority') == 'colored' %>"
+                      data-preview-field="custom_priority"
+                      data-preview-custom-mode="colored">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-400 text-ink"><%= t('views.organisations.tickets.detail_settings_modal.preview.priority_high') %></span>
+                </span>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless header_cols_for_preview.include?('created_at') %>"
+                      data-preview-field="created_at">
+                  <i class="bi bi-calendar" style="font-size: 10px;"></i>
+                  01.03.2026
+                </span>
+                <span class="inline-flex items-center gap-1 <%= 'hidden' unless header_cols_for_preview.include?('updated_at') %>"
+                      data-preview-field="updated_at">
+                  <i class="bi bi-pencil" style="font-size: 10px;"></i>
+                  03.03.2026
+                </span>
+
+                <%# Time: compact %>
+                <% if show_time %>
+                  <span class="inline-flex items-center gap-1 <%= 'hidden' unless ds['time_display'] == 'compact' %>"
+                        data-detail-settings-modal-target="previewTime"
+                        data-preview-mode="compact">
+                    <i class="bi bi-clock" style="font-size: 12px;"></i>
+                    2,50h
+                  </span>
+
+                  <%# Time: verbose %>
+                  <span class="inline-flex items-center gap-1 <%= 'hidden' unless ds['time_display'] == 'verbose' %>"
+                        data-detail-settings-modal-target="previewTime"
+                        data-preview-mode="verbose">
+                    <i class="bi bi-clock" style="font-size: 12px;"></i>
+                    <%= t('views.organisations.tickets.detail_settings_modal.preview.time_verbose') %>
+                    <i class="bi bi-circle-half text-yellow-600" style="font-size: 10px;"></i>
+                  </span>
+
+                  <%# Time: off %>
+                  <span class="hidden"
+                        data-detail-settings-modal-target="previewTime"
+                        data-preview-mode="off">
+                  </span>
+                <% end %>
+
+                <%# Tags (controlled via header_columns checkbox) %>
+                <span class="<%= 'hidden' unless header_cols_for_preview.include?('tags') %>"
+                      data-preview-field="tags">
+                  <span class="inline-flex flex-wrap gap-1">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">Bug</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">Frontend</span>
+                  </span>
+                </span>
+              </div>
+
+              <%# Separator %>
+              <div class="border-b border-cream-200 mt-3 mb-3"></div>
+
+              <%# Content %>
+              <div class="text-cream-800 text-xs leading-relaxed">
+                Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.
+              </div>
+
+              <%# Separator %>
+              <div class="border-b border-cream-200 mt-3 mb-3"></div>
+
+              <%# Subscriber: full_inline %>
+              <div class="<%= 'hidden' unless ds['subscriber_display'] == 'full_inline' %>"
+                   data-detail-settings-modal-target="previewSubscriber"
+                   data-preview-mode="full_inline">
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="inline-flex items-center gap-1 px-2 py-1 bg-lime-100 border border-lime-300 rounded-full font-medium text-lime-800">
+                    <i class="bi bi-bell-fill" style="font-size: 10px;"></i> <%= t('views.organisations.tickets.detail_settings_modal.preview.subscriber_you') %>
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-1 bg-cream-100 border border-cream-300 rounded-full text-cream-700">
+                    <i class="bi bi-bell" style="font-size: 10px;"></i> Anna Müller
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-1 bg-cream-100 border border-cream-300 rounded-full text-cream-700">
+                    <i class="bi bi-bell" style="font-size: 10px;"></i> Ben Schmidt
+                  </span>
+                </div>
+              </div>
+
+              <%# Subscriber: compact %>
+              <div class="<%= 'hidden' unless ds['subscriber_display'] == 'compact' %>"
+                   data-detail-settings-modal-target="previewSubscriber"
+                   data-preview-mode="compact">
+                <span class="inline-flex items-center gap-1 text-xs text-cream-600">
+                  <i class="bi bi-bell-fill" style="font-size: 12px;"></i> 3
+                </span>
+              </div>
+
+              <%# Subscriber: off %>
+              <div class="hidden"
+                   data-detail-settings-modal-target="previewSubscriber"
+                   data-preview-mode="off">
+              </div>
+
+              <%# Footer: Action Buttons — right aligned %>
+              <div class="flex justify-end items-center gap-2 mt-3">
+                <div class="<%= 'hidden' unless ds['action_bar'] == 'show_all' %>"
+                     data-detail-settings-modal-target="previewActionBar"
+                     data-preview-mode="show_all">
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-7 px-2 text-xs bg-transparent border border-cream-300 rounded inline-flex items-center text-cream-500">
+                      <i class="bi bi-pencil"></i>
+                    </span>
+                    <span class="h-7 px-2 text-xs bg-transparent border border-cream-300 rounded inline-flex items-center text-cream-500">
+                      <i class="bi bi-activity"></i>
+                    </span>
+                    <span class="h-7 px-2 text-xs bg-transparent border border-cream-300 rounded inline-flex items-center text-cream-500">
+                      <i class="bi bi-clock"></i>
+                    </span>
+                    <span class="h-7 px-2 text-xs bg-transparent border border-cream-300 rounded inline-flex items-center text-cream-500">
+                      <i class="bi bi-arrow-right-square"></i>
+                    </span>
+                  </div>
+                </div>
+
+                <%# Action Bar: collapsed %>
+                <div class="<%= 'hidden' unless ds['action_bar'] == 'collapsed' %>"
+                     data-detail-settings-modal-target="previewActionBar"
+                     data-preview-mode="collapsed">
+                  <div class="flex items-center gap-1.5">
+                    <span class="h-7 px-2 text-xs bg-transparent border border-cream-300 rounded inline-flex items-center text-cream-500">
+                      <i class="bi bi-pencil"></i>
+                    </span>
+                    <span class="h-7 px-2 text-xs bg-transparent border border-cream-300 rounded inline-flex items-center text-cream-500">
+                      <i class="bi bi-three-dots"></i>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <%# Sub-tasks preview: full list vs collapsed (compact) %>
+              <div class="mt-4 pt-3 border-t border-cream-200 text-left">
+                <div class="<%= 'hidden' unless ds['subtasks_display'] == 'full' %>"
+                     data-detail-settings-modal-target="previewSubtasks"
+                     data-preview-mode="full">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold uppercase tracking-wide text-cream-700"><%= t('views.organisations.tickets.shared.subtasks.heading') %></span>
+                    <span class="font-mono text-xs tabular-nums text-cream-600"><%= t('views.organisations.tickets.shared.subtasks.progress', done: 2, total: 3) %></span>
+                  </div>
+                  <ul class="divide-y divide-cream-200 rounded bg-cream-50 text-xs">
+                    <li class="px-2 py-1 text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.preview.subtask_example_1') %></li>
+                    <li class="px-2 py-1 text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.preview.subtask_example_2') %></li>
+                  </ul>
+                </div>
+                <div class="<%= 'hidden' unless ds['subtasks_display'] == 'compact' %>"
+                     data-detail-settings-modal-target="previewSubtasks"
+                     data-preview-mode="compact">
+                  <div class="flex items-center justify-between">
+                    <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-cream-700">
+                      <i class="bi bi-chevron-down text-cream-500"></i><%= t('views.organisations.tickets.shared.subtasks.heading') %>
+                    </span>
+                    <span class="font-mono text-xs tabular-nums text-cream-600"><%= t('views.organisations.tickets.shared.subtasks.progress', done: 2, total: 3) %></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <% any_colored = view_config.available_header_columns.select { |c| c[:custom] }.any? { |col| view_config.custom_field_display_mode(col[:key]) == 'colored' && (view_config.header_columns || ViewConfiguration::DEFAULT_HEADER_COLUMNS).include?(col[:key]) } %>
+            <p class="text-xs text-cream-500 mt-2 leading-relaxed <%= 'hidden' unless any_colored %>"
+               data-detail-settings-modal-target="colorHint">
+              <i class="bi bi-info-circle mr-1"></i><%= t('views.organisations.tickets.detail_settings_modal.color_hint') %>
+            </p>
+          </div>
+
+          <%# Right: Settings Panel %>
+          <div class="w-1/2 pl-8 space-y-6">
+
+            <% header_cols = view_config.header_columns || ViewConfiguration::DEFAULT_HEADER_COLUMNS %>
+            <% all_header_columns = view_config.available_header_columns %>
+            <% simple_fields = all_header_columns.select { |c| c[:key] == 'tags' } %>
+            <% date_fields = all_header_columns.select { |c| %w[created_at updated_at].include?(c[:key]) } %>
+            <% custom_fields = all_header_columns.select { |c| c[:custom] } %>
+
+            <%# Fields — simple fields (tags) %>
+            <% if simple_fields.any? %>
+              <fieldset>
+                <legend class="text-sm font-bold mb-3"><%= t('views.organisations.tickets.detail_settings_modal.fields.label') %></legend>
+                <div class="space-y-2">
+                  <% simple_fields.each do |col| %>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm text-cream-800"><%= col[:label] %></span>
+                      <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                        <% %w[off on].each do |option| %>
+                          <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                                 data-detail-settings-modal-target="radioLabel">
+                            <input type="radio"
+                                   name="field_toggle[<%= col[:key] %>]"
+                                   value="<%= option %>"
+                                   class="sr-only"
+                                   <%= 'checked' if (option == 'on' && header_cols.include?(col[:key])) || (option == 'off' && !header_cols.include?(col[:key])) %>
+                                   data-action="change->detail-settings-modal#onChange"
+                                   data-field-key="<%= col[:key] %>">
+                            <%= t("views.organisations.tickets.detail_settings_modal.fields.#{option}") %>
+                          </label>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </fieldset>
+            <% end %>
+
+            <%# Date fields (incl. creation date above heading) %>
+            <fieldset>
+              <legend class="text-sm font-bold mb-3"><%= t('views.organisations.tickets.detail_settings_modal.date_fields.label') %></legend>
+              <div class="space-y-2">
+                <%# Creation date above heading — logically a date field %>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.heading_date.label') %></span>
+                  <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                    <% %w[off on].each do |option| %>
+                      <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                             data-detail-settings-modal-target="radioLabel">
+                        <input type="radio"
+                               name="detail_settings[heading_date]"
+                               value="<%= option %>"
+                               class="sr-only"
+                               <%= 'checked' if ds['heading_date'] == option %>
+                               data-action="change->detail-settings-modal#onChange">
+                        <%= t("views.organisations.tickets.detail_settings_modal.heading_date.#{option}") %>
+                      </label>
+                    <% end %>
+                  </div>
+                </div>
+                <% date_fields.each do |col| %>
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-cream-800"><%= col[:label] %></span>
+                    <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                      <% %w[off on].each do |option| %>
+                        <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                               data-detail-settings-modal-target="radioLabel">
+                          <input type="radio"
+                                 name="field_toggle[<%= col[:key] %>]"
+                                 value="<%= option %>"
+                                 class="sr-only"
+                                 <%= 'checked' if (option == 'on' && header_cols.include?(col[:key])) || (option == 'off' && !header_cols.include?(col[:key])) %>
+                                 data-action="change->detail-settings-modal#onChange"
+                                 data-field-key="<%= col[:key] %>">
+                          <%= t("views.organisations.tickets.detail_settings_modal.date_fields.#{option}") %>
+                        </label>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </fieldset>
+
+            <%# Custom fields (status, priority etc.) %>
+            <% if custom_fields.any? %>
+              <fieldset>
+                <legend class="text-sm font-bold mb-3"><%= t('views.organisations.tickets.detail_settings_modal.custom_fields.label') %></legend>
+                <div class="space-y-2">
+                  <% custom_fields.each do |col| %>
+                    <% current_mode = view_config.custom_field_display_mode(col[:key]) %>
+                    <% is_in_header = header_cols.include?(col[:key]) %>
+                    <% effective_mode = is_in_header ? current_mode : 'off' %>
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm text-cream-800"><%= col[:label] %></span>
+                      <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                        <% %w[off text colored].each do |option| %>
+                          <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                                 data-detail-settings-modal-target="radioLabel">
+                            <input type="radio"
+                                   name="custom_field_display[<%= col[:key] %>]"
+                                   value="<%= option %>"
+                                   class="sr-only"
+                                   <%= 'checked' if effective_mode == option %>
+                                   data-action="change->detail-settings-modal#onChange"
+                                   data-custom-field-key="<%= col[:key] %>">
+                            <%= t("views.organisations.tickets.detail_settings_modal.custom_fields.#{option}") %>
+                          </label>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              </fieldset>
+            <% end %>
+
+            <%# Display options %>
+            <fieldset>
+              <legend class="text-sm font-bold mb-3"><%= t('views.organisations.tickets.detail_settings_modal.display_options.label') %></legend>
+              <div class="space-y-3">
+
+              <%# Assignee Display %>
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.assignee_display.label') %></span>
+                <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                  <% %w[off full_name initials icon_only].each do |option| %>
+                    <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                           data-detail-settings-modal-target="radioLabel">
+                      <input type="radio"
+                             name="detail_settings[assignee_display]"
+                             value="<%= option %>"
+                             class="sr-only"
+                             <%= 'checked' if ds['assignee_display'] == option %>
+                             data-action="change->detail-settings-modal#onChange">
+                      <%= t("views.organisations.tickets.detail_settings_modal.assignee_display.#{option}") %>
+                    </label>
+                  <% end %>
+                </div>
+              </div>
+
+              <%# Time Display - only if user has permission %>
+              <% if show_time %>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.time_display.label') %></span>
+                  <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                    <% %w[off compact verbose].each do |option| %>
+                      <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                             data-detail-settings-modal-target="radioLabel">
+                        <input type="radio"
+                               name="detail_settings[time_display]"
+                               value="<%= option %>"
+                               class="sr-only"
+                               <%= 'checked' if ds['time_display'] == option %>
+                               data-action="change->detail-settings-modal#onChange">
+                        <%= t("views.organisations.tickets.detail_settings_modal.time_display.#{option}") %>
+                      </label>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+
+              <%# Subscriber Display %>
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.subscriber_display.label') %></span>
+                <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                  <% %w[off compact full_inline].each do |option| %>
+                    <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                           data-detail-settings-modal-target="radioLabel">
+                      <input type="radio"
+                             name="detail_settings[subscriber_display]"
+                             value="<%= option %>"
+                             class="sr-only"
+                             <%= 'checked' if ds['subscriber_display'] == option %>
+                             data-action="change->detail-settings-modal#onChange">
+                      <%= t("views.organisations.tickets.detail_settings_modal.subscriber_display.#{option}") %>
+                    </label>
+                  <% end %>
+                </div>
+              </div>
+
+              <%# Action Bar %>
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.action_bar.label') %></span>
+                <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                  <% %w[show_all collapsed].each do |option| %>
+                    <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                           data-detail-settings-modal-target="radioLabel">
+                      <input type="radio"
+                             name="detail_settings[action_bar]"
+                             value="<%= option %>"
+                             class="sr-only"
+                             <%= 'checked' if ds['action_bar'] == option %>
+                             data-action="change->detail-settings-modal#onChange">
+                      <%= t("views.organisations.tickets.detail_settings_modal.action_bar.#{option}") %>
+                    </label>
+                  <% end %>
+                </div>
+              </div>
+
+              <%# Sub-tasks: full list vs collapsed (compact) %>
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-cream-800"><%= t('views.organisations.tickets.detail_settings_modal.subtasks_display.label') %></span>
+                <div class="inline-flex flex-shrink-0 whitespace-nowrap rounded-lg border border-cream-300 overflow-hidden">
+                  <% %w[full compact].each do |option| %>
+                    <label class="px-3 py-1 text-xs cursor-pointer transition-colors border-r last:border-r-0 border-cream-300"
+                           data-detail-settings-modal-target="radioLabel">
+                      <input type="radio"
+                             name="detail_settings[subtasks_display]"
+                             value="<%= option %>"
+                             class="sr-only"
+                             <%= 'checked' if ds['subtasks_display'] == option %>
+                             data-action="change->detail-settings-modal#onChange">
+                      <%= t("views.organisations.tickets.detail_settings_modal.subtasks_display.#{option}") %>
+                    </label>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+            </fieldset>
+
+          </div>
+        </div>
+
+        <%# Footer with close button %>
+        <div class="flex justify-end items-center p-4 border-t border-cream-200">
+          <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :large,
+                tag: :button, type: "button", data: { action: "click->detail-settings-modal#close" }) do %>
+            <%= t('views.common.close') %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

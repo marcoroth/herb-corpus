@@ -1,0 +1,74 @@
+<%# The switch's face on the hub (doc/ki_zugang_umbau_plan.md D1/D2, reshaped by
+    doc/ki_uebersicht_zeilenliste_plan.md D1, D4, D6).
+
+    One sentence, no box, no icon. The green box it replaces read as "all is well" on a
+    page where, two lines further down, the access was missing — both were true, the
+    box only told one of them. The sentence now carries the second fact itself: it says
+    nothing works only when the gate every AI button in the app asks (ai_available?)
+    says so, which includes the operator's credential. Whether an access has been
+    CHOSEN is the row's business, one line further down.
+
+    No date and no name any more (D4): the Protokoll row says since when the trail
+    exists, and the page behind it names every switch with time and person. That is
+    where an audit statement belongs.
+
+    Two faces, still unequal (D2 of the Zugang plan): switched off, the consent copy
+    stands here in full, because this is where the decision is made and the text
+    belongs at the decision. Switched on, one sentence, the link, the way out.
+
+    The switch action is a TEXT action, not a second button: the page has one main
+    action in the title row (show.html.erb decides which), and a second filled surface
+    would compete with it. Where switching on IS the main action (access chosen, AI
+    off) this file renders no action at all. The POST endpoints stay on
+    AiSettingsController on purpose (D1 of the Zugang plan): both write with
+    update_columns outside any transaction so the compliance off-switch can never be
+    blocked. Only their form moved. %>
+<% ai_on = @organisation.ai_enabled? %>
+<% text_action = 'rounded-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' %>
+<div id="ai_activation" class="mb-8 width-text text-[13px] leading-relaxed text-muted">
+  <p>
+    <% if !ai_on %>
+      <%= t('views.organisations.ai_overview.status.inactive') %>
+    <% elsif @ai_available %>
+      <%= t('views.organisations.ai_overview.status.active') %>
+    <% else %>
+      <%= t('views.organisations.ai_overview.status.active_without_access') %>
+    <% end %>
+  </p>
+  <% if ai_on %>
+    <%# A div, not a p: the switch action is a form, and a <p> cannot hold one — the
+        browser would close the paragraph and drop the form onto its own line. %>
+    <div class="mt-2 flex flex-wrap items-center gap-x-2">
+      <% privacy_link = legal_page_link(
+           :privacy,
+           label: t('views.organisations.ai_overview.status.privacy_link'),
+           target: '_blank', rel: 'noopener', class: "text-green-700 #{text_action}"
+         ) %>
+      <% if privacy_link.present? %>
+        <%= privacy_link %>
+        <span aria-hidden="true">·</span>
+      <% end %>
+      <%= button_to t('views.organisations.ai_overview.actions.switch_off'),
+                    deactivate_organisation_ai_settings_path(@organisation),
+                    method: :post, form_class: 'inline',
+                    form: { data: { turbo_confirm: t('views.confirm.ai_deactivate') } },
+                    class: "text-body #{text_action}" %>
+    </div>
+  <% else %>
+    <%# The consent copy carries its own privacy link; no second one beneath it. %>
+    <%= render 'organisations/shared/opt_in_explanation',
+               text_class: 'text-muted',
+               link_class: 'hover:text-heading dark:hover:text-cream-100' %>
+    <% unless @access_chosen %>
+      <%# Nothing chosen yet: "Zugang einrichten" holds the title row, and switching
+          on stays reachable as text — the order is a recommendation, not a gate. %>
+      <div class="mt-2">
+        <%= button_to t('views.organisations.ai_overview.actions.switch_on'),
+                      activate_organisation_ai_settings_path(@organisation),
+                      method: :post, form_class: 'inline',
+                      form: { data: { turbo_confirm: t('views.confirm.ai_activate') } },
+                      class: "text-body #{text_action}" %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

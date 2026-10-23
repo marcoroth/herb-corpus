@@ -1,0 +1,52 @@
+<%
+  is_active = local_assigns[:active] == true
+
+  # Build the final path with any additional parameters
+  final_path = if local_assigns[:additional_params].present?
+    uri = URI.parse(path)
+    query_params = Rack::Utils.parse_query(uri.query)
+    query_params.merge!(additional_params)
+    uri.query = query_params.to_query
+    uri.to_s
+  else
+    path
+  end
+
+  # NOTE (S3a T4): this used to carry a data-turbo-visit-control attribute set to
+  # "reload", against a stale detail view flashing up. It never did anything --
+  # Turbo reads that name ONLY as a <meta> tag in the document head, never as a
+  # link attribute, so these links were plain Drive visits all along and the
+  # stale detail is really handled by turbo_cache_controller. Removed before
+  # somebody "repaired" the dead attribute into a real full reload and broke the
+  # assistant's permanent panel, which only survives Drive visits.
+  # (Spelled out in prose rather than as the literal attribute on purpose: the
+  # guard in spec/architecture/turbo_visit_control_guard_spec.rb greps files, it
+  # cannot tell a comment from markup.)
+  turbo_data = {}
+
+  # Allow escaping from Turbo Frames if needed
+  if local_assigns[:turbo_frame].present?
+    turbo_data['turbo-frame'] = local_assigns[:turbo_frame]
+  end
+
+  # The look comes from SidebarNavHelper, the one owner of a sidebar row. It was
+  # written out here (and in four other places) until 07.09.2026.
+  link_classes = sidebar_row_classes(active: is_active)
+
+  # Item hidden behind a "more …" reveal (data-more-item + "hidden"): shown by
+  # reveal_more_controller. See _navigation_application's collapsible group.
+  li_class = local_assigns[:more_item] ? 'hidden' : nil
+  li_data  = local_assigns[:more_item] ? { 'more-item': '' } : {}
+%>
+<%= content_tag :li, class: li_class, data: li_data do %>
+  <%= link_to final_path,
+    class: link_classes,
+    data: turbo_data do %>
+    <%# The icon takes its colour from the row's state, not from a second copy
+        of the same condition. %>
+    <% if local_assigns[:icon].present? %>
+      <i class="<%= icon %> <%= sidebar_row_icon_classes %>"></i>
+    <% end %>
+    <span><%= name %></span>
+  <% end %>
+<% end %>

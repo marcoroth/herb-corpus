@@ -1,0 +1,48 @@
+<%# One account row. Local: row (Subscriptions::AccountSummaries::Row).
+
+    SHARED by the cockpit block (K1) and the account index (K2) on purpose: both answer
+    "which accounts are mine and what do they cost", and two copies of that answer would
+    be two places for the money wording to drift apart.
+
+    The seat count is always shown, the AMOUNT only when the account is actually billed
+    (Row#amount_shown?). With billing_starts_on NULL nobody has decided whether this
+    account is invoiced at all (E4), and a euro figure there reads as an invoice no one
+    promised. That is today's normal state, not an edge case: it holds for every account
+    on production.
+
+    policy(...).manage_billing? is `owner?`, a plain id comparison and NOT a query, so
+    asking it per row costs nothing. It gates the completeness hint because E6 makes the
+    billing master data owner-only, and "yours are incomplete" is a statement about them. %>
+<%= link_to billing_account_path(row.account),
+            class: 'flex items-center justify-between gap-4 p-4 border-b border-cream-200 last:border-b-0 hover:bg-cream-100 transition-colors' do %>
+  <div class="min-w-0">
+    <div class="font-bold text-sm text-cream-900 truncate"><%= row.account.name %></div>
+    <div class="text-xs text-cream-500 truncate mt-0.5">
+      <%= row.organisations.map(&:name).join(', ') %>
+    </div>
+    <% if policy(row.account).manage_billing? && !row.account.billing_complete? %>
+      <div class="text-xs font-bold text-amber-700 mt-1">
+        <%= t('views.billing_accounts.row.incomplete') %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="text-right flex-shrink-0">
+    <% if row.amount_shown? %>
+      <div class="font-mono text-sm font-bold text-cream-900">
+        <%= format_price_cents(row.amount.total_cents, row.amount.currency) %>
+      </div>
+    <% else %>
+      <%# Dynamic key, pinned for every state by spec/locales/billing_account_row_states_spec.rb
+          in BOTH locales: raise_on_missing_translations is off in the test environment and
+          i18n-tasks does not see a reference without a definition, so a fifth state would
+          otherwise render "translation missing" into the customer page without failing. %>
+      <div class="text-xs text-cream-600 max-w-[16rem]">
+        <%= t("views.billing_accounts.row.state.#{row.state}") %>
+      </div>
+    <% end %>
+    <div class="text-xs text-cream-500 mt-0.5">
+      <%= t('views.billing_accounts.row.seats', count: row.seats) %>
+    </div>
+  </div>
+<% end %>

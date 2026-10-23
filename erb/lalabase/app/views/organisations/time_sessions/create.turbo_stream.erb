@@ -1,0 +1,103 @@
+<% if @time_session.errors.any? %>
+  <%# Capture popover: re-render the whole popover around the errored record
+      (@popover_time_session), form column included. The frame keeps its id, so
+      the open popover stays open. %>
+  <% if params[:context] == 'subject_popover' %>
+    <%= turbo_stream.update "subject_time_popover_#{@popover_subject.id}" do %>
+      <%= render 'organisations/time_sessions/subject_popover' %>
+    <% end %>
+  <% else %>
+  <%# On errors: show only the errors, without replacing the form %>
+
+  <%# First remove all old errors %>
+  <%= turbo_stream.remove_all ".time-session-error-container" %>
+
+  <%# Add the new errors %>
+  <%= turbo_stream.prepend "time_session_form" do %>
+    <div class="rounded-lg bg-red-50 border border-stroke p-4 time-session-error-container mb-4">
+      <div class="flex">
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">
+            <%= t('views.organisations.time_sessions.create.errors_found', count: @time_session.errors.count) %>
+          </h3>
+          <div class="mt-2 text-sm text-red-700">
+            <ul class="list-disc pl-5 space-y-1">
+              <% @time_session.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  <% end %>
+<% else %>
+  <%# Success: flash message %>
+  <% flash.now[:notice] = t('views.organisations.time_sessions.create.success_message') %>
+  <%= turbo_stream.update "flash" do %>
+    <%= render partial: "layouts/flash" %>
+  <% end %>
+
+  <%# Capture popover (context=subject_popover): the feedback happens where the
+      click was — the shared streams partial answers, exactly like update and
+      destroy do. %>
+  <% if params[:context] == 'subject_popover' %>
+    <%= render 'organisations/time_sessions/subject_popover_streams' %>
+  <% end %>
+
+  <%# Update the ticket display when the TimeSession is assigned to a ticket.
+      Independent of the context — Turbo ignores the command if ticket_display_frame does not exist. %>
+  <% if @time_session.ticket.present? && params[:context] != 'subject_popover' %>
+    <% @post = Post.new(ticket: @time_session.ticket, user: current_user) %>
+    <% @timeline_items = TicketTimelineService.new(@time_session.ticket, current_user).timeline_items %>
+
+    <%= turbo_stream.update "ticket_display_frame",
+                          partial: "organisations/tickets/ticket_display",
+                          locals: {
+                            ticket: @time_session.ticket,
+                            timeline_items: @timeline_items,
+                            post: @post,
+                            project: @time_session.project,
+                            current_organisation: @current_organisation
+                          } %>
+  <% end %>
+
+  <%# Meeting subject (Gespräche Slice 2): refresh the hours chip in the meeting
+      header meta row. Turbo ignores the command if the chip is not on the page.
+      Not for the capture popover — a full chip replace would close it; its
+      value span was already updated above. %>
+  <% if @time_session.meeting.present? && params[:context] != 'subject_popover' %>
+    <%= turbo_stream.replace "#{dom_id(@time_session.meeting)}_time_summary",
+                          partial: "organisations/meetings/time_summary_chip",
+                          locals: { meeting: @time_session.meeting } %>
+  <% end %>
+
+  <%# On the index page, also update the table. The months come from the
+      controller (load_time_sessions_for_index), which builds them through the
+      SAME row builder as the index — otherwise the list has one shape on load
+      and another after saving.
+
+      ⚠️ Known gap, deliberately not closed here (S2, 01.09.2026): the status
+      pills, the row count and the sum all live OUTSIDE this frame, so a booking
+      saved from the list leaves them at their pre-save values until the next full
+      load. Answering with turbo_stream.refresh, the way update and destroy do,
+      would fix all three at once — and it is what this path probably wants. It is
+      not done here because three specs pin this replace as it stands, one of them
+      a visibility guard (time_sessions_visibility_spec: "verengt auch das
+      Listen-Re-Render nach dem Anlegen"), and a refresh would take away that
+      guard's ability to observe the property it exists for. Rewriting those three
+      is its own change with its own review.
+      Adding a sibling stream for the pills instead was the other option and is
+      worse: load_time_sessions_for_index applies NO filters, so a figure computed
+      beside this list would contradict the filters still standing in the URL. A
+      new wrong number is worse than a stale one. %>
+  <% if params[:context] == 'index_page' %>
+    <%= turbo_stream.replace "time_sessions_list_frame",
+                            partial: "organisations/time_sessions/index_table",
+                            locals: {
+                              months: @list_months,
+                              pagy: @pagy
+                            } %>
+  <% end %>
+<% end %>

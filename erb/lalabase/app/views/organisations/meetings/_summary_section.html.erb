@@ -1,0 +1,101 @@
+<%# AI summary (Gespräche Slice 4). Rendered BOTH at request time (real can_write,
+    via _meeting_show) AND by Meeting#broadcast_summary_if_changed when the job
+    finishes. It must therefore use ONLY meeting-derived data — never request-only
+    helpers (params, policy, current_user). The AI gate reads from
+    meeting.organisation; can_write defaults true in broadcasts, mirroring the
+    DocumentVersion _version_row pattern (the POST is server-authorized regardless).
+    lane_state likewise comes from the request renders only (_meeting_show,
+    MeetingsController#summary_section_stream): the list state and context
+    (meeting_lane_state) for the POST and the refresh link, so both keep the
+    list the lane was opened from. A broadcast has none, and its links fall
+    back to the project's list.
+
+    Gate trio (plan D3, organisation.rb ai_available?/ai_enabled?):
+      !ai_enabled            → feature invisible (no controls, only existing summary)
+      ai_enabled, !available → button disabled + setup hint
+      ai_available           → active. %>
+<% can_write = local_assigns.fetch(:can_write, true) %>
+<% lane_state = local_assigns.fetch(:lane_state, {}).symbolize_keys %>
+<% org = meeting.organisation %>
+<% ai_enabled = org&.ai_enabled? %>
+<%# R2: asks the FEATURE this section offers — :meeting_summary, whose seam is
+    Meetings::SummaryService. Same key as MeetingsController#create_summary, so
+    button and POST cannot disagree. Was ai_available_for_chat?, before that
+    ai_available?(Meetings::SummaryService::PROVIDER). %>
+<% ai_available = org&.ai_available_for?(:meeting_summary)&.available? %>
+<% has_source = meeting.summary_source.present? %>
+<%# summary_generation_running? is staleness-aware (Meeting::SUMMARY_STALE_AFTER):
+    a stuck pending flag stops counting as "running" after the window, so the
+    button returns and a fresh POST may re-enqueue (review #235). %>
+<% in_progress = meeting.summary_generation_running? %>
+<% summary = meeting.generated_summary %>
+<% error = meeting.summary_creation_error %>
+<% show_controls = ai_enabled && can_write %>
+
+<div id="<%= dom_id(meeting) %>_summary_section">
+  <% if summary.present? || show_controls %>
+    <section class="mb-8 rounded-xl bg-cream-100 px-4 py-3.5">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <h3 class="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-cream-600">
+          <i class="bi bi-robot text-sm" aria-hidden="true"></i>
+          <%= t('views.organisations.meetings.show.summary_heading') %>
+        </h3>
+
+        <% if show_controls && !in_progress %>
+          <% summary_disabled = !ai_available || !has_source %>
+          <%# variant :ai + icon magic = the app-wide identity of the AI summary
+              action (same pair as tickets#create_summary buttons, review #235). %>
+          <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :ai,
+                size: :small,
+                icon: "magic",
+                disabled: summary_disabled,
+                form: summary_disabled ? nil : { action: create_summary_organisation_project_meeting_path(org, meeting.project, meeting, **lane_state), method: :post }
+              ) do %>
+            <% if error.present? %>
+              <%= t('views.organisations.meetings.show.summary_retry') %>
+            <% elsif summary.present? %>
+              <%= t('views.organisations.meetings.show.regenerate_summary') %>
+            <% else %>
+              <%= t('views.organisations.meetings.show.generate_summary') %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </div>
+
+      <% if in_progress %>
+        <%# role=status: the section is swapped in via Turbo broadcast — without a
+            live region screen readers get no signal that generation started/ended. %>
+        <p role="status" class="flex flex-wrap items-center gap-2 text-sm italic text-cream-600">
+          <i class="bi bi-arrow-repeat inline-block animate-spin" aria-hidden="true"></i>
+          <%= t('views.organisations.meetings.show.summary_in_progress') %>
+          <%# Fallback for when the live broadcast is not delivered: reload the
+              detail frame in request context (correct permissions + latest state). %>
+          <%= link_to t('views.organisations.meetings.show.summary_refresh'),
+                organisation_project_meeting_path(org, meeting.project, meeting, frame: 'content', **lane_state),
+                data: { turbo_frame: 'meeting_display_frame' },
+                class: 'not-italic underline hover:text-ink' %>
+        </p>
+      <% elsif summary.present? %>
+        <%# The LLM answers in Markdown ("**Kopf:**", "- Punkt"), so this goes through the
+            SAME component as notes/transcript/analyses — simple_format would only turn
+            newlines into <br> and leave the asterisks on screen as raw text. %>
+        <%= render Neo::MarkdownPreviewComponent.new(markdown: meeting_markdown_source(summary)) %>
+      <% end %>
+
+      <% if show_controls && !in_progress %>
+        <% if error.present? %>
+          <%# text-red-700, NOT -600: only 700/800/900 are remapped by the central
+              dark-theme rules (--wash-danger-text) — 600 stays illegible on dark. %>
+          <p class="mt-2 text-sm text-red-700"><%= error %></p>
+        <% elsif !ai_available %>
+          <p class="mt-2 text-sm text-amber-700"><%= t('views.organisations.meetings.show.summary_setup_hint') %></p>
+        <% elsif !has_source %>
+          <p class="mt-1 text-sm italic text-cream-600"><%= t('views.organisations.meetings.show.summary_no_content_hint') %></p>
+        <% elsif summary.blank? %>
+          <p class="mt-1 text-sm italic text-cream-600"><%= t('views.organisations.meetings.show.summary_empty') %></p>
+        <% end %>
+      <% end %>
+    </section>
+  <% end %>
+</div>

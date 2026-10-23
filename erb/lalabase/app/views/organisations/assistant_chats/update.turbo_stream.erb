@@ -1,0 +1,34 @@
+<%# The row of chips changed. Only the row is re-rendered: the transcript above
+    it and a half-typed question below it have nothing to do with this choice,
+    and replacing the whole panel body would throw both away.
+
+    The ROW and not a single chip, for two reasons that are really one. A write
+    here can change both chips at once (the button in the ticket header sets the
+    reference and the project together), and a chip that renders nothing leaves
+    no element behind for the next replace to find. The row survives being
+    empty, so the anchor holds. %>
+<%# @reference_expanded: only the reference controller sets it, and only because
+    it is the one caller that KNOWS this request was a reference write (§8.1).
+    The scope chip renders through the same template and leaves it nil, so a
+    change of "Sucht in" never unfolds a collection the user collapsed. %>
+<% row = Neo::Chat::ScopeRowComponent.new(
+     chat: @chat, current_user: current_user, current_organisation: @current_organisation,
+     reference_expanded: @reference_expanded.present?
+   ) %>
+<%= turbo_stream.replace row.dom_id do %>
+  <%= render row %>
+<% end %>
+
+<%# ONE template for both outcomes, because the row is re-rendered either way and
+    a second template would be a second copy of that render. What separates them
+    is the message: the two refusals set flash.now (AssistantChatsController#refuse_scope_change
+    and AssistantChatReferencesController#refuse), the success paths do not.
+
+    Without this a refusal was indistinguishable from a success on every Turbo
+    path -- same stream, same snapped-back chips, no word anywhere. The offer of
+    step 5b clicks straight into this. %>
+<% if flash[:alert].present? %>
+  <%= turbo_stream.update 'flash' do %>
+    <%= render partial: 'layouts/flash' %>
+  <% end %>
+<% end %>

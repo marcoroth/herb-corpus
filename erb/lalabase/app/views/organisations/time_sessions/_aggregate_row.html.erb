@@ -1,0 +1,128 @@
+<%# locals: (row:, can_bulk_assign_others: false, show_creator: false, expand_all: false) %>
+<%# One row of the time list: a subject in a project in a month, with the bookings
+    under it folded away.
+    Two deliberate departures from the design draft:
+    - the expander is always there, also for a single booking. The draft hides it
+      then, but edit and delete live inside the opened row, so a row that cannot
+      open would be a booking nobody can correct.
+    - "mit Ersteller" names a person only when the whole row is one person's. An
+      aggregate has no single author, and printing the first one would be a guess. %>
+<% parts = time_session_subject_presentation(row[:subject]) %>
+<% creators = row[:sessions].map(&:creator).uniq %>
+<% selectable = row[:sessions].any? { |session| time_session_selectable?(session, can_bulk_assign_others: can_bulk_assign_others) } %>
+<%# The key travels as UI STATE only, so an open row survives the redirect after a
+    bulk assignment (lib/expanded_rows.js). It identifies a position on a screen,
+    never a record: it goes into no form and replaces no id. %>
+<div class="relative" data-time-session-bulk-group
+     data-controller="ticket-group" data-ticket-group-expanded-value="<%= expand_all %>"
+     data-ticket-group-key-value="<%= row[:key].join('|') %>">
+  <div class="group flex cursor-pointer items-start gap-3.5 border-b border-cream-200 px-2 py-2.5 transition-colors hover:bg-cream-100"
+       data-action="click->ticket-group#toggle">
+    <%# Every column of the row shares ONE 24px line box, centred, the same one
+        the bookings under it use. Measured on 30.08.2026 the centres sat between
+        18px and 27.1px below the row edge: the checkbox followed a pt-1, the
+        duration a pt-px, the mark an h-5, the words nothing at all. Nine pixels
+        of drift across one line, which reads as restlessness long before anyone
+        can name it. Anything that may wrap grows downward out of the box. %>
+    <div class="flex h-6 w-4 shrink-0 items-center" data-no-toggle>
+      <% if selectable %>
+        <input type="checkbox"
+               class="<%= TimeSessionsHelper::TIME_LIST_CHECKBOX_CLASSES %> group-checkbox"
+               data-time-session-bulk-target="groupCheckbox"
+               data-action="change->time-session-bulk#toggleGroup">
+      <% end %>
+    </div>
+
+    <span class="w-[62px] shrink-0 text-right font-mono text-sm leading-6 text-cream-900">
+      <%= TimeSession.format_duration(row[:minutes]) %>
+    </span>
+    <%# flex + items-center, not a top padding: the mark is an inline-block and
+        would otherwise sit on the line's BASELINE, which puts it below the
+        middle of the duration beside it. %>
+    <span class="flex h-6 w-7 shrink-0 items-center">
+      <%= render NeoTimeShareBarComponent.new(shares: row[:shares]) %>
+    </span>
+
+    <span class="flex min-w-0 flex-1 items-start gap-2">
+      <%# ONE handle slot: the number, or the glyph where there is no number.
+          See SubjectPresentation#glyph_as_handle? for why. Right-aligned: a
+          left-aligned "#4" in a fixed box leaves the gap of the widest number
+          between itself and the title, on every short number. %>
+      <span class="w-9 shrink-0 text-right font-mono text-xs leading-6 text-cream-600">
+        <% if parts&.glyph_as_handle? %><i class="bi <%= parts.icon %>"></i><% elsif parts %><%= parts.reference %><% end %>
+      </span>
+      <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span class="truncate text-[15px] leading-6 text-cream-900">
+          <% if parts.nil? %>
+            <span class="italic text-cream-600"><%= t('views.time_sessions.billing_status.without_subject') %></span>
+          <% elsif policy(row[:subject].project).area_access?(parts.read_area, :read) %>
+            <%= link_to parts.title, parts.path, class: 'hover:text-cobalt-700 hover:underline',
+                        data: { turbo_frame: '_top', no_toggle: true } %>
+          <% else %>
+            <%= parts.title %>
+          <% end %>
+        </span>
+        <% if row[:hidden_minutes].positive? %>
+          <span class="text-[11px] text-cream-600">
+            <%= t('views.time_sessions.billing_status.hidden_note',
+                  shown: TimeSession.format_duration(row[:minutes]),
+                  total: TimeSession.format_duration(row[:total_minutes]),
+                  hidden: TimeSession.format_duration(row[:hidden_minutes])) %>
+          </span>
+        <% end %>
+      </span>
+    </span>
+
+    <% if show_creator %>
+      <span class="w-[108px] shrink-0 truncate text-sm leading-6 text-cream-700">
+        <%= viewer_display_name(creators.first) if creators.one? %>
+      </span>
+    <% end %>
+
+    <%# The state in words, back in the row on 30.08.2026 after a design review of
+        the finished table: the mark alone carried the state, the count and the
+        uniformity at once, in 24 pixels, with no legend anywhere on the screen.
+        Nobody learns that code by using it. The word teaches it in passing.
+        The billing NAME stays on the bookings; this is the state, nothing else. %>
+    <span class="w-[104px] shrink-0 truncate text-xs leading-6 text-cream-600">
+      <%= time_billing_state_label(row[:state], percent: row[:percent]) %>
+    </span>
+
+    <%# The project in a column of its own rather than squeezed behind the title,
+        so it lines up and can be scanned. Always: this is the organisation's
+        list, and with a project filter the select says which one. %>
+    <span class="w-[110px] shrink-0 truncate text-xs leading-6 text-cream-600"><%= row[:project].name %></span>
+
+    <%# The chevron alone. The count used to stand beside it as "2 Zeiten", which
+        said again what the dots already say ("one" or "several") and cost the
+        title 70px of room. It is not lost: it IS the button's label, so a screen
+        reader still hears how many, and opening the row shows them. What the
+        column must keep is the affordance -- without it, a row that opens on
+        click is a hidden feature. %>
+    <button type="button" data-toggle-allowed aria-expanded="false"
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-cream-700 transition-colors hover:bg-cream-200"
+            aria-label="<%= t('views.time_sessions.billing_status.entries_count', count: row[:sessions].size) %>">
+      <i class="bi bi-chevron-right inline-block text-xs transition-transform duration-200" data-ticket-group-target="chevron"></i>
+    </button>
+  </div>
+
+  <%# Second attempt (30.08.2026). The first drew a box: a left rule and a tinted
+      ground. It read as a stray frame rather than as a level below.
+      Now the subordination is the layout itself: the bookings carry no dividers
+      of their own, so the group is ONE block closed off at the bottom, they are
+      indented past the row's reference column, and their type is a step smaller
+      and quieter. Nothing is drawn that is not information. %>
+  <div class="hidden border-b border-cream-200" data-ticket-group-target="sessions">
+    <% row[:sessions].each do |time_session| %>
+      <%# The mark travels down only when the row is MIXED. A row showing a dot is
+          a row in one state, so every booking under it repeats that dot exactly.
+          The state in WORDS stays, because the billing beside it is named nowhere
+          else since the row's billing column came out. %>
+      <%= render 'organisations/time_sessions/session_line',
+                 time_session: time_session,
+                 can_bulk_assign_others: can_bulk_assign_others, show_creator: show_creator,
+                 show_state_mark: row[:state] == :mixed,
+                 show_duration: row[:sessions].size > 1 %>
+    <% end %>
+  </div>
+</div>

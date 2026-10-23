@@ -1,0 +1,60 @@
+<%# This partial is used specifically for display in the layout content frame %>
+<%# IMPORTANT: The ticket header is updated separately in its own Turbo Frame %>
+
+<%# assistant_context_attributes (S4 T2 step 5b, plan §7.3): this partial is the
+    SECOND root #ticket_display_frame can hold. TicketsController#render_summary_success
+    puts it there on its own, without the _ticket_display wrapper around it, so a
+    marker that lived only on that wrapper was gone the moment somebody generated
+    a summary -- and the panel then withdrew the offer while the user was still
+    standing on the ticket. Nested under _ticket_display in the normal case, which
+    is harmless: both markers name the same ticket. %>
+<%# ⚠️ NO side padding. It carried px-5 lg:px-8 to line up with a header
+    section that had padding of its own; that header gave its padding up
+    (d3932f8e) and this was left behind as a SECOND left edge inside the lane -
+    identifier, title and description at one edge, comment field and history
+    32px further in. The container holds the content off its edges now, and
+    only the container: the lane column in the list layout, the pane's own p-6
+    in the inbox.
+    py-4 is the 16px fugue to the block above, the value the header uses
+    between its own blocks. %>
+<div class="ticket-content py-4" id="ticket-content-<%= ticket.id %>"
+     <%= assistant_context_attributes(ticket) %>>
+  <%# Sub-tasks moved INTO the lazy timeline frame (T3 follow-up, user
+      03.09.): the section shows directly below the chip row, toggled by the
+      "Unteraufgaben" chip - see timeline.html.erb. %>
+
+  <%# Relations to other tickets (doc/ticket_relations_plan.md, revision 4, §8.2): outside
+      every condition, so a sub-task has them too. The section is an empty container until
+      the first relation, and the frame beside it holds the "Link" modal once a trigger
+      loads it. Both stay in the DOM: the relations streams target them. %>
+  <%= render 'organisations/tickets/relations_section', ticket: ticket %>
+  <%= turbo_frame_tag ticket_relation_modal_id(ticket) %>
+
+  <%# Meetings that link to this ticket (Gespräche Slice 3). GATE: only for users
+      who may read meetings in this project — without it the section (and even the
+      fact that meeting links exist) must stay hidden. Sits between sub-tasks and
+      the comment timeline. %>
+  <% if policy(@project).area_access?(:meetings, :read) %>
+    <%= render 'organisations/tickets/meeting_references_section', ticket: ticket, project: @project %>
+  <% end %>
+
+  <%# With reversed timeline order: buttons at the top, centered side by side %>
+  <% if current_user&.preference_store&.prefers_reverse_timeline? %>
+    <%= render 'organisations/tickets/new_post_composer',
+               ticket: ticket, post: (defined?(post) ? post : nil), position: :top %>
+  <% end %>
+
+  <%# Posts and timeline items with integrated activities — lazy-loaded via turbo-frame %>
+  <div class="posts-container mb-4" id="posts-container-<%= ticket.id %>">
+    <%= turbo_frame_tag "ticket-timeline-#{ticket.id}",
+                         src: timeline_organisation_project_ticket_path(current_organisation, project, ticket),
+                         loading: "lazy" %>
+  </div>
+
+  <%# With chronological timeline order: buttons at the bottom, centered side by side %>
+  <% unless current_user&.preference_store&.prefers_reverse_timeline? %>
+    <%= render 'organisations/tickets/new_post_composer',
+               ticket: ticket, post: (defined?(post) ? post : nil), position: :bottom %>
+  <% end %>
+
+</div>

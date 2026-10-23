@@ -1,0 +1,107 @@
+<%= turbo_frame_tag "attribute_#{attribute.id}" do %>
+  <div class="p-4 sm:p-6 hover:bg-cream-100 transition-colors">
+    <div class="flex items-start justify-between gap-4">
+      <% if attribute.active? %>
+        <span class="drag-handle cursor-grab active:cursor-grabbing text-cream-500 hover:text-cream-700 mt-1 shrink-0"
+              data-sortable-target="handle">
+          <i class="bi bi-grip-vertical text-lg"></i>
+        </span>
+      <% end %>
+      <div class="flex-1 min-w-0">
+        <%# Header: Label, Name, Badges %>
+        <div class="flex flex-wrap items-center gap-2 mb-1">
+          <h3 class="text-base font-bold text-cream-900">
+            <%= attribute.label_for(I18n.locale) %>
+          </h3>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cobalt-100 text-cobalt-800">
+            <%= t("attribute_types.#{attribute.field_type}", default: attribute.field_type.humanize) %>
+          </span>
+          <% if attribute.system? %>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+              <%= t('views.organisations.ticket_attribute_definitions.index.system_badge') %>
+            </span>
+          <% end %>
+          <% unless attribute.active? %>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              <%= t('views.organisations.ticket_attribute_definitions.index.inactive_badge') %>
+            </span>
+          <% end %>
+          <% if attribute.validation_rules&.dig('required') %>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+              <i class="bi bi-asterisk text-[10px]"></i>
+              <%= t('views.organisations.ticket_attribute_definitions.index.required_badge') %>
+            </span>
+          <% end %>
+        </div>
+
+        <%# Option values for select/multiselect %>
+        <% if attribute.options['allowed_values'].present? %>
+          <div class="mt-2">
+            <span class="text-xs text-cream-600 font-medium"><%= t('views.organisations.ticket_attribute_definitions.index.values_label') %>:</span>
+            <div class="flex flex-wrap gap-1 mt-1">
+              <% attribute.allowed_values.each do |value| %>
+                <%
+                  bg_color = TicketAttributeDefinition.safe_option_color(value['color'], '#f3f4f6')
+                  # Relative Luminanz berechnen für optimalen Kontrast
+                  hex = bg_color.delete('#')
+                  r, g, b = hex[0..1].to_i(16), hex[2..3].to_i(16), hex[4..5].to_i(16)
+                  luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+                  text_color = luminance < 160 ? '#ffffff' : '#1f2937'
+                %>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-stroke/20"
+                      style="background-color: <%= bg_color %>; color: <%= text_color %>">
+                  <%= value['labels'][I18n.locale.to_s] || value['value'] %>
+                </span>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <%# Validation rules summary %>
+        <% if attribute.validation_rules.present? && (attribute.validation_rules['min_value'].present? || attribute.validation_rules['max_value'].present? || attribute.validation_rules['min_length'].present? || attribute.validation_rules['max_length'].present?) %>
+          <div class="mt-1 text-xs text-cream-600 flex flex-wrap gap-3">
+            <% if attribute.validation_rules['min_value'].present? %>
+              <span>Min: <%= attribute.validation_rules['min_value'] %></span>
+            <% end %>
+            <% if attribute.validation_rules['max_value'].present? %>
+              <span>Max: <%= attribute.validation_rules['max_value'] %></span>
+            <% end %>
+            <% if attribute.validation_rules['min_length'].present? %>
+              <span><%= t('views.organisations.ticket_attribute_definitions.index.min_length') %>: <%= attribute.validation_rules['min_length'] %></span>
+            <% end %>
+            <% if attribute.validation_rules['max_length'].present? %>
+              <span><%= t('views.organisations.ticket_attribute_definitions.index.max_length') %>: <%= attribute.validation_rules['max_length'] %></span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+      <%# Actions %>
+      <% if policy(@current_organisation).admin? %>
+        <div class="flex items-center gap-1 ml-2 shrink-0">
+          <%# Edit button %>
+          <%= render Neo::Buttons::IconButtonComponent.new(
+            icon: "pencil",
+            variant: :edit,
+            size: :small,
+            url: edit_organisation_project_ticket_attribute_definition_path(@current_organisation, @project, attribute),
+            title: t('views.organisations.ticket_attribute_definitions.index.edit'),
+            data: { turbo: false }
+          ) %>
+
+          <%# Delete button (only for active view) %>
+          <% if attribute.active? %>
+            <%= render Neo::Buttons::IconButtonComponent.new(
+              icon: "trash",
+              variant: :danger,
+              size: :small,
+              form: { action: organisation_project_ticket_attribute_definition_path(@current_organisation, @project, attribute), method: :delete },
+              confirm: t('views.confirm.are_you_sure'),
+              title: t('views.organisations.ticket_attribute_definitions.index.delete')
+            ) %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

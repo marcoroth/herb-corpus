@@ -1,0 +1,32 @@
+<%# The way back from a number in the overview (from=overview): "zur Übersicht",
+    then the filters that number stood for, as chips. The chips show, they do
+    not switch; the filter box below carries the same values for changing them. %>
+<% trail_project = @accessible_projects.find { |candidate| candidate.id.to_s == params[:project_id_filter].to_s } %>
+<%# Constant first in the intersection, so the chips read in the canonical order
+    rather than in the order the query string happened to list them. %>
+<% buckets = TimeSession::BILLING_STATUS_FILTERS & Array(params[:status_filters]).reject(&:blank?) %>
+<% status_words = if (TimeSession::BILLING_STATUS_FILTERS - buckets).empty?
+                    [t('views.organisations.time_sessions.index.overview_trail_all')]
+                  else
+                    buckets.map { |bucket| time_billing_state_label(bucket) }
+                  end %>
+<%# The way back carries the period the table was showing. Without it the return
+    leg undoes the choice the outward leg made: narrow to "dieses Jahr", click a
+    number, click back, and the table is on "alles" again.
+
+    @effective_date_range, NOT params[:date_range] -- the same rule the date
+    fields below follow: what the controller ACCEPTED, not what the address
+    still says. A reader who typed a bound into the list is on `custom`, however
+    the old key reads, and `custom` normalises to the table's own default,
+    because the table has no date fields to show a typed window in. %>
+<div class="mb-3.5 flex flex-wrap items-center gap-2 text-sm" data-overview-trail>
+  <%= link_to time_list_path(@current_organisation, view: 'overview',
+                             date_range: TimeSessions::ListPeriod.normalize_for_table(@effective_date_range)),
+              class: "inline-flex items-center gap-1 text-cream-700 hover:text-cream-900 underline decoration-2 underline-offset-2" do %>
+    <i class="bi bi-arrow-left text-xs"></i>
+    <span><%= t('views.organisations.time_sessions.index.overview_trail_back') %></span>
+  <% end %>
+  <% ([trail_project&.name] + status_words).compact.each do |chip| %>
+    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-ink bg-cream-100 text-xs font-medium text-cream-900"><%= chip %></span>
+  <% end %>
+</div>

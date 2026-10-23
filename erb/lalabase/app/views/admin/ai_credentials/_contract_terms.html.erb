@@ -1,0 +1,355 @@
+<%# Contract data of a provider (doc/ki_vertragsdaten_plan.md T3/T4): at the top
+    the documents as evidence, below them the assessed versions that point to
+    them. Two levels, because evidence and statement age independently.
+
+    Locals: credential, documents, contracts, current_contract. %>
+<% input_class = "w-full px-3 py-2 border border-black rounded text-sm focus:outline-none focus:ring-0" %>
+<% label_class = "block text-sm font-bold text-gray-900" %>
+<% hint_class = "mt-1 text-xs text-gray-500" %>
+
+<div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] mt-6">
+  <div class="px-6 py-4 border-b-2 border-black">
+    <h2 class="text-lg font-medium text-gray-900">
+      <i class="bi bi-file-earmark-text text-gray-400 mr-2"></i>
+      <%= t('views.admin.ai_credentials.contract.section_title') %>
+    </h2>
+    <p class="mt-1 text-sm text-gray-500"><%= t('views.admin.ai_credentials.contract.section_help') %></p>
+  </div>
+
+  <div class="px-6 py-4">
+    <%# ── Current assessment ───────────────────────────────────────────────── %>
+    <h3 class="text-sm font-bold text-gray-900 mb-2"><%= t('views.admin.ai_credentials.contract.current_title') %></h3>
+    <% if current_contract %>
+      <div class="mb-4 p-4 border-2 border-black rounded bg-gray-50 text-sm">
+        <p>
+          <span class="font-bold"><%= t('views.admin.ai_credentials.contract.label_training') %>:</span>
+          <%= t("views.admin.ai_credentials.contract.training_usages.#{current_contract.training_usage}") %>
+        </p>
+        <p class="mt-1">
+          <span class="font-bold"><%= t('views.admin.ai_credentials.contract.label_retention') %>:</span>
+          <%= t("views.admin.ai_credentials.contract.retention_policies.#{current_contract.retention_policy}") %>
+          <% if current_contract.retention_days.present? %>
+            (<%= t('views.admin.ai_credentials.contract.retention_days_value', days: current_contract.retention_days) %>)
+          <% end %>
+        </p>
+        <p class="mt-1">
+          <span class="font-bold"><%= t('views.admin.ai_credentials.contract.label_subprocessors') %>:</span>
+          <%= t("views.admin.ai_credentials.contract.subprocessors_disclosures.#{current_contract.subprocessors_disclosure}") %>
+        </p>
+        <p class="mt-2 text-xs text-gray-500">
+          <%= t('views.admin.ai_credentials.contract.valid_since', date: l(current_contract.starts_on)) %>
+          <% if current_contract.recorded_by_email.present? %>
+            · <%= t('views.admin.ai_credentials.contract.recorded_by', email: current_contract.recorded_by_email) %>
+          <% end %>
+        </p>
+        <% if current_contract.documents.any? %>
+          <p class="mt-1 text-xs text-gray-600">
+            <%= t('views.admin.ai_credentials.contract.based_on') %>
+            <%= current_contract.documents.map(&:title).to_sentence %>
+          </p>
+        <% end %>
+
+        <%# Only ending, no editing, exactly like the account discount. A running
+            assessment is a commitment that already stood on a customer card;
+            rewriting it silently destroys the traceability the separate table
+            exists for. %>
+        <%= form_with url: admin_ai_credential_contract_path(credential, current_contract),
+                      method: :patch, scope: :ai_credential_contract, local: true,
+                      class: 'mt-3 flex items-end gap-2' do |f| %>
+          <div>
+            <%= f.label :ends_on, t('views.admin.ai_credentials.contract.label_end_on'),
+                class: 'block text-xs font-bold text-gray-900 mb-1' %>
+            <%= f.date_field :ends_on, value: Date.current, autocomplete: 'off',
+                class: 'border-2 border-black rounded-md px-2 py-1 text-sm' %>
+          </div>
+          <%= f.submit t('views.admin.ai_credentials.contract.end_contract'),
+              class: 'px-3 py-1 text-sm bg-white border-2 border-black rounded hover:bg-gray-100' %>
+        <% end %>
+        <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.end_contract_help') %></p>
+      </div>
+    <% else %>
+      <p class="mb-4 text-sm text-gray-600"><%= t('views.admin.ai_credentials.contract.none_yet') %></p>
+    <% end %>
+
+    <%# ── History ──────────────────────────────────────────────────────────── %>
+    <%# The core job of this table: trace what WAS committed on a given day.
+        Without the list the versioning exists in the model but is invisible to
+        the operator. Announced versions (start in the future) are included:
+        they are the only place where a commitment not yet in effect becomes
+        visible. %>
+    <% past_contracts = contracts.reject { |contract| contract == current_contract } %>
+    <% if past_contracts.any? %>
+      <h3 class="text-sm font-bold text-gray-900 mt-6 mb-2"><%= t('views.admin.ai_credentials.contract.history_title') %></h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="border-b border-gray-300">
+            <tr>
+              <th class="text-left py-2"><%= t('views.admin.ai_credentials.contract.history_period') %></th>
+              <th class="text-left py-2"><%= t('views.admin.ai_credentials.contract.label_training') %></th>
+              <th class="text-left py-2"><%= t('views.admin.ai_credentials.contract.label_retention') %></th>
+              <th class="text-left py-2"><%= t('views.admin.ai_credentials.contract.label_subprocessors') %></th>
+              <th class="text-left py-2"><%= t('views.admin.ai_credentials.contract.history_recorded_by') %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% past_contracts.each do |contract| %>
+              <tr class="border-b border-gray-100 text-gray-600">
+                <td class="py-2 whitespace-nowrap">
+                  <%= l(contract.starts_on) %> –
+                  <%= contract.ends_on ? l(contract.ends_on) : t('views.admin.ai_credentials.contract.open_end') %>
+                  <% if contract.starts_on > Date.current %>
+                    <span class="ml-1 px-1 text-xs font-bold bg-blue-100 border border-black rounded"><%= t('views.admin.ai_credentials.contract.announced_badge') %></span>
+                  <% end %>
+                </td>
+                <td class="py-2"><%= t("views.admin.ai_credentials.contract.training_usages.#{contract.training_usage}") %></td>
+                <td class="py-2">
+                  <%= t("views.admin.ai_credentials.contract.retention_policies.#{contract.retention_policy}") %>
+                  <% if contract.retention_days.present? %>
+                    (<%= t('views.admin.ai_credentials.contract.retention_days_value', days: contract.retention_days) %>)
+                  <% end %>
+                </td>
+                <td class="py-2"><%= t("views.admin.ai_credentials.contract.subprocessors_disclosures.#{contract.subprocessors_disclosure}") %></td>
+                <td class="py-2 text-xs"><%= contract.recorded_by_email %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+
+    <%# ── Documents ────────────────────────────────────────────────────────── %>
+    <h3 class="text-sm font-bold text-gray-900 mt-6 mb-2"><%= t('views.admin.ai_credentials.contract.documents_title') %></h3>
+    <% if documents.any? %>
+      <%# Grouped by document_key: one paper, several versions. Without the
+          grouping a history reads like a list of unrelated documents. %>
+      <% documents.group_by(&:document_key).each do |key, versions| %>
+        <div class="mb-4 border border-gray-300 rounded">
+          <div class="px-3 py-2 bg-gray-50 border-b border-gray-300">
+            <span class="font-bold text-sm"><%= versions.first.title %></span>
+            <span class="ml-2 font-mono text-xs text-gray-500"><%= key %></span>
+          </div>
+          <table class="w-full text-sm">
+            <tbody>
+              <% versions.sort_by(&:valid_from).reverse.each_with_index do |document, index| %>
+                <tr class="border-b border-gray-100">
+                  <td class="px-3 py-2 whitespace-nowrap">
+                    <%= l(document.valid_from) %>
+                    <% if index.zero? %>
+                      <span class="ml-1 px-1 text-xs font-bold bg-lime-200 border border-black rounded"><%= t('views.admin.ai_credentials.contract.current_badge') %></span>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 text-gray-700"><%= document.locator %></td>
+                  <td class="px-3 py-2">
+                    <% if document.file.attached? %>
+                      <%= link_to t('views.admin.ai_credentials.contract.pdf'), rails_blob_path(document.file, disposition: 'inline'), class: 'underline' %>
+                    <% end %>
+                    <% if document.url.present? %>
+                      <%= link_to t('views.admin.ai_credentials.contract.link'), document.url, class: 'underline ml-2', target: '_blank', rel: 'noopener' %>
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 text-right">
+                    <%= button_to t('views.admin.ai_credentials.contract.delete'),
+                        admin_ai_credential_document_path(credential, document),
+                        method: :delete, class: 'text-xs underline text-red-700',
+                        form: { data: { turbo_confirm: t('views.admin.ai_credentials.contract.confirm_delete') }, class: 'inline' } %>
+                  </td>
+                </tr>
+                <%# Correct instead of creating anew: a second row with the
+                    right date sorted below the wrong one because of
+                    `newest_first`, and deletion is blocked as soon as the paper
+                    backs a version. Without this form a typo would be final. %>
+                <tr>
+                  <td colspan="4" class="px-3 pb-3">
+                    <details class="border border-gray-300 rounded">
+                      <summary class="px-3 py-1.5 bg-gray-50 cursor-pointer text-xs font-bold"><%= t('views.admin.ai_credentials.contract.edit_document') %></summary>
+                      <div class="p-3">
+                        <%= form_with url: admin_ai_credential_document_path(credential, document),
+                                      method: :patch, scope: :ai_credential_document, local: true do |f| %>
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <%= f.label :title, t('views.admin.ai_credentials.contract.label_doc_title'), class: label_class %>
+                              <%= f.text_field :title, value: document.title, class: input_class, autocomplete: 'off' %>
+                            </div>
+                            <div>
+                              <%= f.label :document_key, t('views.admin.ai_credentials.contract.label_doc_key'), class: label_class %>
+                              <%= f.text_field :document_key, value: document.document_key, class: input_class, autocomplete: 'off' %>
+                              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.edit_key_help') %></p>
+                            </div>
+                            <div>
+                              <%= f.label :valid_from, t('views.admin.ai_credentials.contract.label_valid_from'), class: label_class %>
+                              <%= f.date_field :valid_from, value: document.valid_from, class: input_class, autocomplete: 'off' %>
+                              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.edit_valid_from_help') %></p>
+                            </div>
+                            <div>
+                              <%= f.label :url, t('views.admin.ai_credentials.contract.label_url'), class: label_class %>
+                              <%= f.url_field :url, value: document.url, class: input_class, autocomplete: 'off' %>
+                            </div>
+                            <div class="md:col-span-2">
+                              <%= f.label :locator, t('views.admin.ai_credentials.contract.label_locator'), class: label_class %>
+                              <%= f.text_field :locator, value: document.locator, class: input_class, autocomplete: 'off' %>
+                            </div>
+                            <div class="md:col-span-2">
+                              <%= f.label :summary, t('views.admin.ai_credentials.contract.label_summary'), class: label_class %>
+                              <%= f.text_area :summary, value: document.summary, rows: 2, class: input_class %>
+                            </div>
+                            <div class="md:col-span-2">
+                              <%= f.label :body, t('views.admin.ai_credentials.contract.label_body'), class: label_class %>
+                              <%= f.text_area :body, value: document.body, rows: 5, class: input_class %>
+                            </div>
+                            <div class="md:col-span-2">
+                              <%= f.label :file, t('views.admin.ai_credentials.contract.label_file'), class: label_class %>
+                              <%= f.file_field :file, accept: 'application/pdf', class: 'text-sm' %>
+                              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.edit_file_help') %></p>
+                              <%# "Leer lassen" means keep, which is why removing needs
+                                  its own switch. Without it an accidentally attached
+                                  PDF would be just as final as a wrong date was before
+                                  this slice. %>
+                              <% if document.file.attached? %>
+                                <label class="mt-2 flex items-center gap-2 text-sm">
+                                  <%= check_box_tag 'remove_file', '1', false,
+                                      id: "remove_file_#{document.id}", class: 'border-2 border-black rounded' %>
+                                  <%= t('views.admin.ai_credentials.contract.label_remove_file') %>
+                                </label>
+                                <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.remove_file_help') %></p>
+                              <% end %>
+                            </div>
+                          </div>
+                          <%= f.submit t('views.admin.ai_credentials.contract.save_edit'),
+                              class: 'mt-3 px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium text-sm hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+                        <% end %>
+                      </div>
+                    </details>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="text-sm text-gray-600 mb-3"><%= t('views.admin.ai_credentials.contract.no_documents') %></p>
+    <% end %>
+
+    <%# ── Add document ─────────────────────────────────────────────────────── %>
+    <details class="mt-4 border border-gray-300 rounded">
+      <summary class="px-3 py-2 bg-gray-50 cursor-pointer text-sm font-bold"><%= t('views.admin.ai_credentials.contract.add_document') %></summary>
+      <div class="p-3">
+        <%= form_with url: admin_ai_credential_documents_path(credential), method: :post,
+                      scope: :ai_credential_document, local: true do |f| %>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <%= f.label :title, t('views.admin.ai_credentials.contract.label_doc_title'), class: label_class %>
+              <%= f.text_field :title, class: input_class, autocomplete: 'off',
+                  placeholder: t('views.admin.ai_credentials.contract.placeholder_doc_title') %>
+            </div>
+            <div>
+              <%= f.label :document_key, t('views.admin.ai_credentials.contract.label_doc_key'), class: label_class %>
+              <%= f.text_field :document_key, class: input_class, autocomplete: 'off',
+                  placeholder: t('views.admin.ai_credentials.contract.placeholder_doc_key') %>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.doc_key_help') %></p>
+            </div>
+            <div>
+              <%= f.label :valid_from, t('views.admin.ai_credentials.contract.label_valid_from'), class: label_class %>
+              <%= f.date_field :valid_from, value: Date.current, class: input_class, autocomplete: 'off' %>
+            </div>
+            <div>
+              <%= f.label :url, t('views.admin.ai_credentials.contract.label_url'), class: label_class %>
+              <%= f.url_field :url, class: input_class, autocomplete: 'off' %>
+            </div>
+            <div class="md:col-span-2">
+              <%= f.label :locator, t('views.admin.ai_credentials.contract.label_locator'), class: label_class %>
+              <%= f.text_field :locator, class: input_class, autocomplete: 'off',
+                  placeholder: t('views.admin.ai_credentials.contract.placeholder_locator') %>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.locator_help') %></p>
+            </div>
+            <div class="md:col-span-2">
+              <%= f.label :summary, t('views.admin.ai_credentials.contract.label_summary'), class: label_class %>
+              <%= f.text_area :summary, rows: 2, class: input_class %>
+            </div>
+            <div class="md:col-span-2">
+              <%= f.label :body, t('views.admin.ai_credentials.contract.label_body'), class: label_class %>
+              <%= f.text_area :body, rows: 5, class: input_class %>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.body_help') %></p>
+            </div>
+            <div class="md:col-span-2">
+              <%= f.label :file, t('views.admin.ai_credentials.contract.label_file'), class: label_class %>
+              <%= f.file_field :file, accept: 'application/pdf', class: 'text-sm' %>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.file_help') %></p>
+            </div>
+          </div>
+          <%= f.submit t('views.admin.ai_credentials.contract.save_document'),
+              class: 'mt-3 px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium text-sm hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+        <% end %>
+      </div>
+    </details>
+
+    <%# ── Assess a version ─────────────────────────────────────────────────── %>
+    <details class="mt-3 border border-gray-300 rounded">
+      <summary class="px-3 py-2 bg-gray-50 cursor-pointer text-sm font-bold"><%= t('views.admin.ai_credentials.contract.add_contract') %></summary>
+      <div class="p-3">
+        <p class="text-xs text-gray-600 mb-3"><%= t('views.admin.ai_credentials.contract.add_contract_help') %></p>
+        <%= form_with url: admin_ai_credential_contracts_path(credential), method: :post,
+                      scope: :ai_credential_contract, local: true do |f| %>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <%= f.label :training_usage, t('views.admin.ai_credentials.contract.label_training'), class: label_class %>
+              <%= f.select :training_usage,
+                  options_for_select(AiCredentialContract::TRAINING_USAGES.map { |v| [t("views.admin.ai_credentials.contract.training_usages.#{v}"), v] },
+                                     AiCredentialContract::TRAINING_UNSPECIFIED),
+                  {}, class: input_class %>
+            </div>
+            <div>
+              <%= f.label :starts_on, t('views.admin.ai_credentials.contract.label_starts_on'), class: label_class %>
+              <%= f.date_field :starts_on, value: Date.current, class: input_class, autocomplete: 'off' %>
+            </div>
+            <div>
+              <%= f.label :retention_policy, t('views.admin.ai_credentials.contract.label_retention'), class: label_class %>
+              <%= f.select :retention_policy,
+                  options_for_select(AiCredentialContract::RETENTION_POLICIES.map { |v| [t("views.admin.ai_credentials.contract.retention_policies.#{v}"), v] },
+                                     AiCredentialContract::RETENTION_UNSPECIFIED),
+                  {}, class: input_class %>
+            </div>
+            <div>
+              <%= f.label :retention_days, t('views.admin.ai_credentials.contract.label_retention_days'), class: label_class %>
+              <%= f.number_field :retention_days, min: 1, class: input_class, autocomplete: 'off' %>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.retention_days_help') %></p>
+            </div>
+            <div>
+              <%= f.label :subprocessors_disclosure, t('views.admin.ai_credentials.contract.label_subprocessors'), class: label_class %>
+              <%= f.select :subprocessors_disclosure,
+                  options_for_select(AiCredentialContract::SUBPROCESSORS_DISCLOSURES.map { |v| [t("views.admin.ai_credentials.contract.subprocessors_disclosures.#{v}"), v] },
+                                     AiCredentialContract::SUBPROCESSORS_UNSPECIFIED),
+                  {}, class: input_class %>
+            </div>
+            <div>
+              <%= f.label :subprocessors, t('views.admin.ai_credentials.contract.label_subprocessors_list'), class: label_class %>
+              <%= f.text_area :subprocessors, rows: 2, class: input_class %>
+            </div>
+            <div class="md:col-span-2">
+              <%= f.label :note, t('views.admin.ai_credentials.contract.label_note'), class: label_class %>
+              <%= f.text_area :note, rows: 2, class: input_class %>
+              <p class="<%= hint_class %>"><%= t('views.admin.ai_credentials.contract.note_help') %></p>
+            </div>
+
+            <% if documents.any? %>
+              <div class="md:col-span-2">
+                <span class="<%= label_class %>"><%= t('views.admin.ai_credentials.contract.label_documents') %></span>
+                <p class="<%= hint_class %> mb-1"><%= t('views.admin.ai_credentials.contract.documents_help') %></p>
+                <% documents.each do |document| %>
+                  <label class="flex items-center gap-2 text-sm py-0.5">
+                    <%= check_box_tag 'ai_credential_contract[document_ids][]', document.id, false,
+                        id: "contract_document_#{document.id}",
+                        class: 'w-4 h-4 border-2 border-black rounded accent-lime-500' %>
+                    <span><%= document.title %> <span class="text-gray-500">(<%= l(document.valid_from) %>)</span></span>
+                  </label>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+          <%= f.submit t('views.admin.ai_credentials.contract.save_contract'),
+              class: 'mt-3 px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium text-sm hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+        <% end %>
+      </div>
+    </details>
+  </div>
+</div>

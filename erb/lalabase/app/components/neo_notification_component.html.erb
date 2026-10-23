@@ -1,0 +1,97 @@
+<div id="<%= dom_id(@notification) %>"
+     class="<%= notification_classes %> <%= priority_class %>"
+     data-notification-id="<%= @notification.id %>"
+     <% if @clickable && action_url.present? %>
+       data-controller="neo-notification"
+       data-neo-notification-url-value="<%= action_url %>"
+       data-action="click->neo-notification#navigate"
+       tabindex="0"
+       role="button"
+       aria-label="Open notification: <%= notification_message.truncate(50) %>"
+     <% end %>>
+
+  <div class="notification-content">
+    <div class="notification-header">
+      <% if @show_avatar %>
+        <div class="notification-avatar">
+          <%# Was ui-avatars.com (full_name leaked to a third party on every
+              render) plus unstyled .avatar* classes. Nil actor = system
+              event, marked with an "S" chip as before. %>
+          <%= render Neo::Users::AvatarComponent.new(user: @notification.actor,
+                                                     size: :small, fallback_initials: 'S') %>
+        </div>
+      <% end %>
+
+      <div class="notification-meta">
+        <div class="notification-type">
+          <span class="badge badge--<%= event_type_color %> badge--sm">
+            <i class="bi bi-<%= event_type_icon %>"></i>
+            <%= @notification.event_type.humanize %>
+          </span>
+        </div>
+
+        <div class="notification-time">
+          <span class="text-sm text-muted">
+            <%= time_ago_text %> ago
+            <% if @notification.grouped? %>
+              <span class="group-indicator">
+                · <%= group_count_text %>
+              </span>
+            <% end %>
+          </span>
+        </div>
+      </div>
+
+      <% if @show_actions %>
+        <div class="notification-actions">
+          <% unless @notification.state_read? %>
+            <%= button_to mark_read_url,
+                          method: :patch,
+                          params: { notification: { state: 'read' } },
+                          remote: true,
+                          class: "btn btn--ghost btn--xs",
+                          title: "Mark as read",
+                          data: {
+                            controller: "neo-notification-action",
+                            action: "neo-notification-action#markRead"
+                          } do %>
+              <i class="bi bi-check"></i>
+              <span class="sr-only">Mark as read</span>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="notification-body">
+      <div class="notification-message">
+        <%= notification_message %>
+      </div>
+
+      <% if notifiable_title != 'System' %>
+        <div class="notification-target">
+          <i class="bi bi-<%= @notification.notifiable_type.downcase %>"></i>
+          <span class="text-sm font-medium"><%= notifiable_title %></span>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @notification.grouped? && @variant != :compact %>
+      <div class="notification-footer">
+        <div class="grouped-info">
+          <i class="bi bi-collection"></i>
+          <span class="text-xs text-muted">
+            Part of <%= group_count_text %> from this item
+          </span>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <% unless @notification.state_read? %>
+    <div class="notification-indicator"
+         role="presentation"
+         aria-hidden="true">
+    </div>
+  <% end %>
+</div>

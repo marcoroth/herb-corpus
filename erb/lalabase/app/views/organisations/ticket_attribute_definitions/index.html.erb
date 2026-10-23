@@ -1,0 +1,167 @@
+<%# Stylesheet %>
+
+<div class="labor-layout-view">
+  <%= render NeoTitleBoxComponent.new(
+    title: t('views.organisations.ticket_attribute_definitions.index.title'),
+    subtitle: @project.name,
+    variant: :project
+  ) do |c| %>
+    <% c.with_right_content do %>
+      <%= render Neo::Buttons::HeaderButtonComponent.new(
+        variant: :secondary,
+        icon: "arrow-left",
+        label: t('views.organisations.ticket_attribute_definitions.index.back_to_project'),
+        url: organisation_project_tickets_path(@current_organisation, @project)
+      ) %>
+    <% end %>
+  <% end %>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex gap-6">
+      <%# Sidebar: Info-Box %>
+      <div class="hidden lg:block w-64 shrink-0">
+        <div class="sticky top-4 space-y-4">
+          <div class="p-4 bg-cream-100 border border-cream-200 rounded-lg">
+            <div class="flex items-center gap-2 mb-2">
+              <i class="bi bi-ui-checks text-cream-600"></i>
+              <h3 class="text-sm font-bold text-cream-700"><%= t('views.organisations.ticket_attribute_definitions.index.info_title') %></h3>
+            </div>
+            <p class="text-xs text-cream-600 leading-relaxed">
+              <%= t('views.organisations.ticket_attribute_definitions.index.info_text') %>
+            </p>
+          </div>
+
+          <div class="p-4 bg-cream-100 border border-cream-200 rounded-lg">
+            <h4 class="text-xs font-bold text-cream-600 mb-2"><%= t('views.organisations.ticket_attribute_definitions.index.info_types_title') %></h4>
+            <ul class="space-y-1.5 text-xs text-cream-600">
+              <li class="flex items-center gap-1.5">
+                <i class="bi bi-menu-button-wide text-cobalt-500"></i>
+                <%= t('attribute_types.select') %>
+              </li>
+              <li class="flex items-center gap-1.5">
+                <i class="bi bi-ui-checks text-cobalt-500"></i>
+                <%= t('attribute_types.multiselect') %>
+              </li>
+              <li class="flex items-center gap-1.5">
+                <i class="bi bi-check2-square text-cobalt-500"></i>
+                <%= t('attribute_types.checkbox') %>
+              </li>
+              <li class="flex items-center gap-1.5">
+                <i class="bi bi-input-cursor-text text-cobalt-500"></i>
+                <%= t('attribute_types.text') %>
+              </li>
+            </ul>
+          </div>
+
+          <%# Default Attributes Info Box %>
+          <% missing_status = !@project.ticket_attribute_definitions.exists?(name: 'status') %>
+          <% missing_priority = !@project.ticket_attribute_definitions.exists?(name: 'priority') %>
+
+          <% if missing_status || missing_priority %>
+            <div class="p-4 bg-cream-100 border border-cream-200 rounded-lg">
+              <div class="flex items-start gap-2 mb-2">
+                <i class="bi bi-info-circle text-cobalt-600 mt-0.5"></i>
+                <span class="text-xs font-medium text-cream-800"><%= t('organisations.projects.edit.default_attributes_available') %></span>
+              </div>
+              <ul class="ml-5 text-xs text-cream-700 space-y-0.5 mb-3">
+                <% if missing_status %>
+                  <li><%= t('organisations.projects.edit.default_status') %></li>
+                <% end %>
+                <% if missing_priority %>
+                  <li><%= t('organisations.projects.edit.default_priority') %></li>
+                <% end %>
+              </ul>
+              <%= render(Neo::Buttons::ButtonComponent.new(
+                variant: :info,
+                size: :small,
+                icon: "plus-lg",
+                form: { action: create_default_attributes_organisation_project_path(@current_organisation, @project), method: :post }
+              )) { t('organisations.projects.edit.create_defaults_button') } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Main: Felder-Liste %>
+      <div class="flex-1 min-w-0">
+        <%# Default Attributes Info Box — mobile only (hidden on lg where sidebar shows it) %>
+        <% missing_status_m = !@project.ticket_attribute_definitions.exists?(name: 'status') %>
+        <% missing_priority_m = !@project.ticket_attribute_definitions.exists?(name: 'priority') %>
+
+        <% if (missing_status_m || missing_priority_m) %>
+          <div class="lg:hidden mb-6 p-4 bg-cream-100 border border-cream-200 rounded-lg">
+            <div class="flex items-start gap-2 mb-2">
+              <i class="bi bi-info-circle text-cobalt-600 mt-0.5"></i>
+              <span class="text-sm font-medium text-cream-800"><%= t('organisations.projects.edit.default_attributes_available') %></span>
+            </div>
+            <ul class="ml-6 text-sm text-cream-700 space-y-0.5 mb-3">
+              <% if missing_status_m %>
+                <li><%= t('organisations.projects.edit.default_status') %></li>
+              <% end %>
+              <% if missing_priority_m %>
+                <li><%= t('organisations.projects.edit.default_priority') %></li>
+              <% end %>
+            </ul>
+            <%= render(Neo::Buttons::ButtonComponent.new(
+              variant: :info,
+              size: :small,
+              icon: "plus-lg",
+              form: { action: create_default_attributes_organisation_project_path(@current_organisation, @project), method: :post }
+            )) { t('organisations.projects.edit.create_defaults_button') } %>
+          </div>
+        <% end %>
+
+        <% if @active_attributes.any? %>
+          <div class="attr-defs-sortable space-y-4"
+               data-controller="sortable"
+               data-sortable-update-url-value="<%= sort_organisation_project_ticket_attribute_definitions_path(@current_organisation, @project) %>"
+               data-sortable-animation-value="150">
+            <% @active_attributes.each do |attribute| %>
+              <div class="group/row bg-cream-50 border border-cream-300 rounded-lg hover:border-ink transition-all"
+                   data-id="<%= attribute.id %>">
+                <%= render 'attribute_row', attribute: attribute %>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="bg-cream-50 border border-cream-300 rounded-lg p-12 text-center">
+            <i class="bi bi-ui-checks text-3xl text-cream-400"></i>
+            <p class="mt-2 text-sm font-medium text-cream-600"><%= t('views.organisations.ticket_attribute_definitions.index.no_fields') %></p>
+            <p class="mt-1 text-xs text-cream-500"><%= t('views.organisations.ticket_attribute_definitions.index.no_fields_hint') %></p>
+          </div>
+        <% end %>
+
+        <% if policy(@current_organisation).admin? %>
+          <%= link_to new_organisation_project_ticket_attribute_definition_path(@current_organisation, @project),
+              class: "mt-4 w-full py-2.5 inline-flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium text-cream-700 border border-dashed border-cream-400 hover:border-ink hover:bg-cream-100 transition-all" do %>
+            <i class="bi bi-plus-lg"></i>
+            <span><%= t('views.organisations.ticket_attribute_definitions.index.add_field') %></span>
+          <% end %>
+        <% end %>
+
+        <%# Inactive Fields Section (only if there are inactive fields) %>
+        <% if @inactive_attributes.any? %>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-cream-600 mt-8 mb-3">
+            <%= t('views.organisations.ticket_attribute_definitions.index.inactive_fields') %>
+            <span class="text-cream-500 ml-1">(<%= @inactive_attributes.size %>)</span>
+          </h2>
+
+          <div class="mb-4 px-4 py-2 bg-cream-100 border border-cream-200 rounded-lg">
+            <p class="text-xs text-cream-700">
+              <i class="bi bi-info-circle"></i>
+              <%= t('views.organisations.ticket_attribute_definitions.index.inactive_hint') %>
+            </p>
+          </div>
+
+          <div class="space-y-4">
+            <% @inactive_attributes.each do |attribute| %>
+              <div class="group/row bg-cream-50 border border-cream-300 rounded-lg hover:border-ink transition-all">
+                <%= render 'attribute_row', attribute: attribute %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

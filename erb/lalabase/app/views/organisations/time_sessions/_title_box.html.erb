@@ -1,0 +1,51 @@
+<%# Header of the one time list (the organisation's; a project is a filter):
+    title, org subtitle and the times tab bar, all from one partial so title and
+    tabs share one left edge. The actions travel as captured blocks - a partial
+    takes no block, and these are markup, not text.
+
+    ⚠️ This file used to render the title box ALONE, and index.html.erb wrapped
+    the tab bar in its own `mx-4 md:mx-5` right below. That is where the times
+    area's second left edge came from. %>
+<% title_action = capture do %>
+  <%# Only where this person may book somewhere: a button that leads to an
+      error message is a promise without cover. %>
+  <% if can_book_time? %>
+    <%= render Neo::Buttons::IconButtonComponent.new(
+      variant: :primary,
+      icon: "plus-lg",
+      size: :medium,
+      title: t('views.organisations.time_sessions.index.record_button'),
+      data: { action: "click->time-sessions-index#openModal", context: "index_page" }
+    ) %>
+  <% end %>
+<% end %>
+
+<% right_content = capture do %>
+  <%# Search lives in the filter/tab row (D7, like tickets), the way to the billings
+      is the subnav tab under this box. The title box carries only the help menu. %>
+  <div class="flex items-center gap-2">
+    <% if time_overview_available? %>
+      <%# Two views of the page: the status table of booked time per project,
+          or the list. The same switch as the tickets' Tabelle | Kanban.
+          The two carry their own period on purpose (list "diesen Monat",
+          table "alles"), so the switch deliberately hands none over. %>
+      <%= render NeoViewSwitchComponent.new(
+        label: t('views.organisations.time_sessions.index.view_switch_label'),
+        items: [
+          { key: :overview, icon: 'bi-bar-chart', title: t('views.organisations.time_sessions.index.view_overview'),
+            active: @view == 'overview', path: time_list_path(@current_organisation, view: 'overview') },
+          { key: :list, icon: 'bi-list-ul', title: t('views.organisations.time_sessions.index.view_list'),
+            active: @view == 'list', path: time_list_path(@current_organisation) }
+        ]
+      ) %>
+    <% end %>
+    <%= render 'common/contextual_help_menu', context: :time_sessions %>
+  </div>
+<% end %>
+
+<%= render 'organisations/shared/times_subnav',
+      active: :times,
+      title: @active_smart_folder.present? ? @active_smart_folder.name : t('views.organisations.time_sessions.index.title_times'),
+      badge: (@active_smart_folder.present? ? t('views.organisations.time_sessions.index.smart_folder_badge') : nil),
+      title_action: title_action,
+      right_content: right_content %>

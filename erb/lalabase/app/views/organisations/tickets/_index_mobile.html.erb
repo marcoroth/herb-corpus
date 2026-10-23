@@ -1,0 +1,46 @@
+<% if @selected_ticket %>
+  <div class="mobile-ticket-detail">
+    <%= link_to t('mobile.back_tickets'), organisation_project_tickets_path(@current_organisation, @project, request.query_parameters.except('ticket_id', 'id').merge('viewport' => 'mobile')), class: 'mobile-text-action', data: { turbo_frame: '_top' } %>
+    <turbo-frame id="ticket_display_frame">
+      <%= render 'organisations/tickets/ticket_display', ticket: @selected_ticket, post: @post || Post.new(ticket: @selected_ticket, user: current_user), project: @project, current_organisation: @current_organisation %>
+    </turbo-frame>
+  </div>
+<% else %>
+  <% count_texts = I18n.t('views.organisations.tickets.selection.count') %>
+  <div class="mobile-ticket-list" data-controller="ticket-selection mobile-ticket-list"
+       data-ticket-selection-mobile-value="true"
+       data-ticket-selection-frame-value="tickets_list_frame"
+       data-ticket-selection-count-one-value="<%= count_texts[:one] %>"
+       data-ticket-selection-count-other-value="<%= count_texts[:other] %>"
+       data-ticket-selection-count-all-one-value="<%= count_texts[:one] %>"
+       data-ticket-selection-count-all-other-value="<%= count_texts[:other] %>"
+       data-ticket-selection-max-value="<%= Tickets::BulkSelection::MAX_TICKETS %>"
+       data-ticket-selection-panel-url-value="<%= bulk_edit_organisation_project_tickets_path(@current_organisation, @project, viewport: 'mobile') %>"
+       data-ticket-selection-display-frame-value="ticket_display_frame"
+       data-action="ticket-bulk-panel:ready@window->ticket-selection#announce ticket-bulk-panel:ready@window->mobile-ticket-list#editorReady ticket-bulk-panel:close@window->ticket-selection#closePanel ticket-bulk-panel:draft@window->ticket-selection#storeDraft ticket-bulk-panel:done@window->ticket-selection#afterRun
+                    mobile-selection:clear@window->ticket-selection#clear mobile-selection:all@window->ticket-selection#selectAll mobile-selection:edit@window->mobile-ticket-list#edit
+                    pointerdown->mobile-ticket-list#start pointermove->mobile-ticket-list#move pointerup->mobile-ticket-list#stop pointercancel->mobile-ticket-list#cancel contextmenu->mobile-ticket-list#contextMenu">
+    <div class="mobile-ticket-tools">
+      <% if params[:project_switched] == '1' %><p role="status"><%= t('mobile.filter_reset') %></p><% end %>
+      <%= render NeoFilterBarComponent.new(
+        current_user_id: current_user.id, smart_folders: @ticket_smart_folders,
+        url: organisation_project_tickets_path(@current_organisation, @project, viewport: 'mobile'),
+        frame_id: 'tickets_list_frame', i18n_scope: 'views.organisations.tickets.index',
+        all_items_label: t('smart_folders.all_tickets'), smart_folder_context_type: 'Ticket', smart_folder_return_to: 'tickets',
+        active_smart_folder: @active_smart_folder, active_view_permissions: filter_bar_view_permissions(@active_smart_folder),
+        dissolver_result: @dissolver_result, ad_hoc_filters: ad_hoc_filter_params.presence || {},
+        ad_hoc_operators: ad_hoc_filter_op_params.presence || {}, dropped_categories: dropped_filter_categories,
+        filter_categories_json: ad_hoc_filter_categories_json(@project), search_value: params[:search], search_mode: @current_search_mode,
+        project: @project, organisation: @current_organisation
+      ) %>
+    </div>
+    <%= render 'organisations/tickets/selection_row' %>
+    <turbo-frame id="tickets_list_frame" data-turbo-action="advance">
+      <%= render 'tickets_results_mobile', tickets: @tickets, pagy: @pagy, project: @project %>
+    </turbo-frame>
+    <dialog class="mobile-sheet" data-mobile-ticket-list-target="editor" aria-label="<%= t('mobile.edit_tickets') %>" data-action="click->mobile-ticket-list#backdrop close->mobile-ticket-list#editorClosed">
+      <button class="mobile-text-action" type="button" data-action="mobile-ticket-list#closeEditor"><%= t('mobile.back_tickets') %></button>
+      <turbo-frame id="ticket_display_frame"></turbo-frame>
+    </dialog>
+  </div>
+<% end %>

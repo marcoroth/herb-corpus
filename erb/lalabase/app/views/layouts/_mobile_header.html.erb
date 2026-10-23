@@ -1,0 +1,45 @@
+<div class="mobile-page-head" data-controller="mobile-shell" data-mobile-shell-count-label-value="<%= t('mobile.selected_count', count: '%{count}') %>" data-mobile-shell-all-label-value="<%= t('mobile.all_count', count: '%{count}') %>" data-action="ticket-selection:change@window->mobile-shell#selectionChanged">
+  <header class="mobile-header" data-mobile-shell-target="normal">
+    <div class="mobile-heading">
+      <h1>
+        <% if mobile_project %>
+          <button type="button" data-action="mobile-shell#openProjects" aria-haspopup="dialog"><%= mobile_project.name %> <i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+        <% else %>
+          <%= mobile_page_title %>
+        <% end %>
+      </h1>
+      <p><%= current_organisation.name %></p>
+    </div>
+    <div class="mobile-header-tools">
+      <% if global_search_available? || (mobile_project && controller_name == 'tickets') %>
+        <button class="mobile-icon" type="button" data-action="mobile-shell#search" aria-label="<%= t('mobile.search') %>"><i class="bi bi-search" aria-hidden="true"></i></button>
+      <% end %>
+      <% if assistant_available? %>
+        <button class="mobile-icon" type="button" data-controller="assistant-trigger" data-action="assistant-trigger#toggle" aria-label="<%= t('navigation.assistant') %>"><i class="bi bi-stars" aria-hidden="true"></i></button>
+      <% end %>
+      <% if mobile_project && controller_name == 'tickets' && policy(mobile_project).area_access?(:tickets, :write) %>
+        <%= link_to new_organisation_project_ticket_path(current_organisation, mobile_project, source: (@selected_ticket.present? ? 'mobile_detail' : 'index_page'), viewport: 'mobile'), class: 'mobile-icon mobile-primary', aria: { label: t('mobile.new_ticket') }, data: { turbo_frame: 'writing_surface' } do %>
+          <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        <% end %>
+      <% end %>
+    </div>
+  </header>
+  <div class="mobile-selection-head" hidden data-mobile-shell-target="selection" aria-live="polite">
+    <button type="button" class="mobile-icon" data-action="mobile-shell#clear" aria-label="<%= t('mobile.cancel_selection') %>"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+    <strong data-mobile-shell-target="count"></strong>
+    <button type="button" class="mobile-text-action" data-mobile-shell-target="all" data-action="mobile-shell#selectAll"></button>
+  </div>
+  <% if mobile_project %>
+    <nav class="mobile-project-tabs" aria-label="<%= t('mobile.project_areas') %>">
+      <% mobile_project_items(mobile_project).each do |item| %>
+        <%= link_to item[:label], item[:path], aria: { current: ('page' if item[:key] == mobile_area) } %>
+      <% end %>
+    </nav>
+    <dialog class="mobile-sheet" data-mobile-shell-target="projects" aria-labelledby="mobile-project-title" data-action="click->mobile-shell#backdrop">
+      <div class="mobile-sheet-head"><h2 id="mobile-project-title"><%= t('mobile.switch_project') %></h2><button class="mobile-icon" type="button" data-action="mobile-shell#closeProjects" aria-label="<%= t('mobile.close') %>"><i class="bi bi-x-lg" aria-hidden="true"></i></button></div>
+      <%= turbo_frame_tag 'mobile_project_switcher', src: organisation_mobile_projects_path(current_organisation, project_context: mobile_project.id, area: mobile_area), loading: :lazy do %>
+        <p role="status"><%= t('mobile.loading_projects') %></p>
+      <% end %>
+    </dialog>
+  <% end %>
+</div>

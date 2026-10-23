@@ -1,0 +1,164 @@
+<%# locals: (months:, pagy: nil, show_creator: false, expand_all: false, sort_params: {}, collection: nil, time_sessions: nil, sortable_header: nil, smart_folder_id: nil, active_smart_folder: nil, project_id: nil) %>
+<%# Shell of the time-tracking list: counter, total, bulk bar, empty states, desktop/mobile groups, pagination.
+    The locals from `collection:` onward are injected by the Pageable concern (build_combined_locals) during the
+    sort/paginate stream — unused here, but declared for strict locals. %>
+<%# The ONE frame with this id. advance and the loading fade moved here from
+    index.html.erb on 31.08.2026, together with the duplicate frame that used to
+    wrap this one: a filter change has to update the address, and the attribute
+    belongs on the element that is actually replaced. %>
+<turbo-frame id="time_sessions_list_frame" data-turbo-action="advance"
+             class="block transition-opacity duration-200 aria-busy:opacity-50">
+  <%# The row counter that stood here is gone (02.09.2026). The result row above
+      the list states "n Zeiten · HH:MM", so this printed a second count a few
+      pixels away -- and a DIFFERENT one, because it counted ROWS (one subject in
+      one month) while the other counts bookings. Two numbers, two meanings, one
+      screen, and nothing saying which was which. %>
+
+  <%# The boxed total that used to sit here is GONE (02.09.2026), and with it the
+      show_sum parameter that switched it on. The result row above the list
+      states "n Zeiten · HH:MM" on every render now, so this printed the same
+      figure a few pixels lower, in a box, behind a toggle -- and a switch for
+      something that is always shown anyway is a switch that can only confuse.
+      @total_filtered_duration still exists; it feeds that row. %>
+
+  <% can_bulk_assign_others = current_user.account_admin_in?(current_organisation) %>
+  <%# When sorting/paginating, expand_all is not passed as a local — the params fallback preserves the state. %>
+  <% expand_all ||= params[:expand_all] == '1' %>
+  <%# The bulk controller and its panel used to live HERE, inside the frame, and
+      that is why a filter change closed the panel and dropped the selection: the
+      frame is replaced on every filter, page and sort, so the controller was
+      torn down and connected again with an empty Set. They sit in index.html.erb
+      now, AROUND the frame (user, 31.08.2026). The checkboxes below are still
+      its targets: Stimulus finds targets anywhere in the controller's subtree,
+      and this frame is in it. %>
+  <div>
+    <% if months.blank? %>
+        <% if time_sessions_first_use? %>
+          <% ts_cta = nil %>
+          <% if can_book_time? %>
+            <%# Opens the inline time-session modal (same as the header "+" button),
+                NOT new_time_session_path → this card sits inside
+                time_sessions_list_frame, so a link would load #new into the frame
+                and Turbo would report "Content missing" (same trap as the tickets
+                first-use CTA). The time-sessions-index controller is mounted on
+                the page root, so the action reaches it from inside the frame. %>
+            <% ts_cta = capture do %>
+              <%= render Neo::Buttons::ButtonComponent.new(
+                    variant: :primary, icon: "plus-lg", size: :large, tag: :button, type: "button",
+                    data: { action: "click->time-sessions-index#openModal", context: "index_page" }
+                  ) do %>
+                <%= t('views.organisations.time_sessions.index_table.empty_first_time_cta') %>
+              <% end %>
+            <% end %>
+          <% end %>
+          <%# First time: full-width two-column grid like the documentation
+              reference (style guide "Leerzustände") — empty card + explainer,
+              stacked on mobile, starting at the top of the list area. %>
+          <div class="grid w-full gap-5 md:grid-cols-2 md:items-stretch">
+            <%= render 'shared/empty_content',
+                variant: :first_time,
+                icon_class: 'bi bi-clock-history',
+                title: t('views.organisations.time_sessions.index_table.empty_first_time_title'),
+                description: t('views.organisations.time_sessions.index_table.empty_first_time_description'),
+                actions: ts_cta %>
+            <%= render 'shared/explainer_panel',
+                i18n_scope: 'views.organisations.time_sessions.index_table.explainer',
+                points: { capture: 'stopwatch', ticket: 'check2-square', overview: 'bar-chart', billing: 'receipt' } %>
+          </div>
+        <% else %>
+          <%= render 'organisations/time_sessions/empty_filtered', reason: @empty_reason %>
+        <% end %>
+    <% else %>
+
+      <!-- Desktop: month > row > booking -->
+      <div class="hidden md:block min-h-[70vh]" id="time_sessions_table">
+        <div id="time_sessions_body">
+          <%# The master checkbox rides in the FIRST month header, in the same
+              w-4 column the rows use, instead of on a line of its own above the
+              table. On its own line it read as a stray control belonging to
+              nothing (user, 30.08.2026); in the header it sits at the head of
+              the column it commands. It stays one control for the whole table,
+              which is why only the first month carries it. %>
+          <% months.each_with_index do |month, index| %>
+            <%= render 'organisations/time_sessions/month_group',
+                       month: month,
+                       can_bulk_assign_others: can_bulk_assign_others,
+                       show_creator: show_creator, expand_all: expand_all,
+                       master_checkbox: index.zero? %>
+          <% end %>
+        </div>
+
+        <%# The sum of what is ON SCREEN, which is why it is added up from the rows
+            above rather than queried: the page is a page of rows, so this and the
+            month sums always describe the same set. %>
+        <div class="flex items-baseline gap-3.5 px-2 pt-1 text-sm">
+          <span class="w-4 shrink-0"></span>
+          <span class="w-[62px] shrink-0 text-right font-mono text-base font-semibold text-cream-900">
+            <%= TimeSession.format_duration(months.sum { |month| month[:sum_minutes] }) %>
+          </span>
+          <span class="min-w-0 flex-1 text-cream-600"><%= t('views.time_sessions.billing_status.visible_sum') %></span>
+        </div>
+      </div>
+
+      <!-- Mobile: Card View -->
+      <div class="block md:hidden">
+        <%# space-y between MONTHS, not between rows: the rows are a list and read
+            as one, the way the desktop's do. They were 32px apart while every
+            one of them was a stack of boxes, where the gap was the only thing
+            separating two groups. %>
+        <div class="space-y-6">
+          <% months.each do |month| %>
+            <div>
+            <%# Same weight as the desktop header since 30.08.2026: it heads a
+                section on both screens. %>
+            <div class="flex items-baseline justify-between border-b border-cream-400 pb-1 text-base font-bold text-cream-900">
+              <span><%= month[:label] %></span>
+              <span class="font-mono text-sm"><%= TimeSession.format_duration(month[:sum_minutes]) %></span>
+            </div>
+              <% month[:rows].each do |row| %>
+                <%= render 'organisations/time_sessions/mobile_ticket_group',
+                           row: row,
+                           can_bulk_assign_others: can_bulk_assign_others,
+                           show_creator: show_creator, expand_all: expand_all %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+    <% end %>
+
+    <!-- Pagination navigation -->
+    <% if pagy.present? %>
+      <div class="my-4">
+        <%= render partial: 'shared/pagination_nav_compact', locals: { pagy: pagy, frame_id: "time_sessions_list_frame", sort_params: sort_params } %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# ⚠️ INSIDE the frame, and that is the whole trick.
+      The status pills stand OUTSIDE this frame (they are in the filter form above
+      the list), and the search box, the selects and the custom date fields all
+      target this frame. Turbo swaps the frame and leaves the rest of the page
+      alone, so without this the figures on the pills keep the values the page was
+      opened with: type a search that matches nothing and three figures stand over
+      an empty list, the exact mock finding F4 is about.
+
+      A <turbo-stream> element is applied document-wide when it ARRIVES IN THE
+      DOM (same idiom as notifications/_pane_ticket). On a frame navigation Turbo
+      takes the matching <turbo-frame> out of the answer and throws the rest away,
+      so an element placed after </turbo-frame> is simply discarded -- it is in
+      the response, it renders in a request spec, and it never runs. It has to
+      travel INSIDE the frame to travel at all.
+
+      Only on a frame or stream request: on a full page load the pills are
+      rendered by the form above anyway, and replacing them with themselves would
+      be work for nothing. %>
+  <% if turbo_frame_request? || request.format.turbo_stream? %>
+    <% TimeSessionsHelper::FRAME_DEPENDENT_REGIONS.each do |region| %>
+      <%= turbo_stream.replace "time_#{region}" do %>
+        <%= render "organisations/time_sessions/#{region}" %>
+      <% end %>
+    <% end %>
+  <% end %>
+</turbo-frame>

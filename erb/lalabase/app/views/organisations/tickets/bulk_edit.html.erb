@@ -1,0 +1,340 @@
+<%# The bulk panel's shell (doc/ticket_bulk_edit_plan.md, slices 3 and 4;
+    designer template 29a §4 to §6). Content for the lane's frame, in turns
+    with the ticket detail: the two are never open together. It arrives once,
+    with the first tick; afterwards nothing in here moves. The numbers are
+    written by ticket_bulk_panel_controller.js from the selection's window
+    events, the stock lines from GET bulk_summary.
+    Head: the count in place of an object name, and the ✕ that clears the
+    selection AND closes, both together. Body: the list of changes, EMPTY at
+    the start on purpose (twenty rows saying "unverändert" would be noise, and
+    each one an accident that hits fourteen tickets), and "+ Feld ändern" with
+    the catalogue from Tickets::BulkFields, closed by default. One <template>
+    per field carries its row; the controller clones it when the field is
+    added. Foot: the one confirming button, grey until every added change has
+    a value, and "Abbrechen", which discards the draft. Under it the other
+    actions (slice 7), each with its own dialog, offered by right. %>
+<% bk = 'views.organisations.tickets.bulk' %>
+<% fields = Tickets::BulkFields.for(project: @project, user: current_user, name_mode: viewer_name_display_mode) %>
+<% grouped = fields.group_by(&:group) %>
+<% texts = {
+     title: I18n.t("#{bk}.title"), execute: I18n.t("#{bk}.execute"), stock: I18n.t("#{bk}.stock"),
+     summary_fields: I18n.t("#{bk}.summary_fields"), summary_tickets: I18n.t("#{bk}.summary_tickets"),
+     summary_empty: I18n.t("#{bk}.summary_empty"),
+     move: I18n.t("#{bk}.move"), delete: I18n.t("#{bk}.delete"), others: I18n.t("#{bk}.others")
+   } %>
+<%= turbo_frame_tag 'ticket_display_frame' do %>
+  <div class="ticket-bulk-panel py-4"
+       data-controller="ticket-bulk-panel"
+       data-ticket-bulk-panel-summary-url-value="<%= bulk_summary_organisation_project_tickets_path(@current_organisation, @project, format: :json) %>"
+       data-ticket-bulk-panel-update-url-value="<%= bulk_update_organisation_project_tickets_path(@current_organisation, @project) %>"
+       data-ticket-bulk-panel-impact-url-value="<%= bulk_impact_organisation_project_tickets_path(@current_organisation, @project, format: :json) %>"
+       data-ticket-bulk-panel-move-url-value="<%= bulk_move_organisation_project_tickets_path(@current_organisation, @project) %>"
+       data-ticket-bulk-panel-destroy-url-value="<%= bulk_destroy_organisation_project_tickets_path(@current_organisation, @project) %>"
+       data-ticket-bulk-panel-texts-value="<%= texts.to_json %>"
+       data-action="ticket-selection:change@window->ticket-bulk-panel#update
+                    keydown@window->ticket-bulk-panel#closePickerOnEscape
+                    click@window->ticket-bulk-panel#closePickerOutside">
+    <%# The head: count, then the way out (F20, top right of the surface). %>
+    <div class="flex items-start justify-between gap-3">
+      <%# 15 px at 600, the close 28 px with a 14 px glyph: the lane is a
+          workbench, its head must not compete with the page's (designer, 08.09.2026). %>
+      <h2 class="text-[15px] font-semibold leading-7 text-heading" data-ticket-bulk-panel-target="title"></h2>
+      <button type="button"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted
+                     hover:bg-cream-100 hover:text-heading
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
+              data-action="click->ticket-bulk-panel#close"
+              title="<%= t("#{bk}.close") %>"
+              aria-label="<%= t("#{bk}.close") %>">
+        <i class="bi bi-x-lg text-sm" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <%# The list of changes: only what stands here is changed. %>
+    <div class="mt-4" data-ticket-bulk-panel-target="changes"></div>
+
+    <%# "+ Feld ändern": closed by default, or it would cover the rows and the
+        button; grouped; the kind at the row's end; fields already added leave
+        the list; a search field from about eight fields. What cannot be
+        changed is not in the list at all (BulkFields), not greyed. %>
+    <div class="relative mt-3" data-ticket-bulk-panel-target="picker">
+      <button type="button"
+              class="inline-flex h-8 items-center gap-1.5 rounded-md border border-cream-300 bg-surface-raised px-3 text-[13px] text-body
+                     hover:border-cream-400 hover:bg-cream-100
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
+              data-ticket-bulk-panel-target="pickerButton"
+              data-action="click->ticket-bulk-panel#togglePicker"
+              aria-haspopup="listbox"
+              aria-expanded="false">
+        <span aria-hidden="true">+</span> <%= t("#{bk}.add_field") %>
+        <i class="bi bi-chevron-down text-[10px] text-muted" aria-hidden="true"></i>
+      </button>
+      <div hidden
+           class="absolute start-0 top-full z-20 mt-1 max-h-80 w-80 overflow-y-auto rounded-lg border border-cream-300 bg-surface-raised py-1 shadow-md"
+           data-ticket-bulk-panel-target="pickerMenu"
+           role="listbox">
+        <% if fields.size >= 8 %>
+          <div class="px-2 pb-1">
+            <input type="search" autocomplete="off"
+                   class="h-8 w-full rounded-md border border-cream-300 bg-surface-raised px-2 text-[13px] focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink"
+                   placeholder="<%= t("#{bk}.search_field") %>"
+                   data-ticket-bulk-panel-target="pickerSearch"
+                   data-action="input->ticket-bulk-panel#filterPicker">
+          </div>
+        <% end %>
+        <% Tickets::BulkFields::GROUPS.each do |group| %>
+          <% next if grouped[group].blank? %>
+          <div data-picker-group>
+            <div class="px-3 pb-1 pt-2 text-[11px] font-mono uppercase tracking-wider text-muted"><%= t("#{bk}.groups.#{group}") %></div>
+            <% grouped[group].each do |field| %>
+              <button type="button" role="option"
+                      class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-start text-sm text-body
+                             hover:bg-cream-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink"
+                      data-ticket-bulk-panel-target="pickerOption"
+                      data-picker-option
+                      data-field="<%= field.key %>"
+                      data-label="<%= field.label.downcase %>"
+                      data-action="click->ticket-bulk-panel#addField">
+                <span><%= field.label %></span>
+                <span class="text-xs text-muted"><%= t("#{bk}.kinds.#{field.kind}") %></span>
+              </button>
+            <% end %>
+          </div>
+        <% end %>
+        <p hidden class="px-3 py-2 text-sm text-muted" data-ticket-bulk-panel-target="pickerEmpty"><%= t("#{bk}.no_more_fields") %></p>
+      </div>
+    </div>
+
+    <%# One row per field, cloned into the list when the field is added. The
+        control is the kind's own; the stock line under it is filled from the
+        summary and never from a constant. %>
+    <% fields.each do |field| %>
+      <template data-ticket-bulk-panel-target="rowTemplate" data-field="<%= field.key %>" data-kind="<%= field.kind %>" data-remove-label="<%= t("#{bk}.remove_value") %>">
+        <%# Label column 108 px so "Zugewiesen an" stays on one line; the label
+            13 px against the 11 px hint under the control (designer, 08.09.2026). %>
+        <div class="ticket-bulk-row grid grid-cols-[108px_minmax(0,1fr)_auto] gap-x-3 border-t border-divider py-3"
+             data-field="<%= field.key %>" data-kind="<%= field.kind %>">
+          <div class="pt-1.5 text-[13px] text-muted"><%= field.label %></div>
+          <div class="min-w-0">
+            <% case field.kind %>
+            <% when 'single' %>
+              <%# The panel's own dropdown, not a native select: a native one
+                  brings the browser's blue focus ring and a chevron glyph without
+                  air, and takes no system look (designer, 08.09.2026). A button in
+                  field look, the chevron an SVG 6 px behind the word, the options
+                  a layer like the multi field's. %>
+              <div class="tbp-single" data-single>
+                <button type="button" class="tbp-select" data-value=""
+                        data-action="click->ticket-bulk-panel#toggleSelect"
+                        aria-haspopup="listbox" aria-expanded="false" aria-label="<%= field.label %>">
+                  <span data-select-label><%= t("#{bk}.choose_value") %></span>
+                  <svg class="tbp-select-chevron" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </button>
+                <div hidden class="tbp-layer" data-select-layer role="listbox" aria-label="<%= field.label %>">
+                  <% field.options.each do |option| %>
+                    <button type="button" role="option" class="tbp-option" aria-selected="false"
+                            data-action="click->ticket-bulk-panel#chooseOption"
+                            data-value="<%= option[:value] %>" data-label="<%= option[:label] %>">
+                      <%= option[:label] %>
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            <% when 'date' %>
+              <%# A date is set, or removed from every selected ticket: "kein
+                  Datum" is the clear, pressed or not. %>
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="date" autocomplete="off" class="tbp-control" data-action="change->ticket-bulk-panel#setValue" aria-label="<%= field.label %>">
+                <button type="button" class="tbp-word" aria-pressed="false" data-clear-date
+                        data-action="click->ticket-bulk-panel#toggleClear"><%= t("#{bk}.no_date") %></button>
+              </div>
+            <% when 'multi' %>
+              <%# Plus sets the value on every selected ticket, minus removes it
+                  from every one, in one row (29a §5). The chips are the draft,
+                  rendered by the controller; the layer behind "+ Tag" lists every
+                  value with a three-state box (nobody, some, all) and the number
+                  of selected tickets that carry it. It stays open between clicks. %>
+              <div class="tbp-multi" data-multi>
+                <div class="flex flex-wrap items-center gap-1.5" data-chips-row>
+                  <span class="contents" data-chips></span>
+                  <button type="button" class="tbp-add-value"
+                          data-action="click->ticket-bulk-panel#toggleValues"
+                          aria-haspopup="listbox" aria-expanded="false">
+                    <span aria-hidden="true">+</span> <%= t("#{bk}.add_value.#{field.key == Tickets::BulkFields::TAGS ? 'tags' : (%w[assignees watchers].include?(field.key) ? 'people' : 'value')}") %>
+                  </button>
+                </div>
+                <div hidden class="tbp-layer" data-values-layer>
+                  <input type="search" autocomplete="off" class="tbp-search"
+                         placeholder="<%= t(field.creatable ? "#{bk}.search_or_new_value" : "#{bk}.search_value") %>"
+                         data-action="input->ticket-bulk-panel#filterValues<%= ' keydown.enter->ticket-bulk-panel#addNewValue:prevent' if field.creatable %>">
+                  <div role="listbox" class="max-h-56 overflow-y-auto">
+                    <% field.options.each do |option| %>
+                      <%= render 'organisations/tickets/bulk_value_option', value: option[:value], label: option[:label] %>
+                    <% end %>
+                  </div>
+                  <p hidden class="px-2 py-1 text-xs text-muted" data-values-empty><%= t("#{bk}.no_values") %></p>
+                  <% if field.creatable %>
+                    <%# A name nobody has made yet (Tickets::BulkFields#creatable):
+                        offered once the typed name matches no tag, written the
+                        way the tag will be stored, created only by the run. %>
+                    <button type="button" hidden class="tbp-new-value"
+                            data-new-value data-max-length="<%= Tag::MAX_NAME_LENGTH %>"
+                            data-separator="<%= Tag::NAME_SEPARATOR %>"
+                            data-template="<%= t("#{bk}.new_value", name: '%{name}') %>"
+                            data-action="click->ticket-bulk-panel#addNewValue">
+                      <span aria-hidden="true">+</span>
+                      <span class="min-w-0 flex-1 truncate" data-new-label></span>
+                    </button>
+                    <p hidden class="px-2 py-1 text-xs text-muted" data-new-invalid>
+                      <%= t("#{bk}.new_value_invalid", max: Tag::MAX_NAME_LENGTH) %>
+                    </p>
+                    <%# After a run created a tag, the panel lists it like any
+                        other from this prototype, so the next row can take it
+                        off again (review of #926). %>
+                    <template data-option-prototype>
+                      <%= render 'organisations/tickets/bulk_value_option', value: '', label: '' %>
+                    </template>
+                  <% end %>
+                </div>
+              </div>
+            <% when 'boolean' %>
+              <%# The panel's own dropdown, not a native select: a native one
+                  brings the browser's blue focus ring and a chevron glyph without
+                  air, and takes no system look (designer, 08.09.2026). A button in
+                  field look, the chevron an SVG 6 px behind the word, the options
+                  a layer like the multi field's. %>
+              <div class="tbp-single" data-single>
+                <button type="button" class="tbp-select" data-value=""
+                        data-action="click->ticket-bulk-panel#toggleSelect"
+                        aria-haspopup="listbox" aria-expanded="false" aria-label="<%= field.label %>">
+                  <span data-select-label><%= t("#{bk}.choose_value") %></span>
+                  <svg class="tbp-select-chevron" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </button>
+                <div hidden class="tbp-layer" data-select-layer role="listbox" aria-label="<%= field.label %>">
+                  <% [['true', t("#{bk}.yes")], ['false', t("#{bk}.no")]].each do |value, label| %>
+                    <button type="button" role="option" class="tbp-option" aria-selected="false"
+                            data-action="click->ticket-bulk-panel#chooseOption"
+                            data-value="<%= value %>" data-label="<%= label %>">
+                      <%= label %>
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+            <p class="mt-1 text-[11px] text-muted" data-stock></p>
+          </div>
+          <button type="button"
+                  class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted
+                         hover:bg-cream-100 hover:text-heading
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink"
+                  data-action="click->ticket-bulk-panel#removeField"
+                  data-field="<%= field.key %>"
+                  title="<%= t("#{bk}.remove_change") %>"
+                  aria-label="<%= t("#{bk}.remove_change") %>">
+            <i class="bi bi-x-lg text-xs" aria-hidden="true"></i>
+          </button>
+        </div>
+      </template>
+    <% end %>
+
+    <%# The foot, directly behind the list of changes, no air pushed in: the
+        sentence first (what will happen, or that nothing is set yet), then the
+        one confirming button, quiet until the first value, then "Abbrechen".
+        It wraps: in a narrow lane the sentence takes its own line. %>
+    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-divider pt-3">
+      <p class="min-w-[14rem] flex-1 text-sm text-muted" data-ticket-bulk-panel-target="summary"></p>
+      <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :primary, size: :medium, tag: :button, type: 'button', disabled: true,
+            data: { ticket_bulk_panel_target: 'execute', action: 'click->ticket-bulk-panel#execute' }
+          ) do %>
+        <span data-ticket-bulk-panel-target="executeLabel"></span>
+      <% end %>
+      <button type="button" disabled class="tbp-cancel"
+              data-ticket-bulk-panel-target="cancel"
+              data-action="click->ticket-bulk-panel#discard"><%= t("#{bk}.cancel") %></button>
+    </div>
+
+    <%# The other actions (29a, slice 7): under the button, set off by a
+        hairline, each with its own confirmation; they change no field and are
+        not part of the collection. Offered by right; CSV is D9, later. %>
+    <% if @bulk_can_move || @bulk_can_delete %>
+      <%# A caption, not a title: 11 px, normal case. The rows are words only,
+          with the count, red only on the delete's word (designer, 08.09.2026). %>
+      <div class="mt-4 border-t border-divider pt-3">
+        <p class="text-[11px] text-muted"><%= t("#{bk}.others.caption") %></p>
+        <ul class="mt-1 -mx-2">
+          <% if @bulk_can_move %>
+            <li>
+              <button type="button" class="tbp-other" disabled
+                      data-ticket-bulk-panel-target="other"
+                      data-action="click->ticket-bulk-panel#openMove">
+                <span data-ticket-bulk-panel-target="moveLabel"></span>
+              </button>
+            </li>
+          <% end %>
+          <% if @bulk_can_delete %>
+            <li>
+              <button type="button" class="tbp-other tbp-other--danger" disabled
+                      data-ticket-bulk-panel-target="other"
+                      data-action="click->ticket-bulk-panel#openDelete">
+                <span data-ticket-bulk-panel-target="deleteLabel"></span>
+              </button>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <%# The move's own confirmation: the target, then what the move takes with
+        it, counted from the live selection, then the button. A native dialog:
+        modal, focus kept inside, Escape closes. %>
+    <% if @bulk_can_move %>
+      <dialog class="tbp-dialog" data-ticket-bulk-panel-target="moveDialog" aria-labelledby="tbp-move-title">
+        <h3 id="tbp-move-title" class="text-base font-bold text-heading" data-ticket-bulk-panel-target="moveTitle"></h3>
+        <% if @bulk_target_projects.any? %>
+          <label for="tbp-move-target" class="mt-4 block text-sm font-medium text-body"><%= t("#{bk}.move.target") %></label>
+          <select id="tbp-move-target" class="tbp-control mt-1 w-full"
+                  data-ticket-bulk-panel-target="moveTarget"
+                  data-action="change->ticket-bulk-panel#targetChanged">
+            <option value=""><%= t("#{bk}.move.choose") %></option>
+            <% @bulk_target_projects.each do |target| %>
+              <option value="<%= target.id %>"><%= target.name %></option>
+            <% end %>
+          </select>
+          <p class="mt-3 min-h-[2.5rem] text-sm text-body" data-ticket-bulk-panel-target="moveImpact" aria-live="polite"></p>
+        <% else %>
+          <p class="mt-3 text-sm text-body"><%= t("#{bk}.move.none") %></p>
+        <% end %>
+        <div class="tbp-dialog-foot">
+          <button type="button" class="tbp-dialog-cancel" data-action="click->ticket-bulk-panel#closeDialogs"><%= t("#{bk}.cancel") %></button>
+          <% if @bulk_target_projects.any? %>
+            <%= render Neo::Buttons::ButtonComponent.new(
+                  variant: :primary, size: :medium, tag: :button, type: 'button', disabled: true,
+                  data: { ticket_bulk_panel_target: 'moveConfirm', action: 'click->ticket-bulk-panel#confirmMove' }
+                ) do %>
+              <span data-ticket-bulk-panel-target="moveConfirmLabel"></span>
+            <% end %>
+          <% end %>
+        </div>
+      </dialog>
+    <% end %>
+
+    <%# The delete's own confirmation (D15): the count, what goes with the
+        tickets, what stays behind, the only red button. No undo. %>
+    <% if @bulk_can_delete %>
+      <dialog class="tbp-dialog" data-ticket-bulk-panel-target="deleteDialog" aria-labelledby="tbp-delete-title">
+        <h3 id="tbp-delete-title" class="text-base font-bold text-heading" data-ticket-bulk-panel-target="deleteTitle"></h3>
+        <p class="mt-3 min-h-[2.5rem] text-sm text-body" data-ticket-bulk-panel-target="deleteImpact" aria-live="polite"></p>
+        <p class="mt-2 text-sm text-muted"><%= t("#{bk}.delete.no_undo") %></p>
+        <div class="tbp-dialog-foot">
+          <button type="button" class="tbp-dialog-cancel" data-action="click->ticket-bulk-panel#closeDialogs"><%= t("#{bk}.cancel") %></button>
+          <button type="button" class="tbp-dialog-danger" disabled
+                  data-ticket-bulk-panel-target="deleteConfirm"
+                  data-action="click->ticket-bulk-panel#confirmDelete">
+            <span data-ticket-bulk-panel-target="deleteConfirmLabel"></span>
+          </button>
+        </div>
+      </dialog>
+    <% end %>
+  </div>
+<% end %>

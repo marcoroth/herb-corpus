@@ -1,0 +1,155 @@
+<%# The overview view of the time list: the status table of booked time per
+    project from @project_statistics. Every number opens the list with that
+    project, that status and THE PERIOD THE TABLE IS SHOWING, plus from=overview,
+    which makes the list show the trail back here.
+
+    The three status columns come from TimeSession::BILLING_STATUS_FILTERS, in
+    its order and with its words: before S1 this file wrote them out by hand,
+    backwards (billed first), under a fourth copy of the three names. The fourth
+    column, the total, is TimeSession::BILLING_OVERVIEW_TOTAL; body and foot
+    walk TimeSession::BILLING_OVERVIEW_COLUMNS. %>
+<%
+  # One period for the whole table (D3). A period per column would make the row
+  # untrue: the total would stop being the sum of its cells.
+  #
+  # A cell carries that period into the list instead of the neutral "alles" it
+  # used to carry. That is the table's whole promise: the number clicked IS the
+  # sum the list then shows. Everything else about the drill-down stays neutral
+  # (all three states, sum on); a bucket cell adds its own state on top.
+  drilldown = ->(project, status_filters = TimeSession::BILLING_STATUS_FILTERS) do
+    time_list_path(@current_organisation, project: project, from: 'overview',
+                   **TimeSession::LIST_NEUTRAL_DRILLDOWN_PARAMS.merge(date_range: @table_period,
+                                                                     status_filters: status_filters))
+  end
+
+  # Number columns are right-aligned and tabular, ONE definition for the head,
+  # the body and the foot. Written out three times, a four-digit total sat under
+  # a three-digit one and the magnitudes could not be compared, which is the
+  # only reason to put numbers in a table at all.
+  number_cell = "px-4 py-3 text-right font-mono tabular-nums"
+  label_cell  = "px-4 py-3 text-left"
+
+  # An empty cell, ONE spelling for body and foot. cream-500 is the palette's
+  # placeholder tone (`faint` in tailwind.config.js, the dash of the dashboard's
+  # project table): cream-400 measured 1.9:1 on this card, and "--:--" carries a
+  # meaning, "nothing in this state", that has to stay readable.
+  dash = tag.span('--:--', class: 'text-cream-500 font-normal')
+
+  # A project with nothing booked in this period is a row of "--:--". They are
+  # rendered but folded away: the reader came for the projects that HAVE hours,
+  # and with thirty projects the ones that do drown. reveal-more is the app's
+  # one-way disclosure (the sidebar's "mehr ..." uses the same controller).
+  # Their zeros do not move the column totals, so the foot is the same number
+  # whether they are shown or not, which is what makes folding them safe.
+  # Without JavaScript they stay folded, and a row of "--:--" is the one thing
+  # on this page nobody loses anything by not seeing.
+  rows_with_time, rows_without_time = @project_statistics.partition { |stat| stat[:total_duration].positive? }
+%>
+
+<%# The period control. Its own form: the table has no Turbo frame, so a choice
+    is a plain visit of the whole page. `view` rides along, or the answer would
+    be the list. `custom` is not offered here (TimeSessions::ListPeriod::KEYS,
+    not LIST_KEYS): hand-typed bounds belong to the list's two date fields.
+
+    Not on first use, like the list hides its filters then (index.html.erb):
+    a period over nothing booked can only ever choose between two empty pages. %>
+<div class="flex items-center justify-end gap-2 mb-3" <%= 'hidden' if time_sessions_first_use? %>>
+  <%= form_with url: time_list_path(@current_organisation), method: :get, class: "flex items-center gap-2",
+                data: { controller: "auto-submit" } do %>
+    <%= hidden_field_tag :view, 'overview' %>
+    <%= label_tag :date_range, t('views.organisations.time_sessions.index.filter_range_label'),
+                  class: "font-mono text-xs uppercase tracking-wider text-cream-600" %>
+    <%# Same dress as the list's selects (_filter_selects): surface-raised is the
+        input surface, a control in the card's own cream-50 sat flat on it. %>
+    <%= select_tag :date_range,
+                   options_for_select(TimeSessions::ListPeriod.options.map { |key, label| [label, key] }, @table_period),
+                   class: "border-stroke bg-surface-raised text-cream-900 rounded text-xs px-3 py-2" %>
+  <% end %>
+</div>
+
+<% if rows_with_time.any? %>
+  <div data-controller="reveal-more">
+    <div class="overflow-x-auto">
+      <table class="min-w-full">
+        <%# A thin rule under the head; the heavy one is the foot's, so the total
+            carries the single emphasis (same split as the dashboard's project
+            table). %>
+        <thead class="border-b border-ink">
+          <tr>
+            <th scope="col" class="<%= label_cell %> text-xs font-mono font-medium uppercase tracking-wider text-cream-600"><%= t('views.organisations.time_sessions.billing_overview_panel.col_project') %></th>
+            <% TimeSession::BILLING_STATUS_FILTERS.each do |bucket| %>
+              <th scope="col" class="<%= number_cell %> text-xs font-medium uppercase tracking-wider text-cream-600"><%= time_billing_state_label(bucket) %></th>
+            <% end %>
+            <th scope="col" class="<%= number_cell %> text-xs font-medium uppercase tracking-wider text-cream-600"><%= t('views.organisations.time_sessions.billing_overview_panel.col_total') %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-cream-200">
+          <%# Rows with hours first, the empty ones behind the disclosure below.
+              Both go through the same partial, so the two can never come to
+              disagree about how a row looks. Rendered as collections: one
+              template lookup per half instead of one per project. %>
+          <%= render partial: 'organisations/time_sessions/billing_overview_row', collection: rows_with_time, as: :stat,
+                     locals: { drilldown: drilldown, dash: dash, number_cell: number_cell, label_cell: label_cell, folded: false } %>
+          <%= render partial: 'organisations/time_sessions/billing_overview_row', collection: rows_without_time, as: :stat,
+                     locals: { drilldown: drilldown, dash: dash, number_cell: number_cell, label_cell: label_cell, folded: true } %>
+        </tbody>
+        <%# The sum of the column, under a heavy rule and in bold. It used to be
+            a lime fill, which is this app's ACTION colour: a row nobody can act
+            on had the loudest tint on the page. %>
+        <tfoot class="border-t-2 border-ink">
+          <tr class="font-bold text-cream-900">
+            <th scope="row" class="<%= label_cell %> text-sm"><%= t('views.organisations.time_sessions.billing_overview_panel.total_row') %></th>
+            <% TimeSession::BILLING_OVERVIEW_COLUMNS.each do |column| %>
+              <% minutes = @project_statistics.sum { |stat| time_overview_column_minutes(stat, column) } %>
+              <td class="<%= number_cell %> text-sm"><%= minutes.positive? ? TimeSession.format_duration(minutes) : dash %></td>
+            <% end %>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <% if rows_without_time.any? %>
+      <%# Outside the table, so hiding the trigger leaves no empty row behind.
+          One way only, like every other "mehr ..." in the app. Dressed like the
+          page's other quiet text links (the trail back, the filter reset), and
+          like the reset below: this partial carries no link recipe of its own. %>
+      <button type="button" data-action="click->reveal-more#reveal" data-overview-reveal
+              class="mt-3 text-xs text-cream-700 hover:text-cream-900 underline decoration-2 underline-offset-2 transition-colors">
+        <%= t('views.organisations.time_sessions.billing_overview_panel.reveal_empty_projects', count: rows_without_time.size) %>
+      </button>
+    <% end %>
+  </div>
+
+  <%# The footnote follows the selection. It used to claim "aller Sessions"
+      whatever was chosen, which was true only while the table had no period.
+      data-overview-footnote: the handle the spec reads it by, so it can compare
+      TWO periods against each other instead of against the same I18n entry the
+      line below renders (an expectation built from that entry follows the text
+      back into the old sentence and stays green). %>
+  <p class="mt-3 text-xs font-mono text-cream-600" data-overview-footnote>
+    <%= t('views.organisations.time_sessions.billing_overview_panel.footnote',
+          period: TimeSessions::ListPeriod.label(@table_period)) %>
+  </p>
+<% elsif @table_period == TimeSessions::ListPeriod::TABLE_DEFAULT || time_sessions_first_use? %>
+  <%# Nothing booked at all. Asked of the rows themselves (time_sessions_first_use?,
+      one EXISTS), not only of the period: under "letzte 30 Tage" on an
+      organisation without a single booking, blaming the period would send the
+      reader to "alles" only to find the same empty page there. %>
+  <p class="text-sm text-cream-600 py-8 text-center">
+    <%= t('views.organisations.time_sessions.billing_overview_panel.no_data') %>
+  </p>
+<% else %>
+  <%# Empty because of the period, and it says so and offers the way out: the
+      same promise the list's empty state makes since S3, take this one filter
+      away and rows come back. The branch above guarantees there IS something
+      to come back to. cream-900 -> ink on hover was invisible (33/30/24 against
+      20/17/12), so the hover is the same step the trail's link takes. %>
+  <p class="text-sm text-cream-600 py-8 text-center">
+    <%= t('views.organisations.time_sessions.billing_overview_panel.empty_period',
+          period: TimeSessions::ListPeriod.label(@table_period)) %>
+    <%= link_to t('views.organisations.time_sessions.billing_overview_panel.empty_period_reset'),
+                time_list_path(@current_organisation, view: 'overview',
+                               date_range: TimeSessions::ListPeriod::TABLE_DEFAULT),
+                class: "text-cream-700 hover:text-cream-900 underline decoration-2 underline-offset-2 transition-colors" %>
+  </p>
+<% end %>

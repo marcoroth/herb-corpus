@@ -1,0 +1,223 @@
+<%# The ONE body of the ticket timeline frame (T4). Two writers render it:
+    timeline.html.erb (the lazy frame load) and _posts_container (the
+    posts#create stream replaces the whole container). Before T4 the
+    container kept its own copy of the item loop, and every saved comment
+    wiped the header row and the sub-tasks section out of the frame.
+    Locals: timeline_items, ticket, project, current_organisation, current_user %>
+
+<% post_count = timeline_items.count { |i| i.is_a?(Post) } %>
+<% tl = 'views.organisations.tickets.timeline' %>
+<% tf = 'views.organisations.tickets.ticket_content_for_frame' %>
+
+<%# A filter is a setting, not content (design mock "Der Verlauf liest sich,
+    die Schalter verstecken sich", 04.09.): the permanent chip row became ONE
+    quiet line - "Verlauf" left, on the right a single word naming what is
+    shown. Default: only comments (user decision 04.09.), so the word starts
+    as "nur Kommentare" and says without any controls that something is
+    filtered away. The switches did not go away, they sit one level lower in
+    this dropdown: check, word, count - several at once, as before. The word
+    is written by the timeline-filter controller (stateWord target), so a
+    filtered view says so even with the menu closed. Counts come from the
+    already loaded timeline_items - no extra COUNT queries on the show page.
+    Keys fully qualified: lazy t('.') resolves under organisations.tickets...
+    WITHOUT the views prefix here. %>
+<div class="mb-2 flex items-center justify-between border-b border-cream-200 pb-2">
+  <%# Two things only (user correction 05.09.2026): the heading left, the
+      filter word right. The summary action moved BELOW the line - it creates
+      something that appears down there, so it stands where its result will. %>
+  <h2 class="text-[15px] font-semibold text-cream-900"><%= t("#{tl}.heading") %></h2>
+  <div class="relative" data-controller="neo-dropdown"
+       data-neo-dropdown-auto-close-value="outside"
+       data-neo-dropdown-placement-value="css">
+    <button type="button"
+            class="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[13px] text-cream-800 transition-colors hover:bg-cream-100 hover:text-cream-900 focus-visible:bg-cream-100 focus-visible:text-cream-900"
+            title="<%= t("#{tl}.filter_label") %>"
+            aria-expanded="false"
+            data-neo-dropdown-target="trigger"
+            data-action="click->neo-dropdown#toggle">
+      <span data-timeline-filter-target="stateWord"><%= t('stimulus.timeline_filter.state_only_comments') %></span>
+      <i class="bi bi-chevron-down text-[11px]" aria-hidden="true"></i>
+    </button>
+    <%# auto-close "outside": a click INSIDE keeps the menu open, so several
+        sorts can be toggled in one visit. The rows reuse the chip wiring
+        unchanged (targets + actions); aria-pressed carries the state, the
+        check mark is toggled by the controller's syncRow (a group-aria
+        Tailwind variant was not in the compiled CSS, found live 04.09.). %>
+    <div class="hidden absolute right-0 top-full z-dropdown mt-1 w-64 rounded-lg border border-cream-300 bg-surface-raised py-1 shadow-md"
+         aria-hidden="true"
+         data-neo-dropdown-target="menu">
+      <% row_classes = 'flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm text-cream-800 transition-colors hover:bg-cream-100' %>
+      <button type="button" class="<%= row_classes %>" aria-pressed="true"
+              data-action="click->timeline-filter#togglePosts"
+              data-timeline-filter-target="postsToggleButton">
+        <i class="bi bi-check-lg text-green-700" aria-hidden="true"></i>
+        <%= t("#{tl}.comments") %>
+        <span class="ml-auto font-mono text-[11px] text-cream-500"><%= post_count %></span>
+      </button>
+      <button type="button" class="<%= row_classes %>" aria-pressed="false"
+              data-action="click->timeline-filter#toggle"
+              data-timeline-filter-target="toggleButton">
+        <i class="bi bi-check-lg invisible text-green-700" aria-hidden="true"></i>
+        <%= t("#{tl}.changes") %>
+        <span class="ml-auto font-mono text-[11px] text-cream-500"><%= timeline_items.count { |i| i.is_a?(Activity) } %></span>
+      </button>
+      <% if policy(project).area_access?(:time_sessions, :read) %>
+        <button type="button" class="<%= row_classes %>" aria-pressed="false"
+                data-action="click->timeline-filter#toggleTime"
+                data-timeline-filter-target="timeToggleButton">
+          <i class="bi bi-check-lg invisible text-green-700" aria-hidden="true"></i>
+          <%= t("#{tl}.time_entries") %>
+          <span class="ml-auto font-mono text-[11px] text-cream-500"><%= timeline_items.count { |i| i.is_a?(TimeSession) } %></span>
+        </button>
+      <% end %>
+      <%# The sub-tasks row toggles the SECTION below this line, not a
+          timeline sort - below a divider and outside the state word on
+          purpose. Top-level tickets only; a child never shows the section. %>
+      <% if ticket.parent_id.nil? %>
+        <div class="my-1 border-t border-cream-200"></div>
+        <button type="button" class="<%= row_classes %>" aria-pressed="false"
+                data-action="click->timeline-filter#toggleSubtasks"
+                data-timeline-filter-target="subtasksToggleButton">
+          <%# invisible: the sub-tasks row starts OFF, unlike the three sorts. %>
+          <i class="bi bi-check-lg invisible text-green-700" aria-hidden="true"></i>
+          <%= t('views.organisations.tickets.shared.subtasks.heading') %>
+          <span class="ml-auto font-mono text-[11px] text-cream-500"><%= ticket.children.count %></span>
+        </button>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<%# The summary create action, one line below the header, left aligned -
+    where its result (the summary block) appears. Gates unchanged: ai_enabled?
+    covers the whole offer, and the registry row decides between the real
+    form and the missing-key modal. Once a summary exists the action lives
+    in the summary block as "neu erzeugen". %>
+<% summary_link_classes = 'inline-flex items-center gap-1.5 text-[13px] font-medium text-green-700 transition-colors hover:text-green-800 hover:underline' %>
+<% if ticket.summary.blank? && policy(project).area_access?(:tickets, :write) && post_count.positive? &&
+      current_organisation&.ai_enabled? %>
+  <div class="mb-3">
+    <% if current_organisation.ai_available_for?(:ticket_summary).available? %>
+      <%= button_to create_summary_organisation_project_ticket_path(current_organisation, ticket.project, ticket),
+                    form_class: 'inline-flex', class: summary_link_classes do %>
+        <i class="bi bi-stars" aria-hidden="true"></i>
+        <%= t("#{tf}.create_summary") %>
+      <% end %>
+    <% else %>
+      <div class="inline-flex" data-controller="summary-modal">
+        <button type="button" class="<%= summary_link_classes %>" data-action="click->summary-modal#open">
+          <i class="bi bi-stars" aria-hidden="true"></i>
+          <%= t("#{tf}.create_summary") %>
+        </button>
+
+        <%# Modal for missing API key %>
+        <div
+          data-summary-modal-target="modal"
+          data-action="click->summary-modal#closeOnBackdrop keydown.window->summary-modal#closeOnEscape"
+          class="fixed inset-0 bg-ink bg-opacity-60 flex items-center justify-center z-modal hidden">
+
+          <div class="bg-surface-raised rounded-lg border border-cream-300 shadow-[4px_4px_0_0_#14110c] p-8 max-w-md mx-4">
+            <div class="flex justify-between items-start mb-4">
+              <h3 class="text-2xl font-bold text-cream-900"><%= t("#{tf}.summary_unavailable") %></h3>
+              <%= render Neo::Buttons::IconButtonComponent.new(
+                variant: :plain,
+                icon: "x-lg",
+                class: "text-cream-500 hover:text-cream-900",
+                data: { action: "click->summary-modal#close" }
+              ) %>
+            </div>
+
+            <div class="mb-6">
+              <p class="text-cream-800 mb-4">
+                <%= t("#{tf}.summary_unavailable_detail") %>
+              </p>
+
+              <div class="bg-cream-100 border border-cream-200 rounded-lg p-4">
+                <h4 class="font-semibold text-cream-900 mb-2">
+                  <i class="bi bi-info-circle-fill mr-2"></i>
+                  <%= t("#{tf}.summary_info_title") %>
+                </h4>
+                <p class="text-sm text-cream-700">
+                  <%= t("#{tf}.summary_info_detail") %>
+                </p>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <%= render Neo::Buttons::ButtonComponent.new(
+                variant: :secondary,
+                data: { action: "click->summary-modal#close" }
+              ) do %>
+                <%= t("#{tf}.understood") %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<%# The summary block (mock 04.09.): a soft tinted panel at the top of the
+    timeline - mono label + creation date on the left, the quiet "neu
+    erzeugen" action on the right (this is where the inline header action
+    goes once a summary exists). The date is nil for summaries created
+    before summary_generated_at existed; the row simply omits it then.
+    Regenerate gate = same three questions as the create link (S2 review
+    of #391). %>
+<% if ticket.summary %>
+  <div class="mb-3 rounded-xl bg-cream-100 px-4 py-3.5">
+    <div class="mb-1.5 flex items-baseline justify-between gap-3">
+      <div class="flex items-baseline gap-3">
+        <span class="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-cream-900"><%= t("#{tf}.summary_heading") %></span>
+        <% if ticket.summary_generated_at %>
+          <span class="font-mono text-[12px] text-cream-500"><%= l(ticket.summary_generated_at.to_date, format: :default) %></span>
+        <% end %>
+      </div>
+      <% if policy(project).area_access?(:tickets, :write) &&
+            current_organisation&.ai_enabled? && current_organisation.ai_available_for?(:ticket_summary).available? %>
+        <%= button_to create_summary_organisation_project_ticket_path(current_organisation, ticket.project, ticket),
+                      form_class: 'inline-flex',
+                      class: 'text-[13px] text-cream-700 transition-colors hover:text-cream-900 hover:underline' do %>
+          <%= t("#{tf}.regenerate_summary") %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <%# The LLM answers in Markdown ("### Kopf", "- Punkt", "**fett**"), so this goes
+        through the same component as the meeting summary. simple_format only turned
+        the newlines into <br> and left the hashes and asterisks on screen as raw
+        characters (reported 04.09.).
+
+        Clamped to a five-line peek: a summary is an orientation aid at the top of the
+        timeline, and one that fills the screen pushes the conversation it summarises
+        below the fold. The component keeps the "weiterlesen" away when the text fits
+        anyway, so a three-line summary shows no toggle at all. %>
+    <%= render Neo::MarkdownPreviewComponent.new(
+          markdown: ticket.summary, size: :md, clamp: :short,
+          more_label: t("#{tf}.summary_show_full"),
+          less_label: t("#{tf}.summary_collapse")) %>
+  </div>
+<% end %>
+
+<%# The section the "Unteraufgaben" row toggles - directly below the header
+    row (user 03.09.), default off, rendered hidden so nothing flashes
+    before the controller connects. Its own turbo streams keep working here:
+    they address #subtasks-<id> by id, and the quick-add answers with
+    streams, which take precedence over the enclosing frame. %>
+<% if ticket.parent_id.nil? %>
+  <div data-timeline-filter-target="subtasks" style="display: none;">
+    <%= render 'organisations/tickets/subtasks_section', ticket: ticket %>
+  </div>
+<% end %>
+
+<%= render 'organisations/tickets/timeline_items',
+           timeline_items: timeline_items,
+           ticket: ticket,
+           project: project,
+           current_organisation: current_organisation,
+           current_user: current_user %>
+
+<%# The old creation footer is gone (user mockup 05.09.2026): the ticket's
+    birth renders as a regular change row inside the timeline now
+    (TicketTimelineService::CreationMarker in _timeline_items). %>

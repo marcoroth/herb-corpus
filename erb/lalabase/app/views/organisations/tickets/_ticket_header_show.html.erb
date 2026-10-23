@@ -1,0 +1,305 @@
+<%# No more Turbo Frame wrapper - rendered directly in ticket_display_frame %>
+<%# Make sure variables are available - either as locals or instance variables %>
+<% current_organisation = defined?(current_organisation) && current_organisation ? current_organisation : (@current_organisation || ticket.project.organisation) %>
+<% project = defined?(project) && project ? project : (@project || ticket.project) %>
+
+<%# Safety check - project must be present %>
+<% if project.nil? %>
+  <% Rails.logger.error "[ticket_header_show] Project is nil for ticket #{ticket.id}; falling back to ticket.project" %>
+  <% project = ticket.project %>
+<% end %>
+
+<%# Guarded project for Pundit policy checks %>
+<% project_for_policy = project || ticket&.project %>
+
+  <%# T1 (doc/tickets_detail_entschlackt_plan.md) stripped the box; the tinted
+      TEASER background came back on user request (03.09.): the header card
+      keeps the quiet typography but sits on cream-100 again. %>
+  <%# Full width again (user decision 03.09., overriding the earlier centered
+      column): teaser, description and history grow with the window. %>
+  <%# No frame and no surface of its own. It carried a cream border, a 6px
+      radius and a cream-100 fill - a card inside a column that is already the
+      workbench. Two nested containers is what made the detail read as a box on
+      a box, and the padding started its content another 20-32px in. The column
+      holds the content off its edges; this only spaces itself vertically. %>
+  <%# ⚠️ And no lead-in at the top. The chrome row is the FIRST thing in the
+      lane, so the identifier stands at the same height as the page title in
+      the column beside it - which is what a lane is for: the object begins
+      where the page begins. py-6 here put it 24px lower, and 24px of nothing
+      above an identifier reads as an empty band. The gap downwards belongs to
+      what follows (.ticket-content carries it). %>
+  <div id="ticket-header" class="ticket-header-section relative"
+       data-controller="move-ticket-modal"
+       data-move-ticket-modal-preflight-url="<%= move_preflight_organisation_project_ticket_path(current_organisation, project, ticket) %>"
+       data-action="keydown@window->move-ticket-modal#closeOnEscape">
+    <%# Keys FULLY qualified via sh: lazy t('.') in this partial resolves
+        under organisations.tickets.ticket_header_show WITHOUT the views
+        prefix (the P3 lesson) - attach_file/all_files/back_to_list rendered
+        as humanized key names before this. %>
+    <% sh = 'views.organisations.tickets.ticket_header_show' %>
+    <% view_config = ViewConfiguration.for_user_project(current_user, ticket.project, 'tickets')
+       header_columns = view_config.header_columns || ['status', 'priority', 'assignees']
+       ds = view_config.detail_settings_parsed
+       show_time = project_for_policy && policy(project_for_policy).area_access?(:time_sessions, :read) %>
+
+    <%# Top chrome row (T1): the way back on the left, the quiet action
+        cluster and the close X on the right (X kept on user decision,
+        03.09.2026). Back and X drive the layout-toggle of the standalone
+        view; in the inbox pane both are hidden via CSS on their
+        layout-toggle#closeContent action string (see _pane_ticket), so that
+        string must stay byte-identical. %>
+    <div class="flex items-center gap-4 mb-2">
+      <%# Chrome row restyle (user spec 03.09.): toolbar, not content - one
+          muted stage for every element (cream-600 = the spec's #6B665C in
+          tokens, so the dark theme keeps working), normal weight, hover and
+          keyboard focus share the darker text on a cream-100 pill. %>
+      <%# The identifier, quiet and mono, on the chrome row. It used to sit
+          BEHIND the title (user, 03.09.2026); the head then had two headings
+          on one line, and this head sits at the same height as the page title
+          "Tickets" to its left. Two bold titles on one height and nobody can
+          tell which one names the page. So: identifier up here, the object's
+          title one step below it - page top left, object one step lower and
+          to the right. Hidden below lg, where "‹ Alle Tickets" holds this
+          spot and the detail is the only thing on screen anyway. %>
+      <span class="hidden lg:inline font-mono text-[13px] tracking-wide text-cream-500">#<%= ticket.number %></span>
+
+      <%# ⚠️ Narrow windows only, and that is the whole point: from lg up the
+          list stands right beside the detail, and a way back to something
+          visible is not a way. There the ✕ in the action bar is the way out
+          (and Escape). Below lg the detail covers the list, so the word comes
+          back. It used to be exactly the other way round. %>
+      <button type="button"
+              data-action="click->layout-toggle#closeContent"
+              class="inline-flex lg:hidden h-8 items-center gap-1 rounded-lg px-2 -ml-2 text-[13px] font-normal text-cream-600 transition-colors hover:bg-cream-100 hover:text-cream-900 focus-visible:bg-cream-100 focus-visible:text-cream-900">
+        <span aria-hidden="true">&lsaquo;</span>
+        <%= t("#{sh}.back_to_list") %>
+      </button>
+      <div class="ml-auto flex items-center gap-1">
+        <%= render 'organisations/tickets/ticket_action_bar',
+                   ticket: ticket,
+                   view_config: view_config, project: project,
+                   project_for_policy: project_for_policy,
+                   current_organisation: current_organisation, show_time: show_time %>
+        <span class="hidden lg:block h-5 w-px bg-cream-300" aria-hidden="true"></span>
+        <%# The exit shares the cluster's one rank (designer round 8a) -
+            same 32x32 surface, same radius, same rest and hover colors -
+            behind the divider that separates it from the actions. %>
+        <button type="button"
+                class="hidden lg:flex h-8 w-8 items-center justify-center rounded-md text-cream-500 transition-colors hover:bg-cream-200 hover:text-cream-900 focus-visible:bg-cream-200 focus-visible:text-cream-900"
+                title="<%= t("#{sh}.close_detail") %>"
+                data-action="click->layout-toggle#closeContent">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Heading: Full width -->
+    <% can_edit_ticket = project_for_policy && policy(project_for_policy).area_access?(:tickets, :write) %>
+    <% edit_ticket_url = can_edit_ticket ? edit_organisation_project_ticket_path(current_organisation, project, ticket) : nil %>
+    <div class="flex flex-col gap-2">
+      <%# The title alone - the number moved up to the chrome row (see there).
+          The created date lives in the metadata row below.
+          22px, one step UNDER the page title (24px bold, "Tickets", in the
+          column beside it): the ticket is the subordinate object, and at 30px
+          it out-weighed the page it belongs to, so the hierarchy read the
+          wrong way round (user, 09.09.2026). %>
+      <h2 class="text-[22px] leading-snug font-bold tracking-tight text-cream-900">
+        <% if can_edit_ticket %>
+          <%# Editing at the object (designer round 8a): a click on the title
+              opens the same editor the pencil opens - nobody has to find the
+              pencil to fix a typo. The hover surface is the discovery hint. %>
+          <a href="<%= edit_ticket_url %>"
+             data-turbo-frame="writing_surface"
+             title="<%= t("#{sh}.edit_ticket") %>"
+             class="-mx-1 rounded-md px-1 transition-colors hover:bg-cream-200/60"><%= ticket.title %></a>
+        <% else %>
+          <%= ticket.title %>
+        <% end %>
+      </h2>
+      <%# Sub-task backlink — neutral pill (not a status/action colour), links to the parent. %>
+      <% if ticket.parent_id.present? %>
+        <%= link_to organisation_project_tickets_path(current_organisation, project, ticket_id: ticket.parent_id),
+                    class: "inline-flex h-6 w-fit items-center gap-1 rounded-full border border-cream-300 px-2 text-xs text-cream-700 hover:bg-cream-100" do %>
+          <i class="bi bi-arrow-return-right text-[11px]"></i>
+          <%= t('views.organisations.tickets.shared.subtasks.part_of', number: ticket.parent.number) %>
+        <% end %>
+      <% end %>
+    </div>
+
+    <!-- Metadata row -->
+    <%= render 'organisations/tickets/ticket_metadata_row',
+               ticket: ticket, ds: ds, header_columns: header_columns,
+               view_config: view_config, project: project,
+               current_organisation: current_organisation %>
+
+    <!-- Content (collapsible for already-known tickets) -->
+    <% attachments = ticket.respond_to?(:ticket_documents) ? ticket.ticket_documents.to_a : [] %>
+    <% can_attach = project_for_policy && policy(project_for_policy).area_access?(:tickets, :write) %>
+    <% if ticket.content.present? %>
+      <% desc_state = TicketDescriptionState.new(ticket: ticket, current_user: current_user) %>
+
+      <% if desc_state.collapsible? %>
+        <% collapsed = desc_state.collapsed? %>
+        <div class="mt-4"
+             data-controller="ticket-description-collapse"
+             data-ticket-description-collapse-update-url-value="<%= user_preferences_path %>">
+
+          <%# Description body - clamped to two lines while collapsed. The
+              measure is 70ch (user mockup 05.09.2026): every running-text
+              surface on this page sits in it, only the heading and the
+              attribute row run wider. Editing at the object (designer round
+              8a): a click on the text opens the editor; clicks that mean
+              something else (links, images, a text selection) keep their
+              meaning - ticket_inline_edit_controller guards them. %>
+          <div data-ticket-description-collapse-target="body"
+               <% if can_edit_ticket %>
+               data-controller="ticket-inline-edit"
+               data-ticket-inline-edit-url-value="<%= edit_ticket_url %>"
+               data-action="click->ticket-inline-edit#open"
+               <% end %>
+               class="prose max-w-[70ch] text-[15px] leading-relaxed text-cream-800 <%= 'line-clamp-2' if collapsed %> <%= 'rounded-md transition-colors hover:bg-cream-200/40' if can_edit_ticket %>"><%= ticket.content %></div>
+
+          <%# The attachment DATA first, on its own line; the ACTIONS
+              ("Einklappen", "Datei anhaengen") on the line below - data and
+              actions do not mix in one flat row (user correction 05.09.).
+              The two control spans swap via the collapse controller targets. %>
+          <% if attachments.any? %>
+            <div class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2 text-[13px] text-cream-700 max-w-[70ch]">
+              <%= render 'organisations/tickets/ticket_file_line', attachments: attachments, sh: sh %>
+            </div>
+          <% end %>
+          <div class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2 text-[13px] text-cream-700 max-w-[70ch]">
+            <span data-ticket-description-collapse-target="collapsedControls"
+                  class="inline-flex flex-wrap items-center gap-3 <%= 'hidden' unless collapsed %>">
+              <button type="button"
+                      data-action="ticket-description-collapse#expand"
+                      class="inline-flex items-center gap-1 text-cream-600 hover:text-cream-900 transition-colors">
+                <i class="bi bi-chevron-down text-[11px]"></i>
+                <%= t("#{sh}.description_show_full") %>
+              </button>
+              <% if desc_state.description_changed? %>
+                <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
+                  <i class="bi bi-pencil-square text-[11px]"></i>
+                  <%= t("#{sh}.description_changed") %>
+                </span>
+              <% end %>
+            </span>
+            <span data-ticket-description-collapse-target="expandedControls"
+                  class="<%= 'hidden' if collapsed %>">
+              <button type="button"
+                      data-action="ticket-description-collapse#collapse"
+                      class="inline-flex items-center gap-1 text-cream-600 hover:text-cream-900 transition-colors">
+                <i class="bi bi-chevron-up text-[11px]"></i>
+                <%= t("#{sh}.description_collapse_link") %>
+              </button>
+            </span>
+            <% if can_attach %>
+              <%= render 'organisations/tickets/ticket_attach_action',
+                         ticket: ticket, project: project,
+                         current_organisation: current_organisation, sh: sh %>
+            <% end %>
+          </div>
+
+          <%# One-time JIT info box — only while collapsing and not yet answered %>
+          <% if desc_state.show_infobox? %>
+            <div data-ticket-description-collapse-target="infobox"
+                 class="mt-3 rounded-lg border border-cream-300 bg-cream-50 p-3 text-xs text-cream-900">
+              <p class="mb-2 leading-relaxed"><%= t("#{sh}.description_infobox_text") %></p>
+              <div class="flex flex-wrap gap-2">
+                <button type="button"
+                        data-action="ticket-description-collapse#accept"
+                        class="inline-flex items-center rounded-md border border-black bg-lime-300 px-3 py-1 font-bold text-cream-900 transition-colors hover:bg-lime-400">
+                  <%= t("#{sh}.description_infobox_accept") %>
+                </button>
+                <button type="button"
+                        data-action="ticket-description-collapse#alwaysFull"
+                        class="inline-flex items-center rounded-md border border-cream-300 bg-white px-3 py-1 font-medium text-cream-700 transition-colors hover:bg-cream-100">
+                  <%= t("#{sh}.description_infobox_always_full") %>
+                </button>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <%# Not collapsible (new ticket / no own comment yet) - full content.
+            Click-to-edit like the collapsible branch above. %>
+        <div class="mt-4 prose max-w-[70ch] text-[15px] leading-relaxed text-cream-800 <%= 'rounded-md transition-colors hover:bg-cream-200/40' if can_edit_ticket %>"
+             <% if can_edit_ticket %>
+             data-controller="ticket-inline-edit"
+             data-ticket-inline-edit-url-value="<%= edit_ticket_url %>"
+             data-action="click->ticket-inline-edit#open"
+             <% end %>><%= ticket.content %></div>
+      <% end %>
+    <% end %>
+
+    <%# The same two lines without a collapsible description - the
+        collapsible branch renders them inside its controller scope above. %>
+    <% file_pieces_rendered_above = ticket.content.present? && desc_state.collapsible? %>
+    <% unless file_pieces_rendered_above %>
+      <% if attachments.any? %>
+        <div class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2 text-[13px] text-cream-700 max-w-[70ch]">
+          <%= render 'organisations/tickets/ticket_file_line', attachments: attachments, sh: sh %>
+        </div>
+      <% end %>
+      <% if can_attach %>
+        <div class="mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-2 text-[13px] text-cream-700 max-w-[70ch]">
+          <%= render 'organisations/tickets/ticket_attach_action',
+                     ticket: ticket, project: project,
+                     current_organisation: current_organisation, sh: sh %>
+        </div>
+      <% end %>
+    <% end %>
+
+    <!-- Bottom Separator -->
+    <div class="border-b border-gray-300 my-4"></div>
+
+    <%# The action bar lives in the top chrome row since T1; down here only
+        the subscribers remain, in whichever mode the settings choose. %>
+    <% unless ds['subscriber_display'] == 'off' %>
+      <%# No margin of its own: the divider above already carries the 16px on
+          both of its sides. One value per fugue, and the fugue here is the
+          divider - a margin stacked onto it would make this one gap 28px
+          while every other one is 16. %>
+      <div>
+        <%= render Neo::SubscriberListComponent.new(item: ticket, current_user: current_user, mode: ds['subscriber_display']) %>
+      </div>
+    <% end %>
+
+    <%# Move Modal — the trigger lives in the action bar above; both share the
+        #ticket-header move-ticket-modal Stimulus scope (declared on line 16).
+        The trigger MUST stay inside that scope or click->move-ticket-modal#open
+        silently no-ops (regression fixed in fix/move-ticket-modal-scope). %>
+    <% if policy(ticket).move? %>
+      <div class="fixed z-50 inset-0 overflow-y-auto hidden"
+           data-move-ticket-modal-target="modal"
+           data-action="click->move-ticket-modal#closeOnBackdrop">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm"></div>
+        <div class="flex items-center justify-center min-h-screen p-4">
+          <div class="bg-surface-raised rounded-lg shadow-xl border border-slate-200 max-w-md w-full relative">
+            <%# Header %>
+            <div class="flex justify-between items-center p-4 border-b border-slate-200">
+              <h3 class="text-lg font-bold">
+                <i class="bi bi-arrow-right-square mr-1"></i>
+                <%= t("#{sh}.move_ticket") %>
+              </h3>
+              <button type="button"
+                      class="text-gray-400 hover:text-gray-600"
+                      data-action="click->move-ticket-modal#close">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <%# Body - loaded via Turbo Frame %>
+            <turbo-frame id="move-ticket-modal-frame"
+                         src="<%= move_preflight_organisation_project_ticket_path(current_organisation, project, ticket) %>"
+                         loading="lazy">
+              <div class="p-5 text-center text-gray-400">
+                <i class="bi bi-hourglass-split inline-block animate-spin"></i>
+                <%= t('views.organisations.tickets.ticket_header_show.loading') %>
+              </div>
+            </turbo-frame>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>

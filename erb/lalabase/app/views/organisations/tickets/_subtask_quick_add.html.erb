@@ -1,0 +1,41 @@
+<%# Inline quick-add: type a title + Enter -> a real child ticket (Tickets::SubtasksController#create).
+    The input clears on turbo:submit-start (the form is already serialized then) so the next sub-task
+    can be typed without waiting — the "non-blocking" decomposition flow.
+
+    Two variants (locals: ticket, url, variant: :row, autofocus: false):
+      :row        -> full-width last row of the populated list. Never re-rendered by the append
+                     stream, so focus + in-progress typing survive across adds.
+      :standalone -> the WHOLE empty-state affordance: a compact, right-aligned "+ Unteraufgabe
+                     hinzufügen" pill below the ticket header (no heading, no list yet). The first
+                     add replaces the section with the populated layout.
+    autofocus focuses the input on connect — used when the first add swaps the empty layout for the
+    populated one, so the user keeps typing without re-clicking. %>
+<% variant = local_assigns.fetch(:variant, :row) %>
+<% autofocus = local_assigns.fetch(:autofocus, false) %>
+
+<% form = capture do %>
+  <%= form_with url: url, method: :post, class: "block",
+        data: { controller: "subtask-quick-add",
+                subtask_quick_add_autofocus_value: autofocus,
+                action: "submit->subtask-quick-add#guard turbo:submit-start->subtask-quick-add#clear" } do %>
+    <%# :standalone is the bare empty-state affordance — no border, no background, just a muted
+        "+ Unteraufgabe hinzufügen". :row sits inside the list and gets the row padding. %>
+    <div class="flex items-center gap-2 <%= variant == :standalone ? 'py-1' : 'px-3 py-2' %>">
+      <i class="bi bi-plus-lg <%= variant == :standalone ? 'text-cream-400 text-xs' : 'text-cream-400' %>"></i>
+      <%= text_field_tag :title, nil,
+            autocomplete: "off",
+            placeholder: t('views.organisations.tickets.shared.subtasks.add_placeholder'),
+            "aria-label": t('views.organisations.tickets.shared.subtasks.add_placeholder'),
+            data: { subtask_quick_add_target: "input" },
+            class: "#{variant == :standalone ? 'w-52 text-xs' : 'w-full text-sm'} border-0 bg-transparent p-0 text-cream-900 placeholder:text-cream-500 focus:ring-0" %>
+    </div>
+  <% end %>
+  <%# Inline error target (e.g. blank title). Filled by create_error.turbo_stream.erb, cleared on success. %>
+  <p id="subtask-error-<%= ticket.id %>" class="px-3 pb-1 text-xs text-red-600" role="alert"></p>
+<% end %>
+
+<% if variant == :standalone %>
+  <div id="subtask-quick-add-<%= ticket.id %>" class="inline-block text-left"><%= form %></div>
+<% else %>
+  <li id="subtask-quick-add-<%= ticket.id %>"><%= form %></li>
+<% end %>

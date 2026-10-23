@@ -1,0 +1,114 @@
+<%# Model availability matrix (Vertex AI) — rendered for google credentials only.
+    Cells show countTokens probe results from @vertex_availability (cache-fed by
+    the controller; the button POSTs a fresh probe). Green = available, red =
+    absent (404), yellow = other status / transport error. The global row is
+    info-only: the runtime provider rejects 'global' for residency reasons.
+    Admin styleguide (deliberately NOT Neo-Brutalist), Tailwind utilities only.
+
+    Deliberate sibling, not shared: admin/ai_packages/show renders the SAME
+    traffic-light reading (via AiPackagesController#vertex_state) but for the
+    single cell each package slot actually uses — full matrix here, one cell
+    there. A third renderer of this reading is the moment to extract. %>
+<div class="mt-8">
+  <div class="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000]">
+    <div class="px-6 py-4 border-b-2 border-black">
+      <h3 class="text-lg font-medium text-gray-900">
+        <i class="bi bi-globe-europe-africa text-gray-400 mr-2"></i>
+        <%= t('views.admin.ai_credentials.show.availability_title') %>
+      </h3>
+    </div>
+    <div class="px-6 py-4">
+      <% project_id = @ai_credential.additional_config&.dig('project_id').to_s.strip %>
+      <% if project_id.blank? %>
+        <p class="text-sm text-gray-500"><%= t('views.admin.ai_credentials.show.availability_missing_project') %></p>
+      <% else %>
+        <p class="text-sm text-gray-600 mb-4"><%= t('views.admin.ai_credentials.show.availability_intro', project: project_id) %></p>
+
+        <% if @vertex_availability %>
+          <% cells = @vertex_availability[:results].index_by { |r| [r[:region], r[:model]] } %>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><%= t('views.admin.ai_credentials.show.availability_th_region') %></th>
+                  <% @vertex_availability[:models].each do |model| %>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 font-mono"><%= model %></th>
+                  <% end %>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <% @vertex_availability[:regions].each do |region| %>
+                  <% info_only = @vertex_availability[:results].any? { |r| r[:region] == region && r[:info_only] } %>
+                  <tr class="<%= info_only ? 'bg-gray-50 text-gray-500' : 'hover:bg-gray-50' %>">
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                      <%= region %>
+                      <% if info_only %>
+                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><%= t('views.admin.ai_credentials.show.availability_global_badge') %></span>
+                      <% end %>
+                    </td>
+                    <% @vertex_availability[:models].each do |model| %>
+                      <% cell = cells[[region, model]] %>
+                      <td class="px-4 py-3 whitespace-nowrap text-sm">
+                        <% if cell.nil? %>
+                          <span class="text-gray-400">&mdash;</span>
+                        <% elsif cell[:available] %>
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" title="<%= t('views.admin.ai_credentials.show.availability_cell_status', code: cell[:status_code]) %>">
+                            <i class="bi bi-check-circle mr-1"></i>
+                            <%= t('views.admin.ai_credentials.show.availability_cell_available') %>
+                          </span>
+                        <% elsif cell[:status_code] == 404 %>
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800" title="<%= t('views.admin.ai_credentials.show.availability_cell_status', code: cell[:status_code]) %>">
+                            <i class="bi bi-x-circle mr-1"></i>
+                            <%= t('views.admin.ai_credentials.show.availability_cell_unavailable') %>
+                          </span>
+                        <% elsif cell[:status_code].nil? %>
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <i class="bi bi-exclamation-triangle mr-1"></i>
+                            <%= t('views.admin.ai_credentials.show.availability_cell_error') %>
+                          </span>
+                        <% else %>
+                          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <i class="bi bi-exclamation-triangle mr-1"></i>
+                            <%= t('views.admin.ai_credentials.show.availability_cell_status', code: cell[:status_code]) %>
+                          </span>
+                        <% end %>
+                      </td>
+                    <% end %>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-500">
+            <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-green-400 mr-1"></span><%= t('views.admin.ai_credentials.show.availability_legend_available') %></span>
+            <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-red-400 mr-1"></span><%= t('views.admin.ai_credentials.show.availability_legend_unavailable') %></span>
+            <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 mr-1"></span><%= t('views.admin.ai_credentials.show.availability_legend_error') %></span>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between">
+            <p class="text-sm text-gray-500"><%= t('views.admin.ai_credentials.show.availability_last_checked', time: l(@vertex_availability[:checked_at], format: :stamp)) %></p>
+            <%# button_to (native form POST) — not link_to+turbo_method: rails-ujs
+                is disabled and data-turbo-method is unreliable in the admin area,
+                so a real form is the robust trigger (matches the working admin
+                button_to precedent). %>
+            <%= button_to vertex_availability_admin_ai_credential_path(@ai_credential),
+                form_class: "inline-block",
+                class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+              <i class="bi bi-arrow-clockwise mr-2"></i>
+              <%= t('views.admin.ai_credentials.show.availability_btn_refresh') %>
+            <% end %>
+          </div>
+        <% else %>
+          <p class="text-sm text-gray-500 mb-4"><%= t('views.admin.ai_credentials.show.availability_empty') %></p>
+          <%= button_to vertex_availability_admin_ai_credential_path(@ai_credential),
+              form_class: "inline-block",
+              class: "inline-flex items-center px-3 py-2 border border-black rounded text-sm font-medium bg-white hover:bg-gray-100 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition-all" do %>
+            <i class="bi bi-search mr-2"></i>
+            <%= t('views.admin.ai_credentials.show.availability_btn_check') %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

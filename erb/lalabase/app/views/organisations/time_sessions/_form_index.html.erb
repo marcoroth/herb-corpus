@@ -1,0 +1,55 @@
+<%# locals: (time_session:, project: nil, ticket: nil, meeting: nil, close_action: "click->time-session-modal#close") %>
+<%# Project modal on the time-tracking index page. Shared fields: _form_fields.
+    Errors are inserted via Turbo Stream (create.turbo_stream.erb prepend);
+    the error block in _form_fields only applies on a full re-render (HTML error path). %>
+<%= form_with(model: [@current_organisation, @project, time_session],
+              id: "time_session_form",
+              class: "space-y-4 p-1",
+              data: {
+                controller: "time-session-form ticket-selector",
+                action: "turbo:submit-end->time-session-form#handleSubmit",
+                turbo_frame: "time_session_modal_form"
+              }) do |f| %>
+  <%# Context routes the success response: 'ticket' updates the ticket timeline,
+      'meeting' refreshes the meeting's booked-time list, 'index_page' the time list. %>
+  <%= hidden_field_tag :context, ticket.present? ? 'ticket' : (time_session.meeting_id.present? ? 'meeting' : 'index_page') %>
+
+  <%= render layout: 'organisations/time_sessions/form_fields',
+             locals: {
+               f: f,
+               time_session: time_session,
+               group_collection: unbilled_time_session_groups,
+               cancel_action: close_action
+             } do %>
+    <% current_project = project || @project %>
+    <% if time_session.meeting_id.present? %>
+      <%# Meeting subject (Gespräche Slice 2): fixed and read-only, carried as a
+          hidden field. No ticket picker — a session has at most one subject (XOR). %>
+      <% subject_meeting = meeting || time_session.meeting %>
+      <%= f.hidden_field :meeting_id %>
+      <div class="mb-4 text-left">
+        <span class="block text-sm font-medium text-gray-700 mb-1"><%= t('views.organisations.time_sessions.form_index.subject_label') %></span>
+        <span class="inline-flex items-center gap-1.5 text-sm font-medium text-cream-800">
+          <i class="bi bi-chat-quote text-cream-700"></i><%= subject_meeting&.title %>
+        </span>
+      </div>
+    <% elsif policy(current_project).area_access?(:tickets, :read) %>
+      <%# Ticket selection, only if the user has read permission for tickets %>
+      <div class="mb-4">
+        <%= f.label :ticket_id, t('views.organisations.time_sessions.form_index.ticket_label'), class: "block text-sm font-medium text-gray-700 mb-1" %>
+        <% ticket_options = selectable_tickets_for(current_project).map { |t| { value: t.id, text: t.display_title } } %>
+        <%= render NeoAutosuggestComponent.new(
+          name: :ticket_id,
+          options: ticket_options,
+          selected: time_session.ticket_id,
+          placeholder: t('views.organisations.time_sessions.form_index.ticket_search_placeholder'),
+          include_blank: true,
+          blank_text: t('views.organisations.time_sessions.form_index.no_ticket_assignment'),
+          form: f
+        ) %>
+      </div>
+    <% else %>
+      <%= f.hidden_field :ticket_id, value: nil %>
+    <% end %>
+  <% end %>
+<% end %>

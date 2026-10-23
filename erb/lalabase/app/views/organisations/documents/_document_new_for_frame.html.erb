@@ -1,0 +1,59 @@
+<%# The first upload in the lane (S4 of doc/dokumentansicht_plan.md, 43a's
+    2.4): the same order as the new version, the file first, the title
+    prefilled from its name (it is the version's title AND becomes the
+    document's, so an empty first field is how "asdfasdf" happens), the
+    description optional, the summary switch per R4, the locked state per D3,
+    "Abbrechen" as a text action back to the list, a grey button until a file
+    is chosen. The root keeps id="document-new" and no shell (knowledge_lane_spec). %>
+<% df = 'views.organisations.documents.document_form' %>
+<% field = 'w-full rounded-md border border-cream-300 px-3 py-2 bg-surface-raised focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink' %>
+<div id="document-new" class="relative">
+  <% current_frame_id = local_assigns[:detail_frame_id] || 'knowledge_display_frame' %>
+  <%= render 'organisations/knowledge/lane_head', type_word: t('views.organisations.knowledge.knowledge_row.document_type') %>
+  <%= form_with(model: [@current_organisation, @project, @document], html: { multipart: true, class: 'space-y-5' },
+                data: { turbo_frame: '_top', controller: 'upload-zone', upload_zone_over_class: 'border-ink bg-cream-100',
+                        upload_zone_empty_label_value: t('views.organisations.documents.upload_zone.none_chosen') }) do |form| %>
+    <%= form.fields_for :document_versions do |dv_form| %>
+      <%= render 'organisations/documents/upload_zone', form: dv_form %>
+
+      <div class="space-y-1">
+        <%= dv_form.label :title, t("#{df}.title_label"), class: 'block text-sm font-medium text-cream-700' %>
+        <%= dv_form.text_field :title, class: "#{field} text-lg font-bold", data: { upload_zone_target: 'title' } %>
+      </div>
+
+      <div class="space-y-1">
+        <%= dv_form.label :description, class: 'block text-sm font-medium text-cream-700' do %>
+          <%= t("#{df}.description_label") %>
+          <span class="font-normal text-cream-500"><%= t("#{df}.optional") %></span>
+        <% end %>
+        <%= dv_form.text_area :description, rows: 3, class: field %>
+      </div>
+
+      <%# The switch sits under the opt-in, the lane gates inside it: an opted-out
+          org gets nothing here, not an empty wrapper (R4, verify finding 1). %>
+      <% if @current_organisation&.ai_enabled? %>
+        <% document_summary = @current_organisation.ai_available_for?(:document_summary) %>
+        <% if document_summary&.available? %>
+          <label class="flex items-start gap-2 text-sm text-cream-700">
+            <%= dv_form.check_box :create_summary, class: 'mt-0.5 h-4 w-4 rounded border-cream-300 accent-ink' %>
+            <span>
+              <%= t("#{df}.create_summary") %>
+              <span class="block text-xs text-cream-600"><%= t("#{df}.summary_description") %></span>
+            </span>
+          </label>
+        <% else %>
+          <%= render Neo::Ai::UnavailableHintComponent.new(availability: document_summary, organisation: @current_organisation, feature: :document_summary) %>
+        <% end %>
+        <%= render 'organisations/documents/ai_locked_state' %>
+      <% end %>
+    <% end %>
+
+    <div class="flex items-center justify-end gap-3">
+      <%= link_to t("#{df}.cancel"), organisation_project_knowledge_index_path(@current_organisation, @project),
+                  class: text_action_classes, data: { turbo_frame: current_frame_id } %>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, type: 'submit', disabled: true, data: { upload_zone_target: 'submit' }) do %>
+        <%= t("#{df}.save") %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

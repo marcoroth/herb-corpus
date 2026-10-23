@@ -1,0 +1,140 @@
+<%# app/views/time_sessions/_time_session_content_for_frame.html.erb %>
+<div id="time-session-display" class="p-4">
+  <div class="bg-surface-raised rounded-lg border border-stroke p-6 mb-6">
+    <div class="flex justify-between items-start mb-4">
+      <h1 class="text-2xl font-bold"><%= t('views.organisations.time_sessions.time_session_content_for_frame.title') %></h1>
+
+      <% if time_session.creator == current_user %>
+        <div class="flex gap-2">
+          <div data-controller="time-session-popup" data-project-id="<%= project.id %>" data-context="content_page">
+            <button
+              type="button"
+              class="py-2 px-3 border border-stroke rounded bg-blue-100 hover:bg-blue-200 text-sm"
+              data-action="click->time-session-popup#editTimeSession"
+              data-time-session-id="<%= time_session.id %>"
+              data-context="content_page">
+              <i class="bi bi-pencil"></i> <%= t('views.organisations.time_sessions.time_session_content_for_frame.edit_button') %>
+            </button>
+          </div>
+
+          <%= button_to organisation_project_time_session_path(@current_organisation, project, time_session),
+                      method: :delete,
+                      class: "py-2 px-3 border border-stroke rounded bg-red-100 hover:bg-red-200 text-sm",
+                      data: { turbo_confirm: t('views.confirm.delete_time_session') } do %>
+            <i class="bi bi-trash"></i> <%= t('views.organisations.time_sessions.time_session_content_for_frame.delete_button') %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.duration_label') %></h3>
+          <p class="text-xl font-bold"><%= time_session.duration_string %></p>
+        </div>
+
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.date_label') %></h3>
+          <p class="text-lg"><%= l time_session.occurred_on, format: :long %></p>
+        </div>
+
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.user_label') %></h3>
+          <p class="text-lg"><%= viewer_display_name(time_session.creator) %></p>
+        </div>
+      </div>
+
+      <div>
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.related_task') %></h3>
+          <% if time_session.ticket.present? %>
+            <% if policy(project).area_access?(:tickets, :read) %>
+              <p class="text-lg">
+                <%= link_to time_session.ticket.title,
+                          organisation_project_ticket_path(@current_organisation, project, time_session.ticket),
+                          class: "text-blue-600 hover:underline",
+                          data: { turbo_frame: "_top" } %>
+              </p>
+            <% else %>
+              <p class="text-lg text-gray-700"><%= time_session.ticket.title %></p>
+            <% end %>
+          <% else %>
+            <p class="text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.no_task_assigned') %></p>
+          <% end %>
+        </div>
+
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.description_label') %></h3>
+          <% if time_session.description.present? %>
+            <div class="prose prose-sm mt-2">
+              <p><%= time_session.description %></p>
+            </div>
+          <% else %>
+            <p class="text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.no_description') %></p>
+          <% end %>
+        </div>
+
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.tags_label') %></h3>
+          <% if time_session.tag_list.any? %>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <% time_session.tag_list.each do |tag| %>
+                <%= render NeoTagComponent.new(text: tag, variant: :neutral, size: :small) %>
+              <% end %>
+            </div>
+          <% else %>
+            <p class="text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.no_tags') %></p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% if time_session.ticket.present? && policy(project).area_access?(:tickets, :read) %>
+    <div class="bg-surface-raised rounded-lg border border-stroke p-6">
+      <h2 class="text-xl font-bold mb-4"><%= t('views.organisations.time_sessions.time_session_content_for_frame.related_task_section') %></h2>
+      <div class="mb-3">
+        <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.title_label') %></h3>
+        <p class="text-lg">
+          <%= link_to time_session.ticket.title,
+                    organisation_project_ticket_path(@current_organisation, project, time_session.ticket),
+                    class: "text-blue-600 hover:underline",
+                    data: { turbo_frame: "_top" } %>
+        </p>
+      </div>
+
+      <div class="mb-3">
+        <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.status_label') %></h3>
+        <% status_value = time_session.ticket.get_custom_attribute('status') %>
+        <% if status_value.present? %>
+          <p>
+            <%= ticket_status_badge(time_session.ticket) %>
+          </p>
+        <% else %>
+          <p class="text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.no_status') %></p>
+        <% end %>
+      </div>
+
+      <div class="mb-3">
+        <h3 class="text-sm font-semibold text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.priority_label') %></h3>
+        <% priority_value = time_session.ticket.get_custom_attribute('priority') %>
+        <% if priority_value.present? %>
+          <p>
+            <%= ticket_priority_badge(time_session.ticket) %>
+          </p>
+        <% else %>
+          <p class="text-gray-500"><%= t('views.organisations.time_sessions.time_session_content_for_frame.no_priority') %></p>
+        <% end %>
+      </div>
+
+      <div class="mt-4">
+        <%= link_to organisation_project_ticket_path(@current_organisation, project, time_session.ticket),
+                  class: "inline-flex items-center py-2 px-4 border border-stroke rounded bg-blue-100 hover:bg-blue-200 text-sm",
+                  data: { turbo_frame: "_top" } do %>
+          <i class="bi bi-eye me-2"></i> <%= t('views.organisations.time_sessions.time_session_content_for_frame.view_task') %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
