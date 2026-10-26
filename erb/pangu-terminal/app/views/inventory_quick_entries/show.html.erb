@@ -1,0 +1,82 @@
+<%= main_content_frame do %>
+  <div class="inventory-container quick-entry" data-controller="quick-entry">
+    <div class="inventory-header">
+      <h1 class="inventory-title">Quick entry</h1>
+    </div>
+
+    <p class="quick-intro">
+      Type what you own for each material.
+      <span class="quick-keys">Press <kbd>Enter</kbd> (or the down arrow) to move to the next one; <kbd>Shift</kbd>+<kbd>Enter</kbd> or the up arrow goes back.</span>
+      Numbers like <code>1,200</code> and <code>25k</code> work. Nothing is saved until you press Save.
+      <% if @list[:showing_all] %>
+        <% if @list[:has_plans] %>
+          Showing every material. <%= link_to "Show only what my plans need", inventory_quick_entry_path, data: { turbo: false } %>
+        <% else %>
+          Showing every material because you have no plans yet.
+        <% end %>
+      <% else %>
+        Showing the materials your plans need. <%= link_to "Show every material", inventory_quick_entry_path(all: 1), data: { turbo: false } %>
+      <% end %>
+    </p>
+
+    <% if @errors.present? %>
+      <div class="quick-errors" role="alert">
+        <strong>Nothing was saved.</strong> Fix <%= pluralize(@errors.size, "entry") %> and save again:
+        <ul>
+          <% @errors.each do |material_id, message| %>
+            <li><%= link_to Material.find(material_id).name, "#quantity_#{material_id}", data: { turbo: false } %>: <%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <%= form_with url: inventory_quick_entry_path, method: :patch, class: "quick-form", data: { turbo: false, action: "keydown->quick-entry#submitShortcut" } do %>
+      <%= hidden_field_tag :all, 1 if @show_all %>
+
+      <% @list[:groups].each do |group| %>
+        <% heading_id = "quick-#{group[:category].parameterize}" %>
+        <section class="quick-group" aria-labelledby="<%= heading_id %>">
+          <h2 class="quick-group-title" id="<%= heading_id %>"><%= group[:category] %></h2>
+
+          <% group[:items].each do |item| %>
+            <% material = item[:material] %>
+            <% error = @errors && @errors[material.id] %>
+            <% typed = @values ? @values[material.id.to_s] : (item[:owned].positive? ? item[:owned] : nil) %>
+            <div class="quick-row <%= "has-error" if error %>">
+              <label class="quick-name" for="quantity_<%= material.id %>">
+                <% if material.image_url.present? %>
+                  <%= image_tag material.image_url, class: "quick-icon", alt: "" %>
+                <% end %>
+                <%= material.name %>
+              </label>
+              <% if item[:needed] %>
+                <span class="quick-needed" id="needed_<%= material.id %>">plans need <%= number_with_delimiter(item[:needed]) %></span>
+              <% end %>
+              <%= text_field_tag "quantities[#{material.id}]", typed,
+                    id: "quantity_#{material.id}",
+                    class: "quick-input",
+                    inputmode: "numeric",
+                    autocomplete: "off",
+                    placeholder: "0",
+                    autofocus: (error && @errors.keys.first == material.id),
+                    aria: { invalid: (true if error), describedby: [ ("needed_#{material.id}" if item[:needed]), ("error_#{material.id}" if error) ].compact.join(" ").presence },
+                    data: { quick_entry_target: "field", action: "keydown->quick-entry#navigate focus->quick-entry#select" } %>
+              <% if error %>
+                <span class="quick-error" id="error_<%= material.id %>"><%= error %></span>
+              <% end %>
+            </div>
+          <% end %>
+        </section>
+      <% end %>
+
+      <% if @list[:groups].empty? %>
+        <p class="quick-empty">There are no materials to show.</p>
+      <% end %>
+
+      <div class="quick-actions">
+        <%= submit_tag "Save changes", class: "quick-save" %>
+        <%= link_to "Back to inventory", inventory_items_path, data: { turbo: false } %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

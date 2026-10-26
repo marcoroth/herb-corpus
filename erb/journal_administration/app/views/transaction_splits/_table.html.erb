@@ -1,5 +1,5 @@
 <%# locals: (transaction:, transaction_split: nil) %>
-<% transaction_split = local_assigns[:transaction_split] || TransactionSplit.new(financial_transaction: transaction) %>
+<% transaction_split ||= TransactionSplit.new(financial_transaction: transaction) %>
 <section>
   <table>
     <thead>
@@ -15,7 +15,7 @@
       <% transaction.transaction_splits.where(remainder: false).select(&:persisted?).each do |split| %>
         <tr>
           <td><%= split.category&.to_s %></td>
-          <td><%= number_to_currency(split.amount) %></td>
+          <td><%= cents_to_currency(split.amount) %></td>
           <td><%= split.note %></td>
           <td>
             <%= render "appropriations/charge_form",
@@ -33,7 +33,7 @@
       <% if remainder %>
         <tr>
           <td><em><%= remainder.category&.to_s || t("transaction_splits.table.remainder_label") %></em></td>
-          <td><em><%= number_to_currency(remainder.amount) %></em></td>
+          <td><em><%= cents_to_currency(remainder.amount) %></em></td>
           <td><em><%= t("transaction_splits.table.remainder_label") %></em></td>
           <td></td>
           <td></td>
@@ -43,7 +43,7 @@
     <tfoot>
       <tr>
         <td><strong><%= t("transaction_splits.table.balance") %></strong></td>
-        <td><strong><%= number_to_currency(transaction.split_balance) %></strong></td>
+        <td><strong><%= cents_to_currency(transaction.split_balance) %></strong></td>
         <td></td>
         <td></td>
         <td></td>
@@ -61,7 +61,7 @@
       <%= f.select :category_id, grouped_category_options(selected: transaction_split.category_id), { include_blank: true } %>
 
       <%= f.label :amount, t("transaction_splits.table.amount") %>
-      <%= f.number_field :amount, step: "0.01", min: "0.01", value: transaction_split.amount %>
+      <%= f.number_field :amount, step: "0.01", min: "0.01", value: cents_field_value(transaction_split, :amount, separator: ".") %>
       <% if transaction_split.errors[:amount].any? %>
         <p><%= transaction_split.errors.full_messages_for(:amount).to_sentence %></p>
       <% end %>

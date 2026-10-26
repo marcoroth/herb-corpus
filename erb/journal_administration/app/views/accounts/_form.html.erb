@@ -1,24 +1,23 @@
 <%# locals: (account:) %>
-<%= form_for account do |f| %>
-  <% if account.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= t('errors.template.header', count: account.errors.count, model: Account.model_name.human.downcase) %></h2>
-      <ul>
-        <% account.errors.full_messages.each do |message| %>
-          <li><%= message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
+<%= form_with model: account do |f| %>
+  <%= render "shared/form_errors", record: account %>
 
   <div class="field">
     <%= f.label :id %>
     <%= f.text_field :id, disabled: :disabled %>
   </div>
-  <div class="field">
-    <%= f.label :account_number %>
-    <%= f.text_field :account_number %>
-  </div>
+  <fieldset class="field">
+    <legend><%= t('.account_numbers') %></legend>
+    <%= f.fields_for :account_numbers do |number_form| %>
+      <div>
+        <%= number_form.text_field :number, value: number_form.object.number.to_s, aria: { label: t('.account_number') } %>
+        <% if number_form.object.persisted? %>
+          <%= number_form.check_box :_destroy %>
+          <%= number_form.label :_destroy, t('.remove_number') %>
+        <% end %>
+      </div>
+    <% end %>
+  </fieldset>
   <div class="field">
     <%= f.label :name %>
     <%= f.text_field :name %>
@@ -32,8 +31,11 @@
     <%= f.select :category_id, grouped_category_options(selected: f.object.category_id), { include_blank: true } %>
   </div>
 
-  <nav>
-    <%= link_to t('common.cancel'), account.persisted? ? account_path(account) : accounts_path %>
-    <%= f.submit t('common.save') %>
-  </nav>
+  <%= render "shared/action_row", form: f,
+      cancel_path: account.persisted? ? account_path(account) : accounts_path,
+      delete_form_id: (dom_id(account, :delete) if account.persisted?),
+      confirm: t("common.confirm_delete_named", name: account.stored_label) %>
+<% end %>
+<% if account.persisted? %>
+  <%= render "shared/delete_form", record: account, url: account_path(account) %>
 <% end %>

@@ -1,0 +1,96 @@
+<%# locals: (ticket:, meeting:, meetings:, linked_tickets:) %>
+<%# The meeting beside the ticket (doc/ticket_meeting_panel_plan.md, S1), the content of
+    turbo-frame#ticket_meeting_panel in the grid's third lane. Read only: no edit, no delete,
+    no analyses, no suggestions, no assistant entry point; "Open meeting" leads to the page
+    where all of that lives. It does NAME its meeting to the assistant
+    (assistant_context_attributes, S3): the assistant then offers the ticket and, after
+    it, this meeting, so "what was decided about this ticket?" has both at hand. A name
+    is not an entry point: nothing here writes, the assistant's own strip asks.
+    meetings: every meeting of this ticket the reader may see (Tickets::LinkedMeetings),
+    newest first, as tabs in the head; a tab is a plain link, so it loads into this frame.
+    The close button is the lane's own (NeoTwoColumnGridComponent, layout_toggle#togglePanel);
+    ticket_meeting_panel_controller adds Escape and closes when the lane shows another ticket.
+    ⚠️ Keys fully qualified: a lazy t('.') in a partial answers to the partial's name. %>
+<% mp = 'views.organisations.tickets.meeting_panel' %>
+<div class="ticket-meeting-panel"
+     data-controller="ticket-meeting-panel"
+     data-ticket-meeting-panel-ticket-id-value="<%= ticket.id %>"
+     <%= assistant_context_attributes(meeting) %>>
+  <%= render 'organisations/tickets/meeting_panel_stage_tabs',
+             ticket_label: t("#{mp}.ticket_tab", number: ticket.number),
+             meeting_label: t("#{mp}.meeting_tab", date: l(meeting.occurred_at.to_date, format: :short)) %>
+  <header class="ticket-meeting-panel__head">
+    <p class="text-xs font-mono uppercase tracking-wider text-cream-600"><%= t("#{mp}.eyebrow") %></p>
+    <% if meetings.size > 1 %>
+      <nav class="ticket-meeting-panel__tabs" aria-label="<%= t("#{mp}.tabs_label") %>">
+        <% meetings.each do |other| %>
+          <%= link_to organisation_project_ticket_meeting_panel_path(current_organisation, ticket.project, ticket, meeting_id: other.id),
+                      class: 'ticket-meeting-panel__tab',
+                      title: other.title,
+                      aria: { current: (other == meeting ? 'true' : nil) } do %>
+            <span class="font-mono tabular-nums"><%= l(other.occurred_at.to_date, format: :short) %></span>
+            <span class="truncate"><%= other.title %></span>
+          <% end %>
+        <% end %>
+      </nav>
+    <% end %>
+  </header>
+
+  <h2 class="mt-3 text-lg font-bold leading-snug text-cream-900 break-words [overflow-wrap:anywhere]"><%= meeting.title %></h2>
+  <p class="mt-2 inline-flex items-center gap-1.5 text-xs text-cream-600">
+    <i class="bi bi-calendar3" aria-hidden="true"></i>
+    <%= display_time(meeting.occurred_at, user: current_user) %>
+  </p>
+
+  <% participants = meeting.meeting_participants.order(:created_at).to_a %>
+  <%= render 'organisations/meetings/participants_row', meeting: meeting, participants: participants %>
+
+  <div class="border-b border-cream-300 mt-4 mb-5"></div>
+
+  <%= render 'organisations/meetings/meeting_reading',
+             meeting: meeting, participants: participants, panel: true,
+             summary_refresh: { url: organisation_project_ticket_meeting_panel_path(current_organisation, ticket.project, ticket, meeting_id: meeting.id),
+                                frame: Organisations::TicketMeetingPanelsController::FRAME_ID } %>
+
+  <% if linked_tickets.any? %>
+    <section class="mt-8">
+      <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
+        <%= t("#{mp}.linked_tickets") %>
+      </h3>
+      <ul class="divide-y divide-cream-200 border-t border-cream-200">
+        <% linked_tickets.each do |other| %>
+          <li class="flex items-center gap-3 py-2 text-sm">
+            <span class="shrink-0 font-mono text-xs tabular-nums text-cream-500">#<%= other.number %></span>
+            <% if other == ticket %>
+              <span class="min-w-0 flex-1 truncate text-cream-900"><%= other.title %></span>
+              <span class="shrink-0 text-xs italic text-cream-500"><%= t("#{mp}.this_ticket") %></span>
+            <% elsif other.project_id == ticket.project_id %>
+              <%# Opens in the lane by clicking its row (ticket_meeting_panel#openTicket), so
+                  the row is what gets marked; the href is the ticket page for a new tab and
+                  for a ticket off the list's current page. The lane then shows another
+                  ticket, and this panel closes (F3). %>
+              <%= link_to other.title,
+                          organisation_project_tickets_path(current_organisation, other.project, ticket_id: other.id),
+                          class: 'min-w-0 flex-1 truncate text-cream-900 hover:underline',
+                          data: { ticket_id: other.id, action: 'ticket-meeting-panel#openTicket' } %>
+            <% else %>
+              <%# Another project, another page: no lane of this one can show it. The
+                  relations' link already decides that (TicketRelationsHelper). %>
+              <%= ticket_relation_link(other, from: ticket, class: 'min-w-0 flex-1 truncate text-cream-900 hover:underline') do %><%= other.title %><% end %>
+              <span class="shrink-0 truncate text-xs text-cream-500"><%= other.project.name %></span>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+
+  <p class="mt-8">
+    <%= link_to organisation_project_meetings_path(current_organisation, meeting.project, meeting_id: meeting.id),
+                class: 'inline-flex items-center gap-1.5 text-sm font-medium text-cream-900 underline hover:text-ink',
+                data: { turbo_frame: '_top' } do %>
+      <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+      <%= t("#{mp}.open_meeting") %>
+    <% end %>
+  </p>
+</div>

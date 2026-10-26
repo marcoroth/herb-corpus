@@ -1,0 +1,61 @@
+<% content_for(:title) { t('.title', account: @account) } %>
+<%= render layout: "shared/title_bar", locals: { title: t('.title', account: @account) } do %>
+  <%= link_to t('common.cancel'), account_path(@account) %>
+<% end %>
+
+<article>
+  <p><%= t('.intro', account: @account) %></p>
+
+  <%= form_with url: new_account_merge_path(@account), method: :get do |f| %>
+    <%= f.label :query, t('.search') %>
+    <%= f.search_field :query, value: @query %>
+    <%= f.submit t('.search_submit'), name: nil %>
+  <% end %>
+</article>
+
+<% if @query.present? %>
+  <article>
+    <% if @matches.any? %>
+      <%= form_with url: new_account_merge_path(@account), method: :get do |f| %>
+        <ul>
+          <% @matches.each do |match| %>
+            <li>
+              <%= check_box_tag "duplicate_ids[]", match.id, @duplicates.include?(match), id: dom_id(match, :duplicate) %>
+              <%= label_tag dom_id(match, :duplicate), "#{match} (#{match.numbers.to_sentence})" %>
+            </li>
+          <% end %>
+        </ul>
+        <%= f.submit t('.review'), name: nil %>
+      <% end %>
+    <% else %>
+      <p><%= t('.no_matches', query: @query) %></p>
+    <% end %>
+  </article>
+<% end %>
+
+<% if @duplicates.any? %>
+  <article>
+    <h2><%= t('.review_heading') %></h2>
+    <ul>
+      <% @duplicates.each do |duplicate| %>
+        <li>
+          <%= duplicate %> (<%= duplicate.numbers.to_sentence %>):
+          <%= t('.counts', transactions: t('.transactions', count: @transactions_by_account.fetch(duplicate.id, 0)),
+                receipts: t('.receipts', count: @receipts_by_account.fetch(duplicate.id, 0))) %>
+        </li>
+      <% end %>
+    </ul>
+    <p>
+      <%= t('.totals', transactions: t('.transactions', count: @transactions_count),
+            receipts: t('.receipts', count: @receipts_count)) %>
+    </p>
+
+    <%= button_to t('.merge'), account_merge_path(@account),
+          params: { duplicate_ids: @duplicates.map(&:id) },
+          data: { turbo_confirm: t('.confirm', accounts: t('.accounts', count: @duplicates.size),
+                                   account: @account,
+                                   transactions: t('.transactions', count: @transactions_count),
+                                   receipts: t('.receipts', count: @receipts_count)),
+                  confirm_verb: t('.merge') } %>
+  </article>
+<% end %>

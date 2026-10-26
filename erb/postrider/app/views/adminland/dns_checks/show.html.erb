@@ -8,48 +8,42 @@
       <strong><%= @page_title %></strong>
     </span>
   </h1>
-  <div class="header__actions header__actions--end"></div>
+  <div class="header__actions header__actions--end">
+    <% if Relay.hostname.present? %>
+      <%= button_to adminland_dns_check_path, class: "btn btn--circle-mobile", aria: { label: "Check DNS" } do %>
+        <%= icon_tag "refresh" %><span>Check DNS</span>
+      <% end %>
+    <% end %>
+  </div>
 <% end %>
 
-<div class="page">
-  <div class="settings">
-    <div class="settings__panel panel shadow">
-      <section class="settings__section">
+<div class="page settings-index">
+  <div class="settings-index__card panel shadow">
+    <section>
+      <h2 class="settings-index__heading">DNS records</h2>
+      <div class="settings-index__body">
         <% if Relay.hostname.blank? %>
-          <p class="margin-none">Not configured. Set ENV <code>RELAY_HOSTNAME</code> to this server's public hostname.</p>
+          <p class="margin-none txt-align-center">Not configured. Set ENV <code>RELAY_HOSTNAME</code> to this server's public hostname.</p>
         <% else %>
-          <p class="margin-none">DNS status: <%= tag.span @dns_check.dns_ok? ? "OK" : "Not ready", class: class_names("status status--badge", @dns_check.dns_ok? ? "status--success" : "status--warning") %></p>
-
-          <p class="margin-none">Publish these at your DNS provider.<% if @dns_check.dns_checked? %> Last checked <%= local_datetime_tag @dns_check.dns_checked_at, style: :datetime %>.<% end %></p>
-
-          <div class="dns-checks">
-            <% @dns_check.dns_records.chunk_while { |record, following| record.check && record.check == following.check }.each do |records| %>
-              <% if records.many? %>
-                <section class="dns-check-group">
-                  <header class="dns-check__header">
-                    <h3 class="dns-check__title"><%= records.map(&:purpose).uniq.to_sentence %></h3>
-                    <span class="chip"><%= records.map(&:type).uniq.join(" + ") %></span>
-                    <span class="dns-check__status"><%= dns_status_tag @dns_check.public_send("#{records.first.check}_status") %></span>
-                  </header>
-
-                  <p class="txt-small txt-subtle margin-none">One check covers these <%= records.size %> records.<% if error = @dns_check.public_send("#{records.first.check}_error").presence %> <%= error %><% end %></p>
-
-                  <% records.each do |record| %>
-                    <%= render "domains/dns_record", record: record, title: record.purpose %>
-                  <% end %>
-                </section>
-              <% elsif check = records.first.check %>
-                <%= render "domains/dns_record", record: records.first, title: records.first.purpose,
-                      status: dns_status_tag(@dns_check.public_send("#{check}_status")), error: @dns_check.public_send("#{check}_error") %>
-              <% else %>
-                <%= render "domains/dns_record", record: records.first, title: records.first.purpose %>
-              <% end %>
+          <p class="flex flex-wrap align-center justify-center gap-half margin-none txt-align-center">
+            <% if @dns_check.dns_ok? %>
+              <span class="status status--success status--badge">OK</span>
+            <% else %>
+              <span class="status status--warning status--badge">Not ready</span>
             <% end %>
-          </div>
 
-          <%= button_to "Check DNS now", adminland_dns_check_path, class: "btn btn--link" %>
+            <% if @dns_check.dns_checked? %>
+              <span class="txt-x-small txt-subtle">Checked <%= local_datetime_tag @dns_check.dns_checked_at, style: :ago %></span>
+            <% end %>
+          </p>
+
+          <% listings = @dns_check.dns_listings_needing_work_first %>
+
+          <div class="dns-list <%= "dns-list--attention" if listings.any?(&:needs_work?) %>">
+            <%= render partial: "domains/dns_records/dns_record", collection: listings, as: :listing %>
+          </div>
         <% end %>
-      </section>
-    </div>
+      </div>
+    </section>
   </div>
 </div>

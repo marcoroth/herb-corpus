@@ -1,7 +1,11 @@
-<%= turbo_frame_tag "main_content" do %>
+<%= main_content_frame do %>
   <div class="dashboard-header">
     <h1 class="dashboard-title">Dashboard</h1>
   </div>
+
+  <% unless @onboarding[:complete] %>
+    <%= render "dashboards/onboarding", steps: @onboarding[:steps] %>
+  <% end %>
 
   <div class="dashboard-content-layout">
     <div class="dashboard-card dashboard-main">
@@ -11,7 +15,12 @@
       </div>
 
       <div class="plans-column">
-        <%= render @recent_plans %>
+        <%= render partial: "plans/plan", collection: @recent_plans, as: :plan, locals: { materials_lookup: @materials_lookup } %>
+        <% if @recent_plans.empty? %>
+          <p class="dashboard-empty">Your latest plans show up here.
+            <%= link_to "Create one", plans_path, data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+            to see its materials at a glance.</p>
+        <% end %>
       </div>
     </div>
 
@@ -64,9 +73,9 @@
         <%= form_for(current_user, url: update_user_registration_path, html: { method: :patch, data: { turbo: false } }) do |f| %>
           <div class="auth-form-group">
             <%= f.select :sol3_phase,
-                options_for_select((1..8).map { |i| ["Phase #{i}", i] }, current_user.sol3_phase),
+                options_for_select(DropRate::SOL3_PHASES.map { |i| ["Phase #{i}", i] }, current_user.sol3_phase),
                 { include_blank: current_user.sol3_phase.nil? ? "Select Phase" : false },
-                { class: "game-profile-select" } %>
+                { class: "game-profile-select", "aria-label": "SOL3 phase" } %>
           </div>
 
           <div style="padding-top: 1rem;">

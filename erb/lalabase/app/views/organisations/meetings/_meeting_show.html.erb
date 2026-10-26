@@ -5,7 +5,7 @@
 <% visible_analyses = visible_meeting_analyses(meeting) %>
 <% can_see_time = policy(meeting.project).area_access?(:time_sessions, :read) %>
 
-<%= turbo_stream_from "#{dom_id(meeting)}_summary" %>
+<%= turbo_stream_from meeting.summary_stream_name %>
 
 <div id="meeting-header" class="meeting-content min-w-0" <%= assistant_context_attributes(meeting) %>>
   <%= render 'organisations/meetings/lane_head', meeting: meeting, current_frame_id: current_frame_id %>
@@ -31,27 +31,7 @@
   </div>
 
   <% participants = meeting.meeting_participants.order(:created_at).to_a %>
-  <% if participants.any? %>
-    <% permitted_user_ids = meeting.project.permitted_user_ids.to_set %>
-    <div class="mt-3 flex min-w-0 flex-wrap items-start gap-2">
-      <span class="pt-0.5 text-xs font-mono uppercase tracking-wider text-cream-600">
-        <%= t('views.organisations.meetings.show.participants_heading') %>
-      </span>
-      <div class="flex min-w-0 flex-1 flex-wrap gap-2">
-        <% participants.each do |participant| %>
-          <% chip_style = meeting_participant_chip_style(meeting_participant_type(participant, permitted_user_ids)) %>
-          <%= render NeoTagComponent.new(
-                text: participant.display_name,
-                variant: chip_style[:variant],
-                icon: chip_style[:icon],
-                title: chip_style[:title],
-                size: :small,
-                class: 'max-w-full [&_.tag-text]:break-words [&_.tag-text]:[overflow-wrap:anywhere]'
-              ) %>
-        <% end %>
-      </div>
-    </div>
-  <% end %>
+  <%= render 'organisations/meetings/participants_row', meeting: meeting, participants: participants %>
 
   <% if meeting.organisation&.ai_enabled? %>
     <%= render 'organisations/meetings/search_status', meeting: meeting, can_write: can_write %>
@@ -59,55 +39,9 @@
 
   <div class="border-b border-cream-300 mt-5 mb-6"></div>
 
-  <div class="width-text">
-    <%= render 'organisations/meetings/summary_section', meeting: meeting, can_write: can_write, lane_state: meeting_lane_state %>
-
-    <% if meeting.notes.blank? && meeting.transcript.blank? %>
-      <div class="text-sm text-cream-600 italic py-2">
-        <%= t('views.organisations.meetings.show.no_content') %>
-        <% if can_write %>
-          <%= link_to t('views.organisations.meetings.show.edit_meeting'),
-              edit_organisation_project_meeting_path(
-                @current_organisation,
-                meeting.project,
-                meeting,
-                format: :turbo_stream,
-                frame_id: current_frame_id,
-                **meeting_lane_state.symbolize_keys,
-                viewport: @viewport_mode
-              ),
-              data: { turbo_frame: current_frame_id },
-              class: 'not-italic underline hover:text-ink' %>
-        <% end %>
-      </div>
-    <% else %>
-      <% if meeting.notes.present? %>
-        <section class="mb-8">
-          <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
-            <%= t('views.organisations.meetings.show.notes_heading') %>
-          </h3>
-          <%= render Neo::MarkdownPreviewComponent.new(markdown: meeting_markdown_source(meeting.notes), size: :base) %>
-        </section>
-      <% end %>
-
-      <% if meeting.transcript.present? %>
-        <section>
-          <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
-            <%= t('views.organisations.meetings.show.transcript_heading') %>
-          </h3>
-          <% if meeting.generated_summary.present? || meeting.notes.present? %>
-            <%= render Neo::MarkdownPreviewComponent.new(
-                  markdown: meeting_transcript_source(meeting, participants),
-                  clamp: :tall,
-                  more_label: t('views.organisations.meetings.show.transcript_show_full'),
-                  less_label: t('views.organisations.meetings.show.transcript_collapse')) %>
-          <% else %>
-            <%= render Neo::MarkdownPreviewComponent.new(markdown: meeting_transcript_source(meeting, participants)) %>
-          <% end %>
-        </section>
-      <% end %>
-    <% end %>
-  </div>
+  <%= render 'organisations/meetings/meeting_reading',
+             meeting: meeting, participants: participants, can_write: can_write,
+             lane_state: meeting_lane_state, current_frame_id: current_frame_id %>
 
 </div>
 

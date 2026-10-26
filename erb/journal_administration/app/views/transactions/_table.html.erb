@@ -1,52 +1,64 @@
 <%# locals: (transactions:, page:, show_uncategorized_amount: false) %>
+<% labels = {
+  type: t('.type'),
+  creditor: t('.creditor'),
+  debitor: t('.debitor'),
+  amount: t('.amount'),
+  booked_at: t('.booked_at'),
+  interest_date: t('.interest_date'),
+  category: t('.category'),
+  note: t('.note')
+} %>
 <%= render "transactions/filters" %>
 <%= render "shared/pagination", page: page %>
 
-<table class="transactions">
-  <thead>
-    <tr>
-      <th></th>
-      <th><%= t('.type') %></th>
-      <th><%= t('.creditor') %></th>
-      <th><%= t('.debitor') %></th>
-      <th><%= t('.amount') %></th>
-      <th><%= t('.booked_at') %></th>
-      <th><%= t('.interest_date') %></th>
-      <th><%= t('.category') %></th>
-      <th><%= t('.note') %></th>
+<table class="transactions" data-stack="wide" role="table" aria-label="<%= t('transactions.index.title') %>">
+  <thead role="rowgroup">
+    <tr role="row">
+      <% labels.each_value do |label| %>
+        <th scope="col" role="columnheader"><%= label %></th>
+      <% end %>
     </tr>
   </thead>
 
-  <tbody>
+  <tbody role="rowgroup">
     <% transactions.each do |transaction| %>
       <% display_amount = show_uncategorized_amount ? transaction.uncategorized_amount : transaction.amount %>
-      <tr class="<%= 'unconsolidated' if transaction.consolidatable? %>">
-        <td>
-          <%= link_to t('.show'), transaction %>
-        </td>
-        <td><%= transaction.type_icon %></td>
+      <tr role="row" class="<%= 'unconsolidated' if transaction.consolidatable? %>">
+        <td role="cell" data-label="<%= labels[:type] %>"><%= transaction.type_icon %></td>
         <% creditor = transaction.creditor %>
-        <td><%= creditor ? link_to(creditor.name || creditor.account_number, account_path(creditor)) : "" %></td>
+        <td role="cell" data-label="<%= labels[:creditor] %>"><%= creditor ? link_to(creditor.to_s, account_path(creditor)) : "" %></td>
         <% debitor = transaction.debitor %>
-        <td><%= debitor ? link_to(debitor.name || debitor.account_number, account_path(debitor)) : "" %></td>
-        <td><%= number_to_currency display_amount %></td>
-        <td><%= transaction.booked_at ? l(transaction.booked_at.to_date) : '' %></td>
-        <td><%= transaction.interest_at ? l(transaction.interest_at.to_date) : '' %></td>
-        <td><%= transaction.category&.to_s %></td>
-        <td><%= transaction&.note&.truncate(20) %></td>
+        <td role="cell" data-label="<%= labels[:debitor] %>"><%= debitor ? link_to(debitor.to_s, account_path(debitor)) : "" %></td>
+        <td role="cell" data-label="<%= labels[:amount] %>">
+          <%= link_to polymorphic_path(transaction) do %>
+            <data value="<%= display_amount %>"><%= cents_to_currency display_amount %></data>
+          <% end %>
+        </td>
+        <td role="cell" data-label="<%= labels[:booked_at] %>">
+          <% if transaction.booked_at %>
+            <time datetime="<%= transaction.booked_at.to_date.iso8601 %>"><%= l(transaction.booked_at.to_date) %></time>
+          <% end %>
+        </td>
+        <td role="cell" data-label="<%= labels[:interest_date] %>">
+          <% if transaction.interest_at %>
+            <time datetime="<%= transaction.interest_at.to_date.iso8601 %>"><%= l(transaction.interest_at.to_date) %></time>
+          <% end %>
+        </td>
+        <td role="cell" data-label="<%= labels[:category] %>"><%= transaction.category&.to_s %></td>
+        <td role="cell" data-label="<%= labels[:note] %>"><%= transaction.note %></td>
       </tr>
       <% if transaction.split? %>
         <% transaction.explicit_transaction_splits.each do |split| %>
-          <tr class="split-row">
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td><%= number_to_currency split.amount %></td>
-            <td></td>
-            <td></td>
-            <td><%= split.category&.to_s %></td>
-            <td><%= split.note&.truncate(20) %></td>
+          <tr role="row" class="split-row">
+            <td role="cell" data-label="<%= labels[:type] %>"></td>
+            <td role="cell" data-label="<%= labels[:creditor] %>"></td>
+            <td role="cell" data-label="<%= labels[:debitor] %>"></td>
+            <td role="cell" data-label="<%= labels[:amount] %>"><data value="<%= split.amount %>"><%= cents_to_currency split.amount %></data></td>
+            <td role="cell" data-label="<%= labels[:booked_at] %>"></td>
+            <td role="cell" data-label="<%= labels[:interest_date] %>"></td>
+            <td role="cell" data-label="<%= labels[:category] %>"><%= split.category&.to_s %></td>
+            <td role="cell" data-label="<%= labels[:note] %>"><%= split.note %></td>
           </tr>
         <% end %>
       <% end %>
