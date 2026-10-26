@@ -1,3 +1,5 @@
+<%= render "shared/title_bar", title: t("home") %>
+
 <article>
   <%= form_with url: dashboard_index_path, method: :get, data: { controller: "date-filter" } do |f| %>
     <fieldset>
@@ -29,12 +31,12 @@
 <article>
   <section class="chart-section">
     <h2><%= t("dashboard.charts.spending_by_category") %></h2>
-    <%= svg_donut_chart(labels: @dashboard.chart_labels, data: @dashboard.credit_transactions.values.map(&:to_f)) %>
+    <%= svg_donut_chart(labels: @dashboard.chart_labels, data: @dashboard.credit_transactions.values.map { |cents| Cents.to_euros(cents).to_f }) %>
   </section>
 </article>
 
 <article>
-  <%= render partial: "balance", locals: { dashboard: @dashboard } %>
+  <%= render partial: "dashboard/balance", locals: { dashboard: @dashboard } %>
 </article>
 
 <article>
@@ -47,12 +49,14 @@
       <% end %>
     </h2>
     <% if @dashboard.active_budget %>
-      <%= svg_budget_chart(budget_amounts: @dashboard.budget_amounts,
-                           budget_actuals: @dashboard.budget_actuals) %>
+      <%= svg_budget_chart(
+        budget_amounts: @dashboard.budget_amounts.transform_values { |cents| Cents.to_euros(cents).to_f },
+        budget_actuals: @dashboard.budget_actuals.transform_values { |cents| Cents.to_euros(cents).to_f }
+      ) %>
     <% else %>
       <%= svg_bar_chart(labels: @dashboard.chart_labels,
-                        data: @dashboard.credit_transactions.values.map(&:to_f),
-                        reference: @dashboard.historical_averages,
+                        data: @dashboard.credit_transactions.values.map { |cents| Cents.to_euros(cents).to_f },
+                        reference: @dashboard.historical_averages.map { |cents| Cents.to_euros(cents).to_f },
                         y_label: t("dashboard.charts.spending_vs_average")) %>
     <% end %>
   </section>

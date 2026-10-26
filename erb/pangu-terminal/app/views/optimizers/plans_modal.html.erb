@@ -1,28 +1,35 @@
-<%= turbo_frame_tag "modal" do %>
-  <div class="modal-backdrop" data-controller="modal" data-action="click->modal#closeOutside">
-    <div class="modal-container">
-      <div id="modal-content" class="optimizer-plan-select-container">
-        <div class="modal-header">
-          <h2 class="modal-title optimizer-plan-select-title">Select a Plan</h2>
-        </div>
-
-        <div class="optimizer-plan-grid">
-          <% @plans.each do |plan| %>
-            <%= button_to optimizer_select_plan_path,
-                params: { plan_id: plan.id },
-                data: { turbo_stream: true },
-                class: "optimizer-plan-select-card" do %>
-              <% if plan.subject.image_url.present? %>
-                <%= image_tag plan.subject.image_url, class: "optimizer-plan-select-icon" %>
-              <% end %>
-              <div class="optimizer-plan-select-info">
-                <span class="optimizer-plan-select-name"><%= plan.subject.name %></span>
-                <span class="optimizer-plan-select-type"><%= plan.subject_type %></span>
-              </div>
-            <% end %>
-          <% end %>
-        </div>
-      </div>
-    </div>
+<%= render layout: "shared/modal", locals: { content_class: "optimizer-plan-select-container" } do %>
+  <div class="modal-header">
+    <h2 class="modal-title optimizer-plan-select-title">Choose plans</h2>
   </div>
+
+  <%= button_to "Use all plans (#{@plans.size})",
+      optimizer_select_plan_path,
+      params: { all: 1 },
+      form: { data: { turbo_stream: true } },
+      class: "optimizer-use-all" %>
+
+  <%= form_with url: optimizer_select_plan_path, method: :post, data: { turbo_stream: true }, class: "optimizer-plan-form" do %>
+    <fieldset class="optimizer-plan-fieldset">
+      <legend class="optimizer-plan-legend">Or pick the ones you want</legend>
+
+      <div class="optimizer-plan-grid">
+        <% @plans.each do |plan| %>
+          <label class="optimizer-plan-select-card">
+            <%= check_box_tag "plan_ids[]", plan.id, @selected_plans.include?(plan) && !@all_plans_selected, id: dom_id(plan, :choose), class: "optimizer-plan-checkbox" %>
+            <% if plan.subject.image_url.present? %>
+              <%= image_tag plan.subject.image_url, class: "optimizer-plan-select-icon", alt: "" %>
+            <% end %>
+            <span class="optimizer-plan-select-info">
+              <span class="optimizer-plan-select-name"><%= plan.subject.name %></span>
+              <span class="optimizer-plan-select-type"><%= plan.subject_type %></span>
+            </span>
+            <span class="optimizer-plan-tick" aria-hidden="true">✓</span>
+          </label>
+        <% end %>
+      </div>
+    </fieldset>
+
+    <%= submit_tag "Use selected plans", class: "optimizer-use-selected" %>
+  <% end %>
 <% end %>

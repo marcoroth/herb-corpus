@@ -1,0 +1,56 @@
+<%# locals: (meeting:, participants:, can_write: false, lane_state: {}, current_frame_id: nil, panel: false, summary_refresh: nil) %>
+<%# What a meeting says: the AI summary, the notes and the transcript. The meeting's page
+    and the read-only panel beside a ticket (panel: true) render this one block, so the two
+    cannot drift. In the panel nothing is writable (can_write is false there), the
+    summary's refresh reloads the panel (summary_refresh: url and frame; the meetings lane
+    it reloads by default is not on the ticket page), and the transcript is always
+    collapsed: the panel is a look beside the ticket, not the reading place. %>
+<div class="width-text">
+  <%= render 'organisations/meetings/summary_section', meeting: meeting, can_write: can_write, lane_state: lane_state, refresh: summary_refresh %>
+
+  <% if meeting.notes.blank? && meeting.transcript.blank? %>
+    <div class="text-sm text-cream-600 italic py-2">
+      <%= t('views.organisations.meetings.show.no_content') %>
+      <% if can_write %>
+        <%= link_to t('views.organisations.meetings.show.edit_meeting'),
+            edit_organisation_project_meeting_path(
+              @current_organisation,
+              meeting.project,
+              meeting,
+              format: :turbo_stream,
+              frame_id: current_frame_id,
+              **lane_state.symbolize_keys,
+              viewport: @viewport_mode
+            ),
+            data: { turbo_frame: current_frame_id },
+            class: 'not-italic underline hover:text-ink' %>
+      <% end %>
+    </div>
+  <% else %>
+    <% if meeting.notes.present? %>
+      <section class="mb-8">
+        <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
+          <%= t('views.organisations.meetings.show.notes_heading') %>
+        </h3>
+        <%= render Neo::MarkdownPreviewComponent.new(markdown: meeting_markdown_source(meeting.notes), size: :base) %>
+      </section>
+    <% end %>
+
+    <% if meeting.transcript.present? %>
+      <section>
+        <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
+          <%= t('views.organisations.meetings.show.transcript_heading') %>
+        </h3>
+        <% if panel || meeting.generated_summary.present? || meeting.notes.present? %>
+          <%= render Neo::MarkdownPreviewComponent.new(
+                markdown: meeting_transcript_source(meeting, participants),
+                clamp: :tall,
+                more_label: t('views.organisations.meetings.show.transcript_show_full'),
+                less_label: t('views.organisations.meetings.show.transcript_collapse')) %>
+        <% else %>
+          <%= render Neo::MarkdownPreviewComponent.new(markdown: meeting_transcript_source(meeting, participants)) %>
+        <% end %>
+      </section>
+    <% end %>
+  <% end %>
+</div>

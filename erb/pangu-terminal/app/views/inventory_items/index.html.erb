@@ -1,10 +1,10 @@
-<%= turbo_frame_tag "main_content" do %>
+<%= main_content_frame do %>
   <div class="inventory-container">
     <div class="inventory-header">
       <h1 class="inventory-title">Inventory</h1>
       
       <%= form_with url: inventory_items_path, method: :get, 
-          data: { turbo_frame: "inventory-grid" }, 
+          data: { turbo_frame: "inventory-grid", controller: "auto-submit" }, 
           class: "filter-form" do |f| %>
 
         <div class="select-wrapper">
@@ -13,7 +13,7 @@
               { include_blank: "All Plans" }, 
               { 
                 class: "inventory-select", 
-                onchange: "this.form.requestSubmit()",
+                data: { action: "change->auto-submit#submit" },
                 "aria-label": "Filter by plan"
               } %>
         </div>
@@ -23,7 +23,7 @@
               placeholder: "Search materials...", 
               class: "inventory-input",
               autocomplete: "off",
-              oninput: "this.form.requestSubmit()" %>
+              data: { action: "input->auto-submit#submit" } %>
         </div>
             
         <div class="select-wrapper">
@@ -32,13 +32,31 @@
               { include_blank: "All Categories" }, 
               { 
                 class: "inventory-select", 
-                onchange: "this.form.requestSubmit()",
+                data: { action: "change->auto-submit#submit" },
                 "aria-label": "Filter by category"
               } %>
         </div>
       <% end %>
     </div>
 
+    <nav class="inventory-data-links" aria-label="Inventory data">
+      <%= link_to "Quick entry", inventory_quick_entry_path, data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+      <%= link_to "Export CSV", inventory_export_path(format: :csv), data: { turbo: false } %>
+      <%= link_to "Export JSON", inventory_export_path(format: :json), data: { turbo: false } %>
+      <%= link_to "Import", new_inventory_import_path, data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+    </nav>
+
+    <% if @nothing_owned %>
+      <div class="inventory-hint">
+        <strong>Start with what you own.</strong>
+        Click any material to enter how many you have. The optimizer subtracts it from your plans, and synthesis shows what you can craft instead of farm.
+        <% if @plans.empty? %>
+          Add a <%= link_to "plan", plans_path, data: { turbo_frame: "main_content", turbo_action: "advance" } %> first to see which materials matter.
+        <% end %>
+      </div>
+    <% end %>
+
+    <h2 class="visually-hidden">Materials</h2>
     <%= turbo_frame_tag "inventory-grid" do %>
       <% if @inventory_items.empty? %>
         <div class="empty-state">
@@ -46,7 +64,7 @@
         </div>
       <% else %>
         <div class="inventory-grid">
-          <%= render @inventory_items %>
+          <%= render partial: "inventory_items/inventory_item", collection: @inventory_items, as: :inventory_item, locals: { synthesis_result: @synthesis_result, plan_id: params[:plan_id] } %>
         </div>
       <% end %>
     <% end %>

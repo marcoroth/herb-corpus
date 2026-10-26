@@ -1,0 +1,66 @@
+<%= main_content_frame do %>
+  <div class="inventory-container import-page">
+    <div class="inventory-header">
+      <h1 class="inventory-title">Import inventory</h1>
+    </div>
+
+    <% if @error %>
+      <div class="import-result import-result--error" role="alert">
+        <strong>Nothing was imported.</strong> <%= @error %>
+      </div>
+    <% elsif @result %>
+      <section class="import-result" role="status" aria-labelledby="import-result-title">
+        <h2 id="import-result-title">Import finished</h2>
+        <p>
+          <strong><%= pluralize(@result[:updated], "material") %> updated</strong>,
+          <%= @result[:unchanged] %> already matched<%= ", #{pluralize(@result[:skipped].size, "row")} skipped" if @result[:skipped].any? %>.
+        </p>
+        <% if @result[:skipped].any? %>
+          <details class="import-skipped" open>
+            <summary>Skipped rows</summary>
+            <ul>
+              <% @result[:skipped].first(50).each do |item| %>
+                <li><%= item[:where] %>: <%= item[:reason] %></li>
+              <% end %>
+            </ul>
+            <% if @result[:skipped].size > 50 %>
+              <p>and <%= @result[:skipped].size - 50 %> more.</p>
+            <% end %>
+          </details>
+        <% end %>
+        <p><%= link_to "Back to inventory", inventory_items_path, data: { turbo: false } %></p>
+      </section>
+    <% end %>
+
+    <p class="import-intro">
+      Upload a CSV or JSON file, or paste it below. Materials are matched by key or name, only quantities change, and
+      anything the file does not mention is left alone.
+      <%= link_to "Download your current inventory as CSV", inventory_export_path(format: :csv), data: { turbo: false } %>
+      to get a template with every material.
+    </p>
+
+    <%= form_with url: inventory_import_path, method: :post, multipart: true, class: "import-form", data: { turbo: false } do |f| %>
+      <div class="auth-form-group">
+        <%= f.label :file, "File (CSV or JSON, up to 1 MB)", class: "auth-label" %>
+        <%= f.file_field :file, accept: ".csv,.json,text/csv,application/json,text/plain", class: "auth-input" %>
+      </div>
+
+      <div class="auth-form-group">
+        <%= f.label :data, "Or paste it here", class: "auth-label" %>
+        <%= f.text_area :data, rows: 8, class: "auth-input import-textarea", placeholder: "key,name,quantity\nshell_credit,Shell Credit,120000", spellcheck: false %>
+      </div>
+
+      <%= f.submit "Import", class: "auth-submit" %>
+    <% end %>
+
+    <details class="import-formats">
+      <summary>Accepted formats</summary>
+      <p>CSV with a header (<code>key,name,quantity</code>; a header is optional and commas, semicolons or tabs all work):</p>
+      <pre>key,name,quantity
+shell_credit,Shell Credit,120000</pre>
+      <p>JSON in the same shape as the API (<code>GET /api/v1/inventory</code>):</p>
+      <pre>{ "shell_credit": 120000, "basic_energy_core": 40 }</pre>
+      <p>Quantities are whole numbers; thousands separators such as 120,000 are fine.</p>
+    </details>
+  </div>
+<% end %>

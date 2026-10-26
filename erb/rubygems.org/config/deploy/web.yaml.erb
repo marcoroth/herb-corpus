@@ -43,14 +43,8 @@ spec:
             scheme: HTTP
           initialDelaySeconds: 30
           periodSeconds: 5
-          <% if environment == 'staging' %>
-          # Raised for the PostgreSQL 18 Blue/Green switchover. While the AWS
-          # wrapper holds requests every Puma thread can be busy, so pings
-          # queue, and the defaults (1 second, 3 failures) would mark every
-          # pod unready after about 15 seconds.
-          timeoutSeconds: 5
-          failureThreshold: 24
-          <% end %>
+          timeoutSeconds: 1
+          failureThreshold: 3
         livenessProbe:
           tcpSocket:
             port: http-puma
@@ -248,7 +242,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: <%= environment %>
-                key: <%= environment == 'staging' ? 'web_database_url' : 'database_url' %>
+                key: web_database_url
         securityContext:
           privileged: false
         lifecycle:
@@ -260,7 +254,7 @@ spec:
           mountPath: /var/run/secrets/sigstore
           readOnly: true
       - name: nginx
-        image: nginx:1.31.3
+        image: nginx:1.31.8-alpine-slim@sha256:f45171d36c76a8b2f5ef97108a3a8a2294248a6578a0a180edc2d78f7d2edc26
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080

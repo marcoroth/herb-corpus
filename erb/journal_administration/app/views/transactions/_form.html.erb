@@ -1,17 +1,8 @@
-<%# locals: (transaction:, disabled: nil) %>
+<%# locals: (transaction:) %>
 
 <section>
-  <%= form_for transaction do |f| %>
-    <% if transaction.errors.any? %>
-      <div id="error_explanation">
-        <h2><%= t('errors.template.header', count: transaction.errors.count, model: Transaction.model_name.human.downcase) %></h2>
-        <ul>
-          <% transaction.errors.full_messages.each do |message| %>
-            <li><%= message %></li>
-          <% end %>
-        </ul>
-      </div>
-    <% end %>
+  <%= form_with model: transaction do |f| %>
+    <%= render "shared/form_errors", record: transaction %>
 
     <fieldset>
       <%= f.label :id %>
@@ -24,22 +15,23 @@
       <%= f.text_field :creditor, disabled: :disabled %>
 
       <%= f.label :amount %>
-      <%= f.text_field :amount, disabled: disabled %>
+      <%= f.text_field :amount,
+        value: cents_field_value(f.object, :amount, separator: I18n.t("number.format.separator")) %>
 
       <%= f.label :category_id %>
-      <%= f.select :category_id, grouped_category_options(selected: f.object.category_id), { include_blank: true }, { disabled: disabled } %>
+      <%= f.select :category_id, grouped_category_options(selected: f.object.category_id), { include_blank: true } %>
 
       <%= f.label :note %>
-      <%= f.text_area :note, disabled: disabled %>
+      <%= f.text_area :note %>
 
       <%= f.label :booked_at %>
-      <%= f.date_field :booked_at, disabled: disabled %>
+      <%= f.date_field :booked_at %>
 
       <%= f.label :interest_at %>
-      <%= f.date_field :interest_at, disabled: disabled %>
+      <%= f.date_field :interest_at %>
 
       <%= f.label :type %>
-      <%= f.collection_select(:type, Transaction::TYPES, :to_s, :to_s, {}, { disabled: disabled }) %>
+      <%= f.collection_select(:type, Transaction::TYPES, :to_s, :to_s) %>
 
       <%= f.label :proof_of_purchase %>
       <%= f.file_field :proof_of_purchase, accept: "application/pdf" %>
@@ -49,18 +41,20 @@
         <%= f.text_area :original_note, disabled: true %>
 
         <%= f.label :original_balance_after_mutation %>
-        <%= f.text_field :original_balance_after_mutation, disabled: true %>
+        <%= f.text_field :original_balance_after_mutation, disabled: true,
+          value: cents_field_value(f.object, :original_balance_after_mutation, separator: I18n.t("number.format.separator")) %>
 
         <%= f.label :original_tag %>
         <%= f.text_field :original_tag, disabled: true %>
       <% end %>
     </fieldset>
 
-    <% unless disabled %>
-      <div class="actions">
-        <%= f.submit t('common.save') %>
-      </div>
-    <% end %>
-
+    <%= render "shared/action_row", form: f,
+        cancel_path: transaction.persisted? ? polymorphic_path(transaction) : transactions_path,
+        delete_form_id: (dom_id(transaction, :delete) if transaction.persisted?),
+        confirm: t("common.confirm_delete_named", name: "#{transaction.creditor} ➡️ #{transaction.debitor}") %>
+  <% end %>
+  <% if transaction.persisted? %>
+    <%= render "shared/delete_form", record: transaction, url: transaction_path(transaction) %>
   <% end %>
 </section>

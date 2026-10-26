@@ -1,121 +1,51 @@
-<article id="own-accounts">
-  <h2><%= t('.own_accounts') %></h2>
+<% content_for(:title) { t(".title") } %>
+<%= render layout: "shared/title_bar", locals: { title: t(".title") } do %>
+  <%= link_to t("common.new"), new_account_path %>
+<% end %>
 
-  <% if @own_page.number > 1 || @own_page.before_last? %>
-    <nav class="pagination">
-      <% if @own_page.number > 1 %>
-        <%= link_to t("pagination.previous"), url_for(request.query_parameters.merge(own_page: @own_page.number - 1)), rel: "prev" %>
-      <% end %>
-      <% if @own_page.before_last? %>
-        <%= link_to t("pagination.next"), url_for(request.query_parameters.merge(own_page: @own_page.next_param)), rel: "next" %>
-      <% end %>
-    </nav>
-  <% end %>
+<% labels = {
+  account_numbers: t('.account_numbers'),
+  name: t('.name'),
+  owner: t('.owner'),
+  category: t('.category')
+} %>
+<% tables = {
+  own: { heading: t('.own_accounts'), page: @own_page, accounts: @own_accounts, page_param: :own_page,
+         columns: %i[account_numbers name owner category] },
+  external: { heading: t('.external_accounts'), page: @external_page, accounts: @external_accounts,
+              page_param: :external_page, columns: %i[account_numbers name category] }
+} %>
 
-  <table class="accounts" id="own-accounts-table">
-    <thead>
-      <tr>
-        <th></th>
-        <th><%= t('.id') %></th>
-        <th><%= t('.account_number') %></th>
-        <th><%= t('.name') %></th>
-        <th><%= t('.owner') %></th>
-        <th><%= t('.category') %></th>
-        <th></th>
-        <th></th>
-        <th></th>
-      </tr>
-    </thead>
+<% tables.each do |kind, table| %>
+  <article id="<%= kind %>-accounts">
+    <h2 id="<%= kind %>-accounts-heading"><%= table[:heading] %></h2>
 
-    <tbody>
-      <% @own_accounts.each do |account| %>
-        <tr>
-          <td>
-            <%= link_to t('.show'), account %>
-          </td>
-          <td><%= account.id %></td>
-          <td><%= account.account_number %></td>
-          <td><%= account.name %></td>
-          <td><%= account.owner_name %></td>
-          <td><%= account.category&.name %></td>
-          <td><%= link_to t('.edit'), edit_account_path(account) %></td>
-          <td><%= button_to t('.update_transactions'), account_transactions_bulk_path(account), method: :patch %></td>
-          <td><%= button_to t('.destroy'), account, method: :delete, class: "button-danger", data: { turbo_confirm: t('.confirm_destroy'), confirm_verb: t('common.delete') } %></td>
+    <%= render "shared/pagination", page: table[:page], param: table[:page_param] %>
+
+    <table class="accounts" id="<%= kind %>-accounts-table" data-stack="medium" role="table"
+           aria-labelledby="<%= kind %>-accounts-heading">
+      <thead role="rowgroup">
+        <tr role="row">
+          <% table[:columns].each do |column| %>
+            <th scope="col" role="columnheader"><%= labels[column] %></th>
+          <% end %>
         </tr>
-      <% end %>
-    </tbody>
-  </table>
+      </thead>
 
-  <% if @own_page.number > 1 || @own_page.before_last? %>
-    <nav class="pagination">
-      <% if @own_page.number > 1 %>
-        <%= link_to t("pagination.previous"), url_for(request.query_parameters.merge(own_page: @own_page.number - 1)), rel: "prev" %>
-      <% end %>
-      <% if @own_page.before_last? %>
-        <%= link_to t("pagination.next"), url_for(request.query_parameters.merge(own_page: @own_page.next_param)), rel: "next" %>
-      <% end %>
-    </nav>
-  <% end %>
-</article>
+      <tbody role="rowgroup">
+        <% table[:accounts].each do |account| %>
+          <tr role="row">
+            <td role="cell" data-label="<%= labels[:account_numbers] %>"><%= safe_join(account.numbers, tag.br) %></td>
+            <td role="cell" data-label="<%= labels[:name] %>"><%= link_to account.to_s, account_path(account) %></td>
+            <% if kind == :own %>
+              <td role="cell" data-label="<%= labels[:owner] %>"><%= account.owner_name %></td>
+            <% end %>
+            <td role="cell" data-label="<%= labels[:category] %>"><%= account.category&.name %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
 
-<article id="external-accounts">
-  <h2><%= t('.external_accounts') %></h2>
-
-  <% if @external_page.number > 1 || @external_page.before_last? %>
-    <nav class="pagination">
-      <% if @external_page.number > 1 %>
-        <%= link_to t("pagination.previous"), url_for(request.query_parameters.merge(external_page: @external_page.number - 1)), rel: "prev" %>
-      <% end %>
-      <% if @external_page.before_last? %>
-        <%= link_to t("pagination.next"), url_for(request.query_parameters.merge(external_page: @external_page.next_param)), rel: "next" %>
-      <% end %>
-    </nav>
-  <% end %>
-
-  <table class="accounts" id="external-accounts-table">
-    <thead>
-      <tr>
-        <th></th>
-        <th><%= t('.id') %></th>
-        <th><%= t('.account_number') %></th>
-        <th><%= t('.name') %></th>
-        <th><%= t('.category') %></th>
-        <th></th>
-        <th></th>
-        <th></th>
-      </tr>
-    </thead>
-
-    <tbody>
-      <% @external_accounts.each do |account| %>
-        <tr>
-          <td>
-            <%= link_to t('.show'), account %>
-          </td>
-          <td><%= account.id %></td>
-          <td><%= account.account_number %></td>
-          <td><%= account.name %></td>
-          <td><%= account.category&.name %></td>
-          <td><%= link_to t('.edit'), edit_account_path(account) %></td>
-          <td><%= button_to t('.update_transactions'), account_transactions_bulk_path(account), method: :patch %></td>
-          <td><%= button_to t('.destroy'), account, method: :delete, class: "button-danger", data: { turbo_confirm: t('.confirm_destroy'), confirm_verb: t('common.delete') } %></td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-
-  <% if @external_page.number > 1 || @external_page.before_last? %>
-    <nav class="pagination">
-      <% if @external_page.number > 1 %>
-        <%= link_to t("pagination.previous"), url_for(request.query_parameters.merge(external_page: @external_page.number - 1)), rel: "prev" %>
-      <% end %>
-      <% if @external_page.before_last? %>
-        <%= link_to t("pagination.next"), url_for(request.query_parameters.merge(external_page: @external_page.next_param)), rel: "next" %>
-      <% end %>
-    </nav>
-  <% end %>
-</article>
-
-<article>
-  <%= link_to t('.new_account'), new_account_path %>
-</article>
+    <%= render "shared/pagination", page: table[:page], param: table[:page_param] %>
+  </article>
+<% end %>

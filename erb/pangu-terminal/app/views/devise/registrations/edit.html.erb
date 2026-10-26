@@ -1,5 +1,20 @@
 <div class="auth-container" style="max-width: 500px;">
-  <h2 class="auth-title">Account Settings</h2>
+  <h1 class="auth-title">Account Settings</h1>
+
+  <%= render "devise/shared/error_messages", resource: resource %>
+
+  <%= form_for(resource, as: resource_name, url: update_user_registration_path,
+    html: { method: :patch, data: { turbo: false } }) do |f| %>
+    <div class="auth-form-group">
+      <div class="label-with-hint">
+        <%= f.label :display_name, "Username", class: "auth-label" %>
+        <span class="hint-text">3 to 16 characters, lowercase</span>
+      </div>
+      <%= f.text_field :display_name, maxlength: User::DISPLAY_NAME_LENGTH.max, autocomplete: "nickname", class: "auth-input" %>
+    </div>
+
+    <%= f.submit "Save Username", class: "auth-submit" %>
+  <% end %>
 
   <%= form_for(
     resource,
@@ -7,24 +22,25 @@
     url: update_user_registration_path,
     html: { method: :patch, data: { turbo: false } }
     ) do |f| %>
-    <%= render "devise/shared/error_messages", resource: resource %>
 
     <div class="auth-form-group">
       <%= f.label :email, class: "auth-label" %>
-      <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "auth-input" %>
+      <%= f.email_field :email, autocomplete: "email", class: "auth-input" %>
     </div>
 
     <% if devise_mapping.confirmable? && resource.pending_reconfirmation? %>
       <div class="status-msg">Currently waiting confirmation for: <b><%= resource.unconfirmed_email %></b></div>
     <% end %>
 
-    <div class="auth-form-group secondary-border">
-      <div class="label-with-hint">
-        <%= f.label :current_password, class: "auth-label" %>
-        <span class="hint-text">Required</span>
+    <% if resource.password? %>
+      <div class="auth-form-group secondary-border">
+        <div class="label-with-hint">
+          <%= f.label :current_password, class: "auth-label" %>
+          <span class="hint-text">Required</span>
+        </div>
+        <%= f.password_field :current_password, autocomplete: "current-password", class: "auth-input highlight-input" %>
       </div>
-      <%= f.password_field :current_password, autocomplete: "current-password", class: "auth-input highlight-input" %>
-    </div>
+    <% end %>
 
     <div class="auth-form-group">
       <div class="label-with-hint">
@@ -44,8 +60,32 @@
     </div>
   <% end %>
 
+  <div class="sign-in-methods" id="sign-in-methods">
+    <h2 class="settings-heading">Sign-in methods</h2>
+    <% linked = current_user.identities.index_by(&:provider) %>
+    <% OauthProviders.names.each do |provider| %>
+      <% identity = linked[provider.to_s] %>
+      <% next if identity.nil? && !OauthProviders.configured?(provider) %>
+      <div class="sign-in-method-row">
+        <span><%= OauthProviders.label(provider) %><%= identity ? " (linked)" : "" %></span>
+        <% if identity %>
+          <% if current_user.can_unlink?(identity) %>
+            <%= button_to "Unlink", identity_path(identity), method: :delete, data: { turbo: false }, class: "btn-revoke" %>
+          <% else %>
+            <span class="hint-text">Add another sign-in method to unlink</span>
+          <% end %>
+        <% else %>
+          <%= button_to "Link", omniauth_authorize_path(:user, provider), method: :post, data: { turbo: false }, class: "btn-revoke" %>
+        <% end %>
+      </div>
+    <% end %>
+    <% unless resource.password? %>
+      <p class="hint-text">You sign in with a provider and have no password. Add an email and a password above if you want to sign in with email as well.</p>
+    <% end %>
+  </div>
+
   <div class="danger-zone">
-    <h3 class="danger-title">Danger Zone</h3>
+    <h2 class="danger-title">Danger Zone</h2>
     <p>Once you delete your account, all your saved plans will be permanently removed.</p>
     <%= button_to "Delete Account", user_registration_path, 
     method: :delete,
@@ -58,7 +98,7 @@
   </div>
 
   <div class="api-keys-section" id="api-keys">
-    <h3>API Keys</h3>
+    <h2>API Keys</h2>
 
     <% if flash[:api_token] %>
       <div class="api-token-reveal">

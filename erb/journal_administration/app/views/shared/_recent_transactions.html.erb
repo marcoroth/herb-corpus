@@ -1,40 +1,48 @@
 <%# locals: (transactions:, category: nil, page: nil) %>
-<h2><%= t("transactions.recent.heading") %></h2>
+<% labels = {
+  type: t("transactions.table.type"),
+  creditor: t("transactions.table.creditor"),
+  debitor: t("transactions.table.debitor"),
+  amount: t("transactions.table.amount"),
+  booked_at: t("transactions.table.booked_at"),
+  category: t("transactions.table.category"),
+  note: t("transactions.table.note")
+} %>
+<h2 id="recent-transactions-heading"><%= t("transactions.recent.heading") %></h2>
 
 <%= render "shared/pagination", page: page if page %>
 
-<table>
-  <thead>
-    <tr>
-      <th><%= t("transactions.table.type") %></th>
-      <th><%= t("transactions.table.creditor") %></th>
-      <th><%= t("transactions.table.debitor") %></th>
-      <th><%= t("transactions.table.amount") %></th>
-      <th><%= t("transactions.table.booked_at") %></th>
-      <th><%= t("transactions.table.category") %></th>
-      <th><%= t("transactions.table.note") %></th>
-      <th></th>
+<table data-stack="wide" role="table" aria-labelledby="recent-transactions-heading">
+  <thead role="rowgroup">
+    <tr role="row">
+      <% labels.each_value do |label| %>
+        <th scope="col" role="columnheader"><%= label %></th>
+      <% end %>
     </tr>
   </thead>
 
-  <tbody>
+  <tbody role="rowgroup">
     <% transactions.each do |transaction| %>
       <% display_amount = category ? transaction.amount_for(category:) : transaction.amount %>
       <% display_category = category ? transaction.category_name_for(category:) : transaction.category&.to_s %>
-      <tr class="<%= 'unconsolidated' if transaction.consolidatable? %>">
-        <td><%= transaction.type_icon %></td>
+      <tr role="row" class="<%= 'unconsolidated' if transaction.consolidatable? %>">
+        <td role="cell" data-label="<%= labels[:type] %>"><%= transaction.type_icon %></td>
         <% creditor = transaction.creditor %>
-        <td><%= creditor ? link_to(creditor.name || creditor.account_number, account_path(creditor)) : "" %></td>
+        <td role="cell" data-label="<%= labels[:creditor] %>"><%= creditor ? link_to(creditor.to_s, account_path(creditor)) : "" %></td>
         <% debitor = transaction.debitor %>
-        <td><%= debitor ? link_to(debitor.name || debitor.account_number, account_path(debitor)) : "" %></td>
-        <td><%= number_to_currency display_amount %></td>
-        <td><%= transaction.booked_at ? l(transaction.booked_at.to_date) : "" %></td>
-        <td><%= display_category %></td>
-        <td><%= transaction.note&.truncate(20) %></td>
-        <td>
-          <%= link_to t("common.show"), transaction_path(transaction) %>
-          <%= link_to t("common.edit"), edit_transaction_path(transaction) %>
+        <td role="cell" data-label="<%= labels[:debitor] %>"><%= debitor ? link_to(debitor.to_s, account_path(debitor)) : "" %></td>
+        <td role="cell" data-label="<%= labels[:amount] %>">
+          <%= link_to transaction_path(transaction) do %>
+            <data value="<%= display_amount %>"><%= cents_to_currency display_amount %></data>
+          <% end %>
         </td>
+        <td role="cell" data-label="<%= labels[:booked_at] %>">
+          <% if transaction.booked_at %>
+            <time datetime="<%= transaction.booked_at.to_date.iso8601 %>"><%= l(transaction.booked_at.to_date) %></time>
+          <% end %>
+        </td>
+        <td role="cell" data-label="<%= labels[:category] %>"><%= display_category %></td>
+        <td role="cell" data-label="<%= labels[:note] %>"><%= transaction.note %></td>
       </tr>
     <% end %>
   </tbody>

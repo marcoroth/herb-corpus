@@ -1,13 +1,28 @@
 <% content_for(:title) { @chattel.name } %>
-<header>
-  <h1><%= @chattel.name %></h1>
-  <nav>
-    <%= link_to t("common.back"), chattels_path %>
-    <%= link_to t('common.edit'), edit_chattel_path(@chattel) %>
-  </nav>
-</header>
+<%= render layout: "shared/title_bar", locals: { title: @chattel.name } do %>
+  <%= link_to t("common.back"), chattels_path %>
+  <%= link_to t('common.edit'), edit_chattel_path(@chattel) %>
+<% end %>
 <article>
-  <%= render partial: 'form', locals: { chattel: @chattel, brands_in_use: @brands_in_use, disabled: :disabled } %>
+  <dl>
+    <% %i[name brand kind model_number serial_number purchase_transaction_id].each do |attribute| %>
+      <dt><%= Chattel.human_attribute_name(attribute) %></dt>
+      <dd><%= @chattel.public_send(attribute) %></dd>
+    <% end %>
+    <dt><%= Chattel.human_attribute_name(:notes) %></dt>
+    <dd><%= simple_format(@chattel.notes) %></dd>
+    <% %i[purchased_at warranty_expires_at left_possession_at].each do |attribute| %>
+      <dt><%= Chattel.human_attribute_name(attribute) %></dt>
+      <dd>
+        <% if @chattel.public_send(attribute).present? %>
+          <% date = @chattel.public_send(attribute).to_date %>
+          <time datetime="<%= date.iso8601 %>"><%= l(date) %></time>
+        <% end %>
+      </dd>
+    <% end %>
+    <dt><%= Chattel.human_attribute_name(:purchase_price) %></dt>
+    <dd><%= cents_to_currency(@chattel.purchase_price) %></dd>
+  </dl>
 
   <section>
     <h2><%= t('chattels.show.warranty_proof') %></h2>
@@ -19,7 +34,3 @@
     <% end %>
   </section>
 </article>
-<footer>
-  <%= button_to t('common.destroy'), @chattel, method: :delete, class: "button-danger",
-      data: { turbo_confirm: t('common.confirm_destroy'), confirm_verb: t('common.delete') } %>
-</footer>

@@ -1,0 +1,63 @@
+<%# locals: (steps:) %>
+<% done_count = steps.count { |step| step[:done] } %>
+<% current_key = steps.find { |step| !step[:done] }&.dig(:key) %>
+
+<section class="onboarding-card" data-controller="dismissible" data-dismissible-key-value="onboarding_dismissed" data-dismissible-persist-value="true" aria-labelledby="onboarding-title">
+  <header class="onboarding-header">
+    <div>
+      <h2 class="onboarding-title" id="onboarding-title">Get started</h2>
+      <p class="onboarding-count"><%= done_count %> of <%= steps.size %> done</p>
+    </div>
+    <button type="button" class="onboarding-dismiss" title="Hide" aria-label="Hide getting started" data-action="click->dismissible#dismiss">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <progress class="onboarding-progress" value="<%= done_count %>" max="<%= steps.size %>" aria-label="Getting started progress"></progress>
+
+  <ol class="onboarding-steps">
+    <% steps.each_with_index do |step, index| %>
+      <% state = step[:done] ? "is-done" : (step[:key] == current_key ? "is-current" : "is-upcoming") %>
+      <li class="onboarding-step <%= state %>">
+        <span class="onboarding-marker" aria-hidden="true"><%= step[:done] ? "✓" : index + 1 %></span>
+        <div class="onboarding-text">
+          <% case step[:key] %>
+          <% when :sol3_phase %>
+            <strong>Set your SOL3 phase</strong>
+            <% unless step[:done] %>
+              <span>The optimizer needs it to estimate drop rates.</span>
+              <% if state == "is-current" %>
+                <%= form_with url: update_user_registration_path, method: :patch, scope: :user, class: "onboarding-form", data: { turbo: false } do |f| %>
+                  <%= f.select :sol3_phase,
+                        DropRate::SOL3_PHASES.map { |phase| [ "Phase #{phase}", phase ] },
+                        { prompt: "Select phase" },
+                        { class: "game-profile-select onboarding-select", id: "onboarding_sol3_phase", "aria-label": "SOL3 phase", required: true } %>
+                  <%= f.submit "Set phase", class: "onboarding-action" %>
+                <% end %>
+              <% end %>
+            <% end %>
+          <% when :plan %>
+            <strong>Create your first plan</strong>
+            <% unless step[:done] %>
+              <span>Choose a Resonator or weapon and the planner totals every material it needs.</span>
+              <% if state == "is-current" %>
+                <%= link_to "Open the planner", plans_path, class: "onboarding-action", data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+              <% end %>
+            <% end %>
+          <% when :inventory %>
+            <strong>Enter what you own</strong>
+            <% unless step[:done] %>
+              <span>The optimizer subtracts it from your plans and shows what you can craft instead of farm.</span>
+              <% if state == "is-current" %>
+                <%= link_to "Enter inventory", inventory_quick_entry_path, class: "onboarding-action", data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </li>
+    <% end %>
+  </ol>
+</section>

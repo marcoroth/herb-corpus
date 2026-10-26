@@ -19,6 +19,11 @@
     map (not filter_map): target_id is NOT NULL, so it is never nil — even a
     tombstone keeps the deleted ticket's id. %>
 <% linked_ids = references.map(&:target_id) %>
+<%# Which linked tickets this reader may open, each against the TICKET's own
+    project: a ticket moved out of this project keeps its link, and can_read_tickets
+    above answers for this project only. One policy scope query for all of them. %>
+<% live_ids = references.filter_map { |ref| ref.target_id if ref.target.present? } %>
+<% readable_ids = live_ids.any? ? policy_scope(Ticket).where(id: live_ids).pluck(:id) : [] %>
 
 <%# Frame id is the shared contract with MeetingTicketLinksController (see the
     helper) — never inline dom_id here, or the two can drift. %>
@@ -35,16 +40,20 @@
           <li class="flex items-center gap-3 py-2 text-sm" id="<%= dom_id(ref, :meeting_ticket_link) %>">
             <i class="bi bi-card-checklist text-cream-500 shrink-0"></i>
             <% if ref.target.present? %>
-              <% if can_read_tickets %>
+              <% if readable_ids.include?(ref.target_id) %>
                 <%# _top: this link sits inside the section's turbo-frame, but the
                     tickets page has no frame with that id — without the escape
                     Turbo renders "Content missing" instead of navigating. %>
                 <%= link_to ref.target.display_title,
-                            organisation_project_tickets_path(@current_organisation, project, ticket_id: ref.target.id),
+                            organisation_project_tickets_path(@current_organisation, ref.target.project_id, ticket_id: ref.target.id),
                             class: 'flex-1 min-w-0 truncate text-cream-900 hover:underline',
                             data: { turbo_frame: '_top' } %>
-              <% else %>
+              <% elsif ref.target.project_id == project.id %>
                 <span class="flex-1 min-w-0 truncate text-cream-900"><%= ref.target.display_title %></span>
+              <% else %>
+                <%# Moved to a project this reader cannot see: the title it had when
+                    it was linked here, nothing it became over there. %>
+                <span class="flex-1 min-w-0 truncate text-cream-900"><%= ref.target_title_snapshot %></span>
               <% end %>
             <% else %>
               <%# Tombstone: the linked ticket was hard-deleted — show the snapshot,

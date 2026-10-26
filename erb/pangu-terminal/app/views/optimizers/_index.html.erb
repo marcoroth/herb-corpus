@@ -1,9 +1,11 @@
+<%# locals: (selected_plans:, sol3_phase:, results: nil, totals: nil, farming_priority: nil, plans_any: true, inventory_empty: false, all_selected: false, timeline: nil, waveplate_bank: 0, breakdown: []) %>
+
 <div class="optimizer-container">
   <div class="optimizer-header">
     <h1 class="optimizer-title">Waveplate Optimizer</h1>
   </div>
 
-  <% if current_user.sol3_phase.nil? %>
+  <% if sol3_phase.nil? %>
     <div class="optimizer-gate">
       <p class="optimizer-gate-message">
         Set your SOL3 phase from the
@@ -14,38 +16,62 @@
       </p>
     </div>
   <% else %>
-    <% if @selected_plan %>
+    <% if selected_plans.any? %>
       <%= link_to optimizer_plans_modal_path,
           data: { turbo_frame: "modal" },
           class: "optimizer-plan-card" do %>
-        <%= image_tag @selected_plan.subject.image_url, class: "optimizer-plan-icon", alt: "Subject Icon" if @selected_plan.subject.image_url.present? %>
+        <span class="optimizer-plan-icons" aria-hidden="true">
+          <% selected_plans.first(4).each do |plan| %>
+            <%= image_tag plan.subject.image_url, class: "optimizer-plan-icon", alt: "" if plan.subject.image_url.present? %>
+          <% end %>
+        </span>
         <div class="optimizer-plan-info">
-          <span class="optimizer-plan-name"><%= @selected_plan.subject.name %></span>
-          <span class="optimizer-plan-type"><%= @selected_plan.subject_type.upcase %> PLAN LOADED</span>
+          <span class="optimizer-plan-name"><%= selection_title(selected_plans, all_selected) %></span>
+          <span class="optimizer-plan-type"><%= selection_subtitle(selected_plans, all_selected) %></span>
         </div>
       <% end %>
     <% else %>
-      <%= link_to optimizer_plans_modal_path,
-          data: { turbo_frame: "modal" },
-          class: "optimizer-plan-card optimizer-plan-card--empty" do %>
-        <span class="optimizer-plan-placeholder">&gt; SELECT A PLAN</span>
+      <% if plans_any %>
+        <%= link_to optimizer_plans_modal_path,
+            data: { turbo_frame: "modal" },
+            class: "optimizer-plan-card optimizer-plan-card--empty" do %>
+          <span class="optimizer-plan-placeholder">&gt; SELECT A PLAN</span>
+        <% end %>
+      <% else %>
+        <div class="optimizer-hint">
+          The optimizer works from your plans, and you have none yet.
+          <%= link_to "Create a plan", plans_path, class: "optimizer-gate-link", data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+          first, then come back to see where your Waveplates should go.
+        </div>
       <% end %>
     <% end %>
 
-    <% if @selected_plan %>
+    <% if selected_plans.any? && inventory_empty %>
+      <div class="optimizer-hint">
+        Your inventory is empty, so the results assume you own nothing.
+        <%= link_to "Enter what you own", inventory_items_path, class: "optimizer-gate-link", data: { turbo_frame: "main_content", turbo_action: "advance" } %>
+        for numbers that fit your account.
+      </div>
+    <% end %>
+
+    <% if selected_plans.any? %>
       <%= form_with url: optimizer_path, method: :get, data: { turbo_frame: "optimizer-results" } do |f| %>
         <%= hidden_field_tag :run, "1" %>
+        <div class="optimizer-bank">
+          <%= label_tag :waveplate_bank, "Waveplates you have now (optional)", class: "optimizer-bank-label" %>
+          <%= number_field_tag :waveplate_bank, (waveplate_bank if waveplate_bank.positive?), placeholder: "0", min: 0, max: WaveplateTimeline::CAP, step: 1, inputmode: "numeric", class: "optimizer-bank-input" %>
+        </div>
         <%= f.submit "> RUN OPTIMIZER", class: "optimizer-run-button" %>
       <% end %>
     <% end %>
 
     <%= turbo_frame_tag "optimizer-results" do %>
-      <% if @results.present? %>
+      <% if results.present? %>
 
           <!-- Summary metrics -->
-          <% total_runs = @totals[:total_runs] %>
-          <% total_wp = @totals[:total_wp] %>
-          <% days = total_wp > 0 ? (total_wp / 240.0).ceil : 0 %>
+          <% total_runs = totals[:total_runs] %>
+          <% total_wp = totals[:total_wp] %>
+          <% timeline ||= WaveplateTimeline.call(total: total_wp) %>
 
           <div class="optimizer-metrics">
             <div class="optimizer-metric-card">
@@ -57,17 +83,57 @@
               <span class="optimizer-metric-value"><%= number_with_delimiter(total_runs) %> <span class="optimizer-metric-unit">runs</span></span>
             </div>
             <div class="optimizer-metric-card">
-              <span class="optimizer-metric-label">Daily rate (@240/day)</span>
-              <span class="optimizer-metric-value"><%= number_with_delimiter(days) %> <span class="optimizer-metric-unit">days</span></span>
+              <span class="optimizer-metric-label">Time to regenerate</span>
+              <span class="optimizer-metric-value"><%= waveplate_duration(timeline[:minutes]) %></span>
+              <span class="optimizer-metric-note">
+                1 Waveplate every <%= WaveplateTimeline::REGEN_MINUTES %> minutes (<%= WaveplateTimeline::PER_DAY %> a day).
+                <%= "Counting the #{timeline[:banked]} you have now." if timeline[:banked].positive? %>
+              </span>
             </div>
           </div>
+          <p class="optimizer-metrics-footnote">
+            Your Waveplate bar holds <%= WaveplateTimeline::CAP %>, about one day of regeneration. Anything that regenerates beyond that is lost, so spend it before you log off.
+          </p>
+
+          <% if breakdown.any? %>
+            <section class="optimizer-order" aria-labelledby="optimizer-order-title">
+              <h2 class="optimizer-results-title" id="optimizer-order-title">&gt; FARM_IN_THIS_ORDER</h2>
+              <p class="optimizer-order-note">
+                Your plans are taken in priority order (change it with the arrows in the
+                <%= link_to "Planner", plans_path, class: "optimizer-gate-link", data: { turbo_frame: "main_content", turbo_action: "advance" } %>).
+                Each line is the extra farming that plan adds, and how long everything up to it takes to regenerate.
+              </p>
+              <ol class="optimizer-order-list">
+                <% breakdown.each do |step| %>
+                  <li class="optimizer-order-item">
+                    <span class="optimizer-order-rank"><%= step[:rank] %>.</span>
+                    <span class="optimizer-order-name"><%= step[:plan].subject.name %></span>
+                    <span class="optimizer-order-meta">
+                      <% if step[:waveplates].zero? %>
+                        no extra farming
+                      <% else %>
+                        +<%= number_with_delimiter(step[:waveplates]) %>
+                        <%= image_tag "/images/textures/waveplate.png", class: "optimizer-waveplate-icon", alt: "Waveplates" %>
+                      <% end %>
+                      &middot;
+                      <% if step[:timeline][:ready] %>
+                        ready now
+                      <% else %>
+                        up to here in <%= waveplate_duration(step[:timeline][:minutes]) %>
+                      <% end %>
+                    </span>
+                  </li>
+                <% end %>
+              </ol>
+            </section>
+          <% end %>
 
           <!-- Farming priority list -->
-          <% if @farming_priority.any? %>
+          <% if farming_priority.any? %>
             <div class="optimizer-priority">
               <h2 class="optimizer-results-title">&gt; FARMING_PRIORITY</h2>
               <ol class="optimizer-priority-list">
-                <% @farming_priority.each_with_index do |entry, index| %>
+                <% farming_priority.each_with_index do |entry, index| %>
                   <li class="optimizer-priority-item">
                     <span class="optimizer-priority-rank"><%= index + 1 %>.</span>
                     <span class="optimizer-priority-label"><%= entry[:source_label] %></span>
@@ -85,14 +151,10 @@
           <% end %>
 
           <!-- Farming Advisor -->
-          <%= turbo_frame_tag "farming-advisor", src: optimizer_advise_path do %>
+          <%= turbo_frame_tag "farming-advisor", src: optimizer_advise_path, data: { controller: "advisor-poll" } do %>
             <div class="optimizer-advisor">
               <h2 class="optimizer-results-title">&gt; FARMING_ADVISOR</h2>
-              <div class="optimizer-advisor-card optimizer-advisor-card--loading">
-                <span class="optimizer-advisor-dot"></span>
-                <span class="optimizer-advisor-dot"></span>
-                <span class="optimizer-advisor-dot"></span>
-              </div>
+              <%= render "optimizers/advisor_loading" %>
             </div>
           <% end %>
 
@@ -110,20 +172,12 @@
 
           <!-- Material breakdown list -->
           <div class="optimizer-results-grid">
-            <% @results.each do |material_id, data| %>
+            <% results.each do |material_id, data| %>
               <%= tag.div class: "optimizer-material-card #{'hidden' if data[:sources].empty?}",
                           data: (data[:sources].empty? ? { toggle_target: "item" } : {}) do %>
 
                 <div class="optimizer-material-header">
-                  <div class="item-icon rarity-border-<%= data[:material].rarity %> optimizer-material-icon">
-                    <div class="rarity-bg-<%= data[:material].rarity %>">
-                      <% if data[:material].image_url.present? %>
-                        <%= image_tag(data[:material].image_url, alt: data[:material].name) %>
-                      <% else %>
-                        <span class="icon-initials"><%= data[:material].name[0..1].upcase %></span>
-                      <% end %>
-                    </div>
-                  </div>
+                  <%= render "shared/material_icon", material: data[:material], class_name: "optimizer-material-icon" %>
 
                   <div class="optimizer-material-details">
                     <div class="optimizer-material-header-row">
@@ -161,5 +215,3 @@
     <% end %>
   <% end %>
 </div>
-
-<%= turbo_frame_tag "modal" %>
