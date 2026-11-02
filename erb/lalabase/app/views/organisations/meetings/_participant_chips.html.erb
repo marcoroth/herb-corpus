@@ -1,0 +1,43 @@
+<%# locals: (meeting:, participants:, people:) %>
+<%# The chips of a meeting's participants (see _participants_row). A link or an unlink of the
+    dialog replaces exactly this element (meeting_participant_chips_id): the dialog's frame
+    stands beside it, so an answer that comes late closes no dialog opened meanwhile. %>
+<% permitted_user_ids = meeting.project.permitted_user_ids.to_set %>
+<% pl = 'views.organisations.meetings.participant_links' %>
+<div id="<%= meeting_participant_chips_id(meeting) %>" class="flex min-w-0 flex-1 flex-wrap gap-2">
+  <% participants.each do |participant| %>
+    <% chip_style = meeting_participant_chip_style(meeting_participant_type(participant, permitted_user_ids)) %>
+    <% path = people.path_for(participant) %>
+    <% linkable = people.linkable?(participant) %>
+    <span class="meeting-participant inline-flex min-w-0 max-w-full items-center gap-0.5">
+      <% chip = render NeoTagComponent.new(
+            text: participant.display_name,
+            variant: chip_style[:variant],
+            icon: chip_style[:icon],
+            title: chip_style[:title],
+            size: :small,
+            class: 'max-w-full [&_.tag-text]:break-words [&_.tag-text]:[overflow-wrap:anywhere]'
+          ) %>
+      <% if path %>
+        <%# Without a link action (a name just linked to a member), the person link carries the
+            action's id: the dialog gives the focus back to it. %>
+        <%= link_to chip, path, class: 'meeting-participant__person min-w-0 max-w-full rounded-full',
+                                id: (participant_link_trigger_id(participant) unless linkable),
+                                data: { turbo_frame: '_top' },
+                                aria: { label: t("#{pl}.open_person", name: participant.display_name) } %>
+      <% else %>
+        <%= chip %>
+      <% end %>
+      <% if linkable %>
+        <% action_label = participant.person_id ? t("#{pl}.change", name: participant.display_name) : t("#{pl}.link", name: participant.display_name) %>
+        <%= link_to new_organisation_project_meeting_participant_link_path(current_organisation, meeting.project, meeting, participant),
+                    id: participant_link_trigger_id(participant),
+                    class: 'meeting-participant__link inline-flex h-6 w-6 items-center justify-center rounded-full text-cream-600 hover:bg-cream-200 hover:text-ink',
+                    title: action_label, aria: { label: action_label },
+                    data: { turbo_frame: participant_link_modal_id(meeting.id) } do %>
+          <i class="bi <%= participant.person_id ? 'bi-pencil' : 'bi-link-45deg' %>" aria-hidden="true"></i>
+        <% end %>
+      <% end %>
+    </span>
+  <% end %>
+</div>

@@ -1,0 +1,79 @@
+<%# usage: the OpenRouter key's spending against its limit (DataCycleCore::OpenRouterUsage), nil for a %>
+<%# key without one; workflows: what the workflows tile read (AiCockpitWorkflows::Result), nil until %>
+<%# the tile's frame replaces this partial with one that has it (ai_cockpit/workflows.html.erb). With %>
+<%# nothing to show, only the element the frame replaces remains. %>
+<% live = workflows unless workflows&.stale %>
+<% next_run = live&.next_run %>
+<% failures = live ? live.failures : [] %>
+
+<% if usage || next_run || failures.any? %>
+  <aside id="ac-glance" class="ac-intro__glance">
+    <section class="ac-glance" aria-labelledby="ac-glance-title">
+      <h2 id="ac-glance-title" class="ac-overline"><%= t('data_cycle_core.ai_cockpit.glance.title') %></h2>
+
+      <% if usage %>
+        <% fill_path = ai_cockpit_gauge_fill_path(usage.percent) %>
+        <% labels = ai_cockpit_usage_labels(usage) %>
+
+        <div class="ac-glance__usage">
+          <div class="ac-gauge" role="img" aria-label="<%= labels[:gauge] %>">
+            <svg class="ac-gauge__arc" viewBox="0 0 200 144" width="96" height="69" aria-hidden="true">
+              <defs>
+                <linearGradient id="ac-gauge-gradient" x1="24" y1="0" x2="176" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" class="ac-gauge__stop-from" />
+                  <stop offset="1" class="ac-gauge__stop-to" />
+                </linearGradient>
+              </defs>
+              <path class="ac-gauge__track" d="M34.2 134 A76 76 0 1 1 165.8 134" />
+              <% if fill_path %>
+                <path class="ac-gauge__fill" d="<%= fill_path %>" stroke="url(#ac-gauge-gradient)" pathLength="1" />
+              <% end %>
+            </svg>
+            <span class="ac-gauge__value" aria-hidden="true"><%= number_to_percentage(usage.percent, precision: 0) %></span>
+          </div>
+
+          <div class="ac-glance__text">
+            <div class="ac-glance__headline"><%= labels[:headline] %></div>
+            <div class="ac-glance__meta"><%= labels[:budget] %></div>
+            <% if ai_cockpit_link(:portal) %>
+              <a href="<%= ai_cockpit_link(:portal) %>" class="ac-link ac-glance__link"><%= t('data_cycle_core.ai_cockpit.glance.view_usage') %></a>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if next_run %>
+        <div class="ac-glance__row">
+          <%= ai_cockpit_icon(:calendar, size: 18, class: 'ac-glance__row-icon') %>
+          <div>
+            <div class="ac-glance__meta"><%= t('data_cycle_core.ai_cockpit.glance.next_run') %></div>
+            <div class="ac-glance__row-text"><%= t('data_cycle_core.ai_cockpit.glance.next_run_of', name: next_run.name, time: ai_cockpit_next_run_label(next_run.next_run_at)) %></div>
+          </div>
+        </div>
+      <% end %>
+
+      <% if failures.any? %>
+        <% group, card = failures.first %>
+
+        <div class="ac-glance__row">
+          <%= ai_cockpit_icon(:triangle_alert, size: 18, class: 'ac-glance__row-icon ac-glance__row-icon--error') %>
+          <div>
+            <div class="ac-glance__error"><%= t('data_cycle_core.ai_cockpit.glance.failures', count: failures.size) %></div>
+            <div class="ac-glance__row-text">
+              <% if failures.one? %>
+                <%= card.name %>
+                <% if group.own %>
+                  <a href="<%= ai_cockpit_n8n_path("workflow/#{card.id}/executions/#{card.last_execution[:id]}") %>" class="ac-link ac-glance__log"><%= t('data_cycle_core.ai_cockpit.workflows.log') %></a>
+                <% end %>
+              <% else %>
+                <a href="#ac-workflows-title" class="ac-link"><%= t('data_cycle_core.ai_cockpit.glance.to_list') %></a>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </section>
+  </aside>
+<% else %>
+  <div id="ac-glance" hidden></div>
+<% end %>

@@ -1,0 +1,68 @@
+<%# locals: (counts:) %>
+<%# The head of the list: the title, the main action, the search and the
+    three filters with their counts (the only place the counts stand). A
+    search or a filter is a full visit of the index; the open person travels
+    along. Only the "+" carries the hard edge and the offset shadow;
+    the active filter is a tint, the others are words. %>
+<% frame_id = Organisations::PeopleController::DETAIL_FRAME_ID %>
+<% mobile = @viewport_mode == 'mobile' %>
+<% add_url = organisation_people_path(@current_organisation, list_state.merge('new' => Organisations::PeopleController::NEW_STATE)) %>
+<% add_data = {
+     controller: 'lane-link',
+     action: 'click->lane-link#click',
+     lane_link_url_value: new_organisation_person_path(@current_organisation),
+     lane_link_frame_value: frame_id,
+     lane_link_set_value: { new: Organisations::PeopleController::NEW_STATE }.to_json,
+     lane_link_remove_value: %w[person_id member_id user_id].to_json,
+     lane_link_focus_value: '#person_name'
+   } %>
+<%# The head on a desktop is the shared title box with the square primary
+    "+" as its title action and the "?" of the contextual help, as on "Alle
+    Meetings" and "Zeiten". On a phone the shell already names the page; the
+    head keeps a larger square "+". %>
+<div class="people-head">
+  <% if mobile %>
+    <% if policy(Person).create? %>
+      <%= render Neo::Buttons::IconButtonComponent.new(variant: :primary, icon: 'plus-lg', size: :large, url: add_url,
+                                                       title: t('views.organisations.people.index.new_person'),
+                                                       class: 'people-head__action', data: add_data) %>
+    <% end %>
+  <% else %>
+    <%= render NeoTitleBoxComponent.new(title: t('views.organisations.people.index.title'), margin_bottom: nil) do |box| %>
+      <% if policy(Person).create? %>
+        <% box.with_title_action do %>
+          <%= render Neo::Buttons::IconButtonComponent.new(variant: :primary, icon: 'plus-lg', size: :medium, url: add_url,
+                                                           title: t('views.organisations.people.index.new_person'), data: add_data) %>
+        <% end %>
+      <% end %>
+      <% box.with_right_content do %>
+        <%= render 'common/contextual_help_menu', context: :people %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="people-tools">
+  <%= form_with url: organisation_people_path(@current_organisation), method: :get, class: 'people-search', data: { turbo_frame: '_top' } do %>
+    <%= hidden_field_tag :kind, list_state['kind'] if list_state['kind'] %>
+    <%= hidden_field_tag :sort, list_state['sort'] if list_state['sort'] %>
+    <label for="people-search" class="people-search__field">
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <span class="sr-only"><%= t('views.organisations.people.index.search_label') %></span>
+      <%= search_field_tag :q, list_state['q'], id: 'people-search', autocomplete: 'off',
+                           placeholder: t('views.organisations.people.index.search_placeholder') %>
+    </label>
+  <% end %>
+
+  <nav class="people-filters" aria-label="<%= t('views.organisations.people.index.filter_label') %>">
+    <% People::Directory::KINDS.each do |kind| %>
+      <% active = (list_state['kind'] || 'all') == kind %>
+      <%= link_to organisation_people_path(@current_organisation, list_state.merge('kind' => (kind == 'all' ? nil : kind)).compact),
+                  class: "people-pill #{'people-pill--active' if active}", 'aria-current': (active ? 'true' : nil),
+                  data: { turbo_frame: '_top' } do %>
+        <%= t("views.organisations.people.index.kinds.#{kind}") %>
+        <span class="people-pill__count"><%= counts[kind] %></span>
+      <% end %>
+    <% end %>
+  </nav>
+</div>

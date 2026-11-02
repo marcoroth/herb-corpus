@@ -51,9 +51,10 @@
           <div class="v-select">
             <%= f.label :user_ids, DataCycleCore::UserGroup.human_attribute_name(:user_ids, locale: active_ui_locale) %>
             <%= hidden_field_tag 'user_group[user_ids][]', nil, id: 'hidden_user_group_user_ids' %>
+            <% users = user_group_edit_users(content) %>
             <%= f.select(
                   :user_ids,
-                  content.users.map { |u| u.to_select_option(active_ui_locale) }.map(&:to_option_for_select),
+                  users.map { |u| u.to_select_option(active_ui_locale) }.map(&:to_option_for_select),
                   {
                     include_blank: true
                   },
@@ -67,6 +68,10 @@
                     }
                   }
                 ) %>
+            <%# members the current user may not take out go along as they are, see UserGroupAssignmentGuard %>
+            <% (content.users.to_a - users).each do |user| %>
+              <%= hidden_field_tag 'user_group[user_ids][]', user.id, id: nil %>
+            <% end %>
           </div>
         </div>
 
@@ -128,7 +133,8 @@
           </div>
         <% end %>
 
-        <% if DataCycleCore::Feature::UserGroupPermission.enabled? %>
+        <% permission_options = user_group_permission_options %>
+        <% if permission_options.present? %>
           <div class="form-element">
             <%= f.label :permissions, DataCycleCore::UserGroup.human_attribute_name(
               "permissions",
@@ -137,13 +143,11 @@
               locale: active_ui_locale
             ) %>
             <div class="v-select">
-              <% abilities = DataCycleCore::Feature::UserGroupPermission.ability_selection(self)
-              %>
               <%= hidden_field_tag 'user_group[permissions][]' %>
               <%= select_tag('user_group[permissions][]',
-                             options_from_collection_for_select(abilities, "second", "first", content.permissions),
+                             options_for_select(permission_options, content.permissions),
                              {
-                               multiple: config.key?('multiple') ? config['multiple'] : true,
+                               multiple: true,
                                include_blank: true,
                                class: 'multi-select',
                                data: {
@@ -153,6 +157,10 @@
                              }
                   )
               %>
+              <%# permissions the select does not offer go along as they are %>
+              <% (content.permissions.to_a - permission_options.map(&:last)).each do |permission| %>
+                <%= hidden_field_tag 'user_group[permissions][]', permission, id: nil %>
+              <% end %>
             </div>
           </div>
         <% end %>

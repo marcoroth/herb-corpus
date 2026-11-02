@@ -1,0 +1,149 @@
+<%# locals: (person:, message: nil) %>
+<%# The form in the lane, new and edit. It leaves the frame (_top): a save
+    lands on the list with the person open, a refused save renders the page
+    again with this form and its reason. lock_version travels along, so a save
+    over someone else's change is refused instead of overwriting it. The list
+    state rides in hidden fields, so the list after a save keeps it.
+
+    A row of an active member takes name and email from the account: both are
+    shown, locked, and not sent. Its link is fixed, so the member select is
+    left out (no user_id sent: SavePerson keeps the link). A deactivated
+    member's row keeps its link too, but its own name and email stay editable.
+    A new row and a contact may be linked.
+
+    The additional details (PersonDetail) always send the marker
+    person[additional_details][sent] next to their rows: removing the last row
+    clears the list instead of leaving it as it was. %>
+<% member = person_form_member(person) %>
+<% url = person.persisted? ? organisation_person_path(@current_organisation, person) : organisation_people_path(@current_organisation) %>
+<% title = person.persisted? || member ? t('views.organisations.people.form.edit_title', name: person_display_name(person: person, user: member)) : t('views.organisations.people.form.new_title') %>
+<% cancel_url = person.persisted? ? organisation_person_path(@current_organisation, person, list_state) : organisation_people_path(@current_organisation, list_state) %>
+<div class="people-form-wrap">
+  <div class="people-lane__head" data-lane-head data-lane-index-url="<%= organisation_people_path(@current_organisation) %>">
+    <h2 class="people-form__title"><%= title %></h2>
+    <%= link_to cancel_url, class: 'people-icon-action', title: t('views.organisations.people.show.close'),
+                            data: ({ lane_close: true, turbo_frame: '_top' } unless person.persisted?) do %>
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    <% end %>
+  </div>
+
+  <% if message.present? %>
+    <p class="people-callout people-callout--danger" role="alert"><%= message %></p>
+  <% end %>
+
+  <%= form_with model: person, url: url, scope: :person, class: 'people-form', data: { turbo_frame: '_top' } do |f| %>
+    <% list_state.each do |name, value| %>
+      <%= hidden_field_tag name, value %>
+    <% end %>
+    <% if person.persisted? %>
+      <%= f.hidden_field :lock_version %>
+    <% elsif member %>
+      <%# "Angaben ergänzen": the chosen member, checked again on save. %>
+      <%= f.hidden_field :user_id %>
+    <% end %>
+
+    <div class="people-form__field">
+      <%= f.label :salutation %>
+      <%= f.text_field :salutation, class: 'people-input', maxlength: Person::MAX_FIELD_LENGTH,
+                                    placeholder: t('views.organisations.people.form.placeholders.salutation') %>
+    </div>
+
+    <div class="people-form__field">
+      <%= f.label :name do %>
+        <%= Person.human_attribute_name(:name) %><span class="people-form__required" aria-hidden="true"> *</span>
+      <% end %>
+      <% if member %>
+        <%= text_field_tag 'person_name_locked', viewer_display_name(member), id: 'person_name', readonly: true, disabled: true, autocomplete: 'off',
+                                                                              class: 'people-input people-input--locked' %>
+      <% else %>
+        <%= f.text_field :name, class: 'people-input', maxlength: Person::MAX_FIELD_LENGTH, required: true,
+                                placeholder: t('views.organisations.people.form.placeholders.name') %>
+      <% end %>
+    </div>
+
+    <% %i[function department company].each do |field| %>
+      <div class="people-form__field">
+        <%= f.label field %>
+        <%= f.text_field field, class: 'people-input', maxlength: Person::MAX_FIELD_LENGTH,
+                                placeholder: t("views.organisations.people.form.placeholders.#{field}") %>
+      </div>
+    <% end %>
+
+    <div class="people-form__field">
+      <%= f.label :email %>
+      <% if member %>
+        <%= email_field_tag 'person_email_locked', member.shown_email, id: 'person_email', readonly: true, disabled: true, autocomplete: 'off',
+                                                                 class: 'people-input people-input--locked' %>
+      <% else %>
+        <%= f.email_field :email, class: 'people-input', maxlength: Person::MAX_FIELD_LENGTH,
+                                  placeholder: t('views.organisations.people.form.placeholders.email') %>
+      <% end %>
+    </div>
+
+    <div class="people-form__field">
+      <%= f.label :phone %>
+      <%= f.telephone_field :phone, class: 'people-input', maxlength: Person::MAX_FIELD_LENGTH,
+                                    placeholder: t('views.organisations.people.form.placeholders.phone') %>
+    </div>
+
+    <% invalid_positions = person.errors.details[:additional_details].filter_map { |error| error[:position] } %>
+    <fieldset class="people-form__details" data-controller="person-details"
+              data-person-details-max-value="<%= PersonDetail::MAX %>"
+              data-person-details-position-label-value="<%= t('views.organisations.people.form.detail_position', position: '%{position}') %>"
+              data-person-details-kinds-value="<%= person_detail_fields_config.to_json %>">
+      <legend><%= Person.human_attribute_name(:additional_details) %></legend>
+      <%= hidden_field_tag "person[additional_details][#{PersonDetail::FORM_MARKER}]", '1', id: nil %>
+      <div class="people-form__detail-rows" data-person-details-target="list">
+        <% person.additional_details.each_with_index do |entry, index| %>
+          <%= render 'organisations/people/detail_row', index: index, detail: PersonDetail.new(entry),
+                                                        invalid: invalid_positions.include?(index + 1) %>
+        <% end %>
+      </div>
+      <template data-person-details-target="template">
+        <%= render 'organisations/people/detail_row', index: '__INDEX__', detail: PersonDetail.new('kind' => PersonDetail::KINDS.first) %>
+      </template>
+      <button type="button" class="people-quiet-action people-form__add-detail" hidden
+              data-person-details-target="add" data-action="person-details#add">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i><%= t('views.organisations.people.form.add_detail') %>
+      </button>
+      <p class="people-form__hint" hidden data-person-details-target="limit">
+        <%= t('views.organisations.people.form.details_limit', count: PersonDetail::MAX) %>
+      </p>
+      <% PersonDetail::KINDS.each do |kind| %>
+        <% suggestions = person_detail_suggestions(kind) %>
+        <% next if suggestions.empty? %>
+        <datalist id="person-detail-suggestions-<%= kind %>">
+          <% suggestions.each do |suggestion| %>
+            <option value="<%= suggestion %>"></option>
+          <% end %>
+        </datalist>
+      <% end %>
+    </fieldset>
+
+    <div class="people-form__field">
+      <%= f.label :notes %>
+      <%= f.text_area :notes, rows: 4, class: 'people-input people-input--area', maxlength: Person::MAX_NOTES_LENGTH,
+                              placeholder: t('views.organisations.people.form.placeholders.notes') %>
+    </div>
+
+    <% if member.nil? && person_link_choosable?(person) %>
+      <div class="people-form__field">
+        <%= f.label :user_id, t('views.organisations.people.form.link_label') %>
+        <%= f.select :user_id, member_options_for(person), { include_blank: t('views.organisations.people.form.no_member') },
+                     class: 'people-input' %>
+      </div>
+    <% end %>
+
+    <p class="people-callout people-callout--quiet">
+      <i class="bi bi-eye" aria-hidden="true"></i><%= t('views.organisations.people.form.shared_hint') %>
+    </p>
+
+    <div class="people-form__actions">
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :medium, type: 'submit') do %>
+        <%= t('views.organisations.people.form.save') %>
+      <% end %>
+      <%= link_to t('views.organisations.people.form.cancel'), cancel_url, class: 'people-quiet-action',
+                                                                          data: ({ turbo_frame: '_top' } unless person.persisted?) %>
+    </div>
+  <% end %>
+</div>

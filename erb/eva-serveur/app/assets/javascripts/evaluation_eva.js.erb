@@ -5,9 +5,19 @@ function afficheModificationReponse(reponseMiseEnAction, evaluationId) {
   $(`#${evaluationId} .card__banner--illettrisme`).addClass('card__banner--succes');
 }
 
+const REPONSE_JE_NE_SAIS_PAS = "<%= MiseEnAction::REPONSE_JE_NE_SAIS_PAS %>";
+
+function afficheReponseJeNeSaisPas(evaluationId, revuePrevue) {
+  fermeQcm(evaluationId);
+  $(`#${evaluationId} .mise-en-action`).removeClass('d-flex').addClass('hidden');
+  const $reponse = $(`#${evaluationId} div[data-reponse='${REPONSE_JE_NE_SAIS_PAS}']`);
+  $reponse.find('.tag').removeClass('hidden').text(revuePrevue);
+  $reponse.removeClass('hidden').addClass('d-flex');
+}
+
 function reinitialiseFormulaire(evaluationId) {
   $(`#${evaluationId} input[name=reponse_qcm]`).prop('checked', false);
-  $(`#${evaluationId} .valide-qcm`).addClass('bouton--desactive');
+  $(`#${evaluationId} .valide-qcm`).prop('disabled', true);
 }
 
 function ouvreQcm(evaluationId, qcm, effectuee) {
@@ -50,7 +60,11 @@ function enregistreReponseMiseEnAction(evaluationId, bouton) {
     url: chemin_mise_en_action.replace('ID_EVALUATION', evaluationId),
     data: data,
     dataType: "json",
-    success: function () {
+    success: function (donnees) {
+      if (reponse === REPONSE_JE_NE_SAIS_PAS) {
+        afficheReponseJeNeSaisPas(evaluationId, donnees.revue_prevue);
+        return;
+      }
       const qcm = nomQcm(reponse)
       ouvreQcm(evaluationId, qcm, reponse);
     }
@@ -63,7 +77,7 @@ function activeBoutonValider() {
   radios.each(function() {
     const radio = $(this)
     radio.on("click", function(event) {
-      radio.closest('.qcm').find('.valide-qcm').removeClass('bouton--desactive');
+      radio.closest('.qcm').find('.valide-qcm').prop('disabled', false);
     })
   });
 }
@@ -112,6 +126,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   ecouteBoutons($(".bouton-fermer"), function(evaluationId, $bouton) {
     enregistreQualificationMiseEnAction(evaluationId, $bouton, { ignorer: true })
+  });
+  ecouteBoutons($(".valide-qcm"), function(evaluationId, $bouton) {
+    const effectuee = miseEnActionEffectuee($bouton)
+    const qcm = nomQcm(effectuee)
+    const reponse = reponseSelectionnee(evaluationId, qcm);
+    const traduction = I18n.t(`activerecord.attributes.mise_en_action.${qcm}.${reponse}`)
+    $(`div[data-reponse='${effectuee}'] .tag`).removeClass('hidden').text(traduction);
+  });
+  ecouteBoutons($(".bouton-fermer"), function(evaluationId, $bouton) {
+    const effectuee = miseEnActionEffectuee($bouton)
+    $(`div[data-reponse='${effectuee}'] .tag`).addClass('hidden')
   });
   activeBoutonValider();
   $("input[name=reponse_qcm]").on('focus', function(event) {

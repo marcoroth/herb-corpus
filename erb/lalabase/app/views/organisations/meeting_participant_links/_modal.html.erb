@@ -1,0 +1,118 @@
+<%# locals: (meeting:, participant:, token:, query: '', choice: nil, new_person_name: nil, errors: []) %>
+<%# The dialog "Mit Person verknüpfen" (S2b, E4/E6). Lives in the frame of the participant row;
+    the trigger beside a chip loads participant_links#new into it. The root carries the id of
+    THIS opening (token): a refused save replaces exactly it, a save removes it. Shape and
+    lifecycle after README_MODAL_PATTERN.md (reference: the ticket relation modal).
+
+    Two forms side by side, never nested: the search (GET, reloads only the list frame) and
+    the link (POST, the list's radios and the new person). Unlinking is a third, its own
+    DELETE. Everything listed comes from the viewer's own directory (People::Directory):
+    nothing hidden is shown or counted. %>
+<% pl = 'views.organisations.meetings.participant_links' %>
+<% modal_id = participant_link_modal_id(meeting.id) %>
+<% form_id = "#{modal_id}-form" %>
+<% can_create = PersonPolicy.manage_allowed?(current_user, current_organisation) %>
+<div id="<%= participant_link_modal_instance_id(meeting.id, token) %>"
+     data-controller="participant-link-modal"
+     data-participant-link-modal-return-id-value="<%= participant_link_trigger_id(participant) %>"
+     data-action="keydown@window->participant-link-modal#closeOnEscape keydown@window->participant-link-modal#trapFocus">
+  <div class="fixed inset-0 z-50 overflow-y-auto"
+       data-action="click->participant-link-modal#closeOnBackdrop">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm" aria-hidden="true"></div>
+    <div class="relative flex min-h-screen items-center justify-center p-4"
+         data-action="click->participant-link-modal#closeOnBackdrop">
+      <div class="participant-link-modal relative w-full max-w-md rounded-lg border border-slate-200 bg-surface-raised shadow-xl"
+           role="dialog" aria-modal="true" aria-labelledby="<%= modal_id %>-title"
+           data-participant-link-modal-target="card">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+          <div class="min-w-0">
+            <h3 id="<%= modal_id %>-title" class="text-lg font-bold text-cream-900">
+              <i class="bi bi-link-45deg mr-1" aria-hidden="true"></i>
+              <%= t("#{pl}.title") %>
+            </h3>
+            <p class="mt-0.5 text-sm text-cream-600 break-words"><%= t("#{pl}.participant", name: participant.display_name) %></p>
+          </div>
+          <button type="button" class="text-gray-400 hover:text-gray-600"
+                  title="<%= t("#{pl}.close") %>" aria-label="<%= t("#{pl}.close") %>"
+                  data-action="click->participant-link-modal#close">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="space-y-3 p-5">
+          <% if errors.any? %>
+            <div class="participant-link-error rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              <% errors.each do |message| %>
+                <p><%= message %></p>
+              <% end %>
+            </div>
+          <% end %>
+
+          <% if participant.person_id %>
+            <% linked_name = participant_link_linked_name(participant) %>
+            <div class="flex items-center justify-between gap-3 rounded border border-cream-200 bg-cream-50 px-3 py-2 text-sm">
+              <span class="min-w-0 break-words text-cream-800">
+                <%= linked_name ? t("#{pl}.linked_to", name: linked_name) : t("#{pl}.linked") %>
+              </span>
+              <%= button_to t("#{pl}.unlink"),
+                            organisation_project_meeting_participant_link_path(current_organisation, meeting.project, meeting, participant),
+                            method: :delete, params: { modal_token: token },
+                            class: 'participant-link-unlink shrink-0 text-sm font-medium text-cream-700 underline hover:text-ink' %>
+            </div>
+          <% end %>
+
+          <%= form_with url: new_organisation_project_meeting_participant_link_path(current_organisation, meeting.project, meeting, participant),
+                        method: :get, class: 'participant-link-search',
+                        data: { controller: 'auto-submit', turbo_frame: participant_link_results_id(participant) } do %>
+            <label for="<%= modal_id %>-search" class="sr-only"><%= t("#{pl}.search_label") %></label>
+            <div class="relative">
+              <i class="bi bi-search pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cream-500" aria-hidden="true"></i>
+              <%= search_field_tag :q, query, id: "#{modal_id}-search", autocomplete: 'off',
+                                   placeholder: t("#{pl}.search_placeholder"),
+                                   class: 'w-full rounded border border-cream-300 bg-surface-raised py-2 pl-9 pr-3 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                                   data: { participant_link_modal_target: 'search' } %>
+            </div>
+          <% end %>
+
+          <%= form_with url: organisation_project_meeting_participant_link_path(current_organisation, meeting.project, meeting, participant),
+                        method: :post, id: form_id, class: 'space-y-3' do %>
+            <%= hidden_field_tag :modal_token, token, id: nil %>
+            <%= render 'organisations/meeting_participant_links/results',
+                       meeting: meeting, participant: participant, query: query, choice: choice %>
+
+            <% if can_create %>
+              <% new_person = Meetings::ParticipantLinkChoice::NEW_PERSON %>
+              <div class="participant-link-option participant-link-option--new flex items-center gap-3 rounded px-2 py-2 hover:bg-cream-100">
+                <%= radio_button_tag :choice, new_person, choice == new_person,
+                                     id: "#{modal_id}-new", class: 'shrink-0' %>
+                <span class="flex min-w-0 flex-1 flex-col gap-1">
+                  <label for="<%= modal_id %>-new" class="text-sm font-medium text-ink">
+                    <i class="bi bi-plus-lg mr-1" aria-hidden="true"></i><%= t("#{pl}.new_person") %>
+                  </label>
+                  <%= text_field_tag :new_person_name, new_person_name || participant_link_new_name(participant),
+                                     id: "#{modal_id}-new-name", autocomplete: 'off',
+                                     aria: { label: t("#{pl}.new_person_name") },
+                                     class: 'w-full rounded border border-cream-300 bg-surface-raised px-2 py-1 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+                </span>
+              </div>
+            <% end %>
+
+            <p class="text-xs text-cream-500"><%= t("#{pl}.hint") %></p>
+
+            <div class="flex justify-end gap-2 border-t border-cream-200 pt-3">
+              <button type="button"
+                      class="h-9 rounded border border-cream-300 bg-cream-100 px-4 text-sm font-medium text-cream-800 hover:bg-cream-200"
+                      data-action="click->participant-link-modal#close">
+                <%= t("#{pl}.cancel") %>
+              </button>
+              <button type="submit"
+                      class="h-9 rounded border border-ink bg-lime-300 px-4 text-sm font-bold text-ink hover:bg-lime-400">
+                <%= t("#{pl}.submit") %>
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

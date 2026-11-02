@@ -5,12 +5,30 @@
 
   Every button below asks the same helpers about the same attribute, so both editors render this
   with their own locals splatted in -- pass **local_assigns, not a hand-picked subset.
+
+  Where the aiLector offers its dropdown on a stored content, the text pixies of the attribute are
+  rows of it (#47878): one wand per attribute, rather than two alike side by side. The upload mask
+  keeps them as wands of their own, beside which its "apply to all files" button is placed
+  (new_content_dialog.js).
+%>
+<%
+  ai_lector = ai_lector_allowed?(**local_assigns)
+  text_pixies = [
+    ('image_description_pixie' if image_description_pixie_allowed?(**local_assigns)),
+    ('description_pixie' if description_pixie_allowed?(**local_assigns))
+  ].compact
+  in_dropdown = ai_lector && contextual_content(local_assigns).try(:persisted?)
 %>
 <%= render 'data_cycle_core/contents/editors/features/ai_lector',
            content: contextual_content(local_assigns),
-           key: key if ai_lector_allowed?(**local_assigns) %>
-
-<%= render 'data_cycle_core/contents/editors/features/image_description_pixie_button',
-           content: contextual_content(local_assigns),
            key: key,
-           definition: definition if image_description_pixie_allowed?(**local_assigns) %>
+           definition: definition,
+           text_pixies: (in_dropdown ? text_pixies : []) if ai_lector %>
+
+<% text_pixies.each do |pixie| %>
+  <%= render 'data_cycle_core/contents/editors/features/text_pixie_button',
+             content: contextual_content(local_assigns),
+             key: key,
+             definition: definition,
+             pixie: pixie unless in_dropdown %>
+<% end %>

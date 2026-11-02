@@ -1,0 +1,65 @@
+<%# card: AiCockpitWorkflows::Card; own: AiCockpitWorkflows::Group#own, whether the user switches the %>
+<%# workflow and opens it in n8n, which a member cannot for the shared ones; stale: whether the card is %>
+<%# the one last read while n8n does not answer, which shows no status and nothing to switch or run %>
+<% status = ai_cockpit_workflow_status(card, stale:) %>
+<% running = status == :running %>
+<% title_id = "ac-workflow-#{card.id}-title" %>
+<% execution_path = ai_cockpit_n8n_path("workflow/#{card.id}/executions/#{card.last_execution[:id]}") if card.last_execution %>
+
+<%= tag.article class: ['ac-workflow', { 'ac-workflow--stale': stale, 'ac-workflow--running': running }], aria: { labelledby: title_id } do %>
+  <div class="ac-workflow__top">
+    <span class="ac-workflow__trigger">
+      <% if running && card.last_execution[:started_at] %>
+        <%= t('data_cycle_core.ai_cockpit.workflows.started_at', time: ai_cockpit_clock(card.last_execution[:started_at])) %>
+      <% else %>
+        <%= ai_cockpit_icon({ schedule: :calendar, event: :zap, manual: :play }.fetch(card.trigger[:kind]), size: 14, stroke_width: 2.2) unless stale %>
+        <%= ai_cockpit_trigger_label(card.trigger) %>
+
+        <% if own && !stale && !card.active.nil? %>
+          <%= tag.button type: 'button',
+                         id: "ac-switch-#{card.id}",
+                         class: 'ac-switch',
+                         role: 'switch',
+                         aria: { checked: card.active, label: ai_cockpit_switch_label(card) },
+                         data: {
+                           ai_cockpit_switch: ai_cockpit_workflow_active_path(card.id),
+                           switched_on: ai_cockpit_switched_label(card, true),
+                           switched_off: ai_cockpit_switched_label(card, false)
+                         } do %>
+            <span class="ac-switch__thumb" aria-hidden="true"></span>
+          <% end %>
+        <% end %>
+      <% end %>
+    </span>
+
+    <%= tag.span class: ['ac-badge', "ac-badge--#{status}", { 'ac-badge--paused': status == :error && card.active == false }] do %>
+      <%= ai_cockpit_icon({ success: :check, error: :triangle_alert, running: :loader_circle }[status], size: 12, stroke_width: 3) if status.in?([:success, :error, :running]) %>
+      <%= t("data_cycle_core.ai_cockpit.workflows.status.#{status}") %>
+    <% end %>
+  </div>
+
+  <h4 id="<%= title_id %>" class="ac-workflow__title"><%= card.name %></h4>
+
+  <% if running %>
+    <p class="ac-workflow__text"><%= t('data_cycle_core.ai_cockpit.workflows.running_hint') %></p>
+  <% elsif card.description || (own && !stale && execution_path) %>
+    <p class="ac-workflow__text">
+      <%= card.description %>
+      <% if own && !stale && execution_path %>
+        <a href="<%= execution_path %>" class="ac-workflow__log" aria-describedby="<%= title_id %>"><%= t('data_cycle_core.ai_cockpit.workflows.log') %></a>
+      <% end %>
+    </p>
+  <% end %>
+
+  <% if (own || card.runnable) && !stale %>
+    <div class="ac-workflow__actions">
+      <%= render('data_cycle_core/ai_cockpit/workflow_run', card:, running:, title_id:) if card.runnable %>
+
+      <% if own && running %>
+        <a href="<%= execution_path %>" class="ac-workflow__action" aria-describedby="<%= title_id %>"><%= t('data_cycle_core.ai_cockpit.workflows.view_in_n8n') %></a>
+      <% elsif own %>
+        <a href="<%= ai_cockpit_n8n_path("workflow/#{card.id}") %>" class="ac-workflow__action" aria-describedby="<%= title_id %>"><%= t('data_cycle_core.ai_cockpit.workflows.edit') %></a>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

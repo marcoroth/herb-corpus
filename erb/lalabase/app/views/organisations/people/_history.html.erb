@@ -1,0 +1,25 @@
+<%# locals: (person:, created_line:) %>
+<%# Who created the row, and how often it changed since: one line. With
+    changes the line unfolds the history: who changed which field, never the
+    values (PersonTrackable), read straight from the row's activities like
+    time_session_groups/_activities. %>
+<% changes = person_change_count(person) %>
+<% if changes.zero? %>
+  <p class="people-history__line"><%= created_line %></p>
+<% else %>
+  <details class="people-history">
+    <summary class="people-history__line">
+      <%= created_line %> · <%= t('views.organisations.people.history.changes', count: changes) %>
+      <i class="bi bi-chevron-down people-history__chevron" aria-hidden="true"></i>
+    </summary>
+    <% activities = person.activities.includes(:actor).where.not(action: 'created').order(created_at: :desc).limit(20).to_a %>
+    <ul class="people-history__list" aria-label="<%= t('views.organisations.people.history.title') %>">
+      <% activities.each do |activity| %>
+        <li>
+          <span><%= person_history_line(activity) %></span>
+          <time datetime="<%= activity.created_at.iso8601 %>"><%= l(activity.created_at.to_date, format: :short) %></time>
+        </li>
+      <% end %>
+    </ul>
+  </details>
+<% end %>

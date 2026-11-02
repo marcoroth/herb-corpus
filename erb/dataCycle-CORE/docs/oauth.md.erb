@@ -1,4 +1,4 @@
-<% base = root_url.chomp('/') %># Authentifizierung über OAuth 2.0 / OpenID Connect
+<% base = root_url.chomp('/'); ai_cockpit = DataCycleCore::Feature::AiCockpit.enabled? %># Authentifizierung über OAuth 2.0 / OpenID Connect
 
 dataCycle kann als **OAuth-2.0-Autorisierungsserver** und **OpenID-Connect-Provider (OIDC)** fungieren. Externe Anwendungen können damit Benutzer über dataCycle anmelden (Single Sign-On) und deren Identitäts- bzw. Profilinformationen (z.B. E-Mail-Adresse, Name, Rollen, Gruppen) abrufen.
 
@@ -6,7 +6,7 @@ Die Implementierung basiert auf [Doorkeeper](https://doorkeeper.gitbook.io/) und
 
 Alle Endpunkte und Beispiele beziehen sich auf die Basis-URL dieser dataCycle-Instanz (```<%= base %>```).
 
-_Hinweis: Die über diesen Weg ausgestellten Access Tokens dienen der Anmeldung und dem Abruf von Identitätsinformationen (OpenID Connect). Der Zugriff auf die [Datenschnittstelle](/docs/api) erfolgt über eigene Authentifizierungs-Mechanismen (API-Token bzw. JWT, siehe [Authentifizierung der Datenschnittstelle](/docs/api#authentifizierung)) und ist von diesem OAuth-Flow unabhängig._
+_Hinweis: Die über diesen Weg ausgestellten Access Tokens dienen der Anmeldung und dem Abruf von Identitätsinformationen (OpenID Connect). Der Zugriff auf die [Datenschnittstelle](/docs/api) erfolgt über eigene Authentifizierungs-Mechanismen (API-Token bzw. JWT, siehe [Authentifizierung der Datenschnittstelle](/docs/api#authentifizierung)) und ist von diesem OAuth-Flow unabhängig.<%= ' Einzige Ausnahme sind die MCP-Endpunkte, siehe [MCP-Zugang mit dem Access Token](#mcp-zugang-mit-dem-access-token).' if ai_cockpit %>_
 
 
 ## Registrieren einer Anwendung (Client)
@@ -20,7 +20,8 @@ Beim Anlegen einer Anwendung werden folgende Angaben benötigt:
 * **Name**: Anzeigename der Anwendung. Er erscheint u.a. im Zustimmungs-Dialog des Benutzers.
 * **Weiterleitungs-URI** (Redirect URI): Eine oder mehrere absolute ```https```-URLs (eine pro Zeile), an die nach der Autorisierung zurückgeleitet wird.
 * **Vertraulich** (Confidential): ```Ja``` für serverseitige Anwendungen, die das Client-Secret geheim halten können. ```Nein``` für Single-Page-Apps und native Apps.
-* **Scopes**: Optionale Einschränkung der für diese Anwendung erlaubten Scopes (leer = Standard-Scopes).
+* **Vertrauenswürdig** (Trusted): ```Ja``` erspart den Benutzern den Zustimmungs-Dialog, etwa bei hauseigenen Anwendungen. Das wirkt nur bei vertraulichen Anwendungen: Die Identität einer nicht vertraulichen lässt sich nicht nachweisen, eine Anfrage in ihrem Namen kann also von jeder App kommen.
+* **Scopes**: Die Scopes, die die Anwendung anfordern darf. Bleibt das Feld leer, darf sie jeden der unten genannten anfordern.
 
 Nach dem Speichern erhält die Anwendung eine **Client-ID (UID)** und ein **Client-Secret**. Das Secret wird gehasht gespeichert, ist also nach dem Anlegen nicht mehr im Klartext einsehbar und muss sicher hinterlegt werden.
 
@@ -33,6 +34,8 @@ Nach dem Speichern erhält die Anwendung eine **Client-ID (UID)** und ein **Clie
 * **```email```** (optional): E-Mail-bezogene Claims.
 * **```roles```** (optional): Ergänzt den Claim ```roles``` (Rollen des Benutzers).
 * **```groups```** (optional): Ergänzt den Claim ```groups``` (Benutzergruppen).
+<% if ai_cockpit %>* **```mcp```** (optional): Zugang zu den MCP-Endpunkten, siehe [MCP-Zugang mit dem Access Token](#mcp-zugang-mit-dem-access-token).
+<% end %>
 
 
 ## Endpunkte
@@ -117,7 +120,7 @@ curl --url <%= base %>/oauth/userinfo \
 
 ## OpenID Connect
 
-Wird der Scope ```openid``` angefordert, stellt dataCycle zusätzlich ein signiertes **ID Token** (JWT, Signaturverfahren ```RS256```) aus. Als Aussteller (```issuer```) wird ```dataCycle``` verwendet. Dieselben Informationen liefert der UserInfo-Endpunkt (siehe Schritt 3 oben).
+Wird der Scope ```openid``` angefordert, stellt dataCycle zusätzlich ein signiertes **ID Token** (JWT, Signaturverfahren ```RS256```) aus. Als Aussteller (```issuer```) wird die URL der Instanz verwendet (```<%= base %>```), im Discovery-Dokument und im ```iss```-Claim des ID Tokens gleich. Dieselben Informationen liefert der UserInfo-Endpunkt (siehe Schritt 3 oben).
 
 Je nach angefordertem Scope enthalten ID Token bzw. UserInfo-Antwort folgende Claims:
 
@@ -130,12 +133,46 @@ Je nach angefordertem Scope enthalten ID Token bzw. UserInfo-Antwort folgende Cl
 
 Die zur Signaturprüfung notwendigen öffentlichen Schlüssel werden im [JWKS](https://datatracker.ietf.org/doc/html/rfc7517)-Format unter ```<%= base %>/oauth/discovery/keys``` bereitgestellt.
 
+### Parameter prompt und max_age
+
+Ein bereits angemeldeter Benutzer muss sich nicht erneut anmelden, und einer Anwendung, der er schon zugestimmt hat, muss er nicht erneut zustimmen. Fordert die Anfrage den Scope ```openid``` an, ändert der Parameter ```prompt``` dieses Verhalten (mehrere Werte durch Leerzeichen getrennt):
+
+* **```login```**: dataCycle meldet den Benutzer ab und zeigt die Anmeldung, an der er auch ein anderes Konto wählen kann. Danach läuft die Anfrage ohne ```prompt=login``` weiter, und der Claim ```auth_time``` im ID Token nennt den Zeitpunkt dieser Anmeldung.
+* **```consent```**: Der Zustimmungs-Dialog erscheint, auch für eine vertrauenswürdige Anwendung.
+* **```none```**: dataCycle zeigt keine Seite. Ist der Benutzer nicht angemeldet, antwortet es mit ```error=login_required```, fehlt seine Zustimmung, mit ```error=consent_required```.
+* **```select_account```**: dataCycle kennt keine Kontoauswahl und antwortet mit ```error=account_selection_required```. Ein anderes Konto lässt sich mit ```prompt=login``` wählen.
+
+```max_age``` wirkt wie ```prompt=login```, sobald die letzte Anmeldung des Benutzers, gleich auf welchem Gerät, länger als die angegebenen Sekunden zurückliegt. Zusammen mit ```prompt=none``` antwortet dataCycle dann mit ```error=login_required```.
+
 
 ## Zugriffssteuerung
 
 * Um sich über OAuth anmelden zu können, benötigt ein Benutzer die Berechtigung **OAuth authentifizieren** (```authenticate_with :oauth```). Diese ist in den Standard-Rollen enthalten.
-* Der Zugriff kann zusätzlich pro Anwendung eingeschränkt werden. Für vertrauenswürdige, hauseigene Anwendungen kann der Zustimmungs-Dialog außerdem übersprungen werden. Ein Beispiel dafür ist die Grafana-Integration: Sie setzt die Berechtigung zum Anzeigen der Grafana-Dashboards voraus und überspringt den Zustimmungs-Dialog.
+* Der Zugriff kann zusätzlich pro Anwendung eingeschränkt werden. Für vertrauenswürdige, hauseigene Anwendungen kann der Zustimmungs-Dialog außerdem übersprungen werden. Das gilt für die Dienste, die dataCycle selbst mitbringt: Sie werden automatisch als vertrauenswürdige Clients angelegt und überspringen den Zustimmungs-Dialog:
 
+| Dienst | Berechtigung | Weiterleitungs-URI |
+| --- | --- | --- |
+| Grafana | Grafana-Dashboards anzeigen (```grafana_dashboards```) | ```<%= base %>/grafana/login/generic_oauth``` |
+<% if ai_cockpit %>| Open WebUI | Chat-Oberfläche verwenden (```openwebui_chat```) | ```https://<OPENWEBUI_HOST>/oauth/oidc/callback``` |
+<% end %>| KI-Plattform | keine, offen für jeden angemeldeten Benutzer | ```https://ai-platform.datacycle.cloud/sso/callback``` |
+
+Dieselbe Berechtigung steuert auch, wo dataCycle auf den Dienst verweist: bei Grafana den Menüpunkt<%= ', bei Open WebUI den Chat auf der Startseite des KI-Cockpits' if ai_cockpit %>. So laufen Link und Anmeldung nicht auseinander. Eine von Hand unter ```<%= base %>/oauth/applications``` registrierte Anwendung steht jedem angemeldeten Benutzer offen und zeigt den Zustimmungs-Dialog, außer sie ist als **Vertrauenswürdig** markiert. Die Einträge der mitgebrachten Dienste legt dataCycle selbst fest: Name, Weiterleitungs-URI, Scopes, **Vertraulich** und **Vertrauenswürdig** setzt es bei jedem Abgleich zurück, für Grafana<%= ' und Open WebUI' if ai_cockpit %> also bei jedem Start.
+
+<% if ai_cockpit %>
+Die Berechtigungen des KI-Cockpits, **Chat-Oberfläche (Open WebUI)** und **Workflows (n8n)**, erhält ein Benutzer gleich welcher Rolle über eine Benutzergruppe, die sie unter **Berechtigungen** vergibt. System-Administratoren geben einer Gruppe diese Berechtigungen und ändern die Mitglieder einer solchen Gruppe, auch ohne sie selbst zu haben. Andere Benutzer, die Benutzergruppen bearbeiten dürfen, etwa Administratoren und Super-Administratoren, vergeben von diesen Berechtigungen nur jene, die sie selbst über eine ihrer Benutzergruppen haben: Wer nur die **Chat-Oberfläche (Open WebUI)** hat, gibt keiner Gruppe die **Workflows (n8n)** und ändert keine Gruppe, die sie vergibt, auch nicht deren Mitglieder.
+
+Wer eine der beiden Berechtigungen hat, findet im Menü den Punkt **aiCockpit**. Er führt zur Startseite des KI-Cockpits, die den Chat in Open WebUI und die Workflows in n8n jeweils nur mit der passenden Berechtigung anbietet.
+
+## MCP-Zugang mit dem Access Token
+
+Auf dieser Instanz läuft das KI-Cockpit (Feature ```ai_cockpit```: Open WebUI und n8n), und dafür bietet dataCycle zusätzlich den Scope ```mcp``` an. Ein Access Token mit diesem Scope gilt auch als Zugang zu den MCP-Endpunkten (```/api/mcp``` und ```/api/v4/endpoints/:id/mcp```) und liefert dort genau das, was der angemeldete Benutzer sehen darf. Ebenso gilt es für ```/n8n_mcp```, über das ein Chat die eigenen n8n-Workflows des Benutzers erreicht, und zwar als einziger Zugang: Das API-Token des Benutzers und seine Sitzung gelten dort nicht. Von den mitgelieferten Diensten nutzt das nur Open WebUI.
+
+* Der Scope wirkt nur für eine Anwendung, die mit ```mcp``` registriert ist; ein leeres Scope-Feld genügt nicht.
+* Zu einem solchen Access Token wird ein **Refresh Token** ausgestellt, damit der Zugang die Anmeldung überdauert.
+* Jedes **ID Token** ist so lange gültig wie sein Access Token, weil Open WebUI seine Sitzung nicht länger gelten lässt als das ID Token.
+* Die MCP-Endpunkte prüfen die Berechtigung der Anwendung (siehe [Zugriffssteuerung](#zugriffssteuerung)) bei jeder Anfrage erneut: Wer sie verliert, verliert damit auch den Zugang über ein bereits ausgestelltes Token.
+
+<% end %>
 
 ## Verwaltung durch Benutzer
 
