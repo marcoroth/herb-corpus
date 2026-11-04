@@ -1,0 +1,73 @@
+<%= translatable_form_for(investment, url: url, html: { class: "budget-investment-form" }) do |f| %>
+
+  <%= render "shared/errors", resource: investment %>
+
+  <fieldset class="required-fields">
+    <legend><%= t("shared.required") %></legend>
+
+    <% unless budget.single_heading? %>
+      <div>
+        <%= f.select :heading_id, budget_heading_select_options(budget), { include_blank: true } %>
+      </div>
+    <% end %>
+
+    <div>
+      <%= render "shared/globalize_locales", resource: investment %>
+    </div>
+
+    <%= f.translatable_fields do |translations_form| %>
+      <div>
+        <%= translations_form.text_field :title,
+                                         maxlength: Budget::Investment.title_max_length,
+                                         data: suggest_data(investment) %>
+      </div>
+      <div class="js-suggest" data-locale="<%= translations_form.locale %>"></div>
+
+      <div>
+        <%= translations_form.text_area :description,
+                                        maxlength: Budget::Investment.description_max_length,
+                                        class: "html-area" %>
+      </div>
+    <% end %>
+  </fieldset>
+
+  <%= f.invisible_captcha :subtitle %>
+
+  <fieldset>
+    <legend><%= t("shared.optional") %></legend>
+
+    <% if feature?(:allow_images) %>
+      <%= render Images::NestedComponent.new(f) do %>
+        <%= render ImageSuggestions::SuggestButtonComponent.new(f) %>
+      <% end %>
+    <% end %>
+
+    <% if feature?(:allow_attached_documents) %>
+      <%= render Documents::NestedComponent.new(f) %>
+    <% end %>
+
+    <%= render MapLocations::FormFieldsComponent.new(f, map_location: map_location) %>
+
+    <div>
+      <%= f.text_field :location %>
+    </div>
+
+    <div>
+      <%= f.text_field :organization_name %>
+    </div>
+
+    <%= render Taggable::FieldsComponent.new(f, i18n_namespace: "budgets.investments.form") %>
+
+    <%= render SDG::RelatedListSelectorComponent.new(f) %>
+  </fieldset>
+
+  <div class="actions">
+    <% unless current_user.manager? || investment.persisted? %>
+      <div>
+        <%= render Shared::AgreeWithTermsOfServiceFieldComponent.new(f) %>
+      </div>
+    <% end %>
+
+    <%= f.submit %>
+  </div>
+<% end %>

@@ -1,0 +1,78 @@
+<%= translatable_form_for(proposal, url: url, html: { class: "proposal-form" }) do |f| %>
+  <%= render "shared/errors", resource: proposal %>
+
+  <fieldset class="required-fields">
+    <legend><%= t("shared.required") %></legend>
+
+    <%= render "shared/globalize_locales", resource: proposal %>
+
+    <%= f.translatable_fields do |translations_form| %>
+      <div>
+        <%= translations_form.text_field :title,
+                                         maxlength: Proposal.title_max_length,
+                                         data: suggest_data(proposal) %>
+      </div>
+      <div class="js-suggest" data-locale="<%= translations_form.locale %>"></div>
+
+      <div>
+        <%= translations_form.text_area :summary,
+                                        rows: 4, maxlength: 200,
+                                        hint: t("proposals.form.proposal_summary_note") %>
+      </div>
+
+      <div>
+        <%= translations_form.text_area :description,
+                                        maxlength: Proposal.description_max_length,
+                                        class: "html-area" %>
+      </div>
+    <% end %>
+  </fieldset>
+
+  <%= f.invisible_captcha :subtitle %>
+
+  <fieldset>
+    <legend><%= t("shared.optional") %></legend>
+
+    <div>
+      <%= f.text_field :video_url, hint: t("proposals.form.proposal_video_url_note") %>
+    </div>
+
+    <% if feature?(:allow_images) %>
+      <%= render Images::NestedComponent.new(f) %>
+    <% end %>
+
+    <% if feature?(:allow_attached_documents) %>
+      <%= render Documents::NestedComponent.new(f) %>
+    <% end %>
+
+    <% if Geozone.any? %>
+      <div>
+        <%= f.select :geozone_id, geozone_select_options,
+                     include_blank: t("geozones.none") %>
+      </div>
+    <% end %>
+
+    <%= render MapLocations::FormFieldsComponent.new(f, map_location: map_location) %>
+
+    <%= render Taggable::FieldsComponent.new(f, i18n_namespace: "proposals.form") %>
+
+    <% if current_user.unverified? %>
+      <div>
+        <%= f.text_field :responsible_name,
+                         hint: t("proposals.form.proposal_responsible_name_note") %>
+      </div>
+    <% end %>
+
+    <%= render SDG::RelatedListSelectorComponent.new(f) %>
+  </fieldset>
+
+  <div class="actions">
+    <% if proposal.new_record? %>
+      <div>
+        <%= render Shared::AgreeWithTermsOfServiceFieldComponent.new(f) %>
+      </div>
+    <% end %>
+
+    <%= f.submit(class: "button", value: t("proposals.#{action_name}.form.submit_button")) %>
+  </div>
+<% end %>

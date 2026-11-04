@@ -9,9 +9,9 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **356** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **40,318** from 286 apps |
-| Size of `erb/` | ~64 MB |
+| Applications and engines | **357** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **41,297** from 287 apps |
+| Size of `erb/` | ~65 MB |
 | Excluded pending license review | 70 apps |
 
 <!-- corpus:stats:end -->
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**144 of 356** applications use Herb: `herb` 92, `@herb-tools/linter` 59, `@herb-tools/formatter` 36, `.herb.yml` 109, `.herb/` 1.
+**145 of 357** applications use Herb: `herb` 93, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 110, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -295,6 +295,10 @@ cannot make a comparison silently measure the same Herb twice.
 |  | .herb.yml | 0.10.1 | – | [2026-06-24](https://github.com/rubyforgood/community_foundation/commit/539131cdd2aeedd873e7a233da74764efe6cc50f "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [conference-app](https://github.com/kaigionrails/conference-app/tree/a59ee022329668def7c2c1723ae5009470e9065b) | herb | 0.11.0 | explicit | [2025-10-02](https://github.com/kaigionrails/conference-app/commit/ef7ff517d6676a169f21fa3ac8d822cd974ed3c0 "first seen in Gemfile") |
+|  |  |  |  |  |
+| [consuldemocracy](https://github.com/consuldemocracy/consuldemocracy/tree/dcee73dcb84bc99745e052d473ed9986550b6aeb) | herb | 0.11.1 | explicit | – |
+|  | linter | =0.11.0 | explicit | [2026-10-06](https://github.com/consuldemocracy/consuldemocracy/commit/9754129968b3abcbf4c0ec958e9985f1e2a6fd75 "first seen in package.json") |
+|  | .herb.yml | 0.11.0 | – | [2026-10-06](https://github.com/consuldemocracy/consuldemocracy/commit/9754129968b3abcbf4c0ec958e9985f1e2a6fd75 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [Contribute-On-Rails](https://github.com/Nandosts/Contribute-On-Rails/tree/454ac41e56c841dba13c89b8b705c8d4a0c2a2fc) | herb | 0.10.1 | explicit | [2026-05-17](https://github.com/Nandosts/Contribute-On-Rails/commit/04a1942ad02462922c89f12ee92cfdca51ca300a "first seen in Gemfile") |
 |  | .herb.yml | 0.10.1 | – | [2026-05-17](https://github.com/Nandosts/Contribute-On-Rails/commit/04a1942ad02462922c89f12ee92cfdca51ca300a "first seen in .herb.yml") |
@@ -664,7 +668,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**28 of 356** applications use ReActionView: `reactionview` 28.
+**28 of 357** applications use ReActionView: `reactionview` 28.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -730,19 +734,19 @@ cannot make a comparison silently measure the same Herb twice.
 xychart
   title "Cumulative adoption, by project"
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
-  y-axis "Apps" 0 --> 145
-  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 91, 103, 111, 123, 129, 135, 144]
+  y-axis "Apps" 0 --> 146
+  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 91, 103, 111, 123, 129, 135, 145]
   line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27, 28]
 ```
 
-Herb 144 · ReActionView 28
+Herb 145 · ReActionView 28
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 88 apps
-  "0.11.1" : 21
+  title Herb releases across 89 apps
+  "0.11.1" : 22
   "0.11.0" : 34
   "0.10.4" : 4
   "0.10.3" : 13
@@ -793,9 +797,9 @@ the commit that removed it.
 
 ### erb_lint
 
-**38 of 356** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 21 run both.
+**39 of 357** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
 
-> History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
+> History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
 **Migrated to Herb** (7)
 
@@ -814,8 +818,10 @@ the commit that removed it.
 - [licketysplit](https://github.com/raghubetina/licketysplit/tree/080ddf83b20cad8ccdb2972e415fb0a17efd0e1a): Adopted `erb_lint` in 2025, still using it 11 months later, started Herb in 2025.
   [2025-11-16](https://github.com/raghubetina/licketysplit/commit/0397f780489185fcdc4101b4f23a88c98e685fdd "added Gemfile") · [herb 2025-11-16](https://github.com/raghubetina/licketysplit/commit/0397f780489185fcdc4101b4f23a88c98e685fdd "first seen in Gemfile")
 
-**Running both** (21)
+**Running both** (22)
 
+- [consuldemocracy](https://github.com/consuldemocracy/consuldemocracy/tree/dcee73dcb84bc99745e052d473ed9986550b6aeb): Adopted `erb_lint` in 2019, still using it 7 years later, started Herb in 2026.
+  [2019-03-02](https://github.com/consuldemocracy/consuldemocracy/commit/f30afab9e3963586c1323aa55d80c30ddc16f058 "added .erb-lint.yml") · gem `0.9.0` · `.erb_lint.yml` · [herb 2026-10-06](https://github.com/consuldemocracy/consuldemocracy/commit/9754129968b3abcbf4c0ec958e9985f1e2a6fd75 "first seen in package.json")
 - [openstreetmap-website](https://github.com/openstreetmap/openstreetmap-website/tree/9da20921c0a257d4d7ddd52de36bd3b75f3c8372): Adopted `erb_lint` in 2019, still using it 7 years later, started Herb in 2026.
   [2019-03-06](https://github.com/openstreetmap/openstreetmap-website/commit/d6a2515cb0c55eb69c8bb1c872e13b5f59ea64b5 "added Gemfile") · gem `0.9.0` · `.erb_lint.yml` · [herb 2026-02-08](https://github.com/openstreetmap/openstreetmap-website/commit/929609c97bf992e43b84a75984c3f38fd0c9a038 "first seen in package.json")
 - [good_job](https://github.com/bensheldon/good_job/tree/58b7622fff9c464cb545b562e50dd61473edf5e4): Adopted `erb_lint` in 2020, still using it 6 years later, started Herb in 2026.
@@ -898,9 +904,9 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 356** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
+**9 of 357** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
 
-> History could not be searched in 96 repositories, so the dropped and migrated counts are lower bounds.
+> History could not be searched in 97 repositories, so the dropped and migrated counts are lower bounds.
 
 **Migrated to Herb** (4)
 
@@ -939,9 +945,9 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 356** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 357** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
-> History could not be searched in 93 repositories, so the dropped and migrated counts are lower bounds.
+> History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
 **Migrated to Herb** (6)
 
