@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **358** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **41,634** from 294 apps |
+| Applications and engines | **359** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **41,654** from 295 apps |
 | Size of `erb/` | ~65 MB |
 | Excluded pending license review | 64 apps |
 
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**145 of 358** applications use Herb: `herb` 93, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 110, `.herb/` 1.
+**146 of 359** applications use Herb: `herb` 94, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 110, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -338,6 +338,8 @@ cannot make a comparison silently measure the same Herb twice.
 |  |  |  |  |  |
 | [energy-sparks](https://github.com/Energy-Sparks/energy-sparks/tree/3584db7fbf50b9cd3cad41cd03a12d826d99fba2) | herb | 0.10.3 | transitive | [2026-04-24](https://github.com/Energy-Sparks/energy-sparks/commit/2152231cb10f2689a604e1db8dd7cbb5fca12702 "first seen in Gemfile.lock") |
 |  | .herb.yml | present | – | [2026-10-08](https://github.com/Energy-Sparks/energy-sparks/commit/3fbc32eea8ba5318c8f94b0cca1ff4e6a568adcc "first seen in .herb.yml") |
+|  |  |  |  |  |
+| [ermida](https://github.com/mguilarducci/ermida/tree/b70aa65932f65d4f72cd619770baddf720471d0c) | herb | 0.11.1 | explicit | [2026-11-04](https://github.com/mguilarducci/ermida/commit/d964599a653881cb747985cdd9290cebae38428e "first seen in Gemfile") |
 |  |  |  |  |  |
 | [errbit](https://github.com/errbit/errbit/tree/08896774023e7b471cbf5724bec8573b5bb0f6ef) | herb | 0.11.0 | explicit | [2025-09-04](https://github.com/errbit/errbit/commit/e4d5afd4833250cf5e5ecb5862619f09481032f6 "first seen in Gemfile") |
 |  |  |  |  |  |
@@ -668,7 +670,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**28 of 358** applications use ReActionView: `reactionview` 28.
+**29 of 359** applications use ReActionView: `reactionview` 29.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -691,6 +693,8 @@ cannot make a comparison silently measure the same Herb twice.
 | [demarche.numerique.gouv.fr](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/tree/f695fa9c2b5c46a164cd58eead0bb31b6ff0ec35) | reactionview | 0.3.0 | explicit | [2025-09-29](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/commit/1b1ecc02df08bd37be216465d597abdec3a20a01 "first seen in Gemfile") |
 |  |  |  |  |  |
 | [endsideout](https://github.com/rubyforgood/endsideout/tree/3a12506e6787caffde9d7384f24b70905b905291) | reactionview | 0.6.0 | explicit | [2026-08-28](https://github.com/rubyforgood/endsideout/commit/1b2f7ab2022317926f354cde60eaa8195dec58d2 "first seen in Gemfile") |
+|  |  |  |  |  |
+| [ermida](https://github.com/mguilarducci/ermida/tree/b70aa65932f65d4f72cd619770baddf720471d0c) | reactionview | 0.6.0 | explicit | [2026-11-04](https://github.com/mguilarducci/ermida/commit/d964599a653881cb747985cdd9290cebae38428e "first seen in Gemfile") |
 |  |  |  |  |  |
 | [experiment-client-side-scopes](https://github.com/irinanazarova/experiment-client-side-scopes/tree/b6a1af20c744cb4740d6a75fe4ba5791ed5380d3) | reactionview | 0.3.0 | explicit | [2026-06-11](https://github.com/irinanazarova/experiment-client-side-scopes/commit/a11385d766001caab2c83f5ecf0ff6cbaac80e92 "first seen in Gemfile") |
 |  |  |  |  |  |
@@ -733,20 +737,20 @@ cannot make a comparison silently measure the same Herb twice.
 ```mermaid
 xychart
   title "Cumulative adoption, by project"
-  x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"]
-  y-axis "Apps" 0 --> 146
-  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 91, 103, 111, 123, 129, 135, 145]
-  line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27, 28]
+  x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]
+  y-axis "Apps" 0 --> 147
+  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 91, 103, 111, 123, 129, 135, 145, 146]
+  line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27, 28, 29]
 ```
 
-Herb 145 · ReActionView 28
+Herb 146 · ReActionView 29
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 89 apps
-  "0.11.1" : 22
+  title Herb releases across 90 apps
+  "0.11.1" : 23
   "0.11.0" : 34
   "0.10.4" : 4
   "0.10.3" : 13
@@ -797,7 +801,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**39 of 358** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
+**39 of 359** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -904,7 +908,7 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 358** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
+**9 of 359** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
 
 > History could not be searched in 97 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -945,7 +949,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 358** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 359** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
