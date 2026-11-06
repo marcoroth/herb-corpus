@@ -765,10 +765,10 @@ pie showData
 
 ### How the config is used
 
-Of the 109 Herb configs, the sections people set are `linter` (105), `formatter` (98), `version` (87), `files` (40), `framework` (27), `template_engine` (7), `engine` (5).
+Of the 110 Herb configs, the sections people set are `linter` (106), `formatter` (99), `version` (88), `files` (40), `framework` (28), `template_engine` (8), `engine` (6).
 
-`formatter.maxLineLength`: **80** (65), **120** (21), **100** (2), **400** (1)
-`formatter.indentWidth`: **2** (89)
+`formatter.maxLineLength`: **80** (65), **120** (21), **100** (2), **110** (1), **400** (1)
+`formatter.indentWidth`: **2** (90)
 
 Rewriters: `pre: tailwind-class-sorter` (16)
 
@@ -776,16 +776,16 @@ The linter rules most often adjusted:
 
 | Rule | Disabled | Tuned |
 | --- | ---: | ---: |
-| `html-require-script-nonce` | 18 | 3 |
+| `html-require-script-nonce` | 18 | 4 |
 | `erb-no-instance-variables-in-partials` | 16 | 4 |
-| `actionview-no-silent-helper` | 11 | 2 |
+| `actionview-no-silent-helper` | 11 | 3 |
+| `erb-no-unsafe-raw` | 8 | 6 |
 | `erb-no-interpolated-class-names` | 11 | 2 |
-| `erb-no-unsafe-raw` | 8 | 5 |
+| `html-anchor-require-href` | 8 | 5 |
 | `erb-no-unused-expressions` | 9 | 4 |
-| `html-anchor-require-href` | 7 | 5 |
-| `erb-prefer-image-tag-helper` | 8 | 3 |
-| `erb-no-duplicate-branch-elements` | 9 | 1 |
-| `erb-strict-locals-required` | 0 | 8 |
+| `erb-prefer-image-tag-helper` | 8 | 4 |
+| `erb-no-duplicate-branch-elements` | 9 | 2 |
+| `erb-no-output-in-attribute-position` | 7 | 1 |
 
 <!-- corpus:adoption:end -->
 
