@@ -1,0 +1,50 @@
+<%# locals: person, field ("company_id" | "owner_id"), editing: false, error: nil %>
+<% field = field.to_s %>
+<% editing = local_assigns.fetch(:editing, false) %>
+<% error = local_assigns[:error] %>
+<% cell_id = "person_#{person.id}_#{field}" %>
+<td id="<%= cell_id %>"
+    class="relative"
+    data-controller="inline-edit"
+    data-inline-edit-open-value="<%= editing %>"
+    data-action="click->inline-edit#stop dblclick->inline-edit#edit keydown.esc@window->inline-edit#cancel:capture">
+  <div data-inline-edit-target="display" class="<%= "hidden" if editing %> min-h-6">
+    <% if field == "company_id" %>
+      <% if person.company %>
+        <span class="flex items-center gap-1.5 text-ink-soft">
+          <%= avatar person.company, size: "size-4", text: "text-2xs" %>
+          <%= person.company.name %>
+        </span>
+      <% else %>
+        <span class="text-ink-faint">—</span>
+      <% end %>
+    <% else %>
+      <% if person.owner %>
+        <span class="flex items-center gap-1.5" title="<%= person.owner.name %>">
+          <%= avatar(person.owner, size: "size-5", text: "text-2xs") %>
+        </span>
+      <% else %>
+        <span class="text-ink-faint text-xs"><%= t("shared.lists.unassigned") %></span>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div data-inline-edit-target="editor" class="<%= "hidden" unless editing %> min-w-48 [&_.label]:hidden">
+    <%= form_with model: person, url: person_path(person), method: :patch,
+          data: {
+            inline_edit_target: "form",
+            action: "change->inline-edit#submit record-picker:selected->inline-edit#submit"
+          } do |f| %>
+      <%= hidden_field_tag :inline_edit, field %>
+      <% if field == "company_id" %>
+        <%= render "shared/company_select", form: f %>
+      <% else %>
+        <%= f.collection_select :owner_id, current_workspace.users.order(:name), :id, :name,
+              { include_blank: t("shared.lists.unassigned") },
+              class: "input" %>
+      <% end %>
+    <% end %>
+    <p data-inline-edit-target="error"
+       class="<%= "hidden" if error.blank? %> mt-1 text-xs text-danger"><%= error %></p>
+  </div>
+</td>

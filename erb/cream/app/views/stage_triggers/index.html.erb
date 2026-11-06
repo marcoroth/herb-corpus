@@ -1,0 +1,48 @@
+<% page_title t("stage_triggers.index.page_title", stage: @stage.name) %>
+<% actions = capture do %>
+  <%= link_to edit_pipeline_path(@stage.pipeline), class: "btn-secondary" do %>
+    <%= icon :arrow_left, classes: "size-3.5" %> <%= t("stage_triggers.index.back_pipeline") %>
+  <% end %>
+  <%= link_to new_pipeline_stage_stage_trigger_path(@stage), class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("stage_triggers.index.new") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("stage_triggers.index.title", stage: @stage.name, pipeline: @stage.pipeline.name),
+      icon_name: :zap, count: @stage_triggers.size, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-3">
+  <p class="text-sm text-ink-faint">
+    <%= t("stage_triggers.index.intro_html", stage: @stage.name) %>
+  </p>
+  <% if @stage_triggers.empty? %>
+    <p class="text-base text-ink-soft"><%= t("stage_triggers.index.empty") %></p>
+  <% end %>
+  <% @stage_triggers.each do |trigger| %>
+    <article class="card p-4">
+      <div class="flex items-center gap-2">
+        <h2 class="font-semibold text-base"><%= link_to trigger.name, stage_trigger_path(trigger), class: "hover:underline" %></h2>
+        <%= badge trigger.llm? ? t("stage_triggers.badges.llm") : t("stage_triggers.badges.native"),
+              color: trigger.llm? ? "hoki" : "copperfield" %>
+        <%= badge trigger.active? ? t("stage_triggers.badges.active") : t("stage_triggers.badges.inactive"),
+              color: trigger.active? ? "green" : "chicago" %>
+        <% if (last_run = trigger.runs.recent_first.first) %>
+          <% run_status = t("stage_triggers.run_statuses.#{last_run.status}", default: last_run.status) %>
+          <span class="text-sm text-ink-faint"><%= t("stage_triggers.index.last_run", status: run_status) %></span>
+        <% end %>
+        <div class="ml-auto flex gap-2">
+          <%= link_to t("stage_triggers.index.runs"), stage_trigger_path(trigger), class: "btn-ghost" %>
+          <%= link_to t("stage_triggers.index.edit"), edit_stage_trigger_path(trigger), class: "btn-secondary" %>
+          <%= button_to t("stage_triggers.index.destroy"), stage_trigger_path(trigger), method: :delete, class: "btn-danger",
+                data: { turbo_confirm: t("stage_triggers.index.destroy_confirm", name: trigger.name) } %>
+        </div>
+      </div>
+      <p class="text-sm text-ink-faint mt-1">
+        <% if trigger.llm? %>
+          <%= truncate(trigger.instructions, length: 180) %>
+        <% else %>
+          <%= t("stage_triggers.index.native_function", name: StageTriggers::NativeRegistry.fetch(trigger.native_function).label) %>
+        <% end %>
+      </p>
+    </article>
+  <% end %>
+</div>

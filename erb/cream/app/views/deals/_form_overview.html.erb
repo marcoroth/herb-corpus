@@ -1,0 +1,105 @@
+<div>
+  <%= f.label :name, class: "label" %>
+  <%= f.text_field :name, class: "input", autofocus: true, placeholder: t("deals.form.overview.name_placeholder") %>
+</div>
+
+<% if deal.new_record? %>
+  <div data-controller="pipeline-stage-select" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div>
+      <%= f.label :pipeline_id, t("activerecord.attributes.deal.pipeline_id"), class: "label" %>
+      <%= f.collection_select :pipeline_id, current_workspace.pipelines.ordered, :id, :name, {},
+            class: "input",
+            data: { pipeline_stage_select_target: "pipeline", action: "change->pipeline-stage-select#pipelineChanged" } %>
+    </div>
+    <div>
+      <%= f.label :pipeline_stage_id, t("activerecord.attributes.deal.pipeline_stage_id"), class: "label" %>
+      <%= f.select :pipeline_stage_id,
+            options_for_select(
+              current_workspace.pipelines.ordered.flat_map { |p|
+                p.pipeline_stages.ordered.map { |s|
+                  [s.name, s.id, { data: { pipeline_id: p.id } }]
+                }
+              },
+              deal.pipeline_stage_id
+            ),
+            {}, class: "input", data: { pipeline_stage_select_target: "stage" } %>
+    </div>
+  </div>
+<% else %>
+  <div>
+    <%= f.label :pipeline_stage_id, t("activerecord.attributes.deal.pipeline_stage_id"), class: "label" %>
+    <%= f.select :pipeline_stage_id,
+          options_for_select(
+            deal.pipeline.pipeline_stages.ordered.map { |s|
+              [s.name, s.id, { data: { "stage-won": s.won?, "stage-closed": s.closed? } }]
+            },
+            deal.pipeline_stage_id
+          ),
+          {}, class: "input" %>
+  </div>
+<% end %>
+
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <div>
+    <%= f.label :value, t("activerecord.attributes.deal.value"), class: "label" %>
+    <%= f.number_field :value, class: "input", min: 0, step: 0.01, id: "deal_value" %>
+  </div>
+  <div>
+    <%= f.label :currency, t("activerecord.attributes.deal.currency"), class: "label" %>
+    <%= f.select :currency, %w[EUR USD], {}, class: "input" %>
+  </div>
+  <div>
+    <%= f.label :invoice_number, t("activerecord.attributes.deal.invoice_number"), class: "label" %>
+    <%= f.text_field :invoice_number, class: "input", placeholder: t("deals.form.overview.invoice_placeholder") %>
+  </div>
+</div>
+
+<div data-controller="deal-payment" class="space-y-4">
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div>
+      <%= f.label :probability, t("activerecord.attributes.deal.probability"), class: "label" %>
+      <%= f.number_field :probability, class: "input", min: 0, max: 100, step: 5 %>
+    </div>
+    <div>
+      <%= f.label :expected_close_date, t("activerecord.attributes.deal.expected_close_date"), class: "label" %>
+      <%= f.date_field :expected_close_date, class: "input" %>
+    </div>
+    <div>
+      <%= f.label :execution_duration_days, t("activerecord.attributes.deal.execution_duration_days"), class: "label" %>
+      <%= f.number_field :execution_duration_days, class: "input", min: 1, step: 1,
+            placeholder: t("deals.form.overview.execution_duration_placeholder") %>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div>
+      <%= f.label :execution_starts_on, t("activerecord.attributes.deal.execution_starts_on"), class: "label" %>
+      <%= f.date_field :execution_starts_on, class: "input",
+            data: { deal_payment_target: "executionStarts", action: "input->deal-payment#executionStartChanged change->deal-payment#executionStartChanged" } %>
+    </div>
+    <div>
+      <%= f.label :execution_ends_on, t("activerecord.attributes.deal.execution_ends_on"), class: "label" %>
+      <%= f.date_field :execution_ends_on, class: "input" %>
+    </div>
+    <div>
+      <%= f.label :payment_method, t("activerecord.attributes.deal.payment_method"), class: "label" %>
+      <%= f.select :payment_method,
+            options_for_select(
+              [[t("deals.payment_methods.blank"), ""]] + Deal::PAYMENT_METHODS.map { |method|
+                [t("deals.payment_methods.#{method}"), method]
+              },
+              deal.payment_method
+            ),
+            {},
+            class: "input",
+            data: { deal_payment_target: "paymentMethod", action: "change->deal-payment#paymentMethodChanged" } %>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div>
+      <%= f.label :payment_on, t("activerecord.attributes.deal.payment_on"), class: "label" %>
+      <%= f.date_field :payment_on, class: "input", data: { deal_payment_target: "paymentOn" } %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,28 @@
+<% sections = [
+  ["profile", t("companies.form.profile.title"), t("companies.form.profile.description")],
+  ["about", t("companies.form.about.title"), t("companies.form.about.description")],
+  ["fiscal", t("companies.form.fiscal.title"), t("companies.form.fiscal.description")],
+  ["management", t("companies.form.management.title"), t("companies.form.management.description")]
+] %>
+<% sections << ["custom", t("companies.form.custom.title"), t("companies.form.custom.description")] if company.custom_field_definitions.any? %>
+<% sections.select! { |key, _, _| key == @edit_section } if @edit_section %>
+<%= form_with model: company, class: "space-y-5", data: { controller: "linkedin-suggest record-workspace", linkedin_suggest_entity_value: "company", linkedin_suggest_empty_title_value: t("companies.form.profile.search_linkedin_empty"), record_workspace_copy: I18n.t("records.record_workspace"), action: "input->record-workspace#markDirty change->record-workspace#markDirty submit->record-workspace#submit turbo:submit-end->record-workspace#submitted turbo:before-visit@document->record-workspace#beforeVisit beforeunload@window->record-workspace#beforeUnload" } do |f| %>
+  <%= hidden_field_tag :section, @edit_section if @edit_section %>
+  <% if company.errors.any? %>
+    <div role="alert" class="rounded-lg bg-danger-soft ring-1 ring-danger-line px-4 py-3 text-sm text-danger-strong">
+      <p class="font-semibold mb-1"><%= t("shared.form.check_errors") %></p>
+      <ul class="list-disc list-inside"><% company.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
+    </div>
+  <% end %>
+  <% sections.each do |key, title, description| %>
+    <section class="record-card" aria-labelledby="record-edit-<%= key %>">
+      <h2 id="record-edit-<%= key %>" class="record-section-title"><%= title %></h2>
+      <p class="text-sm text-ink-soft mt-1 mb-5"><%= description %></p>
+      <div class="space-y-4"><%= render "form_#{key}", f: f, company: company %></div>
+    </section>
+  <% end %>
+  <div class="sticky bottom-0 flex items-center justify-end gap-2 border-t border-line bg-canvas-raised px-4 py-4 rounded-xl">
+    <%= link_to t("shared.form.cancel"), company.persisted? ? company_path(company, tab: "information") : companies_path, class: "btn-secondary" %>
+    <%= f.submit company.persisted? ? t("shared.form.save_changes") : t("shared.form.create_company"), class: "btn-primary" %>
+  </div>
+<% end %>

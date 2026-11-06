@@ -1,0 +1,41 @@
+<% composers = [["note", t("records.add_note")], ["task", t("records.create_task")]] %>
+<% composers << ["email", t("records.send_email")] if feature_enabled?(:record_email) %>
+<% composers << ["comment", t("records.add_comment")] if feature_enabled?(:comments) %>
+<% composers.each do |key, title| %>
+  <dialog class="record-composer" data-record-workspace-target="composer" data-composer="<%= key %>" aria-labelledby="record-compose-<%= key %>" data-action="close->record-workspace#composerClosed">
+    <div class="record-composer-header">
+      <div><h2 id="record-compose-<%= key %>" class="text-lg font-semibold"><%= title %></h2><p class="text-sm text-ink-soft mt-1"><%= @company.name %></p></div>
+      <button type="button" class="btn-ghost" data-action="record-workspace#closeComposer" aria-label="<%= t("records.composers.close_editor") %>"><%= icon :x, classes: "size-5" %></button>
+    </div>
+    <div class="p-5 sm:p-6">
+      <% case key %>
+      <% when "note" %>
+        <%= form_with model: @note, url: notes_path, class: "space-y-4" do |f| %>
+          <%= hidden_field_tag :notable_type, "Company" %><%= hidden_field_tag :notable_id, @company.id %>
+          <div><%= f.label :title, t("records.composers.title_optional"), class: "label" %><%= f.text_field :title, class: "input", placeholder: t("records.composers.note_title_placeholder") %></div>
+          <div><%= f.label :body, t("records.composers.note_label"), class: "label" %><%= f.text_area :body, rows: 6, class: "input", required: true, placeholder: t("records.composers.note_placeholder") %></div>
+          <div class="record-composer-footer"><button type="button" class="btn-secondary" data-action="record-workspace#closeComposer"><%= t("records.close") %></button><%= f.submit t("records.add_note"), class: "btn-primary" %></div>
+        <% end %>
+      <% when "task" %>
+        <%= form_with model: @task, url: tasks_path, class: "space-y-4" do |f| %>
+          <%= hidden_field_tag :taskable_type, "Company" %><%= hidden_field_tag :taskable_id, @company.id %>
+          <div><%= f.label :title, t("records.composers.task_label"), class: "label" %><%= mention_text_field f, :title, placeholder: t("records.composers.task_placeholder"), class: "input w-full", wrapper_class: "w-full", required: true %></div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div><%= f.label :due_on, t("shared.tasks.due_date"), class: "label" %><%= f.date_field :due_on, class: "input" %></div>
+            <div><%= f.label :assignee_id, t("shared.tasks.assignee"), class: "label" %><%= f.collection_select :assignee_id, current_workspace.users.order(:name), :id, :name, { selected: current_user.id }, class: "input" %></div>
+          </div>
+          <div class="record-composer-footer"><button type="button" class="btn-secondary" data-action="record-workspace#closeComposer"><%= t("records.close") %></button><%= f.submit t("records.create_task"), class: "btn-primary" %></div>
+        <% end %>
+      <% when "email" %>
+        <%= render "shared/email_section", record: @company, email_message: @email_message, show_history: false %>
+      <% when "comment" %>
+        <%= form_with model: @comment, url: comments_path, class: "space-y-4" do |f| %>
+          <%= hidden_field_tag :commentable_type, "Company" %><%= hidden_field_tag :commentable_id, @company.id %>
+          <div><%= f.label :body, t("records.composers.comment_label"), class: "label" %><%= f.text_area :body, rows: 5, class: "input", required: true, placeholder: t("records.composers.comment_placeholder") %></div>
+          <div class="record-composer-footer"><button type="button" class="btn-secondary" data-action="record-workspace#closeComposer"><%= t("records.close") %></button><%= f.submit t("records.add_comment"), class: "btn-primary" %></div>
+        <% end %>
+      <% end %>
+      <p class="text-xs text-ink-soft mt-4"><%= t("records.composers.draft_hint") %></p>
+    </div>
+  </dialog>
+<% end %>

@@ -1,0 +1,47 @@
+<%# locals: (body_name:, body_editor_name:, body:, body_editor:, editor_id:, body_data: {}) %>
+<% effective_mode = body_editor == "quill" && EmailTemplate.quill_unsupported_tags(body).any? ? "html" : body_editor %>
+<div class="space-y-2"
+     data-controller="email-template-body-editor"
+     data-email-template-body-editor-mode-value="<%= effective_mode %>"
+     data-email-template-body-editor-supported-tags-value="<%= EmailTemplate::QUILL_SUPPORTED_TAGS.to_json %>"
+     data-email-template-body-editor-unsupported-tags-confirm-value="<%= t("email_templates.body_editor.unsupported_tags_confirm") %>">
+  <%= tag.textarea body, name: body_name, class: "sr-only",
+        data: { email_template_body_editor_target: "bodyInput" }.merge(body_data) %>
+  <input type="hidden" name="<%= body_editor_name %>" value="<%= effective_mode %>" data-email-template-body-editor-target="bodyEditorInput">
+
+  <fieldset class="flex flex-wrap gap-4 text-sm">
+    <label class="flex items-center gap-2 cursor-pointer">
+      <%= radio_button_tag "body_editor_choice_#{editor_id}", "quill", effective_mode == "quill",
+            data: {
+              email_template_body_editor_target: "quillModeRadio",
+              action: "email-template-body-editor#selectQuill"
+            } %>
+      <%= t("email_templates.body_editor.mode_quill") %>
+    </label>
+    <label class="flex items-center gap-2 cursor-pointer">
+      <%= radio_button_tag "body_editor_choice_#{editor_id}", "html", effective_mode == "html",
+            data: {
+              email_template_body_editor_target: "htmlModeRadio",
+              action: "email-template-body-editor#selectHtml"
+            } %>
+      <%= t("email_templates.body_editor.mode_html") %>
+    </label>
+  </fieldset>
+
+  <div data-email-template-body-editor-target="quillPanel" class="<%= "hidden" unless effective_mode == "quill" %>">
+    <div class="rich-text-editor border border-line rounded-md overflow-hidden bg-canvas" data-controller="rich-text-editor">
+      <textarea class="sr-only" data-rich-text-editor-target="input" data-email-template-body-editor-target="quillInput"><%= body %></textarea>
+      <div data-rich-text-editor-target="editor"></div>
+    </div>
+  </div>
+
+  <div data-email-template-body-editor-target="htmlPanel" class="<%= "hidden" unless effective_mode == "html" %>">
+    <div class="liquid-editor border border-line rounded-md overflow-hidden bg-canvas" data-controller="liquid-editor">
+      <textarea rows="24" spellcheck="false" class="sr-only"
+                data-liquid-editor-target="input"
+                data-email-template-body-editor-target="htmlInput"><%= body %></textarea>
+      <div data-liquid-editor-target="editor" class="liquid-editor__surface" style="min-height: 33.6rem;"></div>
+    </div>
+    <p class="mt-1 text-xs text-ink-faint"><%= t("email_templates.body_editor.html_hint").html_safe %></p>
+  </div>
+</div>

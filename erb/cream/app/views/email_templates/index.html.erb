@@ -1,0 +1,73 @@
+<% page_title t("email_templates.index.page_title") %>
+<% actions = capture do %>
+  <%= link_to new_email_layout_path, class: "btn-secondary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("email_templates.index.new_layout") %>
+  <% end %>
+  <%= link_to new_email_template_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("email_templates.index.new_template") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("email_templates.index.title"), icon_name: :mail, count: @templates.size, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-6">
+  <section class="space-y-3">
+    <div class="flex items-center gap-2">
+      <h2 class="font-semibold text-base"><%= t("email_templates.index.layouts_heading") %></h2>
+      <span class="text-sm text-ink-faint"><%= @layouts.size %></span>
+    </div>
+    <% if @layouts.empty? %>
+      <p class="text-sm text-ink-faint"><%= t("email_templates.index.layouts_empty_hint").html_safe %></p>
+    <% else %>
+      <% @layouts.each do |layout| %>
+        <article class="card p-4">
+          <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-semibold text-base"><%= layout.name %></h3>
+            <span class="text-xs text-ink-faint"><%= t("email_templates.index.template_count", count: layout.email_templates.count) %></span>
+            <div class="ml-auto flex gap-2">
+              <%= link_to t("email_templates.index.edit"), edit_email_layout_path(layout), class: "btn-secondary" %>
+              <%= button_to t("email_templates.index.delete"), email_layout_path(layout), method: :delete, class: "btn-danger",
+                    form: { data: { turbo_confirm: t("email_templates.index.delete_layout_confirm", name: layout.name) } } %>
+            </div>
+          </div>
+          <p class="text-base text-ink-soft mt-1"><%= email_body_preview(layout.body, length: 200) %></p>
+        </article>
+      <% end %>
+    <% end %>
+  </section>
+
+  <section class="space-y-3">
+    <div class="flex items-center gap-2">
+      <h2 class="font-semibold text-base"><%= t("email_templates.index.templates_heading") %></h2>
+      <span class="text-sm text-ink-faint"><%= @templates.size %></span>
+    </div>
+    <% @templates.each do |template| %>
+      <article class="card p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <h3 class="font-semibold text-base"><%= template.name %></h3>
+          <%= badge t("email_templates.badges.shared"), color: "hoki" if template.shared %>
+          <%= badge template.body_editor == "html" ? t("email_templates.badges.html") : t("email_templates.badges.quill"), color: "chicago" %>
+          <% if template.email_layout %>
+            <%= badge template.email_layout.name, color: "hoki" %>
+          <% end %>
+          <div class="ml-auto flex gap-2">
+            <%= link_to t("email_templates.index.edit"), edit_email_template_path(template), class: "btn-secondary" %>
+            <%= button_to t("email_templates.index.delete"), email_template_path(template), method: :delete, class: "btn-danger" %>
+          </div>
+        </div>
+        <p class="text-sm text-ink-faint"><%= template.subject %></p>
+        <p class="text-base text-ink-soft mt-1"><%= email_body_preview(template.body, length: 200) %></p>
+        <% if template.attachments.attached? %>
+          <ul class="mt-2 space-y-1">
+            <% template.attachments.each do |file| %>
+              <li class="flex items-center gap-2 text-sm text-ink-faint">
+                <%= icon :paperclip, classes: "size-3.5" %>
+                <span><%= file.filename %></span>
+                <span class="text-xs"><%= number_to_human_size(file.byte_size) %></span>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+      </article>
+    <% end %>
+  </section>
+</div>

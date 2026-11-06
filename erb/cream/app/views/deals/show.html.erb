@@ -1,0 +1,152 @@
+<% page_title @deal.name %>
+<div class="record-workspace" data-controller="record-workspace"
+     data-record-workspace-copy-value="<%= json_escape(I18n.t("records.record_workspace")) %>"
+     data-action="turbo:before-visit@document->record-workspace#beforeVisit beforeunload@window->record-workspace#beforeUnload input->record-workspace#markDirty change->record-workspace#markDirty submit->record-workspace#submit turbo:submit-end->record-workspace#submitted">
+  <header class="record-header">
+    <div class="flex items-center gap-2 text-sm text-ink-soft mb-5">
+      <button type="button" class="btn-ghost md:hidden" aria-label="<%= t("records.open_menu") %>" data-action="mobile-nav#open"><%= icon :menu, classes: "size-4" %></button>
+      <%= link_to t("nav.deals"), board_deals_path, class: "hover:text-accent hover:underline" %>
+      <span aria-hidden="true">/</span><span><%= t("deals.show.overview") %></span>
+    </div>
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex items-center gap-4 min-w-0">
+        <%= avatar @deal, size: "size-14", text: "text-lg" %>
+        <div class="min-w-0">
+          <h1 class="text-2xl font-semibold tracking-tight break-words"><%= @deal.name %></h1>
+          <p class="text-base text-ink-soft mt-1">
+            <% if @deal.company %><%= link_to @deal.company.name, company_path(@deal.company), class: "hover:text-accent hover:underline" %><% end %>
+            <% if @deal.company && @deal.pipeline %><span aria-hidden="true"> · </span><% end %>
+            <% if @deal.pipeline %><span><%= @deal.pipeline.name %></span><% end %>
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <%= link_to edit_deal_path(@deal), class: "btn-secondary" do %><%= icon :pencil, classes: "size-3.5" %><span><%= t("records.edit") %></span><% end %>
+        <details class="record-menu">
+          <summary class="btn-ghost" aria-label="<%= t("deals.show.more_actions") %>">•••</summary>
+          <div class="record-menu-items">
+            <%= link_to deal_versions_path(@deal), class: "btn-ghost justify-start" do %><%= icon :activity, classes: "size-4" %> <%= t("deals.show.version_history") %><% end %>
+            <%= button_to duplicate_deal_path(@deal), method: :post, class: "btn-ghost justify-start w-full" do %><%= icon :copy, classes: "size-4" %> <%= t("deals.show.duplicate") %><% end %>
+            <%= button_to deal_path(@deal), method: :delete, form: { data: { turbo_confirm: t("records.delete_confirm", name: @deal.name) } }, class: "btn-ghost text-danger w-full justify-start" do %><%= icon :trash, classes: "size-4" %> <%= t("deals.show.delete") %><% end %>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm mt-4 text-ink-soft">
+      <%= render "value_display", deal: @deal %>
+      <%= render "stage_badge", deal: @deal %>
+      <% if @deal.expected_close_date.present? %><span class="inline-flex items-center gap-2"><%= icon :calendar, classes: "size-4" %><%= t("deals.show.close_date", date: l(@deal.expected_close_date, format: :short)) %></span><% end %>
+      <% if @deal.contacts.any? %>
+        <span class="inline-flex items-center gap-2"><%= icon :users, classes: "size-4" %><%= safe_join(@deal.contacts.first(2).map { |p| link_to(p.display_name, person_path(p), class: "hover:text-accent hover:underline") }, ", ") %><% if @deal.contacts.size > 2 %><span> +<%= @deal.contacts.size - 2 %></span><% end %></span>
+      <% end %>
+    </div>
+    <div class="record-actions">
+      <% if feature_enabled?(:record_email) %>
+        <button type="button" class="btn-primary" data-action="record-workspace#openComposer" data-composer="email"><%= icon :mail, classes: "size-4" %> <%= t("records.send_email") %></button>
+      <% end %>
+      <button type="button" class="btn-secondary" data-action="record-workspace#openComposer" data-composer="note"><%= icon :note, classes: "size-4" %> <%= t("records.add_note") %></button>
+      <button type="button" class="btn-secondary" data-action="record-workspace#openComposer" data-composer="task"><%= icon :check_circle, classes: "size-4" %> <%= t("records.create_task") %></button>
+    </div>
+  </header>
+
+  <nav class="record-tabs" aria-label="<%= t("records.sections_aria.deal") %>" role="tablist">
+    <% tabs = [["activity", t("records.tabs.activity"), nil], ["pipeline", t("records.tabs.pipeline"), nil], ["products", t("records.tabs.products"), @line_items.size], ["offers", t("records.tabs.offers"), @deal.offers.size], ["information", t("records.tabs.information"), nil]] %>
+    <% tabs << ["files", t("records.tabs.files"), @deal.record_attachments.count] if feature_enabled?(:attachments) %>
+    <% tabs.each do |key, label, count| %>
+      <%= link_to deal_path(@deal, tab: key), id: "record-tab-#{key}", role: "tab", class: "record-tab", tabindex: @deal_tab == key ? 0 : -1,
+            aria: { selected: @deal_tab == key, controls: "record-panel-#{key}" },
+            data: { record_workspace_target: "tab", tab: key, action: "click->record-workspace#selectTab keydown->record-workspace#navigateTabs" } do %>
+        <%= label %><% unless count.nil? %><span class="record-count"><%= count %></span><% end %>
+      <% end %>
+    <% end %>
+  </nav>
+
+  <div class="record-content">
+    <section id="record-panel-activity" role="tabpanel" aria-labelledby="record-tab-activity" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @deal_tab == "activity" %>>
+      <div class="record-overview-grid">
+        <div class="min-w-0 space-y-6">
+          <% if feature_enabled?(:stage_triggers) %>
+            <%= render "trigger_panel", deal: @deal, run: StageTriggerRun.latest_panel_for(@deal) %>
+          <% end %>
+          <section class="record-card" aria-labelledby="record-next-tasks">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h2 id="record-next-tasks" class="record-section-title"><%= t("records.next_tasks") %> <span class="record-count"><%= @pending_tasks.size %></span></h2>
+              <button type="button" class="btn-ghost" data-action="record-workspace#openComposer" data-composer="task"><%= icon :plus, classes: "size-4" %> <%= t("records.add") %></button>
+            </div>
+            <% if @pending_tasks.any? %>
+              <ul class="space-y-2"><%= render partial: "shared/task_row", collection: @pending_tasks.first(3), as: :task %></ul>
+              <% if @pending_tasks.size > 3 %>
+                <details class="record-disclosure mt-3"><summary><%= t("records.show_more_pending", count: @pending_tasks.size - 3) %></summary><ul class="space-y-2 mt-3"><%= render partial: "shared/task_row", collection: @pending_tasks.drop(3), as: :task %></ul></details>
+              <% end %>
+            <% else %>
+              <p class="text-sm text-ink-soft"><%= t("records.no_pending_tasks") %></p>
+            <% end %>
+            <% if @completed_tasks.any? %>
+              <details class="record-disclosure mt-4"><summary><%= t("records.completed_tasks", count: @completed_tasks.size) %></summary><ul class="space-y-2 mt-3"><%= render partial: "shared/task_row", collection: @completed_tasks, as: :task %></ul></details>
+            <% end %>
+          </section>
+          <%= render "activity_feed" %>
+        </div>
+        <aside class="space-y-5 min-w-0" aria-label="<%= t("records.context_aria.deal") %>">
+          <section class="record-card">
+            <h2 class="record-section-title mb-4"><%= t("records.at_a_glance") %></h2>
+            <dl class="record-context-list">
+              <div><dt><%= t("records.fields.stage") %></dt><dd><%= render DealStageComponent.new(deal: @deal) %></dd></div>
+              <div><dt><%= t("records.fields.value") %></dt><dd><%= deal_field_display(@deal, :value).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.currency") %></dt><dd><%= @deal.currency.presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.invoice_number") %></dt><dd><%= deal_field_display(@deal, :invoice_number).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.probability") %></dt><dd><%= deal_field_display(@deal, :probability).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.close_date") %></dt><dd><%= deal_field_display(@deal, :expected_close_date).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.execution_duration") %></dt><dd><%= deal_field_display(@deal, :execution_duration_days).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.execution_starts_on") %></dt><dd><%= deal_field_display(@deal, :execution_starts_on).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.execution_ends_on") %></dt><dd><%= deal_field_display(@deal, :execution_ends_on).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.payment_method") %></dt><dd><%= deal_field_display(@deal, :payment_method).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.payment_on") %></dt><dd><%= deal_field_display(@deal, :payment_on).presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.company") %></dt><dd><%= @deal.company&.name || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.owner") %></dt><dd><%= @deal.owner&.name || t("shared.tasks.unassigned") %></dd></div>
+            </dl>
+            <button type="button" class="btn-ghost mt-4 -ml-2" data-action="record-workspace#selectTab" data-tab="pipeline"><%= t("records.view_pipeline") %> <%= icon :chevron_right, classes: "size-3.5" %></button>
+            <button type="button" class="btn-ghost -ml-2" data-action="record-workspace#selectTab" data-tab="information"><%= t("records.view_all_information") %> <%= icon :chevron_right, classes: "size-3.5" %></button>
+          </section>
+          <% if @line_items.any? %>
+            <section class="record-card">
+              <h2 class="record-section-title mb-4"><%= t("records.tabs.products") %></h2>
+              <ul class="space-y-2 text-sm">
+                <% @line_items.first(3).each do |line| %>
+                  <li class="flex items-center justify-between gap-2"><span class="truncate"><%= line.product.name %></span><span class="text-ink-soft tabular-nums shrink-0"><%= money(line.subtotal, @deal.currency) %></span></li>
+                <% end %>
+              </ul>
+              <button type="button" class="btn-ghost mt-4 -ml-2" data-action="record-workspace#selectTab" data-tab="products"><%= t("records.view_products", count: @line_items.size) %> <%= icon :chevron_right, classes: "size-3.5" %></button>
+            </section>
+          <% end %>
+          <% if feature_enabled?(:ai_assistant) %>
+            <details class="record-disclosure record-card"><summary><%= t("records.ai_assistant") %></summary><div class="mt-4"><%= render "shared/ai_assistant_section", record: @deal %></div></details>
+          <% end %>
+        </aside>
+      </div>
+    </section>
+
+    <section id="record-panel-pipeline" role="tabpanel" aria-labelledby="record-tab-pipeline" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @deal_tab == "pipeline" %>>
+      <%= render "pipeline_panel" %>
+    </section>
+
+    <section id="record-panel-products" role="tabpanel" aria-labelledby="record-tab-products" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @deal_tab == "products" %>>
+      <%= render "products_section", deal: @deal, line_items: @line_items, products: @products %>
+    </section>
+
+    <section id="record-panel-offers" role="tabpanel" aria-labelledby="record-tab-offers" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @deal_tab == "offers" %>>
+      <%= render "offers_section", deal: @deal %>
+    </section>
+
+    <section id="record-panel-information" role="tabpanel" aria-labelledby="record-tab-information" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @deal_tab == "information" %>>
+      <%= render "information_panel" %>
+    </section>
+
+    <% if feature_enabled?(:attachments) %>
+      <section id="record-panel-files" role="tabpanel" aria-labelledby="record-tab-files" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @deal_tab == "files" %>>
+        <div class="record-card"><%= render "shared/attachments_section", record: @deal %></div>
+      </section>
+    <% end %>
+  </div>
+  <%= render "composers" %>
+</div>

@@ -1,0 +1,77 @@
+<%# locals: (person:, deal:) %>
+<% pipelines = current_workspace.pipelines.ordered %>
+<% default_pipeline = current_pipeline || Pipeline.default_for(current_workspace) %>
+<%= turbo_frame_tag dom_id(person, :quick_deal_form) do %>
+  <div class="p-4 space-y-4">
+    <h3 class="text-base font-semibold"><%= t("people.quick_deal.title") %></h3>
+
+    <% if pipelines.none? %>
+      <p class="text-sm text-ink-soft">
+        <%= t("people.quick_deal.no_pipeline_html", link: link_to(t("people.quick_deal.create_pipeline"), new_pipeline_path, class: "text-accent hover:underline")) %>
+      </p>
+      <div class="flex justify-end">
+        <button type="button" class="btn-secondary" data-action="task-edit#close"><%= t("records.close") %></button>
+      </div>
+    <% elsif current_workspace.products.any? %>
+      <p class="text-sm text-ink-soft">
+        <%= t("people.quick_deal.intro", company: person.company.name) %>
+      </p>
+      <%= form_with model: deal, url: deals_path, class: "space-y-4", data: { turbo_frame: "_top" } do |f| %>
+        <%= hidden_field_tag :quick_from_person_id, person.id %>
+        <%= f.hidden_field :company_id, value: person.company_id %>
+        <%= hidden_field_tag "deal[contact_ids][]", person.id %>
+
+        <% if deal.errors.any? %>
+          <div class="rounded-lg bg-danger-soft ring-1 ring-danger-line px-3 py-2 text-sm text-danger-strong">
+            <ul class="list-disc list-inside">
+              <% deal.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <div>
+          <%= f.label :pipeline_id, t("records.fields.pipeline"), class: "label" %>
+          <%= f.collection_select :pipeline_id, pipelines, :id, :name,
+                { selected: deal.pipeline_id || default_pipeline&.id },
+                { required: true, class: "input w-full" } %>
+        </div>
+
+        <%= f.fields_for :deal_products, (deal.deal_products.presence || [ deal.deal_products.build(quantity: 1) ]) do |pf| %>
+          <div>
+            <%= pf.label :product_id, t("people.show.product"), class: "label" %>
+            <%= pf.collection_select :product_id, current_workspace.products.ordered, :id, :name,
+                  { include_blank: t("deals.show.select_product") },
+                  { required: true, class: "input w-full" } %>
+            <%= pf.hidden_field :quantity, value: pf.object.quantity || 1 %>
+          </div>
+        <% end %>
+
+        <div class="rounded-lg border border-line bg-canvas-sunken/40 p-3 space-y-3">
+          <h4 class="text-sm font-semibold uppercase tracking-wider text-ink-faint"><%= t("people.quick_deal.next_action") %></h4>
+          <%= f.fields_for :tasks, (deal.tasks.presence || [ deal.tasks.build(due_on: Task.default_due_on) ]) do |tf| %>
+            <div>
+              <%= tf.label :title, t("records.composers.task_label"), class: "label" %>
+              <%= tf.text_field :title, class: "input w-full", required: true, placeholder: t("people.quick_deal.task_placeholder") %>
+            </div>
+            <div>
+              <%= tf.label :due_on, t("shared.tasks.due_date"), class: "label" %>
+              <%= tf.date_field :due_on, class: "input w-full", min: Date.current, required: true %>
+            </div>
+          <% end %>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button type="button" class="btn-secondary" data-action="task-edit#close"><%= t("records.cancel") %></button>
+          <%= f.submit t("people.quick_deal.create"), class: "btn-primary" %>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="text-sm text-ink-soft">
+        <%= t("people.quick_deal.no_products_html", link: link_to(t("people.quick_deal.create_product"), new_product_path, class: "text-accent hover:underline")) %>
+      </p>
+      <div class="flex justify-end">
+        <button type="button" class="btn-secondary" data-action="task-edit#close"><%= t("records.close") %></button>
+      </div>
+    <% end %>
+  </div>
+<% end %>

@@ -1,0 +1,47 @@
+<% page_title @stage_trigger.name %>
+<% actions = capture do %>
+  <%= link_to pipeline_stage_stage_triggers_path(@stage_trigger.pipeline_stage), class: "btn-secondary" do %>
+    <%= icon :arrow_left, classes: "size-3.5" %> <%= t("stage_triggers.show.back_triggers") %>
+  <% end %>
+  <%= link_to t("stage_triggers.show.edit"), edit_stage_trigger_path(@stage_trigger), class: "btn-primary" %>
+<% end %>
+<%= render "shared/page_header", title: @stage_trigger.name, icon_name: :zap, count: @runs.size, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-3">
+  <% mode_label = @stage_trigger.llm? ? t("stage_triggers.show.mode_llm") : t("stage_triggers.show.mode_native") %>
+  <p class="text-sm text-ink-faint">
+    <%= t("stage_triggers.show.intro_html",
+          stage: @stage_trigger.pipeline_stage.name,
+          pipeline: @stage_trigger.pipeline.name,
+          mode: mode_label,
+          count: @runs.size) %>
+  </p>
+  <% if @runs.empty? %>
+    <p class="text-base text-ink-soft"><%= t("stage_triggers.show.empty_runs") %></p>
+  <% end %>
+  <% @runs.each do |run| %>
+    <article class="card p-4 space-y-1">
+      <div class="flex items-center gap-2">
+        <% status_label = t("stage_triggers.run_statuses.#{run.status}", default: run.status) %>
+        <%= badge status_label, color: { "succeeded" => "green", "failed" => "red", "running" => "golden" }.fetch(run.status, "chicago") %>
+        <%= link_to run.deal.name, deal_path(run.deal), class: "text-base font-medium hover:underline" %>
+        <span class="text-sm text-ink-faint">
+          <%= l(run.created_at, format: :short) %>
+          <% if run.user %> · <%= t("stage_triggers.show.run_by", name: run.user.name) %><% end %>
+          <% if run.duration %> · <%= number_with_precision(run.duration, precision: 1) %>s<% end %>
+        </span>
+      </div>
+      <% if run.error.present? %>
+        <p class="text-sm text-danger-strong"><%= run.error %></p>
+      <% end %>
+      <% if run.transcript.present? %>
+        <details class="text-sm text-ink-faint">
+          <summary class="cursor-pointer select-none">
+            <%= t("stage_triggers.show.transcript_steps", count: run.transcript.size) %>
+          </summary>
+          <pre class="mt-1 p-2 rounded bg-canvas-sunken overflow-x-auto text-xs"><%= JSON.pretty_generate(run.transcript) %></pre>
+        </details>
+      <% end %>
+    </article>
+  <% end %>
+</div>

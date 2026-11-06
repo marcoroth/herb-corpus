@@ -1,0 +1,46 @@
+<%# locals: (form:, record:) %>
+<% fields = record.custom_field_definitions %>
+<% if fields.any? %>
+  <div class="rounded-lg border border-line bg-canvas-sunken/40 p-3 space-y-4">
+    <h3 class="text-sm font-semibold uppercase tracking-wider text-ink-faint"><%= t("shared.form.custom_fields") %></h3>
+    <% values = record.custom_fields_hash %>
+    <% param_key = record.model_name.param_key %>
+    <% fields.each do |field| %>
+      <% current = values[field.key] %>
+      <div>
+        <%= label_tag "#{param_key}_custom_fields_#{field.key}", field.name, class: "label" %>
+        <% name = "#{param_key}[custom_fields][#{field.key}]" %>
+        <% case field.field_type %>
+        <% when "long_text" %>
+          <%= text_area_tag name, current, rows: 3, class: "input", required: field.required? %>
+        <% when "number" %>
+          <%= number_field_tag name, current, class: "input", step: "any", required: field.required? %>
+        <% when "currency" %>
+          <%= number_field_tag name, current, class: "input", min: 0, step: 0.01, required: field.required? %>
+        <% when "date" %>
+          <%= date_field_tag name, current.is_a?(Date) ? current : current, class: "input", required: field.required? %>
+        <% when "boolean" %>
+          <div class="flex items-center gap-2">
+            <%= hidden_field_tag name, "0" %>
+            <%= check_box_tag name, "1", ActiveModel::Type::Boolean.new.cast(current), class: "rounded border-line" %>
+            <span class="text-base text-ink-soft"><%= t("shared.filters.yes") %></span>
+          </div>
+        <% when "select" %>
+          <%= select_tag name, options_for_select(field.options, current), include_blank: field.required? ? nil : "—", class: "input", required: field.required? %>
+        <% when "multi_select" %>
+          <%= select_tag name, options_for_select(field.options, Array(current)), multiple: true, size: [field.options.size, 4].min, class: "input", required: field.required? %>
+        <% when "url" %>
+          <%= url_field_tag name, current, class: "input", required: field.required? %>
+        <% when "email" %>
+          <%= email_field_tag name, current, class: "input", required: field.required? %>
+        <% when "record_reference" %>
+          <%= select_tag name,
+                options_from_collection_for_select(field.reference_scope(record.workspace), :id, field.reference_label_method, current),
+                include_blank: field.required? ? nil : "—", class: "input", required: field.required? %>
+        <% else %>
+          <%= text_field_tag name, current, class: "input", required: field.required? %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>

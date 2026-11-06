@@ -1,0 +1,171 @@
+<% page_title t("deals.board.title") %>
+<% board_deal_count = @board_stage_columns.sum { |column| column[:deals].size } %>
+<% actions = capture do %>
+  <% if @pipelines.size > 1 %>
+    <%= render "shared/active_pipeline_select",
+          pipelines: @pipelines,
+          selected_pipeline: current_pipeline,
+          include_all: true,
+          return_to: board_deals_path %>
+  <% end %>
+  <% closed_toggle_params = show_closed? ? filter_form_params.except(:closed) : filter_form_params.merge(closed: "1") %>
+  <%= link_to board_deals_path(closed_toggle_params),
+        class: show_closed? ? "btn-secondary" : "btn-ghost" do %>
+    <%= icon :check_circle, classes: "size-3.5" %>
+    <%= show_closed? ? t("shared.lists.closed_shown") : t("shared.lists.show_closed") %>
+  <% end %>
+  <%= link_to deals_path(filter_form_params), class: "btn-secondary" do %>
+    <%= icon :list, classes: "size-3.5" %> <%= t("shared.lists.table") %>
+  <% end %>
+  <%= link_to new_deal_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("shared.lists.new_deal") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("nav.deals"), icon_name: :banknote,
+      count: board_deal_count, actions: actions %>
+<%= render "shared/view_tabs", views: @saved_views, record_type: "Deal" %>
+
+<div class="flex-1 flex flex-col min-h-0 overflow-hidden" data-controller="board-pager">
+  <div class="md:hidden flex items-center justify-between gap-2 border-b border-line px-5 py-2 shrink-0 bg-canvas">
+    <button type="button"
+            class="btn-ghost p-1.5 disabled:opacity-40"
+            aria-label="<%= t("deals.board.previous_stage") %>"
+            data-board-pager-target="prevBtn"
+            data-action="board-pager#prev">
+      <%= icon :chevron_left, classes: "size-4" %>
+    </button>
+    <div class="min-w-0 flex-1 text-center">
+      <p class="text-base font-medium truncate" data-board-pager-target="stageName"></p>
+      <p class="text-xs text-ink-faint tabular-nums" data-board-pager-target="indicator"></p>
+    </div>
+    <button type="button"
+            class="btn-ghost p-1.5 disabled:opacity-40"
+            aria-label="<%= t("deals.board.next_stage") %>"
+            data-board-pager-target="nextBtn"
+            data-action="board-pager#next">
+      <%= icon :chevron_right, classes: "size-4" %>
+    </button>
+  </div>
+
+<div class="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2 shrink-0">
+  <%= form_with url: board_deals_path, method: :get, class: "flex items-center gap-2 flex-1 flex-wrap" do %>
+    <%= hidden_field_tag :view, @active_view.id if @active_view %>
+    <%= hidden_field_tag :closed, "1" if show_closed? %>
+    <div class="relative max-w-xs flex-1">
+      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-3.5" %></span>
+      <%= text_field_tag :q, filter_value(:q), placeholder: t("deals.index.search_placeholder"), class: "input pl-8" %>
+    </div>
+    <%= render "filters", show_stage: false %>
+    <%= select_tag :sort,
+          options_for_select(board_deal_sort_options(pipeline: @pipeline, custom_fields: @custom_fields), board_sort_selected),
+          class: "input w-48",
+          data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+    <%= hidden_field_tag :dir, board_sort_direction %>
+    <button type="submit"
+            name="dir"
+            value="<%= board_sort_direction == "desc" ? "asc" : "desc" %>"
+            class="btn-ghost p-1.5"
+            title="<%= t("deals.board.sort_direction") %>"
+            aria-label="<%= t("deals.board.sort_direction") %>">
+      <%= icon(board_sort_direction == "desc" ? :chevron_down : :chevron_up, classes: "size-4") %>
+    </button>
+    <% if filters_active? %>
+      <%= link_to t("shared.lists.clear"), board_deals_path(clear_filters: 1), class: "btn-ghost" %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex-1 overflow-x-auto overflow-y-hidden scrollbar-subtle bg-canvas-soft/60 snap-x snap-mandatory md:snap-none"
+     data-controller="kanban"
+     data-board-pager-target="track"
+     data-kanban-url-value="/deals/:id/move"
+     data-kanban-persist-position-value="<%= @board_manual_sort %>"
+     <% if @pipeline %>data-kanban-reorder-url-value="<%= reorder_stages_pipeline_path(@pipeline) %>"<% end %>>
+  <div class="flex h-full gap-3 p-4 md:min-w-max" data-kanban-target="stageTrack">
+    <% @board_stage_columns.each do |column| %>
+      <section class="w-[85vw] max-w-sm shrink-0 snap-center md:w-72 md:max-w-none flex flex-col rounded-xl ring-1 max-h-full <%= stage_column_classes(column[:color]) %>"
+               data-kanban-target="stageColumn"
+               data-board-pager-target="stageColumn"
+               data-stage-id="<%= column[:drop_key] %>">
+        <%= render "stage_summary",
+              stage: column[:stage],
+              stage_name: column[:name],
+              dom_id: column[:dom_id],
+              deals: column[:deals],
+              reorderable: column[:reorderable],
+              show_probability: column[:show_probability] %>
+        <div class="flex-1 overflow-y-auto scrollbar-subtle px-2 pb-2 space-y-2 min-h-24"
+             data-kanban-target="column" data-stage="<%= column[:drop_key] %>">
+          <% column[:deals].each do |deal| %>
+            <article class="card p-3 shadow-xs cursor-grab active:cursor-grabbing hover:border-line-strong transition-colors"
+                     draggable="true" data-kanban-target="card" data-deal-id="<%= deal.id %>">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <%= link_to deal.name, deal_path(deal), class: "text-base font-medium hover:text-accent leading-snug" %>
+                  <% if column[:show_pipeline_on_cards] %>
+                    <p class="text-xs text-ink-faint mt-0.5 truncate"><%= deal.pipeline.name %></p>
+                  <% end %>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <%= deal_task_indicator(deal) %>
+                  <% if deal.pipeline.show_card_field?(:owner) && deal.owner %>
+                    <%= avatar deal.owner, size: "size-5", text: "text-2xs" %>
+                  <% end %>
+                </div>
+              </div>
+              <% if deal.pipeline.show_card_field?(:value) %>
+                <%= render "card_value", deal: deal %>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:probability) && deal.probability.present? %>
+                <p class="text-xs text-ink-faint tabular-nums mt-1"><%= deal_field_display(deal, :probability) %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:execution_duration_days) && deal.execution_duration_days.present? %>
+                <p class="text-xs text-ink-faint tabular-nums mt-1"><%= deal_field_display(deal, :execution_duration_days) %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:execution_starts_on) && deal.execution_starts_on.present? %>
+                <p class="text-xs text-ink-faint tabular-nums mt-1"><%= deal_field_display(deal, :execution_starts_on) %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:execution_ends_on) && deal.execution_ends_on.present? %>
+                <p class="text-xs text-ink-faint tabular-nums mt-1"><%= deal_field_display(deal, :execution_ends_on) %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:payment_method) && deal.payment_method.present? %>
+                <p class="text-xs text-ink-faint mt-1"><%= deal_field_display(deal, :payment_method) %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:payment_on) && deal.payment_on.present? %>
+                <p class="text-xs text-ink-faint tabular-nums mt-1"><%= deal_field_display(deal, :payment_on) %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:invoice_number) && deal.invoice_number.present? %>
+                <p class="text-xs text-ink-faint mt-1 truncate"><%= deal.invoice_number %></p>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:products) && deal.deal_products.any? %>
+                <%= render "card_products", deal: deal %>
+              <% end %>
+              <% if deal.pipeline.show_card_field?(:contacts) && deal.contacts.any? %>
+                <p class="text-xs text-ink-faint mt-1.5 truncate"><%= deal.contacts.map(&:display_name).join(", ") %></p>
+              <% end %>
+              <% show_company = deal.pipeline.show_card_field?(:company) && deal.company %>
+              <% show_close = deal.pipeline.show_card_field?(:expected_close_date) && deal.expected_close_date %>
+              <% if show_company || show_close %>
+              <div class="flex items-center gap-2 mt-2 text-xs text-ink-faint">
+                <% if show_company %>
+                  <span class="flex items-center gap-1 min-w-0">
+                    <%= avatar deal.company, size: "size-4", text: "text-2xs" %>
+                    <span class="truncate"><%= deal.company.name %></span>
+                  </span>
+                <% end %>
+                <% if show_close %>
+                  <span class="flex items-center gap-1 ml-auto shrink-0">
+                    <%= icon :calendar, classes: "size-3" %>
+                    <%= l deal.expected_close_date, format: :short %>
+                  </span>
+                <% end %>
+              </div>
+              <% end %>
+            </article>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
+  </div>
+</div>
+</div>

@@ -1,0 +1,55 @@
+<% page_title t("pipelines.index.page_title") %>
+<% actions = capture do %>
+  <%= link_to new_pipeline_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("pipelines.index.new") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("pipelines.index.title"), icon_name: :columns, count: @pipelines.size, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-4">
+  <% if feature_enabled?(:pipeline_templates) %>
+    <section class="card p-4">
+      <h2 class="text-base font-semibold mb-2"><%= t("pipelines.index.templates_heading") %></h2>
+      <div class="flex flex-wrap gap-2">
+        <% PipelineTemplate.all.each do |template| %>
+          <%= button_to template[:name], from_template_pipelines_path(template_key: template[:key]), method: :post, class: "btn-secondary" %>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <% if @pipelines.any? %>
+    <% @pipelines.each do |pipeline| %>
+      <section class="card p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <h2 class="text-base font-semibold"><%= pipeline.name %></h2>
+          <% if pipeline.default_pipeline? %><%= badge t("pipelines.index.default_badge"), color: "hoki" %><% end %>
+          <div class="ml-auto flex items-center gap-2">
+            <%= button_to t("pipelines.index.duplicate"), duplicate_pipeline_path(pipeline), method: :post, class: "btn-secondary",
+                  form: { data: { turbo_confirm: t("pipelines.duplicate_confirm", name: pipeline.name) } } %>
+            <%= link_to t("pipelines.index.edit"), edit_pipeline_path(pipeline), class: "btn-secondary" %>
+            <%= button_to pipeline_path(pipeline), method: :delete, class: "btn-danger",
+                  form: { data: { turbo_confirm: t("pipelines.index.delete_confirm", name: pipeline.name) } } do %>
+              <%= icon :trash, classes: "size-3.5" %>
+            <% end %>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <% pipeline.pipeline_stages.ordered.each do |stage| %>
+            <span class="inline-flex items-center gap-1.5">
+              <%= badge stage.name, color: stage.color %>
+              <span class="text-xs text-ink-faint tabular-nums"><%= stage.probability %>%</span>
+            </span>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
+  <% else %>
+    <% action = capture do %>
+      <%= link_to t("pipelines.index.new"), new_pipeline_path, class: "btn-primary" %>
+    <% end %>
+    <%= render "shared/empty_state", icon_name: :columns,
+          title: t("pipelines.index.empty_title"),
+          subtitle: t("pipelines.index.empty_subtitle"), action: action %>
+  <% end %>
+</div>

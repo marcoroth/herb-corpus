@@ -1,0 +1,47 @@
+(function () {
+  var script = document.currentScript;
+  var workspace = script && script.getAttribute("data-workspace");
+  if (!workspace) return;
+
+  var trackingOrigin = (function () {
+    try {
+      return new URL(script.src).origin;
+    } catch (e) {
+      return window.location.origin;
+    }
+  })();
+
+  var storageKey = "cream_aid";
+  var anonymousId = localStorage.getItem(storageKey);
+  if (!anonymousId) {
+    anonymousId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    localStorage.setItem(storageKey, anonymousId);
+  }
+
+  var payload = {
+    workspace: workspace,
+    anonymous_id: anonymousId,
+    url: window.location.href,
+    referrer: document.referrer || null,
+    session_id: sessionStorage.getItem("cream_sid") || (function () {
+      var id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+      sessionStorage.setItem("cream_sid", id);
+      return id;
+    })()
+  };
+
+  var params = new URLSearchParams(window.location.search);
+  ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach(function (key) {
+    if (params.get(key)) payload[key] = params.get(key);
+  });
+
+  var email = script.getAttribute("data-email");
+  if (email) payload.email = email;
+
+  fetch(trackingOrigin + "/t", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "text/plain" },
+    body: JSON.stringify(payload),
+    credentials: "omit"
+  }).catch(function () {});
+})();

@@ -1,0 +1,64 @@
+<% page_title t(".title") %>
+<div class="w-full max-w-sm">
+  <div class="text-center mb-6">
+    <%= image_tag "/icon.svg", alt: "cream", class: "inline-block size-10 mb-3" %>
+    <h1 class="text-xl font-semibold"><%= t(".title") %></h1>
+    <p class="text-base text-ink-faint mt-1">
+      Signed in as <strong><%= current_user.email_address %></strong>
+      <% if current_workspace %>
+        · <%= current_workspace.name %>
+      <% end %>
+    </p>
+  </div>
+
+  <div class="card p-6 shadow-sm space-y-4">
+    <p class="text-base text-ink-soft">
+      <%= raw t(".prompt", client_name: content_tag(:strong, class: "text-ink") { @pre_auth.client.name }) %>
+    </p>
+    <% redirect_host = (URI.parse(@pre_auth.redirect_uri).host rescue nil) %>
+    <% if redirect_host.present? %>
+      <p class="text-sm text-ink-faint"><%= t(".redirect_host_html", host: redirect_host) %></p>
+    <% end %>
+    <p class="text-xs text-amber-700 dark:text-amber-400"><%= t(".unverified_client") %></p>
+
+    <% if @pre_auth.scopes.count > 0 %>
+      <div>
+        <p class="text-sm font-medium text-ink-soft mb-2"><%= t(".able_to") %></p>
+        <ul class="space-y-1 text-base text-ink-soft list-disc list-inside">
+          <% @pre_auth.scopes.each do |scope| %>
+            <li><%= t scope, scope: [ :doorkeeper, :scopes ], default: scope.humanize %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="space-y-2 pt-2">
+      <%# turbo: false — the response is a cross-origin redirect to the OAuth
+          client's callback (claude.ai); Turbo's fetch cannot follow it and the
+          click silently does nothing. A classic form submission redirects fine. %>
+      <%= form_tag oauth_authorization_path, method: :post, data: { turbo: false } do %>
+        <%= hidden_field_tag :client_id, @pre_auth.client.uid, id: nil %>
+        <%= hidden_field_tag :redirect_uri, @pre_auth.redirect_uri, id: nil %>
+        <%= hidden_field_tag :state, @pre_auth.state, id: nil %>
+        <%= hidden_field_tag :response_type, @pre_auth.response_type, id: nil %>
+        <%= hidden_field_tag :response_mode, @pre_auth.response_mode, id: nil %>
+        <%= hidden_field_tag :scope, @pre_auth.scope, id: nil %>
+        <%= hidden_field_tag :code_challenge, @pre_auth.code_challenge, id: nil %>
+        <%= hidden_field_tag :code_challenge_method, @pre_auth.code_challenge_method, id: nil %>
+        <%= submit_tag t("doorkeeper.authorizations.buttons.authorize"), class: "btn-primary w-full justify-center" %>
+      <% end %>
+
+      <%= form_tag oauth_authorization_path, method: :delete, data: { turbo: false } do %>
+        <%= hidden_field_tag :client_id, @pre_auth.client.uid, id: nil %>
+        <%= hidden_field_tag :redirect_uri, @pre_auth.redirect_uri, id: nil %>
+        <%= hidden_field_tag :state, @pre_auth.state, id: nil %>
+        <%= hidden_field_tag :response_type, @pre_auth.response_type, id: nil %>
+        <%= hidden_field_tag :response_mode, @pre_auth.response_mode, id: nil %>
+        <%= hidden_field_tag :scope, @pre_auth.scope, id: nil %>
+        <%= hidden_field_tag :code_challenge, @pre_auth.code_challenge, id: nil %>
+        <%= hidden_field_tag :code_challenge_method, @pre_auth.code_challenge_method, id: nil %>
+        <%= submit_tag t("doorkeeper.authorizations.buttons.deny"), class: "btn-secondary w-full justify-center" %>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,62 @@
+<% page_title t("mail_merges.page_title") %>
+<%= render "shared/page_header", title: t("mail_merges.title"), icon_name: :mail %>
+
+<%
+  view_options = @saved_views.map { |v| [ "#{t("integrations.lists.record_type_options.#{v.record_type}")} — #{v.name}", "view:#{v.id}" ] }
+  list_options = @lists.map { |l| [ "#{t("integrations.lists.record_type_options.#{l.record_type}")} — #{l.name}", "list:#{l.id}" ] }
+  grouped = []
+  grouped << [ t("mail_merges.saved_views"), view_options ] if view_options.any?
+  grouped << [ t("mail_merges.source_lists"), list_options ] if list_options.any?
+%>
+
+<div class="p-5 max-w-xl">
+  <div class="card p-4"
+       data-controller="mail-merge-form"
+       data-mail-merge-form-count-url-value="<%= recipients_count_mail_merge_path %>"
+       data-mail-merge-form-count-one-value="<%= t("mail_merges.recipients_count.one") %>"
+       data-mail-merge-form-count-other-value="<%= t("mail_merges.recipients_count.other") %>"
+       data-mail-merge-form-loading-value="<%= t("mail_merges.recipients_count.loading") %>">
+    <%= form_with url: mail_merge_path, class: "space-y-3" do %>
+      <div>
+        <label class="label"><%= t("mail_merges.recipients") %></label>
+        <%= select_tag :source,
+              grouped_options_for_select(grouped) + tag.option(t("mail_merges.manual_source"), value: "manual"),
+              class: "input w-full",
+              data: { "mail-merge-form-target" => "source", action: "mail-merge-form#sourceChanged" } %>
+        <p class="text-sm text-ink-faint mt-1">
+          <span data-mail-merge-form-target="count"><%= t("mail_merges.recipients_count.loading") %></span> <%= t("mail_merges.will_receive") %>
+        </p>
+      </div>
+
+      <div data-mail-merge-form-target="manual" hidden class="space-y-3 border-l-2 border-line pl-3">
+        <div>
+          <label class="label"><%= t("mail_merges.record_type") %></label>
+          <%= select_tag :record_type,
+                options_for_select(MailMergesController::RECORD_TYPES.map { |type| [t("integrations.lists.record_type_options.#{type}"), type] }, @record_type),
+                class: "input w-full",
+                data: { "mail-merge-form-target" => "recordType", action: "mail-merge-form#manualChanged" } %>
+        </div>
+        <div>
+          <label class="label"><%= t("mail_merges.record_ids") %></label>
+          <%= text_field_tag :record_ids, nil, class: "input w-full", placeholder: t("mail_merges.record_ids_placeholder"),
+                data: { "mail-merge-form-target" => "recordIds", action: "input->mail-merge-form#manualChanged" } %>
+        </div>
+      </div>
+
+      <div>
+        <label class="label"><%= t("mail_merges.template") %></label>
+        <%= select_tag :template_id, options_from_collection_for_select(@templates, :id, :name), include_blank: t("mail_merges.template_blank"), class: "input w-full" %>
+        <p class="text-sm text-ink-faint mt-1"><%= t("mail_merges.template_hint") %></p>
+      </div>
+      <div>
+        <label class="label"><%= t("mail_merges.subject") %></label>
+        <%= text_field_tag :subject, t("mail_merges.form.subject_default"), class: "input w-full" %>
+      </div>
+      <div>
+        <label class="label"><%= t("mail_merges.body") %></label>
+        <%= render "shared/rich_text_editor", field: :body, value: t("mail_merges.form.body_default") %>
+      </div>
+      <%= submit_tag t("mail_merges.send"), class: "btn-primary" %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,66 @@
+<% page_title t("integrations.api_tokens.page_title") %>
+<%= render "shared/page_header", title: t("integrations.api_tokens.title"), icon_name: :globe, count: @api_tokens.size, actions: nil %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5">
+  <div class="max-w-2xl space-y-6">
+    <p class="text-base text-ink-soft">
+      <%= t("integrations.api_tokens.intro") %>
+      <%= link_to t("integrations.api_tokens.connected_apps_link"), settings_connected_apps_path, class: "text-accent hover:underline" %>
+    </p>
+
+    <% if flash[:api_token].present? %>
+      <div class="card p-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+        <p class="text-base font-medium text-ink mb-2"><%= t("integrations.api_tokens.new_token_hint") %></p>
+        <code class="block text-sm font-mono bg-canvas-raised border border-line rounded-md px-3 py-2 break-all select-all"><%= flash[:api_token] %></code>
+      </div>
+    <% end %>
+
+    <%= form_with url: api_tokens_path, method: :post, class: "flex items-end gap-2" do %>
+      <div class="flex-1">
+        <label for="name" class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.api_tokens.token_name") %></label>
+        <input type="text" name="name" id="name" placeholder="<%= t("integrations.api_tokens.token_name_placeholder") %>" class="input w-full">
+      </div>
+      <div>
+        <label for="token_scope" class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.api_tokens.scope") %></label>
+        <%= select_tag :token_scope, options_for_select(ApiToken::SCOPES.map { |scope| [t("integrations.api_tokens.scopes.#{scope}"), scope] }), class: "input" %>
+      </div>
+      <div>
+        <label for="expires_in_days" class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.api_tokens.expiry") %></label>
+        <%= select_tag :expires_in_days, options_for_select(ApiToken::EXPIRY_DAYS.map { |days| [t("integrations.api_tokens.expires_in_days", count: days), days] }, ApiToken::DEFAULT_EXPIRY_DAYS), class: "input" %>
+      </div>
+      <%= submit_tag t("integrations.api_tokens.create"), class: "btn-primary" %>
+    <% end %>
+
+    <% if @api_tokens.any? %>
+      <ul class="space-y-2">
+        <% @api_tokens.each do |token| %>
+          <li class="card flex items-center gap-3 px-4 py-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-base font-medium truncate"><%= token.name %></p>
+              <p class="text-xs text-ink-faint mt-0.5">
+                <%= t("integrations.api_tokens.created") %> <%= l token.created_at, format: :short %>
+                <% if token.last_used_at %>
+                  · <%= t("integrations.api_tokens.last_used") %> <%= l token.last_used_at, format: :short %>
+                <% end %>
+                · <%= t("integrations.api_tokens.scopes.#{token.token_scope}") %>
+                <% if token.expires_at %>
+                  · <%= t("integrations.api_tokens.expires") %> <%= l token.expires_at, format: :short %>
+                <% end %>
+              </p>
+            </div>
+            <%= button_to api_token_path(token), method: :delete,
+                  class: "text-ink-faint hover:text-danger p-1.5 rounded-md hover:bg-danger-soft",
+                  title: t("integrations.api_tokens.revoke") do %>
+              <%= icon :trash, classes: "size-4" %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <%= render "shared/empty_state",
+            icon_name: :globe,
+            title: t("integrations.api_tokens.empty_title"),
+            subtitle: t("integrations.api_tokens.empty_subtitle") %>
+    <% end %>
+  </div>
+</div>

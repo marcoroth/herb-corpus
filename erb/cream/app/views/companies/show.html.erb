@@ -1,0 +1,133 @@
+<% page_title @company.name %>
+<div class="record-workspace" data-controller="record-workspace"
+     data-record-workspace-copy-value="<%= json_escape(I18n.t("records.record_workspace")) %>"
+     data-action="turbo:before-visit@document->record-workspace#beforeVisit beforeunload@window->record-workspace#beforeUnload input->record-workspace#markDirty change->record-workspace#markDirty submit->record-workspace#submit turbo:submit-end->record-workspace#submitted">
+  <header class="record-header">
+    <div class="flex items-center gap-2 text-sm text-ink-soft mb-5">
+      <button type="button" class="btn-ghost md:hidden" aria-label="<%= t("records.open_menu") %>" data-action="mobile-nav#open"><%= icon :menu, classes: "size-4" %></button>
+      <%= link_to t("nav.companies"), companies_path, class: "hover:text-accent hover:underline" %>
+      <span aria-hidden="true">/</span><span><%= t("companies.show.overview") %></span>
+    </div>
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex items-center gap-4 min-w-0">
+        <%= avatar @company, size: "size-14", text: "text-lg" %>
+        <div class="min-w-0">
+          <h1 class="text-2xl font-semibold tracking-tight break-words"><%= @company.name %></h1>
+          <p class="text-base text-ink-soft mt-1">
+            <% subtitle = [ @company.industry, @company.employee_range ].compact_blank.join(" · ") %>
+            <%= subtitle.presence || t("companies.show.fallback_subtitle") %>
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <%= link_to edit_company_path(@company), class: "btn-secondary" do %><%= icon :pencil, classes: "size-3.5" %><span><%= t("records.edit") %></span><% end %>
+        <details class="record-menu">
+          <summary class="btn-ghost" aria-label="<%= t("companies.show.more_actions") %>">•••</summary>
+          <div class="record-menu-items">
+            <%= link_to merge_company_path(@company), class: "btn-ghost justify-start" do %><%= icon :building, classes: "size-4" %> <%= t("companies.show.merge") %><% end %>
+            <%= button_to company_path(@company), method: :delete, form: { data: { turbo_confirm: t("records.delete_confirm", name: @company.name) } }, class: "btn-ghost text-danger w-full justify-start" do %><%= icon :trash, classes: "size-4" %> <%= t("companies.show.delete") %><% end %>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm mt-4 text-ink-soft">
+      <% if @company.domain.present? %><%= link_to "https://#{@company.domain}", target: "_blank", rel: "noopener", class: "inline-flex items-center gap-2 hover:text-accent" do %><%= icon :external, classes: "size-4 shrink-0" %><%= @company.domain %><% end %><% end %>
+      <% if @company.location.present? %><span class="inline-flex items-center gap-2"><%= icon :map_pin, classes: "size-4" %><%= @company.location %></span><% end %>
+      <% if @company.annual_revenue.present? %><span class="inline-flex items-center gap-2"><%= icon :banknote, classes: "size-4" %><%= money(@company.annual_revenue) %></span><% end %>
+    </div>
+    <div class="record-actions">
+      <% if feature_enabled?(:record_email) %>
+        <button type="button" class="btn-primary" data-action="record-workspace#openComposer" data-composer="email"><%= icon :mail, classes: "size-4" %> <%= t("records.send_email") %></button>
+      <% end %>
+      <button type="button" class="btn-secondary" data-action="record-workspace#openComposer" data-composer="note"><%= icon :note, classes: "size-4" %> <%= t("records.add_note") %></button>
+      <button type="button" class="btn-secondary" data-action="record-workspace#openComposer" data-composer="task"><%= icon :check_circle, classes: "size-4" %> <%= t("records.create_task") %></button>
+      <%= link_to new_person_path(company_id: @company.id), class: "btn-secondary" do %><%= icon :plus, classes: "size-4" %> <%= t("records.add_person") %><% end %>
+      <%= link_to new_deal_path(company_id: @company.id), class: "btn-secondary" do %><%= icon :plus, classes: "size-4" %> <%= t("records.add_deal") %><% end %>
+    </div>
+  </header>
+
+  <nav class="record-tabs" aria-label="<%= t("records.sections_aria.company") %>" role="tablist">
+    <% tabs = [["activity", t("records.tabs.activity"), nil], ["people", t("records.tabs.people"), @people.size], ["deals", t("records.tabs.deals"), @deals.size], ["information", t("records.tabs.information"), nil]] %>
+    <% tabs << ["files", t("records.tabs.files"), @company.record_attachments.count] if feature_enabled?(:attachments) %>
+    <% tabs.each do |key, label, count| %>
+      <%= link_to company_path(@company, tab: key), id: "record-tab-#{key}", role: "tab", class: "record-tab", tabindex: @company_tab == key ? 0 : -1,
+            aria: { selected: @company_tab == key, controls: "record-panel-#{key}" },
+            data: { record_workspace_target: "tab", tab: key, action: "click->record-workspace#selectTab keydown->record-workspace#navigateTabs" } do %>
+        <%= label %><% unless count.nil? %><span class="record-count"><%= count %></span><% end %>
+      <% end %>
+    <% end %>
+  </nav>
+
+  <div class="record-content">
+    <section id="record-panel-activity" role="tabpanel" aria-labelledby="record-tab-activity" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @company_tab == "activity" %>>
+      <div class="record-overview-grid">
+        <div class="min-w-0 space-y-6">
+          <section class="record-card" aria-labelledby="record-next-tasks">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h2 id="record-next-tasks" class="record-section-title"><%= t("records.next_tasks") %> <span class="record-count"><%= @pending_tasks.size %></span></h2>
+              <button type="button" class="btn-ghost" data-action="record-workspace#openComposer" data-composer="task"><%= icon :plus, classes: "size-4" %> <%= t("records.add") %></button>
+            </div>
+            <% if @pending_tasks.any? %>
+              <ul class="space-y-2"><%= render partial: "shared/task_row", collection: @pending_tasks.first(3), as: :task %></ul>
+              <% if @pending_tasks.size > 3 %>
+                <details class="record-disclosure mt-3"><summary><%= t("records.show_more_pending", count: @pending_tasks.size - 3) %></summary><ul class="space-y-2 mt-3"><%= render partial: "shared/task_row", collection: @pending_tasks.drop(3), as: :task %></ul></details>
+              <% end %>
+            <% else %>
+              <p class="text-sm text-ink-soft"><%= t("records.no_pending_tasks") %></p>
+            <% end %>
+            <% if @completed_tasks.any? %>
+              <details class="record-disclosure mt-4"><summary><%= t("records.completed_tasks", count: @completed_tasks.size) %></summary><ul class="space-y-2 mt-3"><%= render partial: "shared/task_row", collection: @completed_tasks, as: :task %></ul></details>
+            <% end %>
+          </section>
+          <%= render "activity_feed" %>
+        </div>
+        <aside class="space-y-5 min-w-0" aria-label="<%= t("records.context_aria.company") %>">
+          <section class="record-card">
+            <h2 class="record-section-title mb-4"><%= t("records.at_a_glance") %></h2>
+            <dl class="record-context-list">
+              <div><dt><%= t("records.fields.owner") %></dt><dd><%= @company.owner&.name || t("shared.tasks.unassigned") %></dd></div>
+              <div><dt><%= t("records.fields.industry") %></dt><dd><%= @company.industry.presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.employees") %></dt><dd><%= @company.employee_range.presence || t("shared.empty_value") %></dd></div>
+              <div><dt><%= t("records.fields.people") %></dt><dd><%= @people.size %></dd></div>
+            </dl>
+            <button type="button" class="btn-ghost mt-4 -ml-2" data-action="record-workspace#selectTab" data-tab="information"><%= t("records.view_all_information") %> <%= icon :chevron_right, classes: "size-3.5" %></button>
+          </section>
+          <section class="record-card">
+            <h2 class="record-section-title mb-4"><%= t("records.open_deals") %></h2>
+            <% open_deals = @deals.select(&:open) %>
+            <% if open_deals.any? %>
+              <ul class="space-y-4">
+                <% open_deals.first(3).each do |deal| %>
+                  <li><%= link_to deal.name, deal_path(deal), class: "block font-medium hover:text-accent break-words" %><div class="mt-2"><%= render DealStageComponent.new(deal: deal) %></div></li>
+                <% end %>
+              </ul>
+              <button type="button" class="btn-ghost mt-4 -ml-2" data-action="record-workspace#selectTab" data-tab="deals"><%= t("records.view_deals", count: @deals.size) %> <%= icon :chevron_right, classes: "size-3.5" %></button>
+            <% else %><p class="text-sm text-ink-soft"><%= t("records.no_open_deals") %></p><% end %>
+          </section>
+          <% if feature_enabled?(:ai_assistant) %>
+            <details class="record-disclosure record-card"><summary><%= t("records.ai_assistant") %></summary><div class="mt-4"><%= render "shared/ai_assistant_section", record: @company %></div></details>
+          <% end %>
+        </aside>
+      </div>
+    </section>
+
+    <section id="record-panel-people" role="tabpanel" aria-labelledby="record-tab-people" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @company_tab == "people" %>>
+      <%= render "people_panel" %>
+    </section>
+
+    <section id="record-panel-deals" role="tabpanel" aria-labelledby="record-tab-deals" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @company_tab == "deals" %>>
+      <%= render "deals_panel" %>
+    </section>
+
+    <section id="record-panel-information" role="tabpanel" aria-labelledby="record-tab-information" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @company_tab == "information" %>>
+      <%= render "information_panel" %>
+    </section>
+
+    <% if feature_enabled?(:attachments) %>
+      <section id="record-panel-files" role="tabpanel" aria-labelledby="record-tab-files" tabindex="0" data-record-workspace-target="panel" <%= "hidden" unless @company_tab == "files" %>>
+        <div class="record-card"><%= render "shared/attachments_section", record: @company %></div>
+      </section>
+    <% end %>
+  </div>
+  <%= render "composers" %>
+</div>

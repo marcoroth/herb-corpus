@@ -1,0 +1,154 @@
+<div class="rounded-lg ring-1 ring-line p-3 space-y-3"
+     data-nested-form-target="row"
+     data-journey-form-target="stepRow">
+  <%= f.hidden_field :id %>
+  <%= f.hidden_field :_destroy %>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div>
+      <%= f.label :step_type, t("marketing.journeys.step_fields.step_type"), class: "label" %>
+      <%= f.select :step_type,
+            JourneyStep::STEP_TYPES.map { |st| [ step_type_label(st), st ] },
+            {}, class: "input w-full",
+            data: { "journey-form-target" => "stepType", action: "journey-form#stepTypeChanged" } %>
+    </div>
+    <div>
+      <%= f.label :position, t("marketing.journeys.step_fields.position"), class: "label" %>
+      <%= f.number_field :position, class: "input w-full", min: 0 %>
+    </div>
+  </div>
+
+  <% config = f.object.config.to_h.stringify_keys %>
+  <% prefix = "#{f.object_name}[config]" %>
+  <% composer_id = "#{f.object_name.tr("[", "_").tr("]", "")}_email" %>
+
+  <div data-journey-form-target="stepField" data-step-type="send_email" class="space-y-3">
+    <%= render "shared/email_composer",
+          composer_id: composer_id,
+          source_form_id: journey_form_id,
+          email_templates: @email_templates,
+          email_layouts: @email_layouts,
+          subject_name: "#{prefix}[subject]",
+          body_name: "#{prefix}[body]",
+          body_editor_name: "#{prefix}[body_editor]",
+          email_layout_id_name: "#{prefix}[email_layout_id]",
+          email_template_id_name: "#{prefix}[email_template_id]",
+          subject: config["subject"],
+          body: config["body"],
+          body_editor: config["body_editor"].presence || "quill",
+          email_layout_id: config["email_layout_id"],
+          email_template_id: config["email_template_id"] %>
+
+    <div>
+      <label class="label"><%= t("marketing.journeys.step_fields.subscription_type") %></label>
+      <%= select_tag "#{prefix}[subscription_type_id]",
+            options_from_collection_for_select(@subscription_types, :id, :name, config["subscription_type_id"]),
+            include_blank: t("marketing.shared.default"), class: "input w-full" %>
+    </div>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="wait" hidden class="space-y-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="label"><%= t("marketing.journeys.step_fields.wait_minutes") %></label>
+        <%= number_field_tag "#{prefix}[minutes]", config["minutes"], class: "input w-full", min: 0 %>
+        <p class="mt-1 text-sm text-ink-faint"><%= t("marketing.journeys.step_fields.wait_minutes_hint") %></p>
+      </div>
+      <div>
+        <label class="label"><%= t("marketing.journeys.step_fields.wait_until_time") %></label>
+        <%= time_field_tag "#{prefix}[until_time]", config["until_time"], class: "input w-full", step: 60 %>
+        <p class="mt-1 text-sm text-ink-faint"><%= t("marketing.journeys.step_fields.wait_until_time_hint", time_zone: current_workspace.time_zone) %></p>
+      </div>
+    </div>
+    <div>
+      <%= hidden_field_tag "#{prefix}[weekdays_only]", "0", id: nil %>
+      <label class="flex items-center gap-2 text-base">
+        <%= check_box_tag "#{prefix}[weekdays_only]", "1", ActiveModel::Type::Boolean.new.cast(config["weekdays_only"]) == true, id: nil %>
+        <%= t("marketing.journeys.step_fields.wait_weekdays_only") %>
+      </label>
+      <p class="mt-1 text-sm text-ink-faint"><%= t("marketing.journeys.step_fields.wait_weekdays_only_hint") %></p>
+    </div>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="create_task" hidden class="space-y-2">
+    <div>
+      <label class="label"><%= t("marketing.journeys.step_fields.task_title") %></label>
+      <%= text_field_tag "#{prefix}[title]", config["title"], class: "input w-full", placeholder: t("marketing.journeys.step_fields.task_title_placeholder") %>
+    </div>
+    <div>
+      <label class="label"><%= t("marketing.journeys.step_fields.due_in_days") %></label>
+      <%= number_field_tag "#{prefix}[due_days]", config["due_days"] || 1, class: "input w-full", min: 0 %>
+      <p class="mt-1 text-sm text-ink-faint"><%= t("marketing.journeys.step_fields.due_in_days_hint", time_zone: current_workspace.time_zone) %></p>
+    </div>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="adjust_score" hidden>
+    <label class="label"><%= t("marketing.journeys.step_fields.score_points") %></label>
+    <%= number_field_tag "#{prefix}[points]", config["points"], class: "input w-full", placeholder: t("marketing.journeys.step_fields.score_points_placeholder") %>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="add_to_segment" hidden>
+    <label class="label"><%= t("marketing.journeys.step_fields.person_list") %></label>
+    <%= select_tag "#{prefix}[list_id]",
+          options_from_collection_for_select(@lists, :id, :name, config["list_id"]),
+          include_blank: t("marketing.shared.select_list"), class: "input w-full" %>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="notify" hidden class="space-y-2">
+    <div>
+      <label class="label"><%= t("marketing.journeys.step_fields.notify_user") %></label>
+      <%= select_tag "#{prefix}[user_id]",
+            options_from_collection_for_select(@users, :id, :name, config["user_id"]),
+            include_blank: t("marketing.shared.contact_owner"), class: "input w-full" %>
+    </div>
+    <div>
+      <label class="label"><%= t("marketing.journeys.step_fields.message") %></label>
+      <%= text_field_tag "#{prefix}[message]", config["message"], class: "input w-full", placeholder: t("marketing.journeys.step_fields.message_placeholder") %>
+    </div>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="set_field" hidden class="space-y-2">
+    <div>
+      <label class="label"><%= t("marketing.journeys.step_fields.field") %></label>
+      <%= select_tag "#{prefix}[field]",
+            options_for_select([ [ t("marketing.shared.lifecycle_field"), "lifecycle_stage" ] ], config["field"]),
+            class: "input w-full" %>
+    </div>
+    <div>
+      <label class="label"><%= t("marketing.shared.value") %></label>
+      <%= select_tag "#{prefix}[value]",
+            options_for_select(Person::LIFECYCLE_STAGES.map { |s| [ s.humanize, s ] }, config["value"]),
+            include_blank: t("marketing.shared.select_value"), class: "input w-full" %>
+    </div>
+  </div>
+
+  <div data-journey-form-target="stepField" data-step-type="branch" hidden class="space-y-3">
+    <p class="text-sm text-ink-faint"><%= t("marketing.journeys.step_fields.branch_hint") %></p>
+    <% condition = (config["condition"] || {}).to_h.stringify_keys %>
+    <% condition_prefix = "#{prefix}[condition]" %>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <%= text_field_tag "#{condition_prefix}[field]", condition["field"], placeholder: "person.lead_score", class: "input w-full" %>
+      <%= select_tag "#{condition_prefix}[operator]",
+            options_for_select(Marketing::ConditionEvaluator.operator_options_for_select, condition["operator"]),
+            class: "input w-full" %>
+      <%= text_field_tag "#{condition_prefix}[compare_value]", condition["compare_value"], class: "input w-full" %>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="label"><%= t("marketing.journeys.step_fields.branch_true") %></label>
+        <%= number_field_tag "#{prefix}[true_step_id]", config["true_step_id"], class: "input w-full" %>
+      </div>
+      <div>
+        <label class="label"><%= t("marketing.journeys.step_fields.branch_false") %></label>
+        <%= number_field_tag "#{prefix}[false_step_id]", config["false_step_id"], class: "input w-full" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between gap-2">
+    <label class="flex items-center gap-2 text-base"><%= f.check_box :active %> <%= t("marketing.shared.active") %></label>
+    <button type="button" data-action="nested-form#remove" class="btn-ghost text-danger">
+      <%= icon :trash, classes: "size-3.5" %> <%= t("marketing.shared.delete_step") %>
+    </button>
+  </div>
+</div>

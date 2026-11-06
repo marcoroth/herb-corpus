@@ -1,0 +1,143 @@
+<% page_title @journey.name %>
+<% actions = capture do %>
+  <%= button_to @journey.active? ? t("marketing.shared.pause") : t("marketing.shared.activate"), toggle_active_journey_path(@journey), method: :patch, class: "btn-secondary" %>
+  <%= link_to t("marketing.shared.edit"), edit_journey_path(@journey), class: "btn-secondary" %>
+  <%= button_to t("marketing.shared.delete"), journey_path(@journey), method: :delete, class: "btn-danger",
+        form: { data: { turbo_confirm: t("marketing.journeys.show.delete_confirm", name: @journey.name) } } %>
+<% end %>
+<%= render "shared/page_header", title: @journey.name, icon_name: :zap,
+           actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-6">
+  <div class="flex flex-wrap items-center gap-2">
+    <%= badge @journey.active? ? t("marketing.shared.active") : t("marketing.shared.inactive"), color: @journey.active? ? "green" : "chicago" %>
+    <span class="text-sm text-ink-faint">
+      <%= t("marketing.journeys.show.trigger") %> <strong><%= journey_trigger_label(@journey.entry_trigger) %></strong>
+    </span>
+  </div>
+
+  <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="card p-4">
+      <p class="text-sm text-ink-faint"><%= t("marketing.journeys.show.stat_enrollments") %></p>
+      <p class="text-2xl font-semibold tabular-nums"><%= @stats[:total] %></p>
+    </div>
+    <div class="card p-4">
+      <p class="text-sm text-ink-faint"><%= t("marketing.journeys.show.stat_active") %></p>
+      <p class="text-2xl font-semibold tabular-nums"><%= @stats[:active] %></p>
+    </div>
+    <div class="card p-4">
+      <p class="text-sm text-ink-faint"><%= t("marketing.journeys.show.stat_waiting") %></p>
+      <p class="text-2xl font-semibold tabular-nums"><%= @stats[:waiting] %></p>
+    </div>
+    <div class="card p-4">
+      <p class="text-sm text-ink-faint"><%= t("marketing.journeys.show.stat_completed") %></p>
+      <p class="text-2xl font-semibold tabular-nums"><%= @stats[:completed] %></p>
+    </div>
+  </section>
+
+  <% if @journey.entry_trigger == "manual" %>
+    <section class="card p-4">
+      <h2 class="font-semibold mb-3"><%= t("marketing.journeys.show.manual_enroll_heading") %></h2>
+      <%= form_with url: enroll_journey_path(@journey), method: :post, class: "flex flex-wrap items-end gap-3 max-w-xl" do %>
+        <div class="flex-1 min-w-[12rem]">
+          <label class="label"><%= t("marketing.journeys.show.contact") %></label>
+          <%= select_tag :person_id,
+                options_from_collection_for_select(current_workspace.people.order(:first_name, :last_name).limit(500), :id, :display_name),
+                include_blank: t("marketing.shared.select_contact"),
+                class: "input w-full",
+                required: true %>
+        </div>
+        <%= submit_tag t("marketing.shared.enroll"), class: "btn-primary" %>
+      <% end %>
+    </section>
+  <% end %>
+
+  <section class="card p-4">
+    <h2 class="font-semibold mb-3"><%= t("marketing.journeys.show.steps_heading") %></h2>
+    <% if @journey.steps.ordered.any? %>
+      <ol class="space-y-3">
+        <% @journey.steps.ordered.each do |step| %>
+          <li class="flex gap-3">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-canvas-sunken text-sm font-semibold">
+              <%= step.position + 1 %>
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-medium"><%= step.position + 1 %>. <%= step_type_label(step.step_type) %></span>
+                <% unless step.active? %><%= badge t("marketing.shared.inactive"), color: "chicago" %><% end %>
+              </div>
+              <p class="text-sm text-ink-faint mt-0.5"><%= describe_step(step, workspace: current_workspace) %></p>
+            </div>
+          </li>
+        <% end %>
+      </ol>
+    <% else %>
+      <p class="text-sm text-ink-faint"><%= t("marketing.journeys.show.no_steps") %></p>
+    <% end %>
+  </section>
+
+  <section class="card p-4">
+    <h2 class="font-semibold mb-3"><%= t("marketing.journeys.show.recent_enrollments") %></h2>
+    <% if @enrollments.any? %>
+      <table class="table-base">
+        <thead>
+          <tr>
+            <th><%= t("marketing.journeys.show.col_contact") %></th>
+            <th><%= t("marketing.journeys.show.col_state") %></th>
+            <th><%= t("marketing.journeys.show.col_current_step") %></th>
+            <th><%= t("marketing.journeys.show.col_next_run") %></th>
+            <th><%= t("marketing.journeys.show.col_enrolled_at") %></th>
+            <th><%= t("marketing.journeys.show.col_move_step") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @enrollments.each do |enrollment| %>
+            <tr>
+              <td>
+                <%= link_to enrollment.person.display_name, enrollment.person, class: "font-medium text-accent hover:underline" %>
+              </td>
+              <td><%= enrollment_state_badge(enrollment.state) %></td>
+              <td class="text-sm text-ink-soft">
+                <% if enrollment.current_step %>
+                  <%= journey_step_label(enrollment.current_step, workspace: current_workspace) %>
+                <% else %>
+                  <%= t("marketing.shared.em_dash") %>
+                <% end %>
+              </td>
+              <td class="text-sm text-ink-faint">
+                <% if enrollment.next_run_at.present? %>
+                  <%= l enrollment.next_run_at, format: :default %>
+                <% else %>
+                  <%= t("marketing.shared.em_dash") %>
+                <% end %>
+              </td>
+              <td class="text-sm text-ink-faint"><%= l enrollment.enrolled_at, format: :short %></td>
+              <td>
+                <% if enrollment.in_progress? && @journey.steps.any? %>
+                  <%= form_with url: journey_enrollment_path(@journey, enrollment), method: :patch, class: "flex flex-wrap items-center gap-2" do %>
+                    <%= select_tag :step_id,
+                          options_for_select(
+                            @journey.steps.ordered.map { |step|
+                              label = journey_step_label(step, workspace: current_workspace)
+                              label += t("marketing.journeys.show.inactive_step_suffix") unless step.active?
+                              [label, step.id]
+                            },
+                            enrollment.current_step_id
+                          ),
+                          class: "input min-w-[12rem]" %>
+                    <%= submit_tag t("marketing.journeys.show.move"), class: "btn-secondary",
+                          data: { turbo_confirm: t("marketing.journeys.show.move_confirm", name: enrollment.person.display_name) } %>
+                  <% end %>
+                <% else %>
+                  <span class="text-sm text-ink-faint"><%= t("marketing.shared.em_dash") %></span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <p class="text-sm text-ink-faint"><%= t("marketing.journeys.show.no_enrollments") %></p>
+    <% end %>
+  </section>
+</div>

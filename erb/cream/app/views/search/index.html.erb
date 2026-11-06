@@ -1,0 +1,55 @@
+<% page_title t("search.index.title") %>
+<%= render "shared/page_header", title: t("search.index.title"), icon_name: :search, count: nil, actions: nil %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5">
+  <div class="max-w-2xl mx-auto">
+    <%= form_with url: search_path, method: :get, data: { turbo_frame: "_top" } do %>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-4" %></span>
+        <%= text_field_tag :q, @query, placeholder: t("search.index.placeholder"),
+              autofocus: true, class: "input pl-9 py-2.5 text-base shadow-sm" %>
+      </div>
+    <% end %>
+
+    <% if @query.present? %>
+      <div class="mt-6 space-y-6">
+        <% {
+          t("search.index.sections.people") => [ @people, :users ],
+          t("search.index.sections.companies") => [ @companies, :building ],
+          t("search.index.sections.deals") => [ @deals, :banknote ]
+        }.each do |label, (records, icon_name)| %>
+          <% next if records.empty? %>
+          <section>
+            <h2 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-faint mb-2">
+              <%= icon icon_name, classes: "size-3.5" %> <%= label %>
+            </h2>
+            <div class="card divide-y divide-line/70">
+              <% records.each do |record| %>
+                <%= link_to record_path_for(record), class: "flex items-center gap-3 px-3 py-2.5 hover:bg-canvas-soft transition-colors" do %>
+                  <%= avatar record %>
+                  <span class="font-medium text-base"><%= record.display_name %></span>
+                  <span class="text-sm text-ink-faint truncate">
+                    <% case record %>
+                    <% when Person %>
+                      <%= [ record.job_title, record.company&.name ].compact.join(" · ") %>
+                    <% when Company %>
+                      <%= [ record.domain, record.industry ].reject(&:blank?).join(" · ") %>
+                    <% when Deal %>
+                      <%= money(record.value, record.currency) %> · <%= record.stage_label %>
+                    <% end %>
+                  </span>
+                  <%= icon :chevron_right, classes: "size-3.5 text-ink-faint ml-auto shrink-0" %>
+                <% end %>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <% if @people.empty? && @companies.empty? && @deals.empty? %>
+          <%= render "shared/empty_state", icon_name: :search, title: t("search.index.no_results", query: @query),
+                subtitle: t("search.index.no_results_hint"), action: nil %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

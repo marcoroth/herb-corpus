@@ -1,0 +1,78 @@
+<% page_title t("booking.pages.index.page_title") %>
+<% actions = capture do %>
+  <%= link_to t("booking.pages.index.received_bookings"), bookings_path, class: "btn-secondary" %>
+  <%= link_to(
+        @calendar_connection&.connected? ? t("booking.pages.index.google_calendar") : t("booking.pages.index.connect_calendar"),
+        calendar_connection_path,
+        class: "btn-secondary"
+      ) %>
+  <%= link_to new_booking_page_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("booking.pages.index.new_page") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("booking.pages.index.title"), icon_name: :calendar, count: @booking_pages.size, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-3">
+  <% if @booking_pages.empty? %>
+    <p class="text-ink-faint"><%= t("booking.pages.index.empty") %></p>
+    <% unless @calendar_connection&.connected? %>
+      <p class="text-sm text-ink-soft"><%= t("booking.pages.index.connect_before_publish") %></p>
+      <%= link_to t("booking.pages.index.connect_calendar"), calendar_connection_path, class: "btn-secondary mt-2" %>
+    <% end %>
+  <% end %>
+
+  <% @booking_pages.each do |page| %>
+    <article class="card p-4 space-y-3">
+      <div class="flex items-center gap-2">
+        <h2 class="font-semibold text-base"><%= page.name %></h2>
+        <% if page.ready_for_booking? %>
+          <%= badge t("booking.pages.index.ready"), color: "green" %>
+        <% else %>
+          <%= badge t("booking.pages.index.incomplete"), color: "golden" %>
+        <% end %>
+        <%= badge page.active? ? t("booking.pages.index.active") : t("booking.pages.index.inactive"),
+              color: page.active? ? "green" : "chicago" %>
+        <% if policy(page).update? %>
+          <div class="ml-auto flex gap-2">
+            <%= link_to t("booking.pages.index.edit"), edit_booking_page_path(page), class: "btn-secondary" %>
+            <%= button_to t("booking.pages.index.remove"), booking_page_path(page), method: :delete, class: "btn-danger",
+                  data: { turbo_confirm: t("booking.pages.index.remove_confirm") } %>
+          </div>
+        <% end %>
+      </div>
+
+      <dl class="grid gap-2 text-sm sm:grid-cols-2">
+        <div><dt class="text-ink-faint"><%= t("booking.pages.index.fields.slug") %></dt><dd><code class="text-xs"><%= page.slug %></code></dd></div>
+        <div><dt class="text-ink-faint"><%= t("booking.pages.index.fields.host") %></dt><dd><%= ([page.host] + page.co_hosts.to_a).map(&:name).to_sentence %></dd></div>
+        <% if page.crm_deal? %>
+          <div><dt class="text-ink-faint"><%= t("booking.pages.index.fields.pipeline") %></dt><dd><%= page.pipeline.name %></dd></div>
+        <% else %>
+          <div><dt class="text-ink-faint"><%= t("booking.pages.form.crm_association") %></dt><dd><%= t("booking.pages.form.crm_association_#{page.crm_association}") %></dd></div>
+        <% end %>
+        <div><dt class="text-ink-faint"><%= t("booking.pages.index.fields.event_types") %></dt><dd><%= page.event_types.count %></dd></div>
+      </dl>
+
+      <div>
+        <p class="label"><%= t("booking.pages.index.public_url") %></p>
+        <%= link_to public_booking_page_url(page.slug), public_booking_page_url(page.slug),
+            class: "block rounded-md border border-line bg-canvas-sunken px-3 py-2 text-sm break-all text-accent hover:underline",
+            target: "_blank", rel: "noopener noreferrer" %>
+      </div>
+
+      <% visible_types = page.event_types.visible.ordered %>
+      <% if visible_types.any? %>
+        <div class="space-y-2">
+          <p class="label"><%= t("booking.pages.index.direct_type_urls") %></p>
+          <% visible_types.each do |event_type| %>
+            <div>
+              <p class="text-xs text-ink-faint mb-1"><%= event_type.localized_name %></p>
+              <%= link_to event_type.public_url, event_type.public_url,
+                  class: "block rounded-md border border-line bg-canvas-sunken px-3 py-2 text-sm break-all text-accent hover:underline",
+                  target: "_blank", rel: "noopener noreferrer" %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </article>
+  <% end %>
+</div>

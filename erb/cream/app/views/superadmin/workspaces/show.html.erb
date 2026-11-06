@@ -1,0 +1,94 @@
+<% page_title @workspace.name %>
+<% header_actions = capture do %>
+  <%= button_to t("superadmin.workspaces.enter"), enter_superadmin_workspace_path(@workspace), method: :post, class: "btn-primary" %>
+  <%= link_to t("superadmin.workspaces.edit"), edit_superadmin_workspace_path(@workspace), class: "btn-secondary" %>
+  <%= link_to t("superadmin.workspaces.back"), superadmin_root_path, class: "btn-ghost" %>
+<% end %>
+<%= render "shared/page_header", title: @workspace.name, icon_name: :building, actions: header_actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5">
+  <div class="max-w-2xl space-y-6">
+    <dl class="card p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-base">
+      <div>
+        <dt class="text-sm text-ink-faint"><%= t("superadmin.workspaces.table.slug") %></dt>
+        <dd class="font-mono text-sm"><%= @workspace.slug %></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-ink-faint"><%= t("superadmin.workspaces.table.domain") %></dt>
+        <dd><%= @workspace.email_domain.presence || "—" %></dd>
+      </div>
+      <div>
+        <dt class="text-sm text-ink-faint"><%= t("workspace_settings.time_zone") %></dt>
+        <dd><%= @workspace.time_zone %></dd>
+      </div>
+    </dl>
+
+    <% if flash[:invitation_link].present? %>
+      <div class="card p-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+        <p class="text-base font-medium text-ink mb-2"><%= t("integrations.team.invitation_link") %></p>
+        <code class="block text-sm font-mono bg-canvas-raised border border-line rounded-md px-3 py-2 break-all select-all"><%= flash[:invitation_link] %></code>
+      </div>
+    <% end %>
+
+    <section class="card p-4 space-y-3">
+      <h2 class="text-base font-semibold text-ink"><%= t("superadmin.workspaces.add_member") %></h2>
+      <%= form_with url: superadmin_workspace_members_path(@workspace), class: "flex flex-wrap items-end gap-2" do %>
+        <div class="flex-1 min-w-[12rem]">
+          <label class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.team.invite_email") %></label>
+          <input type="email" name="member[email_address]" required class="input w-full">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.team.invite_section.role") %></label>
+          <select name="member[role]" class="input">
+            <% Membership::ROLES.each do |role| %>
+              <option value="<%= role %>"><%= Membership.role_label_for(role) %></option>
+            <% end %>
+          </select>
+        </div>
+        <%= submit_tag t("superadmin.workspaces.add_member_submit"), class: "btn-primary" %>
+      <% end %>
+    </section>
+
+    <section class="space-y-2">
+      <h2 class="text-base font-semibold text-ink px-1"><%= t("integrations.team.members") %></h2>
+      <% if @memberships.any? %>
+        <ul class="space-y-2">
+          <% @memberships.each do |membership| %>
+            <li class="card flex items-center gap-3 px-4 py-3">
+              <%= avatar membership.user, size: "size-8", text: "text-sm" %>
+              <div class="min-w-0 flex-1">
+                <p class="font-medium truncate"><%= membership.user.name %></p>
+                <p class="text-sm text-ink-faint truncate"><%= membership.user.email_address %></p>
+              </div>
+              <%= form_with url: superadmin_workspace_member_path(@workspace, membership), method: :patch, class: "flex items-center gap-2" do %>
+                <select name="member[role]" class="input text-sm">
+                  <% Membership::ROLES.each do |role| %>
+                    <option value="<%= role %>" <%= "selected" if membership.role == role %>><%= Membership.role_label_for(role) %></option>
+                  <% end %>
+                </select>
+                <%= submit_tag t("superadmin.workspaces.save_role"), class: "btn-secondary text-sm" %>
+              <% end %>
+              <%= button_to t("integrations.team.remove_member"), superadmin_workspace_member_path(@workspace, membership), method: :delete, class: "btn-ghost text-sm text-red-600", form: { data: { turbo_confirm: t("superadmin.workspaces.remove_member_confirm") } } %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-ink-faint px-1"><%= t("superadmin.workspaces.no_members") %></p>
+      <% end %>
+    </section>
+
+    <% if @pending_invitations.any? %>
+      <section class="space-y-2">
+        <h2 class="text-base font-semibold text-ink px-1"><%= t("integrations.team.pending_invitations") %></h2>
+        <ul class="space-y-2">
+          <% @pending_invitations.each do |invitation| %>
+            <li class="card px-4 py-3 flex justify-between gap-2 text-base">
+              <span><%= invitation.email_address %></span>
+              <span class="text-ink-faint"><%= invitation.role_label %></span>
+            </li>
+          <% end %>
+        </ul>
+      </section>
+    <% end %>
+  </div>
+</div>

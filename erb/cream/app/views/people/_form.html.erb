@@ -1,0 +1,28 @@
+<% sections = [
+  ["contact", t("people.form.contact.title"), t("people.form.contact.description")],
+  ["profile", t("people.form.profile.title"), t("people.form.profile.description")],
+  ["internal_notes", t("people.form.internal_notes.title"), t("people.form.internal_notes.description")],
+  ["management", t("people.form.management.title"), t("people.form.management.description")]
+] %>
+<% sections << ["custom", t("people.form.custom.title"), t("people.form.custom.description")] if person.custom_field_definitions.any? %>
+<% sections.select! { |key, _, _| key == @edit_section } if @edit_section %>
+<%= form_with model: person, class: "space-y-5", data: { controller: "linkedin-suggest record-workspace", linkedin_suggest_entity_value: "person", linkedin_suggest_empty_title_value: t("people.form.profile.search_linkedin_empty"), record_workspace_copy: I18n.t("records.record_workspace"), action: "input->record-workspace#markDirty change->record-workspace#markDirty nested-form:changed->record-workspace#markDirty submit->record-workspace#submit turbo:submit-end->record-workspace#submitted turbo:before-visit@document->record-workspace#beforeVisit beforeunload@window->record-workspace#beforeUnload" } do |f| %>
+  <%= hidden_field_tag :section, @edit_section if @edit_section %>
+  <% if person.errors.any? %>
+    <div role="alert" class="rounded-lg bg-danger-soft ring-1 ring-danger-line px-4 py-3 text-sm text-danger-strong">
+      <p class="font-semibold mb-1"><%= t("shared.form.check_errors") %></p>
+      <ul class="list-disc list-inside"><% person.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
+    </div>
+  <% end %>
+  <% sections.each do |key, title, description| %>
+    <section class="record-card" aria-labelledby="record-edit-<%= key %>">
+      <h2 id="record-edit-<%= key %>" class="record-section-title"><%= title %></h2>
+      <p class="text-sm text-ink-soft mt-1 mb-5"><%= description %></p>
+      <div class="space-y-4"><%= render "form_#{key}", f: f, person: person %></div>
+    </section>
+  <% end %>
+  <div class="sticky bottom-0 flex items-center justify-end gap-2 border-t border-line bg-canvas-raised px-4 py-4 rounded-xl">
+    <%= link_to t("shared.form.cancel"), person.persisted? ? person_path(person, tab: "information") : people_path, class: "btn-secondary" %>
+    <%= f.submit person.persisted? ? t("shared.form.save_changes") : t("shared.form.create_person"), class: "btn-primary" %>
+  </div>
+<% end %>

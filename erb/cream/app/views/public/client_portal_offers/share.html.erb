@@ -1,0 +1,67 @@
+<% content_for :title, t("client_portal.offers.share_title") %>
+<div class="mx-auto max-w-lg">
+  <div class="card p-6 sm:p-8 space-y-6 shadow-sm">
+    <header class="space-y-1">
+      <h1 class="text-2xl font-display font-semibold"><%= t("client_portal.offers.share_title") %></h1>
+      <p class="text-sm text-ink-faint"><%= t("client_portal.offers.share_hint", name: @offer.name) %></p>
+    </header>
+
+    <% if @share_link %>
+      <div class="space-y-2" data-controller="clipboard">
+        <label class="label"><%= t("client_portal.offers.share_url") %></label>
+        <input type="text" readonly value="<%= @share_url %>" class="input w-full font-mono text-sm"
+              data-clipboard-target="source" tabindex="-1" aria-readonly="true">
+        <button type="button" class="btn-secondary" data-action="clipboard#copy" data-clipboard-target="button">
+          <span data-clipboard-target="copyIcon"><%= icon :copy, classes: "size-4" %></span>
+          <span data-clipboard-target="copiedIcon" class="hidden"><%= icon :check, classes: "size-4" %></span>
+          <%= t("client_portal.offers.copy_link") %>
+        </button>
+      </div>
+    <% elsif OfferShareLink.exists?(offer: @offer, person: @sharing_person) %>
+      <p class="text-sm text-ink-soft"><%= t("client_portal.offers.share_revoked") %></p>
+    <% else %>
+      <%= button_to t("client_portal.offers.generate_share_link"),
+            share_client_portal_offer_path(workspace_slug: @workspace.slug, id: @offer.id),
+            method: :post,
+            class: "btn-primary" %>
+    <% end %>
+
+    <section class="space-y-3">
+      <h2 class="text-sm font-semibold"><%= t("client_portal.offers.guest_accesses_title") %></h2>
+      <% if @guest_accesses.empty? %>
+        <p class="text-sm text-ink-faint"><%= t("client_portal.offers.guest_accesses_empty") %></p>
+      <% else %>
+        <ul class="divide-y divide-line/60">
+          <% @guest_accesses.each do |access| %>
+            <% grant = access[:grant] %>
+            <li class="flex items-center justify-between gap-3 py-2">
+              <div class="min-w-0">
+                <p class="text-sm truncate"><%= grant.email %></p>
+                <p class="text-xs text-ink-faint">
+                  <%= t("client_portal.offers.guest_access_shared_by", name: grant.offer_share_link.person.display_name) %>
+                  ·
+                  <% if access[:revoked] %>
+                    <%= t("client_portal.offers.guest_access_revoked") %>
+                  <% elsif access[:opened_at] %>
+                    <%= t("client_portal.offers.guest_access_opened", date: l(access[:opened_at], format: :short)) %>
+                  <% else %>
+                    <%= t("client_portal.offers.guest_access_pending") %>
+                  <% end %>
+                </p>
+              </div>
+              <% unless access[:revoked] %>
+                <%= button_to t("client_portal.offers.revoke_access"),
+                      revoke_access_client_portal_offer_path(workspace_slug: @workspace.slug, id: @offer.id, grant_id: grant.id),
+                      method: :delete,
+                      class: "btn-ghost text-sm",
+                      form: { data: { turbo_confirm: t("client_portal.offers.revoke_access_confirm", email: grant.email) } } %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+
+    <%= link_to t("client_portal.offers.back_to_list"), client_portal_offers_path(workspace_slug: @workspace.slug), class: "btn-ghost" %>
+  </div>
+</div>

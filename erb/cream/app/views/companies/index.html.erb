@@ -1,0 +1,98 @@
+<% page_title t("nav.companies") %>
+<% actions = capture do %>
+  <%= link_to duplicates_companies_path, class: "btn-secondary" do %>
+    <%= icon :building, classes: "size-3.5" %> <%= t("shared.lists.possible_duplicates") %>
+    <% if @duplicate_group_count.positive? %>
+      <span class="ml-1 inline-flex items-center rounded-full bg-accent-soft px-1.5 py-0.5 text-2xs font-semibold text-accent-dark"><%= @duplicate_group_count %></span>
+    <% end %>
+  <% end %>
+<% if feature_enabled?(:csv_import_export) %>
+  <%= link_to new_import_path(record_type: "Company"), class: "btn-secondary" do %>
+    <%= icon :upload, classes: "size-3.5" %> <%= t("shared.lists.import") %>
+  <% end %>
+  <%= link_to export_path(record_type: "Company", **filter_form_params), class: "btn-secondary" do %>
+    <%= icon :download, classes: "size-3.5" %> <%= t("shared.lists.export") %>
+  <% end %>
+<% end %>
+  <%= link_to new_company_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("shared.lists.new_company") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("nav.companies"), icon_name: :building, count: @pagy.count, actions: actions %>
+<%= render "shared/view_tabs", views: @saved_views, record_type: "Company" %>
+
+<div class="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2 shrink-0">
+  <%= form_with url: companies_path, method: :get, class: "flex flex-wrap items-center gap-2 flex-1" do %>
+    <%= hidden_field_tag :view, @active_view.id if @active_view %>
+    <div class="relative max-w-xs min-w-40 flex-1">
+      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-3.5" %></span>
+      <%= text_field_tag :q, filter_value(:q), placeholder: t("companies.index.search_placeholder"), class: "input pl-8" %>
+    </div>
+    <%= select_tag :industry,
+          options_for_select([ [ t("shared.lists.blank"), ListFilters::NONE ] ] + @industries, filter_value(:industry)),
+          include_blank: t("shared.lists.all_industries"), class: "input w-44",
+          data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+    <%= select_tag :owner_id,
+          options_for_select([ [ t("shared.lists.unassigned"), ListFilters::NONE ] ] + @owners.map { |owner| [ owner.name, owner.id ] }, filter_value(:owner_id)),
+          include_blank: t("shared.lists.all_owners"), class: "input w-44",
+          data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+    <%= render "shared/date_range_filter", label: t("shared.lists.created"), from: :created_from, to: :created_to %>
+    <%= render "shared/custom_field_filters", fields: @custom_fields, cf: filter_value(:cf) %>
+    <% if filters_active? %>
+      <%= link_to t("shared.lists.clear"), companies_path(clear_filters: 1), class: "btn-ghost" %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex-1 overflow-auto scrollbar-subtle">
+  <% if @companies.any? %>
+    <table class="table-base">
+      <thead>
+        <tr>
+          <th><%= sort_link t("records.fields.company"), :name %></th>
+          <th><%= sort_link t("records.fields.domain"), :domain %></th>
+          <th><%= sort_link t("records.fields.industry"), :industry %></th>
+          <th><%= sort_link t("records.fields.employees"), :employee_range %></th>
+          <th><%= sort_link t("records.fields.location"), :location %></th>
+          <th><%= t("records.fields.people") %></th>
+          <th><%= t("records.fields.owner") %></th>
+          <%= render "shared/magic_column_headers", record_type: "Company" %>
+          <%= render "shared/custom_field_headers", fields: @custom_fields %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @companies.each do |company| %>
+          <tr class="cursor-pointer"
+              data-controller="row-link"
+              data-row-link-url-value="<%= company_path(company) %>"
+              data-action="click->row-link#navigate auxclick->row-link#navigate">
+            <td>
+              <%= link_to company_path(company), class: "flex items-center gap-2 font-medium hover:text-accent" do %>
+                <%= avatar company %>
+                <%= company.name %>
+              <% end %>
+            </td>
+            <td class="text-ink-soft"><%= company.domain %></td>
+            <td><%= badge(company.industry) if company.industry.present? %></td>
+            <td class="text-ink-soft"><%= company.employee_range %></td>
+            <td class="text-ink-soft"><%= company.location %></td>
+            <td class="text-ink-soft"><%= company.people.size %></td>
+            <td><%= avatar(company.owner, size: "size-5", text: "text-2xs") if company.owner %></td>
+            <%= render "shared/magic_column_cells", record: company %>
+            <%= render "shared/custom_field_cells", fields: @custom_fields, record: company %>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "shared/pagination", pagy: @pagy %>
+  <% else %>
+    <% action = capture do %>
+      <%= link_to new_company_path, class: "btn-primary" do %>
+        <%= icon :plus, classes: "size-3.5" %> <%= t("shared.lists.new_company") %>
+      <% end %>
+    <% end %>
+    <%= render "shared/empty_state", icon_name: :building, title: t("companies.index.empty_title"),
+          subtitle: filter_value(:q).present? ? t("companies.index.empty_search") : t("companies.index.empty_subtitle"),
+          action: action %>
+  <% end %>
+</div>

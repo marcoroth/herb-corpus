@@ -1,0 +1,53 @@
+<%# locals: (views:, record_type:, surface: nil) %>
+<div class="flex items-center gap-1 border-b border-line px-5 py-1.5 shrink-0">
+  <% tab_class = ->(active) {
+    [
+      "inline-flex items-center rounded-md px-2.5 py-1 text-sm font-medium whitespace-nowrap transition-colors",
+      active ? "bg-accent-soft text-ink" : "text-ink-soft hover:bg-accent-soft/70 hover:text-ink"
+    ]
+  } %>
+
+  <div class="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto scrollbar-subtle">
+    <%= link_to t("shared.views.all"), saved_views_index_path(record_type, clear_filters: 1, surface: surface), class: tab_class.call(@active_view.nil?) %>
+
+    <% views.each do |view| %>
+      <%= link_to view.name, saved_views_index_path(record_type, view: view.id, surface: surface), class: tab_class.call(@active_view&.id == view.id), title: (view.shared? ? t("shared.views.shared_view") : t("shared.views.personal_view")) %>
+    <% end %>
+  </div>
+
+  <div class="flex items-center gap-2 shrink-0 pl-2">
+    <% if @active_view && view_filters_changed? %>
+      <%= button_to t("shared.views.update_view"), saved_view_path(@active_view), method: :patch, params: filter_form_params.merge(update_filters: "1").merge(surface.present? ? { surface: surface } : {}), class: "btn-ghost text-sm py-1" %>
+    <% end %>
+
+    <%= form_with url: saved_views_path, method: :post, class: "flex items-center gap-1.5", data: { turbo: false } do %>
+      <%= hidden_field_tag :record_type, record_type %>
+      <%= hidden_field_tag :surface, surface if surface.present? %>
+      <%= render "shared/view_filter_fields" %>
+      <%= text_field_tag "saved_view[name]", nil, placeholder: t("shared.views.view_name_placeholder"), class: "input w-32 text-sm py-1", required: true %>
+      <label class="inline-flex items-center gap-1 text-xs text-ink-soft whitespace-nowrap">
+        <%= check_box_tag "saved_view[shared]", "1", false, class: "rounded border-line" %>
+        <%= t("shared.views.shared") %>
+      </label>
+      <%= submit_tag t("shared.views.save_view"), class: "btn-secondary text-sm py-1" %>
+    <% end %>
+
+    <% if @active_view %>
+      <details class="relative">
+        <summary class="btn-ghost text-sm py-1 list-none cursor-pointer"><%= icon :dots, classes: "size-3.5" %></summary>
+        <div class="absolute right-0 top-full mt-1 z-20 w-52 rounded-md border border-line bg-canvas-raised py-1 shadow-sm">
+          <%= form_with url: saved_view_path(@active_view), method: :patch, class: "px-2 py-2 border-b border-line space-y-1.5", data: { turbo: false } do %>
+            <%= hidden_field_tag :surface, surface if surface.present? %>
+            <%= text_field_tag "saved_view[name]", @active_view.name, class: "input w-full text-sm py-1" %>
+            <label class="inline-flex items-center gap-1 text-xs text-ink-soft">
+              <%= check_box_tag "saved_view[shared]", "1", @active_view.shared?, class: "rounded border-line" %>
+              <%= t("shared.views.shared_with_workspace") %>
+            </label>
+            <%= submit_tag t("shared.views.rename"), class: "btn-ghost text-xs w-full" %>
+          <% end %>
+          <%= button_to t("shared.views.delete_view"), saved_view_path(@active_view), method: :delete, params: (surface.present? ? { surface: surface } : {}), class: "w-full text-left px-3 py-1.5 text-sm text-danger-strong hover:bg-danger-soft", form: { data: { turbo_confirm: t("shared.views.delete_confirm") } } %>
+        </div>
+      </details>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,170 @@
+<% content_for :title, @reschedule_mode ? t("booking.public_ui.rescheduleTitle") : @booking_page.name %>
+<% reschedule_prefill = @reschedule_mode ? {
+  event_type: @booking.booking_event_type.slug,
+  first_name: @booking.first_name,
+  last_name: @booking.last_name,
+  email: @booking.email,
+  phone: @booking.phone,
+  message: @booking.message,
+  guests: @booking.guest_emails,
+  lang: @locale
+} : nil %>
+<div class="public-booking mx-auto w-full max-w-7xl"
+     data-controller="booking"
+     data-booking-slug-value="<%= @booking_page.slug %>"
+     data-booking-locale-value="<%= @locale %>"
+     data-booking-timezone-value="<%= @reschedule_mode ? @booking.timezone : @booking_page.timezone %>"
+     data-booking-event-types-url-value="<%= public_booking_api_event_types_path(@booking_page.slug) %>"
+     data-booking-availability-url-value="<%= public_booking_api_availability_path(@booking_page.slug) %>"
+     data-booking-book-url-value="<%= public_booking_api_book_path(@booking_page.slug) %>"
+     data-booking-timestamp-value="<%= BookingPage.signed_timestamp %>"
+     data-booking-copy-value="<%= public_booking_stimulus_copy_json %>"
+     <% if @reschedule_mode %>
+     data-booking-reschedule-mode-value="true"
+     data-booking-reschedule-token-value="<%= params[:token] %>"
+     data-booking-reschedule-url-value="<%= public_booking_api_reschedule_path(@booking_page.slug) %>"
+     data-booking-reschedule-prefill-value="<%= reschedule_prefill.to_json %>"
+     data-booking-reschedule-current-starts-at-value="<%= @booking.localized_starts_at_with_zone(locale: @locale) %>"
+     data-booking-event-type-value="<%= @booking.booking_event_type.slug %>"
+     <% elsif @event_type.present? %>
+     data-booking-event-type-value="<%= @event_type.slug %>"
+     <% end %>>
+  <div class="public-booking-shell">
+    <header class="public-booking-hero">
+      <div data-booking-target="profile" data-action="click->booking#goToFirstStep keydown->booking#profileKeydown" role="button" tabindex="0" class="public-booking-profile min-w-0 flex-1"></div>
+      <div class="public-booking-locale shrink-0" role="group" aria-label="<%= t("booking.public_ui.aria.language") %>">
+        <button type="button" data-action="booking#setLocale" data-locale="es" data-booking-target="localeEs" class="public-booking-locale-btn">ES</button>
+        <button type="button" data-action="booking#setLocale" data-locale="en" data-booking-target="localeEn" class="public-booking-locale-btn">EN</button>
+      </div>
+    </header>
+
+    <nav data-booking-target="progress" class="public-booking-progress" aria-label="<%= t("booking.public_ui.aria.booking_steps") %>">
+      <ol class="public-booking-progress-list">
+        <li data-booking-target="progressEvent" class="public-booking-progress-step<%= " hidden" if @event_type.present? %>" data-step="eventTypes">
+          <button type="button" class="public-booking-progress-jump" data-action="booking#goToStep" data-step="eventTypes" disabled>
+            <span class="public-booking-progress-number">1</span>
+            <span data-booking-target="progressEventLabel" class="public-booking-progress-label"></span>
+          </button>
+        </li>
+        <li data-booking-target="progressEventSeparator" class="public-booking-progress-separator<%= " hidden" if @event_type.present? %>" aria-hidden="true"></li>
+        <li data-booking-target="progressSchedule" class="public-booking-progress-step<%= " is-active" if @event_type.present? %>" data-step="schedule">
+          <button type="button" class="public-booking-progress-jump" data-action="booking#goToStep" data-step="schedule" disabled>
+            <span class="public-booking-progress-number"><%= @event_type.present? ? 1 : 2 %></span>
+            <span data-booking-target="progressScheduleLabel" class="public-booking-progress-label"></span>
+          </button>
+        </li>
+        <li class="public-booking-progress-separator" aria-hidden="true"></li>
+        <li data-booking-target="progressDetails" class="public-booking-progress-step" data-step="form">
+          <button type="button" class="public-booking-progress-jump" data-action="booking#goToStep" data-step="form" disabled>
+            <span class="public-booking-progress-number"><%= @event_type.present? ? 2 : 3 %></span>
+            <span data-booking-target="progressDetailsLabel" class="public-booking-progress-label"></span>
+          </button>
+        </li>
+      </ol>
+    </nav>
+
+    <div class="public-booking-content">
+      <div data-booking-target="stepEventTypes" class="public-booking-step<%= " hidden" if @event_type.present? %>">
+        <h1 class="public-booking-heading" data-booking-target="headingChoose"></h1>
+        <div data-booking-target="eventTypeGrid" class="public-booking-event-grid"></div>
+      </div>
+
+      <div data-booking-target="stepSchedule" class="public-booking-step<%= " hidden" unless @event_type.present? || @reschedule_mode %>">
+        <% if @reschedule_mode %>
+          <p data-booking-target="rescheduleBanner" class="mb-4 rounded-md border border-line bg-canvas px-4 py-3 text-sm text-ink-soft"></p>
+        <% end %>
+        <div data-booking-target="backToTypesWrap"<% if @event_type.present? || @reschedule_mode %> class="hidden"<% end %>>
+          <button type="button" data-action="booking#backToEventTypes" class="public-booking-back" data-booking-target="backToTypesLabel"></button>
+        </div>
+        <div class="public-booking-two-col public-booking-two-col--schedule">
+          <div class="public-booking-calendar-panel">
+            <div class="public-booking-month-nav">
+              <button type="button" data-action="booking#prevMonth" class="public-booking-month-btn" aria-label="<%= t("booking.public_ui.aria.previous_month") %>">&larr;</button>
+              <h2 class="public-booking-month-label" data-booking-target="monthLabel"></h2>
+              <button type="button" data-action="booking#nextMonth" class="public-booking-month-btn" aria-label="<%= t("booking.public_ui.aria.next_month") %>">&rarr;</button>
+            </div>
+            <div data-booking-target="calendarGrid" class="public-booking-calendar"></div>
+            <p data-booking-target="scheduleError" class="public-booking-alert hidden"></p>
+            <div class="public-booking-timezone">
+              <label class="label" data-booking-target="timezoneLabel"></label>
+              <select data-booking-target="timezoneSelect" data-action="change->booking#timezoneChanged" class="input mt-1"></select>
+            </div>
+          </div>
+          <aside class="public-booking-aside">
+            <div data-booking-target="eventSummary" class="public-booking-summary"></div>
+            <div class="public-booking-slots">
+              <h3 class="public-booking-slots-heading" data-booking-target="slotsHeading"></h3>
+              <div data-booking-target="slotsList" class="public-booking-slots-list"></div>
+            </div>
+            <button type="button" data-action="booking#goToForm" data-booking-target="nextButton" class="btn-primary public-booking-next hidden w-full"></button>
+          </aside>
+        </div>
+      </div>
+
+      <div data-booking-target="stepForm" class="public-booking-step hidden">
+        <button type="button" data-action="booking#backToSchedule" class="public-booking-back" data-booking-target="backToScheduleLabel"></button>
+        <div class="public-booking-two-col">
+          <form data-booking-target="form" data-action="submit->booking#submitBooking" class="public-booking-form">
+            <div data-booking-target="formFields" class="space-y-5">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div data-booking-target="firstNameField">
+                  <label class="label" data-booking-target="firstNameLabel"></label>
+                  <input type="text" name="first_name" required minlength="2" class="input mt-1 w-full" data-booking-target="firstNameInput">
+                </div>
+                <div data-booking-target="lastNameField">
+                  <label class="label" data-booking-target="lastNameLabel"></label>
+                  <input type="text" name="last_name" required minlength="2" class="input mt-1 w-full" data-booking-target="lastNameInput">
+                </div>
+              </div>
+              <div data-booking-target="emailField">
+                <label class="label" data-booking-target="emailLabel"></label>
+                <input type="email" name="email" required class="input mt-1 w-full" data-booking-target="emailInput">
+              </div>
+              <div data-booking-target="phoneField">
+                <label class="label" data-booking-target="phoneLabel"></label>
+                <input type="tel" name="phone" class="input mt-1 w-full" data-booking-target="phoneInput">
+              </div>
+              <div data-booking-target="messageField">
+                <label class="label" data-booking-target="messageLabel"></label>
+                <textarea name="message" maxlength="500" rows="3" class="input mt-1 w-full" data-booking-target="messageInput"></textarea>
+              </div>
+              <div data-booking-target="guestsSection">
+                <button type="button" data-action="booking#toggleGuests" class="btn-secondary" data-booking-target="addGuestsLabel"></button>
+                <div data-booking-target="guestsFields" class="hidden mt-3 space-y-2"></div>
+              </div>
+            </div>
+            <div data-booking-target="confirmPanel" class="hidden space-y-4">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-faint" data-booking-target="confirmHeading"></h3>
+              <div data-booking-target="confirmSummary" class="public-booking-summary-card"></div>
+            </div>
+            <div class="hidden" aria-hidden="true">
+              <label for="booking_honeypot" data-booking-target="honeypotLabel"></label>
+              <input type="text" id="booking_honeypot" name="_honeypot" tabindex="-1" autocomplete="off" data-booking-target="honeypotInput">
+            </div>
+            <% if TurnstileVerifier.enabled? && !@reschedule_mode %>
+              <div class="cf-turnstile" data-sitekey="<%= TurnstileVerifier.site_key %>" data-appearance="interaction-only" data-booking-target="turnstile"></div>
+              <%= javascript_include_tag "https://challenges.cloudflare.com/turnstile/v0/api.js", async: true, defer: true, nonce: true %>
+            <% end %>
+            <p data-booking-target="formError" class="public-booking-form-error hidden"></p>
+            <button type="submit" class="btn-primary public-booking-submit" data-booking-target="submitLabel"></button>
+          </form>
+          <aside class="public-booking-aside" data-booking-target="formSummary"></aside>
+        </div>
+      </div>
+
+      <div data-booking-target="stepConfirmation" class="public-booking-step public-booking-confirmation hidden">
+        <div class="public-booking-success-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-8">
+            <path d="M20 6 9 17l-5-5"/>
+          </svg>
+        </div>
+        <h2 class="public-booking-heading public-booking-heading--center" data-booking-target="confirmedHeading"></h2>
+        <div data-booking-target="confirmationDetails" class="public-booking-summary-card public-booking-summary-card--center"></div>
+        <div class="public-booking-confirmation-actions">
+          <a href="#" data-booking-target="icsDownload" class="btn-secondary" download="event.ics"></a>
+          <button type="button" data-action="booking#restart" class="btn-primary" data-booking-target="bookAnotherLabel"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

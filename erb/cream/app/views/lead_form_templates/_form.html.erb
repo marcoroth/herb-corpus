@@ -1,0 +1,82 @@
+<% edit_form_id = dom_id(template, :edit) %>
+<div class="max-w-6xl grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] xl:items-start">
+  <div class="card space-y-4 p-4 min-w-0">
+    <%= form_with model: template,
+          html: {
+            id: edit_form_id,
+            data: {
+              controller: "lead-form-template-form",
+              action: "change->lead-form-template-form#syncPageSlugVisibility"
+            }
+          } do |f| %>
+      <% if template.errors.any? %>
+        <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <%= template.errors.full_messages.to_sentence %>
+        </div>
+      <% end %>
+
+      <div>
+        <%= f.label :slug, t("marketing.lead_form_templates.form.slug_label"), class: "label" %>
+        <%= f.text_field :slug, class: "input w-full font-mono", placeholder: t("marketing.lead_form_templates.form.slug_placeholder"), required: true %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_form_templates.form.slug_hint_html").html_safe %></p>
+      </div>
+
+      <label class="flex items-center gap-2 text-sm">
+        <%= f.check_box :partial %> <%= t("marketing.lead_form_templates.form.partial_checkbox") %>
+      </label>
+
+      <div>
+        <%= f.label :kind, t("marketing.lead_form_templates.form.kind"), class: "label" %>
+        <%= f.select :kind,
+              LeadFormTemplate::KINDS.map { |k| [t("marketing.lead_form_templates.form.kind_#{k}"), k] },
+              {}, class: "input w-full" %>
+      </div>
+      <div data-lead-form-template-form-target="pageSlugField" class="<%= "hidden" if template.partial? || !template.page? %>">
+        <%= f.label :page_slug, t("marketing.lead_form_templates.form.page_slug"), class: "label" %>
+        <%= f.text_field :page_slug, class: "input w-full font-mono", placeholder: t("marketing.lead_form_templates.form.page_slug_placeholder") %>
+        <p class="mt-1 text-xs text-ink-faint">
+          <%= t("marketing.lead_form_templates.form.page_slug_hint") %>
+          <code class="font-mono">/p/<%= template.workspace.slug %>/&lt;slug&gt;</code>
+        </p>
+      </div>
+
+      <div>
+        <%= f.label :body, t("marketing.lead_form_templates.form.body"), class: "label" %>
+        <%= render "shared/liquid_editor",
+              form: f,
+              field: :body,
+              rows: 24,
+              required: true,
+              preview_form_id: (template.persisted? && template.previewable? ? "lead-form-template-preview-form" : nil) %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_form_templates.form.body_hint") %></p>
+        <% if template.layout? %>
+          <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_form_templates.form.layout_body_hint") %></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if template.persisted? && template.previewable? %>
+      <% preview_products = defined?(@preview_products) ? @preview_products : [] %>
+      <%= render "preview_form", template: template %>
+      <% if preview_products.any? %>
+        <%= render "preview_product_field",
+              products: preview_products,
+              selected_id: params[:preview_product_id],
+              form_id: "lead-form-template-preview-form" %>
+      <% end %>
+    <% end %>
+
+    <div class="flex flex-wrap gap-2">
+      <%= button_tag t("marketing.lead_form_templates.form.save"), type: "submit", form: edit_form_id, class: "btn-primary" %>
+      <% if template.persisted? && template.previewable? %>
+        <%= button_tag t("marketing.lead_form_templates.form.preview_button"), type: "submit", form: "lead-form-template-preview-form",
+              class: "btn-secondary" %>
+      <% end %>
+      <%= link_to t("marketing.shared.cancel"), lead_form_templates_path, class: "btn-secondary" %>
+    </div>
+  </div>
+
+  <aside class="min-w-0 xl:sticky xl:top-5">
+    <%= render "submission_schema", template: template %>
+  </aside>
+</div>

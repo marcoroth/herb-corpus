@@ -1,0 +1,57 @@
+<section class="record-card" aria-labelledby="record-activity-title">
+  <div class="record-card-heading">
+    <h2 id="record-activity-title" class="record-section-title"><%= t("records.activity.title") %></h2>
+    <% if feature_enabled?(:comments) %><button type="button" class="btn-ghost" data-action="record-workspace#openComposer" data-composer="comment"><%= t("records.add_comment") %></button><% end %>
+  </div>
+  <nav class="flex flex-wrap gap-2 mb-6" aria-label="<%= t("records.activity.filter_aria") %>">
+    <% filters = [["all", t("records.activity.filters.all")], ["notes", t("records.activity.filters.notes")]] %>
+    <% filters << ["emails", t("records.activity.filters.emails")] if feature_enabled?(:record_email) %>
+    <% filters << ["comments", t("records.activity.filters.comments")] if feature_enabled?(:comments) %>
+    <% filters << ["changes", t("records.activity.filters.changes")] %>
+    <% filters.each do |key, label| %>
+      <%= link_to label, deal_path(@deal, tab: "activity", activity_filter: key), class: "record-filter", aria: { current: @activity_feed.filter == key ? "true" : nil } %>
+    <% end %>
+  </nav>
+  <% if @activity_feed.entries.any? %>
+    <ol class="record-feed">
+      <% @activity_feed.entries.each do |entry| %>
+        <% if entry.is_a?(EmailMessage) %>
+          <%= render "shared/email_message", message: entry %>
+        <% else %>
+          <li class="record-feed-entry">
+            <div class="record-feed-marker"><%= icon(entry.is_a?(Note) ? :note : entry.is_a?(Comment) ? :message : :activity, classes: "size-4") %></div>
+            <article class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap text-sm mb-1.5">
+                <% if entry.is_a?(Activity) %>
+                  <span class="text-ink-soft break-words"><%= activity_sentence(entry) %></span>
+                <% else %>
+                  <span class="font-semibold"><%= entry.user&.name || t("shared.someone") %></span>
+                  <span class="text-ink-soft"><%= entry.is_a?(Note) ? t("records.activity.added_note") : t("records.activity.commented") %></span>
+                <% end %>
+                <time class="text-xs text-ink-soft ml-auto" datetime="<%= entry.created_at.iso8601 %>" title="<%= l(entry.created_at, format: :long) %>"><%= l(entry.created_at, format: :short) %></time>
+              </div>
+              <% if entry.is_a?(Activity) %>
+                <% if entry.action == "updated" && entry.metadata["changes"].present? %>
+                  <details class="record-disclosure mt-2"><summary><%= t("records.activity.view_changes") %></summary><dl class="text-sm space-y-2 mt-2"><% entry.metadata["changes"].each do |field, (from, to)| %><div class="break-words"><dt class="font-medium"><%= field.humanize %></dt><dd><del class="text-ink-soft"><%= from.presence || t("shared.empty_value") %></del> → <%= to.presence || t("shared.empty_value") %></dd></div><% end %></dl></details>
+                <% end %>
+              <% else %>
+                <% if entry.is_a?(Note) && entry.title.present? %><h3 class="font-medium mb-1 break-words"><%= entry.title %></h3><% end %>
+                <p class="text-base text-ink-soft whitespace-pre-wrap break-words"><%= entry.is_a?(Comment) ? mention_html(entry.body) : auto_link_html(entry.body) %></p>
+                <details class="record-disclosure mt-2"><summary><%= t("records.activity.actions") %></summary><%= button_to entry.is_a?(Note) ? t("shared.notes.delete") : t("shared.comments.delete"), entry.is_a?(Note) ? note_path(entry) : comment_path(entry), method: :delete, class: "btn-ghost text-danger mt-2", form: { data: { turbo_confirm: entry.is_a?(Note) ? t("shared.notes.delete_confirm") : t("shared.comments.delete_confirm") } } %></details>
+              <% end %>
+            </article>
+          </li>
+        <% end %>
+      <% end %>
+    </ol>
+  <% else %>
+    <div class="py-8 text-center text-ink-soft"><p class="font-medium"><%= t("records.activity.empty_title") %></p><p class="text-sm mt-1"><%= t("records.activity.empty_hint") %></p></div>
+  <% end %>
+  <% if @activity_feed.pages > 1 %>
+    <nav class="flex items-center justify-between gap-3 border-t border-line pt-4 mt-6 text-sm" aria-label="<%= t("records.activity.pages_aria") %>">
+      <% if @activity_feed.page > 1 %><%= link_to t("records.activity.newer"), deal_path(@deal, tab: "activity", activity_filter: @activity_feed.filter, activity_page: @activity_feed.page - 1), class: "btn-secondary" %><% end %>
+      <span class="text-ink-soft"><%= t("shared.pagination.page_of", page: @activity_feed.page, pages: @activity_feed.pages) %></span>
+      <% if @activity_feed.page < @activity_feed.pages %><%= link_to t("records.activity.older"), deal_path(@deal, tab: "activity", activity_filter: @activity_feed.filter, activity_page: @activity_feed.page + 1), class: "btn-secondary" %><% end %>
+    </nav>
+  <% end %>
+</section>

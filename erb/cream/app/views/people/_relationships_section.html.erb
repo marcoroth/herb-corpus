@@ -1,0 +1,52 @@
+<div class="mt-4">
+  <h3 class="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-1.5"><%= t("people.relationships.title") %></h3>
+
+  <% if person.relationships_for_display.any? %>
+    <ul class="space-y-1 mb-3">
+      <% person.relationships_for_display.each do |relationship, viewer| %>
+        <% other = relationship.other_person(viewer) %>
+        <li class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-canvas-sunken group">
+          <%= link_to person_path(other), class: "flex min-w-0 flex-1 items-center gap-2 text-base" do %>
+            <%= avatar other, size: "size-5", text: "text-2xs" %>
+            <span class="min-w-0 truncate">
+              <span class="font-medium"><%= other.display_name %></span>
+              <span class="text-ink-faint"> · <%= relationship.label_for(viewer) %></span>
+            </span>
+          <% end %>
+          <%= button_to person_relationship_path(person, relationship),
+                method: :delete,
+                class: "btn-ghost shrink-0 px-1.5 py-1 opacity-0 group-hover:opacity-100 focus:opacity-100",
+                form: { data: { turbo_confirm: t("people.relationships.remove_confirm") } },
+                title: t("people.relationships.remove") do %>
+            <%= icon :trash, classes: "size-3.5" %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-base text-ink-faint mb-3"><%= t("people.relationships.empty") %></p>
+  <% end %>
+
+  <details class="record-disclosure">
+    <summary><%= t("people.relationships.add") %></summary>
+  <%= form_with url: person_relationships_path(person), scope: :person_relationship, class: "space-y-2" do |form| %>
+    <%= render RecordPickerComponent.new(
+          form: form,
+          attribute: :to_person_id,
+          label: t("people.relationships.person"),
+          scope: current_workspace.people.where.not(id: person.id).order(:first_name, :last_name),
+          search_url: people_path(format: :json),
+          name_method: :display_name,
+          hint_method: :job_title
+        ) %>
+    <div>
+      <%= form.label :relationship_type, t("people.relationships.type"), class: "label" %>
+      <%= form.select :relationship_type,
+            options_for_select(PersonRelationship.type_options_for_select),
+            {},
+            class: "input w-full" %>
+    </div>
+    <%= form.submit t("records.add"), class: "btn-secondary w-full justify-center" %>
+  <% end %>
+  </details>
+</div>

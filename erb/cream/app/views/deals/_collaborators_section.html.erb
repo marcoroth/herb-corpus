@@ -1,0 +1,51 @@
+<%# locals: (deal:) %>
+<section>
+  <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-faint mb-2">
+    <%= icon :users, classes: "size-3.5" %> <%= t("deals.show.collaborators") %>
+    <span class="text-ink-faint font-normal normal-case tracking-normal">(<%= deal.collaborators.size %>)</span>
+  </h3>
+
+  <% if policy(deal).manage_collaborators? %>
+    <% available_users = current_workspace.users
+          .where.not(id: [ deal.owner_id, *deal.collaborator_ids ].compact)
+          .order(:name) %>
+    <% if available_users.any? %>
+      <%= form_with url: deal_deal_accesses_path(deal), class: "card p-3 mb-3 flex flex-wrap items-end gap-2" do %>
+        <div class="flex-1 min-w-[12rem]">
+          <label for="deal_access_user_id_<%= deal.id %>" class="block text-sm font-medium text-ink-soft mb-1"><%= t("deals.show.add_collaborator") %></label>
+          <%= select_tag :user_id,
+                options_from_collection_for_select(available_users, :id, :name),
+                id: "deal_access_user_id_#{deal.id}",
+                class: "input w-full",
+                required: true %>
+        </div>
+        <%= submit_tag t("deals.show.add"), class: "btn-secondary" %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if deal.collaborators.any? %>
+    <ul class="space-y-2">
+      <% deal.deal_accesses.includes(:user).each do |access| %>
+        <li class="card flex items-center gap-3 px-4 py-3">
+          <%= avatar access.user, size: "size-8", text: "text-sm" %>
+          <div class="min-w-0 flex-1">
+            <p class="text-base font-medium truncate"><%= access.user.name %></p>
+            <p class="text-xs text-ink-faint truncate"><%= access.user.email_address %></p>
+          </div>
+          <% if policy(deal).manage_collaborators? %>
+            <%= button_to deal_deal_access_path(deal, access), method: :delete,
+                  class: "text-ink-faint hover:text-danger p-1.5 rounded-md hover:bg-danger-soft",
+                  title: t("deals.show.remove_collaborator") do %>
+              <%= icon :trash, classes: "size-4" %>
+            <% end %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% elsif !policy(deal).manage_collaborators? %>
+    <p class="text-sm text-ink-faint"><%= t("deals.show.no_collaborators") %></p>
+  <% else %>
+    <p class="text-sm text-ink-faint"><%= t("deals.show.collaborators_hint") %></p>
+  <% end %>
+</section>

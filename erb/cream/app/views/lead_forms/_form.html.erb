@@ -1,0 +1,244 @@
+<%= form_with model: lead_form, class: "mx-auto max-w-5xl space-y-6" do |f| %>
+  <div class="card space-y-4 p-6">
+    <div>
+      <h2 class="font-display text-lg font-semibold"><%= t("marketing.lead_forms.form.identity_heading") %></h2>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.identity_intro") %></p>
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :name, t("marketing.shared.name"), class: "label" %>
+        <%= f.text_field :name, class: "input mt-1 w-full", required: true %>
+      </div>
+      <div>
+        <%= f.label :slug, t("marketing.lead_forms.form.slug_label"), class: "label" %>
+        <%= f.text_field :slug, class: "input mt-1 w-full", placeholder: t("marketing.lead_forms.form.slug_placeholder") %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.slug_hint") %></p>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :template_key, t("marketing.lead_forms.form.template_key"), class: "label" %>
+        <%= f.select :template_key, options_for_select(@template_keys, lead_form.template_key), {}, class: "input mt-1 w-full" %>
+      </div>
+      <div class="flex flex-col justify-end gap-3 pb-1">
+        <label class="flex items-center gap-2 text-sm">
+          <%= f.check_box :collects_company %> <%= t("marketing.lead_forms.form.collects_company") %>
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <%= f.check_box :active %> <%= t("marketing.shared.active") %>
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <%= f.check_box :require_corporate_email %> <%= t("marketing.lead_forms.form.require_corporate_email") %>
+        </label>
+        <p class="text-xs text-ink-faint"><%= t("marketing.lead_forms.form.corporate_email_hint") %></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card space-y-4 p-6">
+    <div>
+      <h2 class="font-display text-lg font-semibold"><%= t("marketing.lead_forms.form.destination_heading") %></h2>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.destination_intro") %></p>
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :destination, t("marketing.lead_forms.form.destination_label"), class: "label" %>
+        <%= f.select :destination,
+              LeadForm::DESTINATIONS.map { |d| [t("marketing.lead_forms.form.destination_#{d}"), d] },
+              {}, class: "input mt-1 w-full" %>
+      </div>
+      <% if feature_enabled?(:marketing_consent) %>
+        <div>
+          <%= f.label :subscription_type_id, t("marketing.lead_forms.form.subscription_type_mql"), class: "label" %>
+          <%= f.collection_select :subscription_type_id, @subscription_types, :id, :name,
+                { include_blank: t("marketing.lead_forms.form.subscription_default") }, class: "input mt-1 w-full" %>
+        </div>
+      <% end %>
+    </div>
+    <div>
+      <%= f.label :marketing_consent_text, t("marketing.lead_forms.form.marketing_consent_text"), class: "label" %>
+      <%= f.text_area :marketing_consent_text, rows: 2, class: "input mt-1 w-full resize-y" %>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.marketing_consent_hint") %></p>
+    </div>
+    <% if feature_enabled?(:marketing_consent) && lead_form.destination == "mql" %>
+      <% expected_key = lead_form.expected_mql_consent_field_key %>
+      <% if expected_key.present? %>
+        <div class="rounded-lg border border-line bg-canvas-soft px-3 py-2 text-sm text-ink-soft space-y-1">
+          <p><%= t("marketing.lead_forms.form.consent_template_hint_html",
+                key: h(expected_key),
+                slug: h(lead_form.mql_subscription_type&.slug.to_s)).html_safe %></p>
+          <% unless lead_form.template_includes_consent_field? %>
+            <p class="font-medium text-orange-700 dark:text-orange-300"><%= t("marketing.lead_forms.form.consent_template_missing_html", template_key: lead_form.template_key) %></p>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="card space-y-4 p-6" data-controller="pipeline-stage-select">
+    <div>
+      <h2 class="font-display text-lg font-semibold"><%= t("marketing.lead_forms.form.crm_heading") %></h2>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.crm_intro") %></p>
+    </div>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :pipeline_id, t("marketing.lead_forms.form.default_pipeline"), class: "label" %>
+        <%= f.collection_select :pipeline_id, @pipelines, :id, :name, {},
+              class: "input mt-1 w-full",
+              data: { pipeline_stage_select_target: "pipeline", action: "change->pipeline-stage-select#pipelineChanged" } %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.default_pipeline_hint_html").html_safe %></p>
+      </div>
+      <div>
+        <%= f.label :pipeline_stage_id, t("marketing.lead_forms.form.stage"), class: "label" %>
+        <%= f.select :pipeline_stage_id,
+              options_for_select(
+                @pipelines.flat_map { |p|
+                  p.pipeline_stages.ordered.map { |s|
+                    [ s.name, s.id, { data: { pipeline_id: p.id } } ]
+                  }
+                },
+                lead_form.pipeline_stage_id
+              ),
+              { include_blank: t("marketing.lead_forms.form.first_stage_blank") },
+              class: "input mt-1 w-full",
+              data: { pipeline_stage_select_target: "stage" } %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.stage_hint") %></p>
+      </div>
+    </div>
+    <div class="max-w-md">
+      <%= f.label :responsible_id, t("marketing.lead_forms.form.responsible"), class: "label" %>
+      <%= f.collection_select :responsible_id, @responsibles, :id, :name, {}, class: "input mt-1 w-full" %>
+    </div>
+    <div class="max-w-md">
+      <%= f.label :product_id, t("marketing.lead_forms.form.product_optional"), class: "label" %>
+      <%= f.collection_select :product_id, @products, :id, :name,
+            { include_blank: t("marketing.shared.none") },
+            class: "input mt-1 w-full" %>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.product_hint_html").html_safe %></p>
+    </div>
+
+    <div class="space-y-3 border-t border-line pt-4" data-controller="nested-form">
+      <%= hidden_field_tag "lead_form[pipeline_routes_submitted]", "1" %>
+      <div>
+        <p class="text-sm font-medium text-ink"><%= t("marketing.lead_forms.form.pipeline_routes_heading") %></p>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.pipeline_routes_hint_html").html_safe %></p>
+      </div>
+      <div class="space-y-2" data-nested-form-target="list">
+        <% lead_form.pipeline_routes.each do |key, pipeline_id| %>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-end" data-nested-form-target="row">
+            <div class="flex-1">
+              <%= label_tag nil, t("marketing.lead_forms.form.route_field_value"), class: "label" %>
+              <%= text_field_tag "lead_form[pipeline_route_keys][]", key,
+                    class: "input mt-1 w-full font-mono text-sm",
+                    placeholder: t("marketing.lead_forms.form.route_field_placeholder"),
+                    pattern: LeadForm::FIELD_KEY_FORMAT.source,
+                    title: t("marketing.lead_forms.form.route_field_title") %>
+            </div>
+            <div class="flex-1">
+              <%= label_tag nil, t("marketing.lead_forms.form.route_pipeline"), class: "label" %>
+              <%= select_tag "lead_form[pipeline_route_pipeline_ids][]",
+                    options_from_collection_for_select(@pipelines, :id, :name, pipeline_id),
+                    include_blank: t("marketing.lead_forms.form.route_default_pipeline"),
+                    class: "input mt-1 w-full" %>
+            </div>
+            <button type="button" class="btn-ghost shrink-0" data-action="nested-form#remove" aria-label="<%= t("marketing.lead_forms.form.remove_route") %>">✕</button>
+          </div>
+        <% end %>
+      </div>
+      <template data-nested-form-target="template">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end" data-nested-form-target="row">
+          <div class="flex-1">
+            <%= label_tag nil, t("marketing.lead_forms.form.route_field_value"), class: "label" %>
+            <%= text_field_tag "lead_form[pipeline_route_keys][]", nil,
+                  class: "input mt-1 w-full font-mono text-sm",
+                  placeholder: t("marketing.lead_forms.form.route_field_placeholder"),
+                  pattern: LeadForm::FIELD_KEY_FORMAT.source,
+                  title: t("marketing.lead_forms.form.route_field_title") %>
+          </div>
+          <div class="flex-1">
+            <%= label_tag nil, t("marketing.lead_forms.form.route_pipeline"), class: "label" %>
+            <%= select_tag "lead_form[pipeline_route_pipeline_ids][]",
+                  options_from_collection_for_select(@pipelines, :id, :name, nil),
+                  include_blank: t("marketing.lead_forms.form.route_default_pipeline"),
+                  class: "input mt-1 w-full" %>
+          </div>
+          <button type="button" class="btn-ghost shrink-0" data-action="nested-form#remove" aria-label="<%= t("marketing.lead_forms.form.remove_route") %>">✕</button>
+        </div>
+      </template>
+      <button type="button" class="btn-secondary" data-action="nested-form#add">
+        <%= icon :plus, classes: "size-3.5" %> <%= t("marketing.lead_forms.form.add_route") %>
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+    <div class="card space-y-4 p-6 min-w-0">
+      <div>
+        <h2 class="font-display text-lg font-semibold"><%= t("marketing.lead_forms.form.first_task_heading") %></h2>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.first_task_intro") %></p>
+      </div>
+      <div>
+        <%= f.label :first_task_title, t("marketing.lead_forms.form.first_task_title"), class: "label" %>
+        <%= f.text_field :first_task_title, class: "input mt-1 w-full", required: true %>
+      </div>
+      <div class="max-w-xs">
+        <%= f.label :first_task_due_days, t("marketing.lead_forms.form.first_task_due_days"), class: "label" %>
+        <%= f.number_field :first_task_due_days, class: "input mt-1 w-full", min: 0, required: true %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.first_task_due_hint") %></p>
+      </div>
+    </div>
+
+    <div class="card space-y-4 p-6 min-w-0">
+      <div>
+        <h2 class="font-display text-lg font-semibold"><%= t("marketing.lead_forms.form.email_redirect_heading") %></h2>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.email_redirect_intro") %></p>
+      </div>
+      <div>
+        <%= f.label :email_template_id, t("marketing.lead_forms.form.email_template"), class: "label" %>
+        <div
+          class="mt-1 flex items-center gap-2"
+          data-controller="email-template-select"
+          data-email-template-select-url-template-value="<%= edit_email_template_path("__ID__") %>"
+        >
+          <%= f.collection_select :email_template_id, @email_templates, :id, :name,
+                { include_blank: t("marketing.shared.no_email") }, class: "input w-full min-w-0",
+                data: { email_template_select_target: "select", action: "change->email-template-select#update" } %>
+          <% selected_template = lead_form.email_template %>
+          <%= link_to(
+                selected_template ? edit_email_template_path(selected_template) : "#",
+                target: "_blank",
+                rel: "noopener noreferrer",
+                class: "inline-flex shrink-0 text-ink-faint hover:text-ink focus:outline-none focus-visible:text-ink #{'invisible pointer-events-none' unless selected_template}",
+                data: { email_template_select_target: "link" },
+                aria: { label: t("marketing.lead_forms.form.email_template_open_aria") }
+              ) { icon(:external, classes: "size-4") } %>
+          <%= info_tooltip(lead_form_email_template_tokens_hint, label: t("marketing.lead_forms.form.email_tokens_tooltip")) %>
+        </div>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.no_email_hint") %></p>
+      </div>
+      <div>
+        <%= f.label :success_redirect_url, t("marketing.lead_forms.form.success_redirect_url"), class: "label" %>
+        <%= f.url_field :success_redirect_url, class: "input mt-1 w-full", placeholder: t("marketing.lead_forms.form.success_redirect_placeholder") %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.success_redirect_hint") %></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card space-y-4 p-6">
+    <div>
+      <h2 class="font-display text-lg font-semibold"><%= t("marketing.lead_forms.form.hidden_fields_heading") %></h2>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.hidden_fields_intro") %></p>
+    </div>
+    <div class="max-w-xl">
+      <%= f.label :hidden_field_keys_text, t("marketing.lead_forms.form.hidden_field_keys"), class: "label" %>
+      <%= f.text_area :hidden_field_keys_text, class: "input mt-1 w-full font-mono text-sm", rows: 4,
+            placeholder: t("marketing.lead_forms.form.hidden_field_keys_placeholder") %>
+      <p class="mt-1 text-xs text-ink-faint"><%= t("marketing.lead_forms.form.hidden_field_keys_hint") %></p>
+    </div>
+  </div>
+
+  <div class="flex gap-2">
+    <%= f.submit class: "btn-primary" %>
+    <%= link_to t("marketing.shared.cancel"), lead_forms_path, class: "btn-secondary" %>
+  </div>
+<% end %>

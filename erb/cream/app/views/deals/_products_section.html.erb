@@ -1,0 +1,87 @@
+<section class="card">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-line">
+    <h2 class="text-base font-semibold flex items-center gap-2">
+      <%= icon :briefcase, classes: "size-4 text-ink-faint" %> <%= t("deals.show.products") %>
+    </h2>
+    <span class="text-base text-ink-soft tabular-nums font-medium"><%= money(deal.value, deal.currency) %></span>
+  </div>
+
+  <% if line_items.any? %>
+    <div class="overflow-x-auto">
+    <table class="table-base">
+      <thead>
+        <tr>
+          <th><%= t("deals.show.product") %></th>
+          <th class="w-48"><%= t("deals.show.edition") %></th>
+          <th class="w-20"><%= t("deals.show.quantity") %></th>
+          <th class="w-32"><%= t("deals.show.unit_price") %></th>
+          <th class="w-28"><%= t("deals.show.subtotal") %></th>
+          <th class="w-10"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% line_items.each do |line| %>
+          <tr>
+            <td class="font-medium"><%= line.product.name %></td>
+            <td colspan="3" class="p-0">
+              <%= form_with model: [deal, line], url: deal_line_item_path(deal, line), method: :patch,
+                    class: "flex items-center gap-2 px-3 py-1.5",
+                    data: {
+                      controller: "auto-submit",
+                      action: "change->auto-submit#submit record-picker:selected->auto-submit#submit"
+                    } do |f| %>
+                <%= render "edition_picker", form: f, compact: true, product: line.product %>
+                <%= f.number_field :quantity, min: 1, step: 1, class: "input w-16 py-1", data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+                <%= f.number_field :unit_price, min: 0, step: 0.01, class: "input w-28 py-1", data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+              <% end %>
+            </td>
+            <td class="text-ink-soft tabular-nums"><%= money(line.subtotal, deal.currency) %></td>
+            <td>
+              <%= button_to deal_line_item_path(deal, line), method: :delete, class: "text-ink-faint hover:text-danger p-1",
+                    form: { data: { turbo_confirm: t("deals.show.remove_product", name: line.product.name) } } do %>
+                <%= icon :trash, classes: "size-3.5" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    </div>
+  <% else %>
+    <p class="px-4 py-3 text-base text-ink-faint"><%= t("deals.show.no_products") %></p>
+  <% end %>
+
+  <div class="px-4 py-3 border-t border-line">
+    <% if products.any? %>
+      <%= form_with url: deal_line_items_path(deal), scope: :deal_product,
+            class: "flex flex-wrap items-end gap-2",
+            data: {
+              controller: "product-edition-picker",
+              product_edition_picker_search_url_template_value: picker_product_editions_path(product_id: "__PRODUCT_ID__", format: :json),
+              product_edition_picker_create_url_template_value: product_editions_path(product_id: "__PRODUCT_ID__", format: :json)
+            } do |f| %>
+        <div class="flex-1 min-w-40">
+          <%= f.label :product_id, t("deals.show.add_product"), class: "label" %>
+          <%= f.collection_select :product_id, products, :id, ->(p) { "#{p.name} — #{money(p.price)}" },
+                { prompt: t("deals.show.select_product") }, class: "input", required: true,
+                data: {
+                  product_edition_picker_target: "productSelect",
+                  action: "change->product-edition-picker#productChanged"
+                } %>
+        </div>
+        <div class="w-48">
+          <%= render "edition_picker", form: f, managed: true %>
+        </div>
+        <div class="w-20">
+          <%= f.label :quantity, t("deals.show.quantity"), class: "label" %>
+          <%= f.number_field :quantity, value: 1, min: 1, step: 1, class: "input" %>
+        </div>
+        <%= f.submit t("records.add"), class: "btn-primary" %>
+      <% end %>
+    <% else %>
+      <p class="text-base text-ink-faint">
+        <%= t("deals.show.no_catalogue_html", link: link_to(t("deals.show.create_one"), new_product_path, class: "text-accent hover:underline")) %>
+      </p>
+    <% end %>
+  </div>
+</section>

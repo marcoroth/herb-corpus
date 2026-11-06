@@ -1,0 +1,66 @@
+<% page_title t("people.merge.title") %>
+<%= render "shared/page_header", title: t("people.merge.title"), icon_name: :users, count: nil, actions: nil %>
+
+<div class="flex-1 overflow-y-auto p-5">
+  <div class="max-w-2xl space-y-6">
+    <section class="card p-4">
+      <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-3"><%= t("people.merge.contact_to_keep") %></h2>
+      <div class="flex items-center gap-3">
+        <%= avatar @person, size: "size-12", text: "text-base" %>
+        <div>
+          <p class="font-semibold text-lg"><%= @person.display_name %></p>
+          <p class="text-sm text-ink-faint"><%= @person.email.presence || t("people.merge.no_email") %> · <%= @person.company.name %></p>
+        </div>
+      </div>
+    </section>
+
+    <%= form_with url: merge_person_path(@person), method: :post, class: "space-y-4",
+          data: {
+            controller: "merge-person-search",
+            merge_person_search_exclude_id_value: @person.id,
+            merge_person_search_search_url_value: people_path(format: :json),
+            merge_person_search_no_results_value: t("shared.record_picker.no_results"),
+            turbo_confirm: t("people.merge.confirm", name: @person.display_name)
+          } do %>
+      <section class="card p-4">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-1"><%= t("people.merge.contacts_to_merge") %></h2>
+        <p class="text-sm text-ink-faint mb-4">
+          <%= t("people.merge.subtitle") %>
+          <% if @person.email.present? %>
+            <%= t("people.merge.same_email_hint") %>
+          <% end %>
+        </p>
+
+        <div class="relative mb-4">
+          <label for="merge-person-search" class="label"><%= t("people.merge.search_label") %></label>
+          <input type="text"
+                 id="merge-person-search"
+                 autocomplete="off"
+                 class="input w-full"
+                 placeholder="<%= t("people.merge.search_placeholder") %>"
+                 data-merge-person-search-target="input"
+                 data-action="input->merge-person-search#query keydown->merge-person-search#keydown blur->merge-person-search#hide focus->merge-person-search#focus" />
+          <ul data-merge-person-search-target="menu"
+              role="listbox"
+              class="hidden absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border border-line bg-canvas shadow-sm"></ul>
+        </div>
+
+        <div class="space-y-2" data-merge-person-search-target="list">
+          <% @merge_candidates.each do |candidate| %>
+            <%= render "merge_candidate_row", candidate: candidate, selected: @selected_secondary_ids.include?(candidate.id) %>
+          <% end %>
+        </div>
+
+        <% if @merge_candidates.empty? %>
+          <p class="text-sm text-ink-faint mt-3"><%= t("people.merge.no_suggestions") %></p>
+        <% end %>
+      </section>
+
+      <div class="flex items-center gap-2">
+        <%= submit_tag t("people.merge.merge"), class: "btn-primary",
+              data: { merge_person_search_target: "submit", turbo_submits_with: t("people.merge.merging") } %>
+        <%= link_to t("people.merge.cancel"), @person, class: "btn-secondary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

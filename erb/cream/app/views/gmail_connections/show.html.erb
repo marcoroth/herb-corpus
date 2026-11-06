@@ -1,0 +1,80 @@
+<% page_title t("integrations.gmail.page_title") %>
+<%= render "shared/page_header", title: t("integrations.gmail.title"), icon_name: :mail %>
+
+<div class="p-5 max-w-xl">
+  <div class="card p-4 space-y-3">
+    <% if @connection.persisted? && @connection.connected? %>
+      <p class="text-base text-ink-soft"><%= t("integrations.gmail.connected_html", email: @connection.email) %></p>
+      <p class="text-sm text-ink-faint">
+        <% if @connection.send_receive_full_mode? %>
+          <%= t("integrations.gmail.mode_full") %>
+        <% elsif @connection.send_and_receive_mode? %>
+          <%= t("integrations.gmail.mode_send_receive") %>
+        <% elsif @connection.send_only_mode? %>
+          <%= t("integrations.gmail.mode_send") %>
+        <% else %>
+          <%= t("integrations.gmail.mode_reconnect") %>
+        <% end %>
+      </p>
+
+      <%= form_with model: @connection, url: gmail_connection_path, method: :patch, data: { controller: "auto-submit" } do |f| %>
+        <% if @connection.can_send? %>
+          <label class="flex items-center gap-2 text-base mb-2">
+            <%= f.check_box :send_enabled, data: { action: "change->auto-submit#submit" } %>
+            <%= t("integrations.gmail.send_enabled") %>
+          </label>
+        <% end %>
+        <% if @connection.can_read_metadata? %>
+          <label class="flex items-center gap-2 text-base">
+            <%= f.check_box :sync_enabled, data: { action: "change->auto-submit#submit" } %>
+            <%= t("integrations.gmail.sync_enabled") %>
+          </label>
+        <% end %>
+      <% end %>
+
+      <% unless @connection.can_read_metadata? %>
+        <p class="text-sm text-ink-faint">
+          <%= t("integrations.gmail.reply_detection_hint") %>
+        </p>
+        <%= button_to t("integrations.gmail.enable_reply_detection"), gmail_auth_url(:send_receive), method: :post, data: { turbo: false }, class: "btn-secondary" %>
+      <% end %>
+
+      <% if @connection.full_read_blocked_by_metadata? %>
+        <p class="text-sm text-copperfield">
+          <%= t("integrations.gmail.full_logging_blocked").html_safe %>
+        </p>
+      <% end %>
+
+      <% if @connection.can_read_metadata? && !@connection.can_read_body? %>
+        <p class="text-sm text-ink-faint">
+          <%= t("integrations.gmail.full_logging_hint") %>
+        </p>
+        <%= button_to t("integrations.gmail.enable_full_logging"), gmail_auth_url(:full), method: :post, data: { turbo: false }, class: "btn-secondary" %>
+      <% end %>
+
+      <p class="text-sm text-ink-faint">
+        <%= t("integrations.gmail.help") %>
+      </p>
+      <% if @connection.last_synced_at.present? %>
+        <p class="text-sm text-ink-faint"><%= t("integrations.gmail.last_synced", time: l(@connection.last_synced_at, format: :short)) %></p>
+      <% end %>
+
+      <div class="flex gap-2 flex-wrap">
+        <% if @connection.can_read_metadata? %>
+          <%= button_to t("integrations.gmail.sync_now"), sync_gmail_connection_path, method: :post, class: "btn-secondary" %>
+        <% end %>
+        <%= button_to t("integrations.gmail.disconnect"), gmail_connection_path, method: :delete, class: "btn-danger" %>
+      </div>
+    <% else %>
+      <p class="text-base text-ink-soft"><%= t("integrations.gmail.disconnected_intro") %></p>
+      <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <%= button_to t("integrations.gmail.connect_send"), gmail_auth_url(:send), method: :post, data: { turbo: false }, class: "btn-primary" %>
+        <%= button_to t("integrations.gmail.connect_send_receive"), gmail_auth_url(:send_receive), method: :post, data: { turbo: false }, class: "btn-secondary" %>
+        <%= button_to t("integrations.gmail.connect_full"), gmail_auth_url(:full), method: :post, data: { turbo: false }, class: "btn-secondary" %>
+      </div>
+      <p class="text-sm text-ink-faint">
+        <%= t("integrations.gmail.permissions_hint") %>
+      </p>
+    <% end %>
+  </div>
+</div>

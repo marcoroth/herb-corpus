@@ -1,0 +1,93 @@
+<% page_title t("ai_search.page_title") %>
+<%= render "shared/page_header", title: t("ai_search.title"), icon_name: :zap, count: nil, actions: nil %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5">
+  <div class="max-w-2xl mx-auto">
+    <%= form_with url: ai_search_path, method: :get, data: { turbo_frame: "_top" } do %>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-4" %></span>
+        <%= text_field_tag :q, @query, placeholder: t("ai_search.placeholder"),
+              autofocus: true, class: "input pl-9 py-2.5 text-base shadow-sm" %>
+      </div>
+    <% end %>
+
+    <% if @query.present? %>
+      <p class="mt-4 text-sm text-ink-faint"><%= @interpretation %></p>
+
+      <div class="mt-6 space-y-6">
+        <% {
+          t("ai_search.sections.people") => [ @people, :users ],
+          t("ai_search.sections.companies") => [ @companies, :building ],
+          t("ai_search.sections.deals") => [ @deals, :banknote ]
+        }.each do |label, (records, icon_name)| %>
+          <% next if records.empty? %>
+          <section>
+            <h2 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-faint mb-2">
+              <%= icon icon_name, classes: "size-3.5" %> <%= label %>
+            </h2>
+            <div class="card divide-y divide-line/70">
+              <% records.each do |record| %>
+                <%= link_to record_path_for(record), class: "flex items-center gap-3 px-3 py-2.5 hover:bg-canvas-soft transition-colors" do %>
+                  <%= avatar record %>
+                  <span class="font-medium text-base"><%= record.display_name %></span>
+                  <span class="text-sm text-ink-faint truncate">
+                    <% case record %>
+                    <% when Person %>
+                      <%= [ record.job_title, record.company&.name ].compact.join(" · ") %>
+                    <% when Company %>
+                      <%= [ record.domain, record.industry ].reject(&:blank?).join(" · ") %>
+                    <% when Deal %>
+                      <%= money(record.value, record.currency) %> · <%= record.stage_label %>
+                    <% end %>
+                  </span>
+                  <%= icon :chevron_right, classes: "size-3.5 text-ink-faint ml-auto shrink-0" %>
+                <% end %>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <% if @tasks.any? %>
+          <section>
+            <h2 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-faint mb-2">
+              <%= icon :check_circle, classes: "size-3.5" %> <%= t("ai_search.sections.tasks") %>
+            </h2>
+            <div class="card divide-y divide-line/70">
+              <% @tasks.each do |task| %>
+                <div class="px-3 py-2.5">
+                  <p class="font-medium text-base"><%= task.title %></p>
+                  <p class="text-sm text-ink-faint">
+                    <%= task.taskable&.display_name %> · <%= t("ai_search.task_due", date: l(task.due_on, format: :short)) %>
+                  </p>
+                </div>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <% if @emails.any? %>
+          <section>
+            <h2 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-faint mb-2">
+              <%= icon :mail, classes: "size-3.5" %> <%= t("ai_search.sections.follow_ups") %>
+            </h2>
+            <div class="card divide-y divide-line/70">
+              <% @emails.each do |message| %>
+                <div class="px-3 py-2.5">
+                  <p class="font-medium text-base"><%= message.subject %></p>
+                  <p class="text-sm text-ink-faint">
+                    <%= message.record.display_name %> · <%= t("ai_search.task_follow_up", date: l(message.follow_up_at, format: :short)) %>
+                  </p>
+                </div>
+              <% end %>
+            </div>
+          </section>
+        <% end %>
+
+        <% if @people.empty? && @companies.empty? && @deals.empty? && @tasks.empty? && @emails.empty? %>
+          <%= render "shared/empty_state", icon_name: :search, title: t("ai_search.empty_title", query: @query),
+                subtitle: t("ai_search.empty_subtitle"), action: nil %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

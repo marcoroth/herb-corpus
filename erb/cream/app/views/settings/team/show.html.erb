@@ -1,0 +1,118 @@
+<% page_title t("integrations.team.page_title") %>
+<%= render "shared/page_header", title: t("integrations.team.title"), icon_name: :users, count: @pagy.count, actions: nil %>
+
+<div class="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2 shrink-0">
+  <%= form_with url: settings_team_path, method: :get, class: "flex flex-wrap items-center gap-2 flex-1", data: { turbo_frame: "_top" } do %>
+    <div class="relative max-w-xs min-w-40 flex-1">
+      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-3.5" %></span>
+      <%= text_field_tag :q, params[:q], placeholder: t("integrations.team.search_placeholder"), class: "input pl-8" %>
+    </div>
+    <% if params[:q].present? %>
+      <%= link_to t("integrations.team.clear"), settings_team_path, class: "btn-ghost" %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 flex flex-col">
+  <div class="max-w-2xl space-y-6 flex-1">
+    <p class="text-base text-ink-soft">
+      <% if @admin %>
+        <%= t("integrations.team.intro_admin_html", workspace: current_workspace.name) %>
+      <% else %>
+        <%= t("integrations.team.intro_member_html", workspace: current_workspace.name) %>
+      <% end %>
+    </p>
+
+    <% if @admin && flash[:invitation_link].present? %>
+      <div class="card p-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+        <p class="text-base font-medium text-ink mb-2"><%= t("integrations.team.invitation_link") %></p>
+        <code class="block text-sm font-mono bg-canvas-raised border border-line rounded-md px-3 py-2 break-all select-all"><%= flash[:invitation_link] %></code>
+      </div>
+    <% end %>
+
+    <% if @admin %>
+      <section class="card p-4 space-y-3">
+        <h2 class="text-base font-semibold text-ink"><%= t("integrations.team.invite_section.title") %></h2>
+        <%= form_with url: invitations_path, class: "flex flex-wrap items-end gap-2" do %>
+          <div class="flex-1 min-w-[12rem]">
+            <label for="invitation_email_address" class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.team.invite_email") %></label>
+            <input type="email" name="invitation[email_address]" id="invitation_email_address" required placeholder="<%= t("integrations.team.invite_email_placeholder") %>" class="input w-full">
+          </div>
+          <div>
+            <label for="invitation_role" class="block text-sm font-medium text-ink-soft mb-1"><%= t("integrations.team.invite_section.role") %></label>
+            <select name="invitation[role]" id="invitation_role" class="input">
+              <% Membership::ROLES.each do |role| %>
+                <option value="<%= role %>"><%= Membership.role_label_for(role) %></option>
+              <% end %>
+            </select>
+          </div>
+          <%= submit_tag t("integrations.team.invite_section.submit"), class: "btn-primary" %>
+        <% end %>
+      </section>
+    <% end %>
+
+    <section class="space-y-2">
+      <h2 class="text-base font-semibold text-ink px-1"><%= t("integrations.team.members") %></h2>
+      <% if @memberships.any? %>
+        <ul class="space-y-2">
+          <% @memberships.each do |membership| %>
+            <li class="card flex items-center gap-3 px-4 py-3">
+              <%= avatar membership.user, size: "size-8", text: "text-sm" %>
+              <div class="min-w-0 flex-1">
+                <p class="text-base font-medium truncate"><%= membership.user.name %></p>
+                <p class="text-xs text-ink-faint truncate"><%= membership.user.email_address %></p>
+              </div>
+              <% if @admin && membership.user_id != current_user.id %>
+                <%= form_with model: membership, url: membership_path(membership), method: :patch, class: "flex items-center gap-2" do |f| %>
+                  <%= f.select :role, Membership.role_options, {}, class: "input text-sm py-1", data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+                <% end %>
+                <%= button_to membership_path(membership), method: :delete,
+                      class: "text-ink-faint hover:text-danger p-1.5 rounded-md hover:bg-danger-soft",
+                      title: t("integrations.team.remove_member") do %>
+                  <%= icon :trash, classes: "size-4" %>
+                <% end %>
+              <% else %>
+                <span class="text-sm font-medium text-ink-soft"><%= membership.role_label %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-base text-ink-soft px-1">
+          <%= params[:q].present? ? t("integrations.team.no_search_results") : t("integrations.team.no_members") %>
+        </p>
+      <% end %>
+    </section>
+
+    <% if @admin && @pending_invitations.any? %>
+      <section class="space-y-2">
+        <h2 class="text-base font-semibold text-ink px-1"><%= t("integrations.team.pending_invitations") %></h2>
+        <ul class="space-y-2">
+          <% @pending_invitations.each do |invitation| %>
+            <li class="card flex items-center gap-3 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-base font-medium truncate"><%= invitation.email_address %></p>
+                <p class="text-xs text-ink-faint mt-0.5">
+                  <%= t("integrations.team.invite_as", role: invitation.role_label) %>
+                  · <%= t("integrations.team.invite_expires", time: l(invitation.expires_at, format: :short)) %>
+                </p>
+              </div>
+              <%= button_to resend_invitation_path(invitation), method: :post,
+                    class: "btn-ghost text-sm",
+                    title: t("integrations.team.resend_invitation") do %>
+                <%= t("integrations.team.resend") %>
+              <% end %>
+              <%= button_to invitation_path(invitation), method: :delete,
+                    class: "text-ink-faint hover:text-danger p-1.5 rounded-md hover:bg-danger-soft",
+                    title: t("integrations.team.revoke_invitation") do %>
+                <%= icon :trash, classes: "size-4" %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </section>
+    <% end %>
+  </div>
+
+  <%= render "shared/pagination", pagy: @pagy %>
+</div>

@@ -1,0 +1,104 @@
+<aside data-mobile-nav-target="sidebar"
+       class="w-60 shrink-0 border-r border-line bg-canvas-tint flex flex-col h-full min-h-0 overflow-hidden fixed inset-y-0 left-0 z-50 -translate-x-full transition-transform duration-200 ease-out md:static md:translate-x-0 md:transition-none">
+  <%# Workspace header %>
+  <%= render "shared/workspace_switcher" %>
+  <%= render "shared/pipeline_switcher" %>
+
+  <%# Quick search %>
+  <div class="p-2 space-y-1">
+    <%= link_to search_path, class: "flex items-center gap-2 rounded-md border border-line-strong bg-canvas-raised px-2.5 py-1.5 text-ink-faint hover:border-ink-faint transition-colors text-base" do %>
+      <%= icon :search, classes: "size-3.5" %>
+      <span><%= t("nav.search") %></span>
+      <kbd class="ml-auto text-2xs text-ink-faint border border-line rounded px-1">/</kbd>
+    <% end %>
+    <%= link_to notifications_path, class: "flex items-center gap-2 rounded-md border border-line-strong bg-canvas-raised px-2.5 py-1.5 text-ink-soft hover:border-ink-faint transition-colors text-base" do %>
+      <%= icon :bell, classes: "size-3.5" %>
+      <span><%= t("nav.notifications") %></span>
+      <% if unread_notifications_count.positive? %>
+        <span class="ml-auto rounded-full bg-accent text-on-dark text-2xs px-1.5 py-0.5"><%= unread_notifications_count %></span>
+      <% end %>
+    <% end if feature_enabled?(:notifications) %>
+  </div>
+
+  <%# Scrollable nav: Menu groups %>
+  <div class="flex-1 min-h-0 overflow-y-auto scrollbar-subtle">
+    <div class="mt-1 px-2"
+         data-controller="sidebar-edit sidebar-groups"
+         data-sidebar-edit-url-value="<%= sidebar_preferences_path %>">
+      <div class="flex items-center justify-between px-2.5 mb-1">
+        <span class="text-xs font-semibold uppercase tracking-wider text-ink-faint"><%= t("nav.menu") %></span>
+        <button type="button"
+                title="<%= t("nav.customize_menu") %>"
+                aria-label="<%= t("nav.customize_menu") %>"
+                aria-pressed="false"
+                data-sidebar-edit-target="toggleBtn"
+                data-action="sidebar-edit#toggleEdit"
+                class="text-ink-faint hover:text-ink p-1 rounded-md hover:bg-accent-soft/70 transition-colors">
+          <%= icon :settings, classes: "size-3.5" %>
+        </button>
+      </div>
+
+      <div class="space-y-1">
+        <% sidebar_nav_groups.each do |group| %>
+          <% if group[:collapsible] %>
+            <details class="group"
+                     data-sidebar-group="<%= group[:key] %>"
+                     data-active="<%= group[:active] %>"
+                     <%= "open" if group[:active] %>>
+              <summary class="flex items-center gap-2 rounded-md px-2.5 py-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-ink-soft hover:bg-accent-soft/70 hover:text-ink transition-colors">
+                <span class="text-sm font-semibold uppercase tracking-wider text-ink-faint truncate"><%= group[:label] %></span>
+                <%= icon :chevron_down, classes: "size-3.5 text-ink-faint ml-auto shrink-0 transition-transform group-open:rotate-180" %>
+              </summary>
+              <nav class="space-y-0.5 mt-0.5"
+                   data-sidebar-edit-target="list"
+                   data-sidebar-group="<%= group[:key] %>">
+                <% group[:items].each do |item| %>
+                  <%= render "shared/sidebar_nav_item", item: item %>
+                <% end %>
+              </nav>
+            </details>
+          <% else %>
+            <nav class="space-y-0.5"
+                 data-sidebar-edit-target="list"
+                 data-sidebar-group="<%= group[:key] %>">
+              <% group[:items].each do |item| %>
+                <%= render "shared/sidebar_nav_item", item: item %>
+              <% end %>
+            </nav>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%# User footer %>
+  <div class="border-t border-line p-2 flex items-center gap-2">
+    <% if current_user.superadmin? %>
+      <%= link_to superadmin_root_path, class: "text-ink-faint hover:text-ink p-1.5 rounded-md hover:bg-accent-soft/70", title: t("nav.superadmin") do %>
+        <%= icon :lock, classes: "size-4" %>
+      <% end %>
+    <% end %>
+    <%= link_to settings_profile_path, class: "flex items-center gap-2 min-w-0 flex-1 rounded-md p-1 -m-1 hover:bg-accent-soft/70 transition-colors" do %>
+      <%= avatar current_user, size: "size-7", text: "text-xs" %>
+      <div class="min-w-0 flex-1">
+        <p class="text-base font-medium truncate"><%= current_user.name %></p>
+        <p class="text-xs text-ink-faint truncate"><%= current_user.email_address %></p>
+      </div>
+    <% end %>
+    <button type="button"
+            class="text-ink-faint hover:text-ink p-1.5 rounded-md hover:bg-accent-soft/70 cursor-pointer"
+            data-controller="theme"
+            data-action="theme#cycle"
+            data-theme-url-value="<%= theme_preference_path %>"
+            data-theme-theme-value="<%= current_user.theme %>"
+            data-theme-copy-value="<%= json_escape(I18n.t("profile.theme_titles").to_json) %>">
+      <span data-theme-target="option" data-theme="light" class="hidden"><%= icon :sun, classes: "size-4" %></span>
+      <span data-theme-target="option" data-theme="dark" class="hidden"><%= icon :moon, classes: "size-4" %></span>
+      <span data-theme-target="option" data-theme="system" class="hidden"><%= icon :monitor, classes: "size-4" %></span>
+    </button>
+    <%= render "shared/locale_switcher" %>
+    <%= button_to session_path, method: :delete, class: "text-ink-faint hover:text-ink p-1.5 rounded-md hover:bg-accent-soft/70", title: t("nav.sign_out") do %>
+      <%= icon :logout, classes: "size-4" %>
+    <% end %>
+  </div>
+</aside>

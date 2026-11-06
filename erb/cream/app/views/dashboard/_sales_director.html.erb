@@ -1,0 +1,150 @@
+<section class="card p-4 ring-1 ring-hoki-200 dark:ring-hoki-800 bg-hoki-50/40 dark:bg-hoki-950/40">
+  <details class="group" open>
+    <summary class="flex items-start justify-between gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+      <div class="flex items-start gap-2 min-w-0">
+        <%= icon :chevron_right, classes: "size-4 text-ink-faint shrink-0 mt-0.5 transition-transform group-open:rotate-90" %>
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <%= icon :briefcase, classes: "size-4 text-hoki-600" %>
+            <h2 class="text-base font-semibold font-display"><%= t("dashboard.briefing.sales_director") %></h2>
+          </div>
+          <% if @sales_briefing || @personal_briefing %>
+            <p class="text-sm text-ink-faint">
+              <%= t("dashboard.briefing.title_on", date: l((@sales_briefing || @personal_briefing).briefing_date, format: :long)) %>
+            </p>
+          <% else %>
+            <p class="text-sm text-ink-faint"><%= t("dashboard.briefing.intro") %></p>
+          <% end %>
+        </div>
+      </div>
+      <% if @briefing_exists_today %>
+        <% if @can_regenerate_sales_briefing %>
+          <div class="flex flex-col items-end gap-1 shrink-0" data-controller="stop-propagation" data-action="click->stop-propagation#stop">
+            <%= button_to t("dashboard.briefing.regenerate"), sales_briefing_path, method: :post, class: "btn-primary shrink-0" %>
+            <p class="text-xs text-ink-faint"><%= t("dashboard.briefing.regenerations_left", count: @sales_briefing_regenerations_remaining) %></p>
+          </div>
+        <% else %>
+          <p class="text-xs text-ink-faint shrink-0"><%= t("dashboard.briefing.regenerations_used") %></p>
+        <% end %>
+      <% else %>
+        <div data-controller="stop-propagation" data-action="click->stop-propagation#stop">
+          <%= button_to t("dashboard.briefing.generate"), sales_briefing_path, method: :post, class: "btn-primary shrink-0" %>
+        </div>
+      <% end %>
+    </summary>
+
+    <div class="mt-4 pl-6 border-t border-hoki-200/60 pt-4">
+      <% if @personal_briefing %>
+        <details class="group mb-4 rounded-lg ring-1 ring-inset ring-hoki-200 dark:ring-hoki-800 bg-canvas-raised" open>
+          <summary class="flex items-center gap-2 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <%= icon :chevron_right, classes: "size-3.5 text-ink-faint transition-transform group-open:rotate-90" %>
+            <%= avatar current_user, size: "size-5", text: "text-2xs" %>
+            <h3 class="text-base font-semibold"><%= t("dashboard.briefing.for_you") %></h3>
+          </summary>
+          <div class="px-4 pb-4">
+            <% if @personal_briefing.summary.present? %>
+              <p class="text-base text-ink-soft mb-4"><%= @personal_briefing.summary %></p>
+            <% end %>
+
+            <div class="grid lg:grid-cols-2 gap-4 mb-4">
+              <% [
+                [ t("dashboard.briefing.categories.urgent"), @personal_briefing.urgent_items, "red" ],
+                [ t("dashboard.briefing.categories.important"), @personal_briefing.important_items, "golden" ]
+              ].each do |label, items, color| %>
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
+                    <%= badge label, color: color %>
+                    <span class="text-xs text-ink-faint"><%= items.size %></span>
+                  </div>
+                  <% if items.any? %>
+                    <ul class="space-y-2">
+                      <% items.each do |item| %>
+                        <%= render "dashboard/sales_briefing_item", briefing: @personal_briefing, item: item, highlight_mine: false %>
+                      <% end %>
+                    </ul>
+                  <% else %>
+                    <p class="text-sm text-ink-faint"><%= t("dashboard.briefing.empty_category") %></p>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-4">
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <%= badge t("dashboard.briefing.wins"), color: "green" %>
+                  <span class="text-xs text-ink-faint"><%= @personal_briefing.wins.size %></span>
+                </div>
+                <% if @personal_briefing.wins.any? %>
+                  <ul class="space-y-1.5">
+                    <% @personal_briefing.wins.each do |win| %>
+                      <li class="text-base text-ink"><%= win %></li>
+                    <% end %>
+                  </ul>
+                <% else %>
+                  <p class="text-sm text-ink-faint"><%= t("dashboard.briefing.no_wins") %></p>
+                <% end %>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <%= badge t("dashboard.briefing.misses"), color: "copperfield" %>
+                  <span class="text-xs text-ink-faint"><%= @personal_briefing.misses.size %></span>
+                </div>
+                <% if @personal_briefing.misses.any? %>
+                  <ul class="space-y-1.5">
+                    <% @personal_briefing.misses.each do |miss| %>
+                      <li class="text-base text-ink"><%= miss %></li>
+                    <% end %>
+                  </ul>
+                <% else %>
+                  <p class="text-sm text-ink-faint"><%= t("dashboard.briefing.empty_category") %></p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </details>
+      <% end %>
+
+      <% if @sales_briefing %>
+        <details class="group rounded-lg ring-1 ring-inset ring-hoki-200 dark:ring-hoki-800 bg-canvas-raised" open>
+          <summary class="flex items-center gap-2 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <%= icon :chevron_right, classes: "size-3.5 text-ink-faint transition-transform group-open:rotate-90" %>
+            <h3 class="text-base font-semibold"><%= t("dashboard.briefing.team") %></h3>
+          </summary>
+          <div class="px-4 pb-4">
+            <% if @sales_briefing.summary.present? %>
+              <p class="text-base text-ink-soft mb-4"><%= @sales_briefing.summary %></p>
+            <% end %>
+
+            <div class="grid lg:grid-cols-2 gap-4">
+              <% [
+                [ t("dashboard.briefing.categories.urgent"), @sales_briefing.urgent_items, "red" ],
+                [ t("dashboard.briefing.categories.important"), @sales_briefing.important_items, "golden" ]
+              ].each do |label, items, color| %>
+                <div>
+                  <div class="flex items-center gap-2 mb-2">
+                    <%= badge label, color: color %>
+                    <span class="text-xs text-ink-faint"><%= items.size %></span>
+                  </div>
+                  <% if items.any? %>
+                    <ul class="space-y-2">
+                      <% items.each do |item| %>
+                        <%= render "dashboard/sales_briefing_item", briefing: @sales_briefing, item: item, highlight_mine: true %>
+                      <% end %>
+                    </ul>
+                  <% else %>
+                    <p class="text-sm text-ink-faint"><%= t("dashboard.briefing.empty_category") %></p>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </details>
+      <% elsif @personal_briefing.nil? %>
+        <p class="text-base text-ink-faint">
+          <%= t("dashboard.briefing.no_briefing").html_safe %>
+        </p>
+      <% end %>
+    </div>
+  </details>
+</section>

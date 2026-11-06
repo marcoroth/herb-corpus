@@ -1,0 +1,133 @@
+<% selected_people = f.object.contacts.includes(:company, :person_emails).map do |person|
+     {
+       id: person.id,
+       name: person.display_name,
+       company_id: person.company_id,
+       hint: [person.company&.name, person.email].compact_blank.join(" · ").presence
+     }
+   end %>
+<div data-controller="deal-contacts"
+     data-deal-contacts-people-url-value="<%= people_path %>"
+     data-deal-contacts-companies-url-value="<%= picker_companies_path(format: :json) %>"
+     data-deal-contacts-selected-value="<%= ERB::Util.html_escape(selected_people.to_json) %>"
+     data-deal-contacts-pick-company-error-value="<%= t("deals.form.contacts.errors.pick_company") %>"
+     data-deal-contacts-select-team-member-error-value="<%= t("deals.form.contacts.errors.select_team_member") %>"
+     data-deal-contacts-network-error-value="<%= t("deals.form.contacts.errors.network") %>"
+     data-deal-contacts-create-failed-value="<%= t("deals.form.contacts.errors.create_failed") %>"
+     data-deal-contacts-today-value="<%= Date.current.iso8601 %>"
+     data-deal-contacts-no-results-value="<%= t("shared.record_picker.no_results") %>"
+     data-deal-contacts-group-client-value="<%= t("deals.form.contacts.groups.client_company") %>"
+     data-deal-contacts-group-partner-value="<%= t("deals.form.contacts.groups.partner_company") %>"
+     data-deal-contacts-group-other-value="<%= t("deals.form.contacts.groups.other_people") %>"
+     data-deal-contacts-group-companies-value="<%= t("deals.form.contacts.groups.companies") %>"
+     data-deal-contacts-view-contacts-label-value="<%= t("deals.form.contacts.view_contacts") %>"
+     data-deal-contacts-add-all-label-value="<%= t("deals.form.contacts.add_all") %>"
+     data-deal-contacts-no-contacts-in-company-value="<%= t("deals.form.contacts.no_contacts_in_company") %>"
+     data-deal-contacts-back-label-value="<%= t("deals.form.contacts.back") %>"
+     data-deal-contacts-outsider-notice-one-value="<%= t("deals.form.contacts.outsider_notice_one") %>"
+     data-deal-contacts-outsider-notice-many-value="<%= t("deals.form.contacts.outsider_notice_many") %>"
+     data-deal-contacts-remove-label-value="<%= t("deals.form.contacts.remove") %>"
+     data-deal-contacts-client-company-name-value="<%= f.object.company&.name %>"
+     data-deal-contacts-partner-company-name-value="<%= f.object.partner&.name %>"
+     class="space-y-4">
+  <%= render "shared/company_select", form: f,
+        select_data: {"deal-contacts-target": "companySelect", action: "change->deal-contacts#companyChanged"} %>
+
+  <%= render RecordPickerComponent.new(
+        form: f,
+        attribute: :partner_id,
+        label: t("records.fields.partner"),
+        scope: current_workspace.companies.order(:name),
+        search_url: picker_companies_path(format: :json),
+        create_url: companies_path(format: :json),
+        create_param: "company",
+        selected_name: f.object.partner&.name,
+        required: false,
+        hidden_data: {"deal-contacts-target": "partnerSelect", action: "change->deal-contacts#companyChanged"},
+        hint_method: :domain
+      ) %>
+
+  <div>
+    <%= f.label :contact_ids, t("records.fields.contacts"), class: "label" %>
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+      <div class="relative min-w-0 flex-1">
+        <div data-deal-contacts-target="chipField"
+             data-action="click->deal-contacts#focusSearch"
+             class="input flex min-h-[2.75rem] cursor-text flex-wrap items-center gap-1.5 py-1.5 pl-2 pr-1">
+          <div data-deal-contacts-target="chips" class="contents"></div>
+          <input type="search"
+                 autocomplete="off"
+                 placeholder="<%= t("deals.form.contacts.search_placeholder") %>"
+                 class="min-w-[8rem] flex-1 border-0 bg-transparent p-1 text-sm placeholder:text-ink-faint focus:outline-none focus:ring-0"
+                 data-deal-contacts-target="searchInput"
+                 data-action="focus->deal-contacts#onSearchFocus input->deal-contacts#query keydown->deal-contacts#searchKeydown blur->deal-contacts#searchBlur" />
+        </div>
+        <ul data-deal-contacts-target="menu" role="listbox" class="hidden"></ul>
+        <div data-deal-contacts-target="hiddenFields"></div>
+      </div>
+      <button type="button" class="btn-secondary shrink-0 whitespace-nowrap sm:mt-0.5" data-action="deal-contacts#open">
+        <%= icon :plus, classes: "size-3.5" %> <%= t("deals.form.contacts.new") %>
+      </button>
+    </div>
+    <div data-deal-contacts-target="companyShortcuts" class="hidden mt-1.5 flex flex-wrap gap-1.5" role="group"></div>
+    <p class="mt-1 text-xs text-ink-faint"><%= t("deals.form.contacts.hint") %></p>
+    <p data-deal-contacts-target="outsiderWarning" role="status" class="hidden mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"></p>
+    <p data-deal-contacts-target="notice" class="hidden mt-1 text-xs text-danger"></p>
+  </div>
+
+  <dialog data-deal-contacts-target="dialog" class="modal-dialog max-w-md rounded-xl border border-line shadow-lg backdrop:bg-chicago-950/40">
+    <div class="p-4 space-y-3" data-controller="contact-email-paste">
+      <h3 class="text-base font-semibold"><%= t("deals.form.contacts.create_contact") %></h3>
+      <p data-deal-contacts-target="error" class="hidden text-sm text-danger"></p>
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label class="label"><%= t("activerecord.attributes.person.first_name") %></label>
+          <input type="text" data-deal-contacts-target="firstName" data-contact-email-paste-target="firstName" class="input" data-action="keydown.enter->deal-contacts#create" />
+        </div>
+        <div>
+          <label class="label"><%= t("activerecord.attributes.person.last_name") %></label>
+          <input type="text" data-deal-contacts-target="lastName" data-contact-email-paste-target="lastName" class="input" data-action="keydown.enter->deal-contacts#create" />
+        </div>
+      </div>
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label class="label"><%= t("records.fields.email") %></label>
+          <input type="email" data-deal-contacts-target="email" class="input"
+                 data-action="paste->contact-email-paste#paste blur->contact-email-paste#blurEmail" />
+        </div>
+        <div>
+          <label class="label"><%= t("records.fields.phone") %></label>
+          <input type="tel" data-deal-contacts-target="phone" class="input" />
+        </div>
+      </div>
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label class="label"><%= t("deals.form.contacts.source") %></label>
+          <select data-deal-contacts-target="source" class="input" data-action="change->deal-contacts#sourceChanged">
+            <option value=""><%= t("deals.form.contacts.select_source") %></option>
+            <% Person::SOURCES.each_key do |value| %>
+              <option value="<%= value %>"><%= t("people.sources.#{value}") %></option>
+            <% end %>
+          </select>
+          <div data-deal-contacts-target="broughtByRow" class="hidden mt-3">
+            <label class="label"><%= t("deals.form.contacts.team_member") %></label>
+            <select data-deal-contacts-target="broughtBy" class="input">
+              <option value=""><%= t("deals.form.contacts.select_team_member") %></option>
+              <% current_workspace.users.order(:name).each do |user| %>
+                <option value="<%= user.id %>"><%= user.name %></option>
+              <% end %>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="label"><%= t("deals.form.contacts.first_contact_date") %></label>
+          <input type="date" data-deal-contacts-target="firstContactOn" class="input" value="<%= Date.current.iso8601 %>" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2">
+        <button type="button" class="btn-secondary" data-action="deal-contacts#close"><%= t("shared.form.cancel") %></button>
+        <button type="button" class="btn-primary" data-deal-contacts-target="submit" data-action="deal-contacts#create"><%= t("deals.form.contacts.create") %></button>
+      </div>
+    </div>
+  </dialog>
+</div>

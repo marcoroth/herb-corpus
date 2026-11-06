@@ -1,0 +1,85 @@
+<% page_title t("marketing.attribution.page_title") %>
+<% totals = @rows.each_with_object({ visits: 0, leads: 0, mqls: 0, deals: 0, revenue: 0.0 }) do |row, sum|
+  sum[:visits] += row.visits
+  sum[:leads] += row.leads
+  sum[:mqls] += row.mqls
+  sum[:deals] += row.deals
+  sum[:revenue] += row.revenue
+end %>
+<%= render "shared/page_header", title: t("marketing.attribution.header_title"), icon_name: :bar_chart %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-4">
+  <%= form_with url: marketing_attribution_path, method: :get, class: "card p-4 flex flex-wrap gap-3 items-end" do %>
+    <div>
+      <label class="label"><%= t("marketing.campaigns.form.utm_source") %></label>
+      <%= text_field_tag :utm_source, params[:utm_source], class: "input", placeholder: "newsletter" %>
+    </div>
+    <div>
+      <label class="label"><%= t("marketing.campaigns.form.utm_medium") %></label>
+      <%= text_field_tag :utm_medium, params[:utm_medium], class: "input", placeholder: "email" %>
+    </div>
+    <div>
+      <label class="label"><%= t("marketing.campaigns.form.utm_campaign") %></label>
+      <%= text_field_tag :utm_campaign, params[:utm_campaign], class: "input", placeholder: "marzo-2026" %>
+    </div>
+    <div>
+      <label class="label"><%= t("marketing.attribution.period") %></label>
+      <%= select_tag :date_range,
+            options_for_select([
+              [t("marketing.attribution.period_month"), "month"],
+              [t("marketing.attribution.period_quarter"), "quarter"],
+              [t("marketing.attribution.period_year"), "year"]
+            ], params[:date_range] || "month"),
+            class: "input" %>
+    </div>
+    <%= submit_tag t("marketing.attribution.filter"), class: "btn-secondary" %>
+  <% end %>
+
+  <% if @rows.empty? %>
+    <%= render "shared/empty_state", icon_name: :bar_chart, title: t("marketing.attribution.empty_title"),
+          subtitle: t("marketing.attribution.empty_subtitle") %>
+  <% else %>
+    <div class="overflow-x-auto">
+      <table class="table-base">
+        <thead>
+          <tr>
+            <th><%= t("marketing.attribution.col_channel") %></th>
+            <th><%= t("marketing.attribution.col_visits") %></th>
+            <th><%= t("marketing.attribution.col_leads") %></th>
+            <th><%= t("marketing.attribution.col_mql") %></th>
+            <th><%= t("marketing.attribution.col_deals") %></th>
+            <th><%= t("marketing.attribution.col_revenue") %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rows.each do |row| %>
+            <tr>
+              <td class="font-medium"><%= row.label %></td>
+              <td class="tabular-nums"><%= row.visits %></td>
+              <td class="tabular-nums">
+                <%= link_to row.leads, people_path(utm_source: row.key), class: "text-accent hover:underline" %>
+              </td>
+              <td class="tabular-nums">
+                <%= link_to row.mqls, people_path(utm_source: row.key, lifecycle_stage_in: Marketing::ScoringEngine::MQL_STAGES), class: "text-accent hover:underline" %>
+              </td>
+              <td class="tabular-nums">
+                <%= link_to row.deals, deals_path(utm_source: row.key), class: "text-accent hover:underline" %>
+              </td>
+              <td class="tabular-nums"><%= number_to_currency(row.revenue) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot>
+          <tr class="font-semibold bg-canvas-sunken/50">
+            <td><%= t("marketing.attribution.total") %></td>
+            <td class="tabular-nums"><%= totals[:visits] %></td>
+            <td class="tabular-nums"><%= totals[:leads] %></td>
+            <td class="tabular-nums"><%= totals[:mqls] %></td>
+            <td class="tabular-nums"><%= totals[:deals] %></td>
+            <td class="tabular-nums"><%= number_to_currency(totals[:revenue]) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,175 @@
+<%= form_with model: booking_page,
+      class: "space-y-6",
+      data: {
+        controller: "booking-page-form",
+        booking_page_form_selected_ids_value: @selected_calendar_ids.to_json,
+        booking_page_form_event_calendar_value: booking_page.host_id == current_user.id,
+        booking_page_form_calendars_value: @available_calendars.to_json,
+        booking_page_form_calendars_error_value: @calendars_load_error.to_s,
+        booking_page_form_host_connected_value: @user_calendar_connection&.connected? == true,
+        booking_page_form_i18n_value: booking_page_form_stimulus_i18n.to_json
+      } do |f| %>
+  <% if booking_page.errors.any? %>
+    <div class="card p-4 border-red-200 bg-red-50 text-red-800 text-sm">
+      <%= booking_page.errors.full_messages.to_sentence %>
+    </div>
+  <% end %>
+
+  <div class="grid gap-6 lg:grid-cols-2 lg:items-start">
+    <div class="card p-6 space-y-4 lg:sticky lg:top-0 lg:self-start min-w-0">
+      <h2 class="font-display text-lg font-semibold"><%= t("booking.pages.form.public_page") %></h2>
+      <div>
+        <%= f.label :name, t("booking.pages.form.name"), class: "label" %>
+        <%= f.text_field :name, class: "input mt-1 w-full" %>
+      </div>
+      <div>
+        <%= f.label :slug, t("booking.pages.form.slug"), class: "label" %>
+        <%= f.text_field :slug, class: "input mt-1 w-full", placeholder: t("booking.pages.form.slug_placeholder") %>
+        <% if booking_page.persisted? %>
+          <p class="text-xs text-ink-faint mt-1"><%= t("booking.pages.form.public_url", url: public_booking_page_url(booking_page.slug)) %></p>
+        <% end %>
+      </div>
+      <div>
+        <p class="label"><%= t("booking.pages.form.host") %></p>
+        <p class="mt-1 text-sm"><%= booking_page.host.name %></p>
+      </div>
+      <div>
+        <%= f.label :co_host_ids, t("booking.pages.form.co_hosts"), class: "label" %>
+        <%= f.collection_select :co_host_ids, @co_host_candidates, :id, :name, {},
+              multiple: true, class: "input mt-1 w-full" %>
+        <p class="text-xs text-ink-faint mt-1"><%= t("booking.pages.form.co_hosts_hint") %></p>
+        <% if @pending_calendar_participants.any? %>
+          <p class="text-xs text-golden-800 mt-1">
+            <%= t("booking.pages.form.co_hosts_pending", names: @pending_calendar_participants.to_sentence) %>
+          </p>
+        <% end %>
+      </div>
+      <div>
+        <%= f.label :crm_association, t("booking.pages.form.crm_association"), class: "label" %>
+        <%= f.select :crm_association,
+              BookingPage::CRM_ASSOCIATIONS.map { |value| [t("booking.pages.form.crm_association_#{value}"), value] },
+              {},
+              class: "input mt-1 w-full",
+              data: {
+                booking_page_form_target: "crmAssociationSelect",
+                action: "change->booking-page-form#crmAssociationChanged"
+              } %>
+        <p class="text-xs text-ink-faint mt-1"><%= t("booking.pages.form.crm_association_hint") %></p>
+      </div>
+      <div data-booking-page-form-target="dealOptions" class="space-y-4 <%= "hidden" unless booking_page.crm_deal? %>">
+        <div>
+          <%= f.label :pipeline_id, t("booking.pages.form.crm_pipeline"), class: "label" %>
+          <%= f.collection_select :pipeline_id, @pipelines, :id, :name, {}, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= f.label :reuse_existing_deal, class: "inline-flex items-center gap-2" do %>
+            <%= f.check_box :reuse_existing_deal %>
+            <span><%= t("booking.pages.form.reuse_deal") %></span>
+          <% end %>
+          <p class="text-xs text-ink-faint mt-1"><%= t("booking.pages.form.reuse_deal_hint") %></p>
+        </div>
+      </div>
+      <div>
+        <%= f.label :welcome_message, t("booking.pages.form.welcome_message"), class: "label" %>
+        <%= f.text_area :welcome_message, rows: 2, class: "input mt-1 w-full" %>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <%= f.label :avatar_url, t("booking.pages.form.avatar_url"), class: "label" %>
+          <%= f.url_field :avatar_url, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= f.label :logo_url, t("booking.pages.form.logo_url"), class: "label" %>
+          <%= f.url_field :logo_url, class: "input mt-1 w-full" %>
+        </div>
+      </div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <%= f.label :timezone, t("booking.pages.form.timezone"), class: "label" %>
+          <%= f.select :timezone, booking_timezone_options(booking_page.timezone), {}, class: "input mt-1 w-full" %>
+          <p class="mt-1 text-sm text-ink-faint"><%= t("booking.pages.form.timezone_hint") %></p>
+        </div>
+        <div>
+          <%= f.label :booking_window_days, t("booking.pages.form.booking_window_days"), class: "label" %>
+          <%= f.number_field :booking_window_days, min: 1, class: "input mt-1 w-full" %>
+        </div>
+      </div>
+      <% co_host_view = booking_page.host_id != current_user.id %>
+      <div>
+        <p class="label"><%= t("booking.pages.form.calendar_section") %></p>
+        <p class="text-xs text-ink-faint mb-2"><%= t(co_host_view ? "booking.pages.form.calendar_order_hint_co_host" : "booking.pages.form.calendar_order_hint") %></p>
+        <div data-booking-page-form-target="calendarError"
+             class="hidden text-sm text-red-600 mb-2"></div>
+        <% if @calendars_load_error.present? %>
+          <p class="text-sm text-red-600 mb-2">
+            <%= @calendars_load_error %>
+            <% if @calendars_load_error_code == :api_disabled && @calendars_load_help_url.present? %>
+              <%= link_to t("booking.pages.form.calendar_activate_api"), @calendars_load_help_url, class: "text-accent hover:underline ml-1", target: "_blank", rel: "noopener" %>
+            <% elsif @user_calendar_connection&.user_id == current_user.id && @calendars_load_error_code != :api_disabled %>
+              <%= link_to t("booking.pages.form.calendar_reconnect"), calendar_connection_path, class: "text-accent hover:underline ml-1" %>
+            <% end %>
+          </p>
+        <% elsif @user_calendar_connection&.connected? && @user_calendar_connection.missing_scopes_message %>
+          <p class="text-sm text-golden-800 bg-golden-100 rounded-md px-3 py-2 mb-2">
+            <%= @user_calendar_connection.missing_scopes_message %>
+            <% if @user_calendar_connection.user_id == current_user.id %>
+              <%= link_to t("booking.pages.form.calendar_reconnect"), calendar_connection_path, class: "text-accent hover:underline ml-1" %>
+            <% end %>
+          </p>
+        <% elsif @user_calendar_connection.blank? || !@user_calendar_connection.connected? %>
+          <p class="text-sm text-ink-soft mb-2">
+            <%= t("booking.pages.form.host_not_connected") %>
+            <%= link_to t("booking.pages.form.connect_calendar_now"), calendar_connection_path, class: "text-accent hover:underline" %>
+          </p>
+        <% end %>
+        <div data-booking-page-form-target="calendarList"></div>
+        <div data-booking-page-form-target="calendarIdsInputs"></div>
+        <p data-booking-page-form-target="calendarHint"
+           class="text-xs text-ink-faint mt-2 <%= "hidden" if @available_calendars.blank? %>">
+          <%= t(co_host_view ? "booking.pages.form.calendar_hint_co_host" : "booking.pages.form.calendar_hint") %>
+        </p>
+      </div>
+      <div>
+        <%= f.label :success_template_id, t("booking.pages.form.success_template"), class: "label" %>
+        <%= f.collection_select :success_template_id, @booking_success_templates, :id, :display_name,
+              { include_blank: t("booking.pages.form.success_template_blank") }, class: "input mt-1 w-full" %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("booking.pages.form.success_template_hint") %></p>
+      </div>
+      <div>
+        <%= f.label :active, class: "inline-flex items-center gap-2" do %>
+          <%= f.check_box :active %>
+          <span><%= t("booking.pages.form.active_page") %></span>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="card p-6 space-y-4 min-w-0" data-controller="nested-form sortable-list" data-action="nested-form:changed->sortable-list#refresh">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="font-display text-lg font-semibold"><%= t("booking.pages.form.event_types") %></h2>
+          <p class="text-xs text-ink-faint mt-1"><%= t("booking.pages.form.event_types_hint") %></p>
+        </div>
+        <button type="button" data-action="nested-form#add" class="btn-secondary shrink-0">
+          <%= icon :plus, classes: "size-3.5" %> <%= t("booking.pages.event_type.add_type") %>
+        </button>
+      </div>
+      <div data-nested-form-target="list" data-sortable-list-target="list" class="space-y-2">
+        <%= f.fields_for :event_types do |event_form| %>
+          <%= render "event_type_fields", form: event_form %>
+        <% end %>
+      </div>
+      <template data-nested-form-target="template">
+        <%= f.fields_for :event_types,
+              BookingEventType.new(BookingEventType.blank_attributes),
+              child_index: "NEW_RECORD" do |event_form| %>
+          <%= render "event_type_fields", form: event_form %>
+        <% end %>
+      </template>
+    </div>
+  </div>
+
+  <div class="sticky bottom-0 z-10 -mx-5 px-5 py-3 bg-canvas/95 backdrop-blur-sm border-t border-line flex gap-2">
+    <%= f.submit booking_page.persisted? ? t("booking.pages.form.submit_update") : t("booking.pages.form.submit_create"), class: "btn-primary" %>
+    <%= link_to t("booking.pages.form.cancel"), booking_pages_path, class: "btn-secondary" %>
+  </div>
+<% end %>

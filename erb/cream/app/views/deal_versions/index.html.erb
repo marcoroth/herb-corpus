@@ -1,0 +1,60 @@
+<% page_title t("deal_versions.index_page_title", deal: @deal.name) %>
+<% actions = capture do %>
+  <%= link_to deal_path(@deal), class: "btn-secondary" do %>
+    <%= icon :arrow_left, classes: "size-3.5" %> <%= t("deal_versions.back_to_deal") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("deal_versions.index_title", deal: @deal.name), icon_name: :activity, count: nil, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 bg-canvas-soft/50">
+  <p class="text-base text-ink-faint mb-4 max-w-3xl">
+    <%= t("deal_versions.index_intro") %>
+  </p>
+  <% if @audit_timeline.any? %>
+    <ol class="relative space-y-4 before:absolute before:left-[9px] before:top-1 before:bottom-1 before:w-px before:bg-line max-w-3xl">
+      <% @audit_timeline.each do |entry| %>
+        <% if entry[:kind] == :version %>
+          <% version = entry[:record] %>
+          <li class="relative flex gap-3 pl-0">
+            <span class="relative z-10 mt-0.5 size-[19px] rounded-full bg-canvas-raised ring-1 ring-line flex items-center justify-center shrink-0">
+              <span class="size-1.5 rounded-full <%= version.event == "create" ? "bg-green-500" : "bg-accent" %>"></span>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-base text-ink-soft">
+                <%= link_to version_sentence(version), deal_version_path(@deal, version), class: "hover:text-accent hover:underline" %>
+              </p>
+              <% if version.event == "update" && version.changeset.present? %>
+                <ul class="mt-1 space-y-0.5">
+                  <% version.changeset.first(6).each do |field, (from, to)| %>
+                    <li class="text-sm text-ink-faint">
+                      <span class="font-medium text-ink-soft"><%= field.humanize %>:</span>
+                      <span class="line-through"><%= from.presence || "—" %></span> → <%= to.presence || "—" %>
+                    </li>
+                  <% end %>
+                </ul>
+              <% end %>
+              <p class="text-xs text-ink-faint mt-0.5" title="<%= l version.created_at, format: :long %>">
+                <%= t("deal_versions.time_ago", time: time_ago_in_words(version.created_at)) %>
+              </p>
+            </div>
+          </li>
+        <% else %>
+          <% activity = entry[:record] %>
+          <li class="relative flex gap-3 pl-0">
+            <span class="relative z-10 mt-0.5 size-[19px] rounded-full bg-canvas-raised ring-1 ring-line flex items-center justify-center shrink-0">
+              <span class="size-1.5 rounded-full bg-copperfield-500"></span>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-base text-ink-soft"><%= activity_sentence(activity) %></p>
+              <p class="text-xs text-ink-faint mt-0.5" title="<%= l activity.created_at, format: :long %>">
+                <%= t("deal_versions.time_ago", time: time_ago_in_words(activity.created_at)) %>
+              </p>
+            </div>
+          </li>
+        <% end %>
+      <% end %>
+    </ol>
+  <% else %>
+    <p class="text-base text-ink-faint"><%= t("deal_versions.empty") %></p>
+  <% end %>
+</div>

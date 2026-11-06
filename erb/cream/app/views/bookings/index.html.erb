@@ -1,0 +1,49 @@
+<% page_title t("booking.bookings.index.page_title") %>
+<% actions = capture do %>
+  <%= link_to t("booking.bookings.index.pages_link"), booking_pages_path, class: "btn-secondary" %>
+<% end %>
+<%= render "shared/page_header", title: t("booking.bookings.index.title"), icon_name: :calendar, count: @bookings.size, actions: actions %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5 space-y-3">
+  <% if @bookings.empty? %>
+    <p class="text-ink-faint"><%= t("booking.bookings.index.empty") %></p>
+  <% end %>
+
+  <% @bookings.each do |booking| %>
+    <article class="card p-4 space-y-3">
+      <div class="flex items-center gap-2">
+        <h2 class="font-semibold text-base"><%= booking.display_name %></h2>
+        <% if booking.status == "confirmed" %>
+          <%= badge t("booking.bookings.index.status.confirmed"), color: "green" %>
+        <% else %>
+          <%= badge t("booking.bookings.index.status.cancelled"), color: "chicago" %>
+        <% end %>
+        <div class="ml-auto flex gap-2">
+          <% if policy(booking).cancel? && booking.status == "confirmed" && booking.starts_at > Time.current %>
+            <%= button_to t("booking.bookings.index.cancel"),
+                  cancel_booking_path(booking),
+                  method: :patch,
+                  class: "btn-danger",
+                  data: { turbo_confirm: t("booking.bookings.index.cancel_confirm") } %>
+          <% end %>
+        </div>
+      </div>
+
+      <dl class="grid gap-2 text-sm sm:grid-cols-2">
+        <div><dt class="text-ink-faint"><%= t("booking.bookings.index.fields.email") %></dt><dd><%= booking.email %></dd></div>
+        <div><dt class="text-ink-faint"><%= t("booking.bookings.index.fields.event_type") %></dt><dd><%= booking.booking_event_type.localized_name %></dd></div>
+        <div><dt class="text-ink-faint"><%= t("booking.bookings.index.fields.page") %></dt><dd><%= booking.booking_page.name %></dd></div>
+        <div>
+          <dt class="text-ink-faint"><%= t("booking.bookings.index.fields.starts_at") %></dt>
+          <dd><%= booking.localized_starts_at_with_zone %></dd>
+        </div>
+        <% if booking.person.present? %>
+          <div><dt class="text-ink-faint"><%= t("booking.bookings.index.fields.person") %></dt><dd><%= link_to booking.person.display_name, person_path(booking.person), class: "text-accent hover:underline" %></dd></div>
+        <% end %>
+        <% if booking.deal.present? %>
+          <div><dt class="text-ink-faint"><%= t("booking.bookings.index.fields.deal") %></dt><dd><%= link_to booking.deal.name, deal_path(booking.deal), class: "text-accent hover:underline" %></dd></div>
+        <% end %>
+      </dl>
+    </article>
+  <% end %>
+</div>

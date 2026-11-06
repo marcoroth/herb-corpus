@@ -1,0 +1,40 @@
+<div class="card p-4">
+  <h3 class="text-sm font-semibold uppercase tracking-wider text-ink-faint mb-3"><%= t("deals.show.source_forms") %></h3>
+  <div class="space-y-2">
+    <% deal.lead_submissions.includes(:lead_form, :person, :privacy_policy_version).order(created_at: :desc).each do |submission| %>
+      <div class="border border-line rounded-lg overflow-hidden bg-canvas-raised"
+           data-controller="collapse"
+           data-collapse-open-value="false">
+        <div class="flex items-center gap-2 px-3 py-2.5 hover:bg-canvas-sunken transition-colors">
+          <div class="flex min-w-0 flex-1 items-center gap-2 cursor-pointer"
+               data-action="click->collapse#toggle">
+            <span data-collapse-target="icon"
+                  class="shrink-0 transition-transform">
+              <%= icon :chevron_right, classes: "size-3.5 text-ink-faint" %>
+            </span>
+            <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span class="font-medium text-sm truncate"><%= submission.lead_form.name %></span>
+              <span class="text-xs text-ink-faint"><%= l(submission.created_at, format: :short) %></span>
+            </div>
+          </div>
+          <%= link_to t("deals.show.view_consent"), person_lead_submission_path(submission.person, submission), class: "text-accent text-xs hover:underline shrink-0" %>
+        </div>
+
+        <div data-collapse-target="panel" class="hidden border-t border-line p-4 space-y-3 bg-canvas">
+          <%= render "lead_submissions/consent_accepted", submission: submission %>
+          <div class="divide-y divide-line/60">
+            <% submission.data.each do |key, value| %>
+              <% display_value = value.is_a?(TrueClass) || value.is_a?(FalseClass) ? t(value ? "records.boolean.yes" : "records.boolean.no") : value %>
+              <%= render "shared/attribute", label: key.humanize, icon_name: :mail, value: display_value %>
+            <% end %>
+            <% %w[lead_form_name lead_form_slug source_page referrer utm_source utm_medium utm_campaign utm_term utm_content ip user_agent].each do |key| %>
+              <% value = submission.metadata[key] %>
+              <% next if value.blank? %>
+              <%= render "shared/attribute", label: key.humanize, icon_name: :globe, value: value %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

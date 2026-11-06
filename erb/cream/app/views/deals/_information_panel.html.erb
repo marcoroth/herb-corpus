@@ -1,0 +1,55 @@
+<div class="record-information-grid">
+  <section class="record-card">
+    <div class="record-card-heading"><h2 class="record-section-title"><%= t("deals.show.details") %></h2><%= link_to t("records.edit"), edit_deal_path(@deal, section: "overview"), class: "btn-ghost", aria: { label: t("deals.show.edit_details") } %></div>
+    <div class="divide-y divide-line/60">
+      <%= render "shared/attribute", label: t("records.fields.value"), icon_name: :banknote, value: deal_field_display(@deal, :value) %>
+      <%= render "shared/attribute", label: t("records.fields.probability"), icon_name: :activity, value: deal_field_display(@deal, :probability) %>
+      <%= render "shared/attribute", label: t("records.fields.close_date"), icon_name: :calendar, value: deal_field_display(@deal, :expected_close_date) %>
+      <%= render "shared/attribute", label: t("records.fields.execution_duration"), icon_name: :clock, value: deal_field_display(@deal, :execution_duration_days) %>
+      <%= render "shared/attribute", label: t("records.fields.execution_starts_on"), icon_name: :calendar, value: deal_field_display(@deal, :execution_starts_on) %>
+      <%= render "shared/attribute", label: t("records.fields.execution_ends_on"), icon_name: :calendar, value: deal_field_display(@deal, :execution_ends_on) %>
+      <%= render "shared/attribute", label: t("records.fields.payment_method"), icon_name: :credit_card, value: deal_field_display(@deal, :payment_method) %>
+      <%= render "shared/attribute", label: t("records.fields.payment_on"), icon_name: :calendar, value: deal_field_display(@deal, :payment_on) %>
+      <%= render "shared/attribute", label: t("records.fields.invoice_number"), icon_name: :note, value: deal_field_display(@deal, :invoice_number) %>
+      <%= render "shared/attribute", label: t("records.fields.stage"), icon_name: :activity, value: render(DealStageComponent.new(deal: @deal)) %>
+      <%= render "shared/attribute", label: t("records.fields.pipeline"), icon_name: :activity, value: @deal.pipeline&.name %>
+    </div>
+  </section>
+  <section class="record-card">
+    <div class="record-card-heading"><h2 class="record-section-title"><%= t("deals.show.relationships") %></h2><%= link_to t("records.edit"), edit_deal_path(@deal, section: "relationships"), class: "btn-ghost", aria: { label: t("deals.show.edit_relationships") } %></div>
+    <div class="divide-y divide-line/60">
+      <%= render "shared/attribute", label: t("records.fields.company"), icon_name: :building, value: @deal.company ? link_to(@deal.company.name, company_path(@deal.company), class: "text-accent hover:underline") : nil %>
+      <%= render "shared/attribute", label: t("records.fields.partner"), icon_name: :building, value: @deal.partner ? link_to(@deal.partner.name, company_path(@deal.partner), class: "text-accent hover:underline") : nil %>
+      <% deal_contacts = @deal.deal_contacts.includes(:person, offer_share_link: [:person, :offer]) %>
+      <%= render "shared/attribute", label: t("records.fields.contacts"), icon_name: :users,
+            value: deal_contacts.any? ? tag.ul(safe_join(deal_contacts.map { |dc| tag.li(deal_contact_display(dc)) }), class: "space-y-1") : nil %>
+      <% if CreamFeatures.enabled?(:client_portal) %>
+        <div class="px-4 py-3">
+          <%= render "shared/deal_portal_invite_url", deal: @deal, can_manage: policy(@deal).update? %>
+        </div>
+      <% end %>
+    </div>
+  </section>
+  <section class="record-card">
+    <div class="record-card-heading"><h2 class="record-section-title"><%= t("records.fields.management") %></h2><%= link_to t("records.edit"), edit_deal_path(@deal, section: "management"), class: "btn-ghost", aria: { label: t("deals.show.edit_management") } %></div>
+    <%= render "shared/attribute", label: t("records.fields.owner"), icon_name: :users, value: @deal.owner&.name %>
+    <%= render "shared/attribute", label: t("records.fields.created"), icon_name: :clock, value: l(@deal.created_at, format: :short) %>
+    <% if @deal.lists.any? %>
+      <h3 class="text-sm font-medium mt-4 mb-2"><%= t("records.fields.lists") %></h3>
+      <div class="flex flex-wrap gap-2"><% @deal.lists.each do |list| %><%= link_to list.name, list_path(list), class: "record-count hover:text-accent" %><% end %></div>
+    <% end %>
+  </section>
+  <section class="record-card"><%= render "collaborators_section", deal: @deal %></section>
+  <% if @deal.custom_field_definitions.any? %>
+    <section class="record-card">
+      <div class="record-card-heading"><h2 class="record-section-title"><%= t("records.fields.custom_fields") %></h2><%= link_to t("records.edit"), edit_deal_path(@deal, section: "custom"), class: "btn-ghost", aria: { label: t("deals.show.edit_custom") } %></div>
+      <%= render "shared/custom_attributes", record: @deal %>
+    </section>
+  <% end %>
+  <% if @deal.lead_submissions.any? %>
+    <section class="record-card"><%= render "lead_submission_section", deal: @deal %></section>
+  <% end %>
+  <% if @deal.bookings.any? %>
+    <section class="record-card"><%= render "booking_submission_section", deal: @deal %></section>
+  <% end %>
+</div>

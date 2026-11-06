@@ -1,0 +1,107 @@
+<% page_title t("integrations.stripe.payments.detail_page_title") %>
+<%
+  status_color = { "pending_review" => "golden", "matched" => "green", "ignored" => "chicago" }.fetch(@payment.status)
+  amount = number_to_currency(@payment.amount_decimal,
+    unit: @payment.currency.casecmp?("eur") ? "€" : @payment.currency.upcase,
+    precision: 2)
+  customer_label = @payment.customer_name.presence || @payment.customer_email
+  refund_amount = number_to_currency(@payment.amount_refunded_decimal, unit: "€", precision: 2)
+%>
+<% actions = capture do %>
+  <%= link_to stripe_payments_path(status: @payment.status), class: "btn-secondary" do %>
+    <%= icon :arrow_left, classes: "size-3.5" %> <%= t("integrations.stripe.payments.back_to_payments") %>
+  <% end %>
+  <% if @payment.receipt_url.present? %>
+    <%= link_to @payment.receipt_url, target: "_blank", rel: "noopener", class: "btn-secondary" do %>
+      <%= icon :external, classes: "size-3.5" %> <%= t("integrations.stripe.payments.stripe_receipt") %>
+    <% end %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("integrations.stripe.payments.show_title", amount: amount, customer: customer_label),
+      icon_name: :credit_card, actions: actions %>
+
+<div class="flex-1 flex min-h-0 overflow-x-auto snap-x snap-mandatory md:overflow-x-visible md:snap-none">
+  <aside class="w-80 shrink-0 snap-start border-r border-line overflow-y-auto scrollbar-subtle p-4 space-y-0.5">
+    <div class="flex items-center gap-2 px-1 pb-2">
+      <%= badge t("integrations.stripe.payments.status.#{@payment.status}"), color: status_color %>
+      <%= badge t("integrations.stripe.payments.badges.refunded"), color: "red" if @payment.refunded? %>
+      <%= badge t("integrations.stripe.payments.badges.partially_refunded", amount: refund_amount), color: "orange" if @payment.partially_refunded? %>
+      <%= badge t("integrations.stripe.payments.badges.test_mode"), color: "chicago" unless @payment.livemode? %>
+    </div>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.amount"), icon_name: :banknote, value: amount %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.paid_at"), icon_name: :calendar, value: l(@payment.paid_at, format: :long) %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.name"), icon_name: :users, value: @payment.customer_name %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.email"), icon_name: :mail, value: @payment.customer_email %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.phone"), icon_name: :phone, value: @payment.customer_phone %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.address"), icon_name: :map_pin, value: @payment.billing_address %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.paid_with"), icon_name: :credit_card, value: @payment.payment_method_summary %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.description"), icon_name: :note, value: @payment.description %>
+    <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.risk_check"), icon_name: :check_circle, value: @payment.risk_outcome %>
+    <div class="pt-3 mt-2 border-t border-line space-y-0.5">
+      <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.charge_id"), icon_name: :list, value: tag.span(@payment.stripe_charge_id, class: "font-mono text-sm") %>
+      <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.customer_id"), icon_name: :list, value: (tag.span(@payment.stripe_customer_id, class: "font-mono text-sm") if @payment.stripe_customer_id.present?) %>
+      <%= render "shared/attribute", label: t("integrations.stripe.payments.sidebar.intent_id"), icon_name: :list, value: (tag.span(@payment.stripe_payment_intent_id, class: "font-mono text-sm") if @payment.stripe_payment_intent_id.present?) %>
+    </div>
+  </aside>
+
+  <div class="w-full shrink-0 snap-start md:flex-1 md:w-auto overflow-y-auto scrollbar-subtle p-5 space-y-4 max-w-3xl">
+    <section class="card p-4 space-y-3">
+      <h2 class="text-base font-semibold"><%= t("integrations.stripe.payments.reconciliation") %></h2>
+      <% if @payment.matched? && @payment.deal %>
+        <% matched_by = @payment.matched_by ? t("integrations.stripe.payments.linked_by", name: h(@payment.matched_by.name)) : "" %>
+        <% matched_at = @payment.matched_at ? t("integrations.stripe.payments.linked_on", time: l(@payment.matched_at, format: :short)) : "" %>
+        <p class="text-base text-ink-soft">
+          <%= t("integrations.stripe.payments.linked_to") %>
+          <%= link_to @payment.deal.name, deal_path(@payment.deal), class: "text-accent hover:underline" %><%= matched_by %><%= matched_at %>.
+        </p>
+      <% elsif @payment.ignored? %>
+        <p class="text-base text-ink-soft"><%= t("integrations.stripe.payments.ignored_message") %></p>
+        <%= button_to t("integrations.stripe.payments.restore_to_review"), unignore_stripe_payment_path(@payment), method: :post, class: "btn-secondary" %>
+      <% else %>
+        <% if @payment.suggested_deal %>
+          <p class="text-base text-ink-soft">
+            <%= t("integrations.stripe.payments.match_confidence",
+                  confidence: t("integrations.stripe.payments.confidence.#{@payment.match_confidence}")) %>
+            <%= link_to @payment.suggested_deal.name, deal_path(@payment.suggested_deal), class: "text-accent hover:underline" %>
+          </p>
+          <%= button_to t("integrations.stripe.payments.accept_suggestion"), match_stripe_payment_path(@payment), method: :post, class: "btn-primary" %>
+        <% elsif @payment.suggested_person %>
+          <p class="text-base text-ink-soft">
+            <%= t("integrations.stripe.payments.payer_identified_html",
+                  person_link: link_to(@payment.suggested_person.display_name, person_path(@payment.suggested_person), class: "text-accent hover:underline")).html_safe %>
+          </p>
+        <% else %>
+          <p class="text-base text-ink-faint"><%= t("integrations.stripe.payments.no_person_match") %></p>
+        <% end %>
+        <div class="flex items-center gap-2 flex-wrap">
+          <%= render "link_deal_form", payment: @payment, input_class: "input h-8 text-sm w-72" %>
+          <%= link_to t("integrations.stripe.payments.create_deal"), new_deal_path(stripe_payment_id: @payment.id,
+                person_id: @payment.suggested_person_id, company_id: @payment.suggested_person&.company_id),
+                class: "btn-secondary" %>
+          <%= button_to t("integrations.stripe.payments.ignore"), ignore_stripe_payment_path(@payment), method: :post, class: "btn-ghost" %>
+        </div>
+      <% end %>
+    </section>
+
+    <% if @payment.metadata.present? %>
+      <section class="card p-4">
+        <h2 class="text-base font-semibold mb-2"><%= t("integrations.stripe.payments.metadata_heading") %></h2>
+        <table class="w-full text-sm">
+          <% @payment.metadata.each do |key, value| %>
+            <tr class="border-t border-line first:border-t-0">
+              <td class="py-1.5 pr-4 text-ink-faint font-mono whitespace-nowrap align-top"><%= key %></td>
+              <td class="py-1.5 break-all"><%= value %></td>
+            </tr>
+          <% end %>
+        </table>
+      </section>
+    <% end %>
+
+    <% if @payment.payload.present? %>
+      <details class="card p-4">
+        <summary class="text-base font-semibold cursor-pointer select-none"><%= t("integrations.stripe.payments.full_stripe_data") %></summary>
+        <pre class="mt-3 text-xs leading-relaxed font-mono bg-canvas-sunken rounded-lg p-3 overflow-x-auto max-h-[32rem] overflow-y-auto"><%= JSON.pretty_generate(@payment.payload) %></pre>
+      </details>
+    <% end %>
+  </div>
+</div>

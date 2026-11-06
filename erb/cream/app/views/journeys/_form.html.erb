@@ -1,0 +1,122 @@
+<% journey_form_id = dom_id(journey, :form) %>
+<%= form_with model: journey,
+      html: {
+        id: journey_form_id,
+        data: {
+          controller: "journey-form",
+          action: "nested-form:changed->journey-form#stepAdded"
+        }
+      },
+      class: "card p-4 space-y-4 max-w-4xl" do |f| %>
+  <% if journey.errors.any? %>
+    <div class="rounded-lg bg-danger-soft text-danger-strong ring-1 ring-danger-line px-3 py-2 text-sm">
+      <%= journey.errors.full_messages.to_sentence %>
+    </div>
+  <% end %>
+
+  <div>
+    <%= f.label :name, t("marketing.shared.name"), class: "label" %>
+    <%= f.text_field :name, class: "input w-full", placeholder: t("marketing.journeys.form.name_placeholder") %>
+  </div>
+
+  <div>
+    <%= f.label :entry_trigger, t("marketing.journeys.form.entry_trigger"), class: "label" %>
+    <%= f.select :entry_trigger,
+          Journey::ENTRY_TRIGGERS.map { |trigger| [ journey_trigger_label(trigger), trigger ] },
+          {}, class: "input w-full",
+          data: { "journey-form-target" => "trigger", action: "journey-form#triggerChanged" } %>
+  </div>
+
+  <div>
+    <%= f.label :max_reenrollments, t("marketing.journeys.form.max_reenrollments"), class: "label" %>
+    <%= f.number_field :max_reenrollments, class: "input w-full", min: 0 %>
+    <p class="text-sm text-ink-faint mt-1"><%= t("marketing.journeys.form.max_reenrollments_hint") %></p>
+  </div>
+
+  <label class="flex items-center gap-2 text-base"><%= f.check_box :active %> <%= t("marketing.shared.active") %></label>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 border border-line rounded-lg p-3">
+    <div>
+      <%= f.label :product_id, t("marketing.journeys.form.product_output"), class: "label" %>
+      <%= f.collection_select :product_id, current_workspace.products.ordered, :id, :name,
+            { include_blank: t("marketing.shared.none") }, class: "input w-full" %>
+    </div>
+    <label class="flex items-center gap-2 text-sm pt-6">
+      <%= f.check_box :stop_on_open_deal %> <%= t("marketing.journeys.form.stop_on_open_deal") %>
+    </label>
+  </div>
+
+  <% config = journey.entry_config.to_h.stringify_keys %>
+  <fieldset class="space-y-3 border border-line rounded-lg p-3">
+    <legend class="text-sm font-semibold px-1"><%= t("marketing.journeys.form.entry_condition_legend") %></legend>
+
+    <div data-journey-form-target="entryField" data-trigger="lead_form_submitted" hidden>
+      <label class="label"><%= t("marketing.journeys.form.lead_form") %></label>
+      <%= select_tag "journey[entry_config][lead_form_id]",
+            options_from_collection_for_select(@lead_forms, :id, :name, config["lead_form_id"]),
+            include_blank: t("marketing.journeys.form.any_form"), class: "input w-full" %>
+    </div>
+
+    <div data-journey-form-target="entryField" data-trigger="segment_entry" hidden>
+      <label class="label"><%= t("marketing.journeys.form.segment") %></label>
+      <%= select_tag "journey[entry_config][segment_id]",
+            options_from_collection_for_select(@segments, :id, :name, config["segment_id"]),
+            include_blank: t("marketing.journeys.form.select_segment"), class: "input w-full" %>
+    </div>
+
+    <div data-journey-form-target="entryField" data-trigger="booking_created" hidden>
+      <label class="label"><%= t("marketing.journeys.form.booking_page") %></label>
+      <%= select_tag "journey[entry_config][booking_page_id]",
+            options_from_collection_for_select(@booking_pages, :id, :name, config["booking_page_id"]),
+            include_blank: t("marketing.journeys.form.any_page"), class: "input w-full" %>
+    </div>
+
+    <div data-journey-form-target="entryField" data-trigger="lifecycle_changed" hidden class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="label"><%= t("marketing.journeys.form.lifecycle_from") %></label>
+        <%= select_tag "journey[entry_config][from]",
+              options_for_select(Person::LIFECYCLE_STAGES.map { |s| [ s.humanize, s ] }, config["from"]),
+              include_blank: t("marketing.shared.any"), class: "input w-full" %>
+      </div>
+      <div>
+        <label class="label"><%= t("marketing.journeys.form.lifecycle_to") %></label>
+        <%= select_tag "journey[entry_config][to]",
+              options_for_select(Person::LIFECYCLE_STAGES.map { |s| [ s.humanize, s ] }, config["to"]),
+              include_blank: t("marketing.shared.any"), class: "input w-full" %>
+      </div>
+    </div>
+
+    <p class="text-sm text-ink-faint" data-journey-form-target="entryField" data-trigger="manual" hidden>
+      <%= t("marketing.journeys.form.manual_entry_hint") %>
+    </p>
+    <p class="text-sm text-ink-faint" data-journey-form-target="entryField" data-trigger="email_clicked" hidden>
+      <%= t("marketing.journeys.form.email_clicked_hint") %>
+    </p>
+  </fieldset>
+
+  <div data-controller="nested-form">
+    <div class="flex items-center justify-between gap-2 mb-2">
+      <p class="label"><%= t("marketing.journeys.form.steps_legend") %></p>
+      <button type="button" data-action="nested-form#add" class="btn-secondary shrink-0">
+        <%= icon :plus, classes: "size-3.5" %> <%= t("marketing.journeys.form.add_step") %>
+      </button>
+    </div>
+    <p class="text-sm text-ink-faint mb-3"><%= t("marketing.journeys.form.steps_timing_hint", time_zone: current_workspace.time_zone) %></p>
+
+    <div data-nested-form-target="list" class="space-y-3">
+      <%= f.fields_for :steps do |step_form| %>
+        <%= render "step_fields", f: step_form, journey_form_id: journey_form_id %>
+      <% end %>
+    </div>
+
+    <template data-nested-form-target="template">
+      <%= f.fields_for :steps, JourneyStep.new(position: 0, step_type: "send_email", active: true),
+            child_index: "NEW_RECORD" do |step_form| %>
+        <%= render "step_fields", f: step_form, journey_form_id: journey_form_id %>
+      <% end %>
+    </template>
+  </div>
+
+  <%= f.submit journey.persisted? ? t("marketing.shared.save") : t("marketing.journeys.form.create"), class: "btn-primary" %>
+  <%= link_to t("marketing.shared.cancel"), journey.persisted? ? journey_path(journey) : journeys_path, class: "btn-secondary ml-2" %>
+<% end %>

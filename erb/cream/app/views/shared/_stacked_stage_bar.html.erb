@@ -1,0 +1,34 @@
+<%# locals: (label:, total:, max:, segments:, metric: "count", drill_down_config: nil, workspace: current_workspace) %>
+<% fill_width = max.positive? ? (total * 100.0 / max).round(1) : 0 %>
+<% visible_segments = segments.select { |segment| segment.value.positive? } %>
+<div class="flex items-center gap-3 rounded-md -mx-1 px-1 py-0.5 hover:bg-canvas-soft transition-colors group">
+  <span class="w-24 text-sm text-ink-soft shrink-0 group-hover:text-ink"><%= label %></span>
+  <div class="flex-1 h-5 rounded bg-canvas-sunken ring-1 ring-inset ring-line overflow-hidden">
+    <% if visible_segments.any? %>
+      <div class="h-full flex divide-x divide-line-strong/40 rounded overflow-hidden"
+           style="width: <%= fill_width %>%; min-width: 0.25rem">
+        <% visible_segments.each do |segment| %>
+          <% segment_width = (segment.value * 100.0 / total).round(1) %>
+          <% segment_title = "#{segment.pipeline_name}: #{metric == 'count' ? segment.value.to_i : money(segment.value)}" %>
+          <% if drill_down_config %>
+            <% drill_down = ReportDrillDown.new(
+                  config: drill_down_config,
+                  row: ReportRunner::Row.new(key: segment.stage_id, label: label, value: segment.value,
+                        color: segment.color, segments: nil),
+                  workspace: workspace) %>
+            <%= link_to drill_down.path,
+                  class: "h-full #{segment.color} hover:brightness-110 min-w-px",
+                  style: "width: #{segment_width}%",
+                  title: segment_title do %>
+            <% end %>
+          <% else %>
+            <span class="h-full <%= segment.color %> min-w-px"
+                  style="width: <%= segment_width %>%"
+                  title="<%= segment_title %>"></span>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+  <span class="w-6 text-right text-sm text-ink-faint group-hover:text-accent"><%= metric == "count" ? total.to_i : money(total) %></span>
+</div>

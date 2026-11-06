@@ -1,0 +1,525 @@
+<% page_title t("integrations.workspace.page_title") %>
+<%= render "shared/page_header", title: t("integrations.workspace.title"), icon_name: :settings, actions: nil %>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5">
+  <div class="@container mx-auto w-full max-w-6xl">
+    <p class="text-base text-ink-soft">
+      <%= t("integrations.workspace.intro_html", workspace: current_workspace.name) %>
+    </p>
+    <div class="settings-panels">
+
+    <%= render layout: "settings/workspace/panel", locals: { title: t("integrations.workspace.general.title") } do %>
+      <%= form_with model: current_workspace, url: settings_workspace_path, method: :patch, class: "space-y-3" do |f| %>
+        <div class="flex items-end gap-2">
+          <div class="flex-1">
+            <%= f.label :name, t("integrations.workspace.general.name"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.text_field :name, class: "input w-full" %>
+          </div>
+          <%= f.submit t("integrations.workspace.general.save"), class: "btn-secondary" %>
+        </div>
+        <div>
+          <%= f.label :time_zone, t("workspace_settings.time_zone"), class: "label" %>
+          <%= f.select :time_zone, time_zone_options(selected: current_workspace.time_zone), {}, class: "input mt-1 w-full" %>
+          <p class="mt-1 text-sm text-ink-faint"><%= t("workspace_settings.time_zone_hint") %></p>
+        </div>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :salespeople_can_view_all_deals %>
+          <%= t("integrations.workspace.general.salespeople_view") %>
+        </label>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :salespeople_can_edit_all_deals %>
+          <%= t("integrations.workspace.general.salespeople_edit") %>
+        </label>
+        <p class="text-sm text-ink-faint"><%= t("integrations.workspace.general.edit_hint") %></p>
+        <% if feature_enabled?(:sales_director) %>
+          <label class="flex items-center gap-2 text-base">
+            <%= f.check_box :sales_director_enabled %>
+            <%= t("integrations.workspace.general.sales_director") %>
+          </label>
+          <% unless Ai::Configuration.configured? %>
+            <p class="text-sm text-ink-faint"><%= t("integrations.workspace.okm.ai_required").html_safe %></p>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% if feature_enabled?(:client_portal) %>
+      <%= render layout: "settings/workspace/panel", locals: { title: t("integrations.workspace.client_portal.title") } do %>
+        <%= render "shared/client_portal_url", workspace: current_workspace, show_title: false %>
+        <div class="border-t border-line pt-4 space-y-3">
+          <%= form_with model: current_workspace, url: settings_workspace_path, method: :patch, class: "space-y-3" do |f| %>
+            <div>
+              <%= f.label :mail_from_name, t("integrations.workspace.client_portal.mail_from_name"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+              <%= f.text_field :mail_from_name, class: "input w-full", placeholder: current_workspace.name %>
+              <p class="mt-1 text-sm text-ink-faint"><%= t("integrations.workspace.client_portal.mail_from_name_hint") %></p>
+            </div>
+            <%= f.submit t("integrations.workspace.client_portal.mail_from_name_save"), class: "btn-secondary" %>
+          <% end %>
+        </div>
+        <% if defined?(@public_layout_templates) %>
+          <div class="border-t border-line pt-4 space-y-3">
+            <p class="text-sm text-ink-soft"><%= t("integrations.workspace.client_portal_layout.intro") %></p>
+            <%= form_with model: current_workspace, url: settings_workspace_path, method: :patch, class: "space-y-3" do |f| %>
+              <div>
+                <%= f.label :client_portal_layout_template_id, t("integrations.workspace.public_booking_layout.template"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                <%= f.select :client_portal_layout_template_id,
+                      options_from_collection_for_select(@public_layout_templates, :id, :display_name, current_workspace.client_portal_layout_template_id),
+                      {include_blank: t("integrations.workspace.client_portal_layout.none")},
+                      class: "input w-full" %>
+                <p class="mt-1 text-sm text-ink-faint"><%= t("integrations.workspace.client_portal_layout.hint") %></p>
+              </div>
+              <%= f.submit t("integrations.workspace.public_booking_layout.save"), class: "btn-secondary" %>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% if feature_enabled?(:calendar_booking) && defined?(@public_layout_templates) %>
+      <%= render layout: "settings/workspace/panel", locals: { title: t("integrations.workspace.public_booking_layout.title") } do %>
+        <p class="text-sm text-ink-soft"><%= t("integrations.workspace.public_booking_layout.intro") %></p>
+        <%= form_with model: current_workspace, url: settings_workspace_path, method: :patch, class: "space-y-3" do |f| %>
+          <div>
+            <%= f.label :public_layout_template_id, t("integrations.workspace.public_booking_layout.template"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.select :public_layout_template_id,
+                  options_from_collection_for_select(@public_layout_templates, :id, :display_name, current_workspace.public_layout_template_id),
+                  {include_blank: t("integrations.workspace.public_booking_layout.none")},
+                  class: "input w-full" %>
+            <p class="mt-1 text-sm text-ink-faint"><%= t("integrations.workspace.public_booking_layout.hint") %></p>
+          </div>
+          <%= f.submit t("integrations.workspace.public_booking_layout.save"), class: "btn-secondary" %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <%= render layout: "settings/workspace/panel", locals: { title: t("integrations.workspace.features.title") } do %>
+      <p class="text-sm text-ink-soft">
+        <%= t("integrations.workspace.features.intro") %>
+      </p>
+      <%= form_with model: current_workspace, url: settings_workspace_path, method: :patch, class: "space-y-3" do |f| %>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :reports_enabled %>
+          <%= t("integrations.workspace.features.reports") %>
+        </label>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :marketing_attribution_enabled %>
+          <%= t("integrations.workspace.features.attribution") %>
+        </label>
+        <div>
+          <%= f.label :ga_measurement_id, t("integrations.workspace.features.ga_measurement_id"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+          <%= f.text_field :ga_measurement_id, class: "input w-full font-mono", placeholder: t("integrations.workspace.features.ga_measurement_id_placeholder") %>
+          <p class="mt-1 text-sm text-ink-faint"><%= t("integrations.workspace.features.ga_measurement_id_hint") %></p>
+        </div>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :lead_scoring_enabled %>
+          <%= t("integrations.workspace.features.lead_scoring") %>
+        </label>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :webhooks_enabled %>
+          <%= t("integrations.workspace.features.webhooks") %>
+        </label>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :custom_fields_enabled %>
+          <%= t("integrations.workspace.features.custom_fields") %>
+        </label>
+        <%= f.submit t("integrations.workspace.features.save"), class: "btn-secondary" %>
+      <% end %>
+    <% end %>
+
+    <% if feature_enabled?(:okm_chat) %>
+      <%= render layout: "settings/workspace/panel", locals: {
+            title: t("integrations.workspace.okm.title"),
+            status: (current_workspace.okm_chat_enabled? ? t("integrations.workspace.panel.active") : nil)
+          } do %>
+        <p class="text-sm text-ink-soft">
+          <%= t("integrations.workspace.okm.intro") %>
+        </p>
+        <%= form_with model: current_workspace, url: settings_workspace_path, method: :patch, class: "space-y-3" do |f| %>
+          <label class="flex items-center gap-2 text-base">
+            <%= f.check_box :okm_chat_enabled %>
+            <%= t("integrations.workspace.okm.enable") %>
+          </label>
+          <% unless Ai::Configuration.configured? %>
+            <p class="text-sm text-ink-faint"><%= t("integrations.workspace.okm.ai_required").html_safe %></p>
+          <% end %>
+          <div>
+            <%= f.label :okm_drive_id, t("integrations.workspace.okm.drive_id"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.text_field :okm_drive_id, class: "input w-full font-mono text-sm", placeholder: t("integrations.workspace.okm.drive_id_placeholder") %>
+            <p class="text-sm text-ink-faint mt-1"><%= t("integrations.workspace.okm.drive_id_hint") %></p>
+          </div>
+          <div>
+            <%= f.label :okm_service_account_key, t("integrations.workspace.okm.service_account"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <% if current_workspace.okm_configured? %>
+              <p class="text-sm text-green-700 dark:text-green-400 mb-2">
+                <%= t("integrations.workspace.okm.service_account_configured", email: current_workspace.okm_service_account_client_email) %>
+              </p>
+            <% end %>
+            <%= f.text_area :okm_service_account_key,
+                  class: "input w-full font-mono text-xs min-h-[8rem]",
+                  placeholder: t("integrations.workspace.okm.service_account_placeholder"),
+                  value: "" %>
+            <p class="text-sm text-ink-faint mt-1"><%= t("integrations.workspace.okm.service_account_hint") %></p>
+          </div>
+          <%= f.submit t("integrations.workspace.okm.save"), class: "btn-secondary" %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% if feature_enabled?(:marketing_consent) %>
+      <% @beehiiv_connection ||= current_workspace.beehiiv_connection || current_workspace.build_beehiiv_connection(user: current_user) %>
+      <% @new_beehiiv_publication ||= @beehiiv_connection.beehiiv_publications.build if @beehiiv_connection.persisted? %>
+      <% subscription_types = current_workspace.subscription_types.active.ordered %>
+      <%= render layout: "settings/workspace/panel", locals: {
+            title: t("integrations.workspace.beehiiv.title"),
+            open: @beehiiv_connection.errors.any? || @beehiiv_publication&.errors&.any?,
+            status: (@beehiiv_connection.persisted? && @beehiiv_connection.api_key.present? ? t("integrations.workspace.panel.connected") : nil)
+          } do %>
+        <p class="text-sm text-ink-soft">
+          <%= t("integrations.workspace.beehiiv.intro") %>
+        </p>
+
+        <% if @beehiiv_connection.errors.any? %>
+          <div class="text-sm text-danger">
+            <% @beehiiv_connection.errors.full_messages.each do |message| %>
+              <p><%= message %></p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if @beehiiv_connection.persisted? && @beehiiv_connection.api_key.present? %>
+          <p class="text-sm text-green-700 dark:text-green-400">
+            <%= t("integrations.workspace.beehiiv.status_key", key: @beehiiv_connection.masked_api_key).html_safe %>
+            <% if @beehiiv_connection.connected? %>
+              <%= t("integrations.workspace.beehiiv.status_connected", count: @beehiiv_connection.beehiiv_publications.size) %>
+            <% else %>
+              <%= t("integrations.workspace.beehiiv.status_incomplete") %>
+            <% end %>
+            <% if @beehiiv_connection.last_synced_at.present? %>
+              <%= t("integrations.workspace.beehiiv.last_sync", time: l(@beehiiv_connection.last_synced_at, format: :short)) %>
+            <% end %>
+          </p>
+          <% if @beehiiv_connection.last_error.present? %>
+            <p class="text-sm text-danger"><%= t("integrations.workspace.beehiiv.last_error", error: @beehiiv_connection.last_error) %></p>
+          <% end %>
+        <% end %>
+
+        <%= form_with model: @beehiiv_connection, url: beehiiv_connection_path,
+              method: @beehiiv_connection.persisted? ? :patch : :post, class: "space-y-3" do |f| %>
+          <div>
+            <%= f.label :api_key, t("integrations.workspace.beehiiv.api_key"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.password_field :api_key, value: "", autocomplete: "off", class: "input w-full font-mono",
+                  placeholder: @beehiiv_connection.api_key.present? ? t("integrations.workspace.beehiiv.api_key_keep") : t("integrations.workspace.beehiiv.api_key_placeholder") %>
+          </div>
+          <label class="flex items-center gap-2 text-base">
+            <%= f.check_box :sync_enabled %>
+            <%= t("integrations.workspace.beehiiv.sync_enabled") %>
+          </label>
+          <div class="flex gap-2">
+            <%= f.submit @beehiiv_connection.persisted? ? t("integrations.workspace.beehiiv.save") : t("integrations.workspace.beehiiv.connect"), class: "btn-secondary" %>
+          </div>
+        <% end %>
+
+        <% if @beehiiv_connection.persisted? %>
+          <div class="flex flex-wrap gap-2">
+            <% if @beehiiv_connection.connected? %>
+              <%= button_to t("integrations.workspace.beehiiv.sync_now"), sync_beehiiv_connection_path, method: :post, class: "btn-secondary" %>
+            <% end %>
+            <%= button_to t("integrations.workspace.beehiiv.disconnect"), beehiiv_connection_path, method: :delete, class: "btn-danger",
+                  form: { data: { turbo_confirm: t("integrations.workspace.beehiiv.disconnect_confirm") } } %>
+          </div>
+
+          <% if @beehiiv_connection.beehiiv_publications.any? %>
+            <div class="space-y-4 pt-2">
+              <h3 class="text-sm font-semibold text-ink"><%= t("integrations.workspace.beehiiv.publications") %></h3>
+              <% @beehiiv_connection.beehiiv_publications.includes(:subscription_type).each do |publication| %>
+                <div class="rounded-lg border border-line p-3 space-y-3">
+                  <%= form_with model: publication, url: beehiiv_publication_path(publication), method: :patch, class: "space-y-3" do |f| %>
+                    <div class="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <%= f.label :subscription_type_id, t("integrations.workspace.beehiiv.subscription_type"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                        <%= f.collection_select :subscription_type_id, subscription_types, :id, :name, {}, class: "input w-full" %>
+                      </div>
+                      <div>
+                        <%= f.label :publication_id, t("integrations.workspace.beehiiv.publication_id"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                        <%= f.text_field :publication_id, class: "input w-full font-mono", placeholder: t("integrations.workspace.beehiiv.publication_id_placeholder") %>
+                      </div>
+                    </div>
+                    <div>
+                      <%= f.label :webhook_signing_secret, t("integrations.workspace.beehiiv.webhook_signing_secret"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                      <%= f.password_field :webhook_signing_secret, value: "", autocomplete: "off", class: "input w-full font-mono",
+                            placeholder: publication.webhook_signing_secret.present? ? t("integrations.workspace.beehiiv.secret_keep") : t("integrations.workspace.beehiiv.secret_placeholder") %>
+                    </div>
+                    <% if publication.errors.any? %>
+                      <div class="text-sm text-danger">
+                        <% publication.errors.full_messages.each do |message| %>
+                          <p><%= message %></p>
+                        <% end %>
+                      </div>
+                    <% end %>
+                    <div class="flex flex-wrap gap-2">
+                      <%= f.submit t("integrations.workspace.beehiiv.save_publication"), class: "btn-secondary text-sm" %>
+                      <%= button_to t("integrations.workspace.beehiiv.remove_publication"), beehiiv_publication_path(publication), method: :delete, class: "btn-danger text-sm",
+                            form: { data: { turbo_confirm: t("integrations.workspace.beehiiv.remove_publication_confirm") } } %>
+                    </div>
+                  <% end %>
+                  <div class="pt-1 space-y-2" data-controller="clipboard">
+                    <p class="text-sm font-medium text-ink-soft mb-1"><%= t("integrations.workspace.beehiiv.webhook_url") %></p>
+                    <p class="text-sm text-ink-faint mb-1">
+                      <%= t("integrations.workspace.beehiiv.webhook_events") %>
+                    </p>
+                    <textarea readonly rows="2"
+                          class="input w-full text-xs font-mono bg-canvas-sunken resize-none break-all cursor-default"
+                          data-clipboard-target="source" tabindex="-1" aria-readonly="true"><%= publication.webhook_url %></textarea>
+                    <div class="flex items-center gap-2">
+                      <button type="button" class="btn-secondary text-sm py-1.5"
+                            data-action="clipboard#copy" data-clipboard-target="button">
+                        <span data-clipboard-target="copyIcon" class="inline-flex items-center gap-1.5">
+                          <%= icon :copy, classes: "size-4" %>
+                          <%= t("integrations.workspace.beehiiv.copy_url") %>
+                        </span>
+                        <span data-clipboard-target="copiedIcon" class="hidden inline-flex items-center gap-1.5">
+                          <%= icon :check, classes: "size-4" %>
+                          <%= t("integrations.workspace.beehiiv.copied") %>
+                        </span>
+                      </button>
+                      <span data-clipboard-target="feedback"
+                            class="hidden text-xs font-medium text-green-700 dark:text-green-300"
+                            role="status" aria-live="polite"><%= t("integrations.workspace.beehiiv.copied_clipboard") %></span>
+                    </div>
+                    <% if publication.last_synced_at.present? %>
+                      <p class="text-xs text-ink-faint mt-1"><%= t("integrations.workspace.beehiiv.last_sync", time: l(publication.last_synced_at, format: :short)) %></p>
+                    <% end %>
+                    <% if publication.last_error.present? %>
+                      <p class="text-xs text-danger mt-1"><%= t("integrations.workspace.beehiiv.last_error", error: publication.last_error) %></p>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+
+          <% if @new_beehiiv_publication %>
+            <div class="rounded-lg border border-dashed border-line p-3 space-y-3">
+              <h3 class="text-sm font-semibold text-ink"><%= t("integrations.workspace.beehiiv.add_publication_title") %></h3>
+              <%= form_with model: @new_beehiiv_publication, url: beehiiv_publications_path, class: "space-y-3" do |f| %>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <%= f.label :subscription_type_id, t("integrations.workspace.beehiiv.subscription_type"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                    <%= f.collection_select :subscription_type_id, subscription_types, :id, :name,
+                          { include_blank: t("integrations.workspace.beehiiv.select_type") }, class: "input w-full", required: true %>
+                  </div>
+                  <div>
+                    <%= f.label :publication_id, t("integrations.workspace.beehiiv.publication_id"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                    <%= f.text_field :publication_id, class: "input w-full font-mono", placeholder: t("integrations.workspace.beehiiv.publication_id_placeholder"), required: true %>
+                  </div>
+                </div>
+                <div>
+                  <%= f.label :webhook_signing_secret, t("integrations.workspace.beehiiv.webhook_signing_secret"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+                  <%= f.password_field :webhook_signing_secret, autocomplete: "off", class: "input w-full font-mono", placeholder: t("integrations.workspace.beehiiv.secret_placeholder") %>
+                  <p class="text-sm text-ink-faint mt-1"><%= t("integrations.workspace.beehiiv.secret_hint") %></p>
+                </div>
+                <% if @beehiiv_publication&.errors&.any? %>
+                  <div class="text-sm text-danger">
+                    <% @beehiiv_publication.errors.full_messages.each do |message| %>
+                      <p><%= message %></p>
+                    <% end %>
+                  </div>
+                <% end %>
+                <%= f.submit t("integrations.workspace.beehiiv.add_publication"), class: "btn-secondary" %>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% @smtp_connection ||= current_workspace.smtp_connection || current_workspace.build_smtp_connection(user: current_user) %>
+    <%= render layout: "settings/workspace/panel", locals: {
+          title: t("integrations.workspace.smtp.title"),
+          open: @smtp_connection.errors.any?,
+          status: (@smtp_connection.persisted? && @smtp_connection.connected? ? t("integrations.workspace.panel.connected") : nil)
+        } do %>
+      <p class="text-sm text-ink-soft">
+        <%= t("integrations.workspace.smtp.intro") %>
+      </p>
+
+      <% if @smtp_connection.errors.any? %>
+        <div class="text-sm text-danger">
+          <% @smtp_connection.errors.full_messages.each do |message| %>
+            <p><%= message %></p>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if @smtp_connection.persisted? && @smtp_connection.connected? %>
+        <p class="text-sm text-green-700 dark:text-green-400">
+          <%= t("integrations.workspace.smtp.connected",
+                address: @smtp_connection.address,
+                from: @smtp_connection.from_email) %>
+          <% if @smtp_connection.password.present? %>
+            <%= t("integrations.workspace.smtp.password_set", password: @smtp_connection.masked_password).html_safe %>
+          <% end %>
+        </p>
+      <% end %>
+
+      <%= form_with model: @smtp_connection, url: smtp_connection_path,
+            method: @smtp_connection.persisted? ? :patch : :post, class: "space-y-3" do |f| %>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div class="sm:col-span-2">
+            <%= f.label :address, t("integrations.workspace.smtp.address"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.text_field :address, class: "input w-full font-mono", placeholder: t("integrations.workspace.smtp.address_placeholder"), required: true %>
+          </div>
+          <div>
+            <%= f.label :port, t("integrations.workspace.smtp.port"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.number_field :port, class: "input w-full", min: 1, max: 65535, required: true %>
+          </div>
+        </div>
+        <div>
+          <%= f.label :user_name, t("integrations.workspace.smtp.user_name"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+          <%= f.text_field :user_name, autocomplete: "off", class: "input w-full font-mono", placeholder: t("integrations.workspace.smtp.user_name_placeholder") %>
+        </div>
+        <div>
+          <%= f.label :password, t("integrations.workspace.smtp.password"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+          <%= f.password_field :password, value: "", autocomplete: "new-password", class: "input w-full font-mono",
+                placeholder: @smtp_connection.password.present? ? t("integrations.workspace.smtp.password_keep") : t("integrations.workspace.smtp.password_placeholder") %>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <%= f.label :domain, t("integrations.workspace.smtp.domain"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.text_field :domain, class: "input w-full", placeholder: t("integrations.workspace.smtp.domain_placeholder") %>
+          </div>
+          <div>
+            <%= f.label :authentication, t("integrations.workspace.smtp.authentication"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.select :authentication, SmtpConnection::AUTHENTICATIONS, {}, class: "input w-full" %>
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :enable_starttls_auto %>
+          <%= t("integrations.workspace.smtp.starttls") %>
+        </label>
+        <div>
+          <%= f.label :from_email, t("integrations.workspace.smtp.from_email"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+          <%= f.email_field :from_email, class: "input w-full", placeholder: t("integrations.workspace.smtp.from_email_placeholder"), required: true %>
+          <p class="text-sm text-ink-faint mt-1"><%= t("integrations.workspace.smtp.from_email_hint") %></p>
+        </div>
+        <div>
+          <%= f.label :from_name, t("integrations.workspace.smtp.from_name"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+          <%= f.text_field :from_name, class: "input w-full", placeholder: current_workspace.name %>
+        </div>
+        <label class="flex items-center gap-2 text-base">
+          <%= f.check_box :sender_domain_validated %>
+          <%= t("integrations.workspace.smtp.domain_validated") %>
+        </label>
+        <p class="text-sm text-ink-faint">
+          <%= t("integrations.workspace.smtp.domain_validated_hint") %>
+        </p>
+        <div class="flex gap-2">
+          <%= f.submit @smtp_connection.persisted? ? t("integrations.workspace.smtp.save") : t("integrations.workspace.smtp.connect"), class: "btn-secondary" %>
+        </div>
+      <% end %>
+      <% if @smtp_connection.persisted? %>
+        <%= button_to t("integrations.workspace.smtp.disconnect"), smtp_connection_path, method: :delete, class: "btn-danger",
+              form: { data: { turbo_confirm: t("integrations.workspace.smtp.disconnect_confirm") } } %>
+      <% end %>
+    <% end %>
+
+    <% if feature_enabled?(:marketing_campaigns) %>
+      <% @mailjet_connection ||= current_workspace.mailjet_connection || current_workspace.build_mailjet_connection(user: current_user) %>
+      <%= render layout: "settings/workspace/panel", locals: {
+            title: t("integrations.workspace.mailjet.title"),
+            open: @mailjet_connection.errors.any?,
+            status: (@mailjet_connection.persisted? && @mailjet_connection.connected? ? t("integrations.workspace.panel.connected") : nil)
+          } do %>
+        <p class="text-sm text-ink-soft">
+          <%= t("integrations.workspace.mailjet.intro") %>
+        </p>
+
+        <% if @mailjet_connection.errors.any? %>
+          <div class="text-sm text-danger">
+            <% @mailjet_connection.errors.full_messages.each do |message| %>
+              <p><%= message %></p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if @mailjet_connection.persisted? && @mailjet_connection.connected? %>
+          <p class="text-sm text-green-700 dark:text-green-400">
+            <%= t("integrations.workspace.mailjet.connected",
+                  api: @mailjet_connection.masked_api_key,
+                  secret: @mailjet_connection.masked_secret_key).html_safe %>
+          </p>
+        <% end %>
+
+        <%= form_with model: @mailjet_connection, url: mailjet_connection_path,
+              method: @mailjet_connection.persisted? ? :patch : :post, class: "space-y-3" do |f| %>
+          <div>
+            <%= f.label :api_key, t("integrations.workspace.mailjet.api_key"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.password_field :api_key, value: "", autocomplete: "off", class: "input w-full font-mono",
+                  placeholder: @mailjet_connection.connected? ? t("integrations.workspace.mailjet.api_key_keep") : t("integrations.workspace.mailjet.api_key_placeholder") %>
+          </div>
+          <div>
+            <%= f.label :secret_key, t("integrations.workspace.mailjet.secret_key"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.password_field :secret_key, value: "", autocomplete: "off", class: "input w-full font-mono",
+                  placeholder: @mailjet_connection.connected? ? t("integrations.workspace.mailjet.secret_key_keep") : t("integrations.workspace.mailjet.secret_key_placeholder") %>
+          </div>
+          <div>
+            <%= f.label :from_email, t("integrations.workspace.mailjet.from_email"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.email_field :from_email, class: "input w-full", placeholder: t("integrations.workspace.mailjet.from_email_placeholder") %>
+            <p class="text-sm text-ink-faint mt-1"><%= t("integrations.workspace.mailjet.from_email_hint") %></p>
+          </div>
+          <div>
+            <%= f.label :from_name, t("integrations.workspace.mailjet.from_name"), class: "block text-sm font-medium text-ink-soft mb-1" %>
+            <%= f.text_field :from_name, class: "input w-full", placeholder: current_workspace.name %>
+          </div>
+          <label class="flex items-center gap-2 text-base">
+            <%= f.check_box :transactional_enabled %>
+            <%= t("integrations.workspace.mailjet.transactional") %>
+          </label>
+          <p class="text-sm text-ink-faint">
+            <%= t("integrations.workspace.mailjet.transactional_hint") %>
+          </p>
+          <label class="flex items-center gap-2 text-base">
+            <%= f.check_box :sender_domain_validated %>
+            <%= t("integrations.workspace.mailjet.domain_validated") %>
+          </label>
+          <p class="text-sm text-ink-faint">
+            <%= t("integrations.workspace.mailjet.domain_validated_hint") %>
+          </p>
+          <div class="flex gap-2">
+            <%= f.submit @mailjet_connection.persisted? ? t("integrations.workspace.mailjet.save") : t("integrations.workspace.mailjet.connect"), class: "btn-secondary" %>
+          </div>
+        <% end %>
+        <% if @mailjet_connection.persisted? %>
+          <%= button_to t("integrations.workspace.mailjet.disconnect"), mailjet_connection_path, method: :delete, class: "btn-danger",
+                form: { data: { turbo_confirm: t("integrations.workspace.mailjet.disconnect_confirm") } } %>
+          <div class="pt-2 space-y-2" data-controller="clipboard">
+            <p class="text-sm font-medium text-ink-soft mb-1"><%= t("integrations.workspace.mailjet.webhook_url") %></p>
+            <p class="text-sm text-ink-faint mb-1">
+              <%= t("integrations.workspace.mailjet.webhook_hint") %>
+            </p>
+            <textarea readonly rows="2"
+                  class="input w-full text-xs font-mono bg-canvas-sunken resize-none break-all cursor-default"
+                  data-clipboard-target="source" tabindex="-1" aria-readonly="true"><%= @mailjet_connection.webhook_url %></textarea>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn-secondary text-sm py-1.5"
+                    data-action="clipboard#copy" data-clipboard-target="button">
+                <span data-clipboard-target="copyIcon" class="inline-flex items-center gap-1.5">
+                  <%= icon :copy, classes: "size-4" %>
+                  <%= t("integrations.workspace.mailjet.copy_url") %>
+                </span>
+                <span data-clipboard-target="copiedIcon" class="hidden inline-flex items-center gap-1.5">
+                  <%= icon :check, classes: "size-4" %>
+                  <%= t("integrations.workspace.mailjet.copied") %>
+                </span>
+              </button>
+              <span data-clipboard-target="feedback"
+                    class="hidden text-xs font-medium text-green-700 dark:text-green-300"
+                    role="status" aria-live="polite"><%= t("integrations.workspace.mailjet.copied_clipboard") %></span>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+    </div>
+  </div>
+</div>

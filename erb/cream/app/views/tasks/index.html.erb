@@ -1,0 +1,52 @@
+<% page_title t("tasks.index.title") %>
+<%= render "shared/page_header", title: t("tasks.index.title"), icon_name: :check_circle, count: @tasks.size, actions: nil %>
+
+<div class="flex items-center gap-1 border-b border-line px-5 py-2 shrink-0">
+  <% { "pending" => t("tasks.index.open"), "completed" => t("tasks.index.completed"), "all" => t("tasks.index.all") }.each do |key, label| %>
+    <% tab_params = { filter: key } %>
+    <% if @can_filter_by_assignee %>
+      <% if @assignee_filter == :all %>
+        <% tab_params[:assignee_id] = "all" %>
+      <% elsif @assignee_filter != current_user.id %>
+        <% tab_params[:assignee_id] = @assignee_filter %>
+      <% end %>
+    <% end %>
+    <%= link_to label, tasks_path(tab_params),
+          class: [ "rounded-md px-2.5 py-1 text-sm font-medium",
+                   @filter == key ? "bg-canvas-sunken text-ink" : "text-ink-faint hover:text-ink" ] %>
+  <% end %>
+
+  <% if @can_filter_by_assignee %>
+    <%= form_with url: tasks_path, method: :get, class: "ml-2" do %>
+      <%= hidden_field_tag :filter, @filter %>
+      <%= select_tag :assignee_id,
+            options_for_select(
+              [ [ t("tasks.index.my_tasks"), "" ], [ t("tasks.index.all_assignees"), "all" ] ] + @assignees.map { |user| [ user.name, user.id ] },
+              @assignee_filter == :all ? "all" : (@assignee_filter == current_user.id ? "" : @assignee_filter)
+            ),
+            class: "input w-44",
+            data: { controller: "submit-on-change", action: "change->submit-on-change#submit" } %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex-1 overflow-y-auto scrollbar-subtle p-5">
+  <div class="max-w-3xl space-y-4">
+    <%= form_with model: Task.new(due_on: Task.default_due_on), url: tasks_path, class: "relative z-0 flex items-center gap-2 overflow-visible" do |f| %>
+      <%= mention_text_field f, :title, placeholder: t("shared.tasks.placeholder"), class: "input flex-1" %>
+      <%= f.date_field :due_on, class: "input w-36" %>
+      <%= f.submit t("tasks.index.add_task"), class: "btn-primary" %>
+    <% end %>
+
+    <% if @tasks.any? %>
+      <ul class="space-y-1.5">
+        <% @tasks.each do |task| %>
+          <%= render "shared/task_row", task: task, show_taskable: true %>
+        <% end %>
+      </ul>
+    <% else %>
+      <%= render "shared/empty_state", icon_name: :check_circle, title: t("tasks.index.empty_title"),
+            subtitle: t("tasks.index.empty_subtitle"), action: nil %>
+    <% end %>
+  </div>
+</div>

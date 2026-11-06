@@ -1,0 +1,71 @@
+<% page_title t("products.index.page_title") %>
+<% actions = capture do %>
+  <%= link_to new_product_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("products.index.new") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("products.index.title"), icon_name: :briefcase, count: @products.size, actions: actions %>
+
+<div class="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2 shrink-0">
+  <%= form_with url: products_path, method: :get, class: "flex flex-wrap items-center gap-2 flex-1" do %>
+    <div class="relative max-w-xs min-w-40 flex-1">
+      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-3.5" %></span>
+      <%= text_field_tag :q, params[:q], placeholder: t("products.index.search_placeholder"), class: "input pl-8" %>
+    </div>
+    <%= select_tag :segment,
+          options_for_select([[t("products.index.segment_all"), ""]] + Product.segment_options_for_select, params[:segment]),
+          class: "input w-auto" %>
+    <% if params[:q].present? || params[:segment].present? %>
+      <%= link_to t("products.index.clear"), products_path(clear_filters: 1), class: "btn-ghost" %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="flex-1 overflow-auto scrollbar-subtle">
+  <% if @products.any? %>
+    <table class="table-base">
+      <thead>
+        <tr>
+          <th><%= sort_link t("products.index.columns.name"), :name %></th>
+          <th><%= t("products.index.columns.description") %></th>
+          <th><%= sort_link t("products.index.columns.segment"), :segment %></th>
+          <th><%= sort_link t("products.index.columns.price"), :price %></th>
+          <th class="w-10"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @products.each do |product| %>
+          <tr class="cursor-pointer"
+              data-controller="row-link"
+              data-row-link-url-value="<%= edit_product_path(product) %>"
+              data-action="click->row-link#navigate auxclick->row-link#navigate">
+            <td class="font-medium"><%= product.name %></td>
+            <td class="text-ink-soft truncate max-w-md"><%= product.description %></td>
+            <td>
+              <% if product.segment_label.present? %>
+                <%= badge product.segment_label %>
+              <% else %>
+                <span class="text-ink-faint">—</span>
+              <% end %>
+            </td>
+            <td class="text-ink-soft tabular-nums"><%= money(product.price) %></td>
+            <td data-controller="stop-propagation" data-action="click->stop-propagation#stop">
+              <%= button_to product_path(product), method: :delete, class: "text-ink-faint hover:text-danger p-1",
+                    form: { data: { turbo_confirm: t("products.index.delete_confirm", name: product.name) } } do %>
+                <%= icon :trash, classes: "size-3.5" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <% action = capture do %>
+      <%= link_to new_product_path, class: "btn-primary" do %>
+        <%= icon :plus, classes: "size-3.5" %> <%= t("products.index.new") %>
+      <% end %>
+    <% end %>
+    <%= render "shared/empty_state", icon_name: :briefcase, title: t("products.index.empty_title"),
+          subtitle: t("products.index.empty_subtitle"), action: action %>
+  <% end %>
+</div>

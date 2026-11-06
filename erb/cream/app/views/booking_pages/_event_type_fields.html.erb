@@ -1,0 +1,215 @@
+<%# locals: (form:) %>
+<% event_type = form.object %>
+<% locale_key = I18n.locale.to_s %>
+<% summary_name = event_type.name_i18n[locale_key].presence || event_type.name_i18n["es"].presence || event_type.slug.presence || t("booking.pages.event_type.new_type_summary") %>
+<% starts_open = event_type.new_record? %>
+<div class="border border-line rounded-lg overflow-hidden bg-canvas-raised"
+     data-nested-form-target="row"
+     data-controller="collapse"
+     data-collapse-open-value="<%= starts_open %>">
+  <%= form.hidden_field :_destroy %>
+  <%= form.hidden_field :id %>
+  <%= form.hidden_field :position, value: event_type.position || 0 %>
+
+  <div class="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-canvas-sunken transition-colors"
+       data-action="click->collapse#toggle">
+    <span role="button" tabindex="-1"
+          data-sortable-list-target="handle"
+          class="relative cursor-grab active:cursor-grabbing text-ink-faint hover:text-ink-soft p-1 touch-none select-none shrink-0"
+          title="<%= t("booking.pages.event_type.reorder_title") %>" aria-label="<%= t("booking.pages.event_type.reorder_aria") %>"
+          data-action="pointerdown->sortable-list#pointerDown click->collapse#stop">
+      <%= icon :grip, classes: "size-3.5 pointer-events-none" %>
+    </span>
+    <span class="size-2.5 rounded-full shrink-0 <%= booking_event_type_color_class(event_type.color) %>" aria-hidden="true"></span>
+    <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <span class="font-medium text-sm truncate"><%= summary_name %></span>
+      <span class="text-xs text-ink-faint"><%= t("booking.pages.event_type.duration_minutes_abbr", count: event_type.duration_minutes) %></span>
+      <span class="text-xs text-ink-faint hidden sm:inline">· <%= BookingEventType.location_type_label(event_type.location_type) %></span>
+      <% if event_type.visible? %>
+        <%= badge t("booking.pages.event_type.visible"), color: "green" %>
+      <% else %>
+        <%= badge t("booking.pages.event_type.hidden"), color: "chicago" %>
+      <% end %>
+    </div>
+    <span data-collapse-target="icon"
+          class="shrink-0 transition-transform <%= 'rotate-90' if starts_open %>">
+      <%= icon :chevron_right, classes: "size-3.5 text-ink-faint" %>
+    </span>
+    <button type="button"
+            data-action="click->collapse#stop click->nested-form#remove"
+            class="relative btn-ghost text-danger shrink-0 p-1"
+            title="<%= t("booking.pages.event_type.remove_type_title") %>">
+      <%= icon :trash, classes: "size-3.5" %>
+      <span class="sr-only"><%= t("booking.pages.event_type.remove_type") %></span>
+    </button>
+  </div>
+
+  <div data-collapse-target="panel"
+       class="<%= "hidden" unless starts_open %> border-t border-line p-4 space-y-4 bg-canvas">
+    <div class="space-y-3">
+      <p class="text-xs font-medium text-ink-soft uppercase tracking-wide"><%= t("booking.pages.event_type.identification_section") %></p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <%= form.label :slug, t("booking.pages.event_type.slug"), class: "label" %>
+          <%= form.text_field :slug, class: "input mt-1 w-full", placeholder: t("booking.pages.event_type.slug_placeholder") %>
+        </div>
+        <div>
+          <%= form.label :duration_minutes, t("booking.pages.event_type.duration_min"), class: "label" %>
+          <%= form.number_field :duration_minutes, min: 5, class: "input mt-1 w-full" %>
+        </div>
+        <% if event_type.persisted? && event_type.visible? && event_type.booking_page&.persisted? %>
+          <div class="sm:col-span-2" data-controller="clipboard">
+            <p class="label"><%= t("booking.pages.event_type.direct_url") %></p>
+            <div class="relative mt-1">
+              <input type="text" readonly tabindex="-1" aria-readonly="true"
+                     value="<%= event_type.public_url %>"
+                     class="input w-full font-mono text-sm cursor-default bg-canvas-sunken pr-28"
+                     data-clipboard-target="source" />
+              <div class="absolute top-2 right-2 flex items-center gap-1.5">
+                <span data-clipboard-target="feedback"
+                      class="hidden rounded-md bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300"
+                      role="status" aria-live="polite"><%= t("booking.pages.event_type.copied") %></span>
+                <button type="button"
+                        class="rounded-md p-1.5 text-ink-faint hover:text-ink hover:bg-canvas-raised"
+                        title="<%= t("booking.pages.event_type.copy_title") %>" aria-label="<%= t("booking.pages.event_type.copy_aria") %>"
+                        data-action="clipboard#copy" data-clipboard-target="button">
+                  <span data-clipboard-target="copyIcon"><%= icon :copy, classes: "size-4" %></span>
+                  <span data-clipboard-target="copiedIcon" class="hidden"><%= icon :check, classes: "size-4" %></span>
+                </button>
+              </div>
+            </div>
+            <p class="text-xs text-ink-faint mt-1"><%= t("booking.pages.event_type.direct_url_hint") %></p>
+          </div>
+        <% end %>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <%= label_tag nil, t("booking.pages.event_type.name_es"), class: "label" %>
+          <%= text_field_tag "booking_page[event_types_attributes][#{form.index}][name_i18n][es]",
+                event_type.name_i18n["es"], class: "input mt-1 w-full", required: true %>
+        </div>
+        <div>
+          <%= label_tag nil, t("booking.pages.event_type.name_en"), class: "label" %>
+          <%= text_field_tag "booking_page[event_types_attributes][#{form.index}][name_i18n][en]",
+                event_type.name_i18n["en"], class: "input mt-1 w-full" %>
+        </div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <%= label_tag nil, t("booking.pages.event_type.description_es"), class: "label" %>
+          <%= text_area_tag "booking_page[event_types_attributes][#{form.index}][description_i18n][es]",
+                event_type.description_i18n["es"], rows: 2, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= label_tag nil, t("booking.pages.event_type.description_en"), class: "label" %>
+          <%= text_area_tag "booking_page[event_types_attributes][#{form.index}][description_i18n][en]",
+                event_type.description_i18n["en"], rows: 2, class: "input mt-1 w-full" %>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      <p class="text-xs font-medium text-ink-soft uppercase tracking-wide"><%= t("booking.pages.event_type.availability_section") %></p>
+      <div data-controller="weekly-hours-editor"
+           data-weekly-hours-editor-default-schedule-value="<%= BookingEventType::DEFAULT_WEEKLY_HOURS.to_json %>"
+           data-weekly-hours-editor-weekday-labels-value="<%= booking_weekday_labels.to_json %>"
+           data-weekly-hours-editor-i18n-value="<%= booking_weekly_hours_stimulus_i18n.to_json %>"
+           class="space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="label mb-0"><%= t("booking.pages.event_type.weekly_hours") %></p>
+          <button type="button"
+                  class="btn-ghost text-xs py-1 px-2"
+                  data-action="weekly-hours-editor#resetToDefault">
+            <%= t("booking.pages.event_type.default_weekly_hours") %>
+          </button>
+        </div>
+        <%= form.hidden_field :weekly_hours,
+              value: (event_type.weekly_hours.presence || BookingEventType.empty_weekly_hours).to_json,
+              data: { weekly_hours_editor_target: "input" } %>
+        <div data-weekly-hours-editor-target="list" class="rounded-md border border-line px-3 py-1"></div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <%= form.label :slot_increment_minutes, t("booking.pages.event_type.increment"), class: "label" %>
+          <%= form.number_field :slot_increment_minutes, min: 5, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= form.label :min_notice_hours, t("booking.pages.event_type.min_notice"), class: "label" %>
+          <%= form.number_field :min_notice_hours, min: 0, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= form.label :reminder_minutes_before, t("booking.pages.event_type.reminder"), class: "label" %>
+          <%= form.number_field :reminder_minutes_before, min: 0, class: "input mt-1 w-full", placeholder: t("booking.pages.event_type.reminder_placeholder") %>
+        </div>
+        <div>
+          <%= form.label :buffer_before_minutes, t("booking.pages.event_type.buffer_before"), class: "label" %>
+          <%= form.number_field :buffer_before_minutes, min: 0, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= form.label :buffer_after_minutes, t("booking.pages.event_type.buffer_after"), class: "label" %>
+          <%= form.number_field :buffer_after_minutes, min: 0, class: "input mt-1 w-full" %>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      <p class="text-xs font-medium text-ink-soft uppercase tracking-wide"><%= t("booking.pages.event_type.email_section") %></p>
+      <div>
+        <%= form.label :email_template_id, t("booking.pages.event_type.email_template"), class: "label" %>
+        <%= form.collection_select :email_template_id, @email_templates, :id, :name,
+              { include_blank: t("booking.pages.event_type.email_blank") }, class: "input mt-1 w-full" %>
+        <p class="mt-1 text-xs text-ink-faint">
+          <%= t("booking.pages.event_type.email_tokens_hint") %>
+        </p>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <%= label_tag nil, t("booking.pages.event_type.confirmation_message_es"), class: "label" %>
+          <%= text_area_tag "booking_page[event_types_attributes][#{form.index}][confirmation_message_i18n][es]",
+                event_type.confirmation_message_i18n["es"], rows: 3, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= label_tag nil, t("booking.pages.event_type.confirmation_message_en"), class: "label" %>
+          <%= text_area_tag "booking_page[event_types_attributes][#{form.index}][confirmation_message_i18n][en]",
+                event_type.confirmation_message_i18n["en"], rows: 3, class: "input mt-1 w-full" %>
+        </div>
+      </div>
+      <p class="text-xs text-ink-faint"><%= t("booking.pages.event_type.confirmation_message_hint") %></p>
+    </div>
+
+    <div class="space-y-3">
+      <p class="text-xs font-medium text-ink-soft uppercase tracking-wide"><%= t("booking.pages.event_type.success_section") %></p>
+      <div>
+        <%= form.label :success_template_id, t("booking.pages.event_type.success_template"), class: "label" %>
+        <%= form.collection_select :success_template_id, @booking_success_templates, :id, :display_name,
+              { include_blank: t("booking.pages.event_type.success_template_blank") }, class: "input mt-1 w-full" %>
+        <p class="mt-1 text-xs text-ink-faint"><%= t("booking.pages.event_type.success_template_hint") %></p>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      <p class="text-xs font-medium text-ink-soft uppercase tracking-wide"><%= t("booking.pages.event_type.location_appearance_section") %></p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <%= form.label :location_type, t("booking.pages.event_type.location_type"), class: "label" %>
+          <%= form.select :location_type, booking_location_type_options, {}, class: "input mt-1 w-full" %>
+        </div>
+        <div>
+          <%= form.label :color, t("booking.pages.event_type.location_color"), class: "label" %>
+          <%= form.select :color, booking_color_options, {}, class: "input mt-1 w-full" %>
+        </div>
+      </div>
+      <div>
+        <%= form.label :location_address, t("booking.pages.event_type.location_address"), class: "label" %>
+        <%= form.text_field :location_address, class: "input mt-1 w-full", placeholder: t("booking.pages.event_type.location_address_placeholder") %>
+      </div>
+    </div>
+
+    <div>
+      <%= form.label :visible, class: "inline-flex items-center gap-2" do %>
+        <%= form.check_box :visible %>
+        <span><%= t("booking.pages.event_type.public_visible") %></span>
+      <% end %>
+    </div>
+  </div>
+</div>

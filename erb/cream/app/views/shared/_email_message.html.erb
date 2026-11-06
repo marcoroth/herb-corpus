@@ -1,0 +1,65 @@
+<%# locals: (message:) %>
+        <% timestamp = message.scheduled? ? message.scheduled_at : message.created_at %>
+        <li class="card p-2.5">
+          <details class="group">
+            <summary class="flex items-start justify-between gap-2 cursor-pointer list-none">
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <%= icon :chevron_right, classes: "size-3 text-ink-faint transition-transform group-open:rotate-90" %>
+                  <span class="text-base font-medium text-ink truncate"><%= message.subject.presence || t("records.email_message.no_subject") %></span>
+                  <% if message.inbound? %>
+                    <%= badge t("records.email_message.received"), color: "hoki" %>
+                  <% elsif message.scheduled? %>
+                    <%= badge t("records.email_message.scheduled"), color: "golden" %>
+                  <% elsif message.queued? %>
+                    <%= badge t("records.email_message.sending"), color: "golden" %>
+                  <% elsif message.failed? %>
+                    <%= badge t("records.email_message.failed"), color: "red" %>
+                  <% else %>
+                    <%= badge t("records.email_message.sent"), color: "green" %>
+                    <% if message.opened? %><%= badge t("records.email_message.opened"), color: "green" %><% end %>
+                    <% if message.awaiting_follow_up? %>
+                      <%= badge t("records.email_message.follow_up", date: l(message.follow_up_at, format: :short)), color: "copperfield" %>
+                    <% elsif message.replied? %>
+                      <%= badge t("records.email_message.replied"), color: "chicago" %>
+                    <% end %>
+                  <% end %>
+                </div>
+                <% if message.inbound? %>
+                  <div class="text-xs text-ink-faint truncate mt-0.5"><%= t("records.email_message.from", address: message.from_address.presence || t("records.email_message.unknown_sender")) %></div>
+                <% else %>
+                  <div class="text-xs text-ink-faint truncate mt-0.5"><%= t("records.email_message.to", address: message.to_address) %></div>
+                <% end %>
+                <p class="text-sm text-ink-soft truncate mt-0.5 group-open:hidden"><%= email_body_preview(message.body) %></p>
+              </div>
+              <time class="text-xs text-ink-faint whitespace-nowrap shrink-0" datetime="<%= timestamp&.iso8601 %>">
+                <%= timestamp && l(timestamp, format: :default) %>
+              </time>
+            </summary>
+            <div class="mt-2 pt-2 border-t border-line">
+              <%= render "shared/email_body", body: message.body %>
+            </div>
+            <% if message.attachments.attached? %>
+              <ul class="mt-2 space-y-1">
+                <% message.attachments.each do |file| %>
+                  <li class="flex items-center gap-2 text-sm">
+                    <%= icon :paperclip, classes: "size-3.5 text-ink-faint" %>
+                    <%= link_to file.filename, rails_blob_path(file, disposition: "attachment"), class: "text-accent hover:underline truncate" %>
+                    <span class="text-xs text-ink-faint"><%= number_to_human_size(file.byte_size) %></span>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+            <% if message.outbound? && (message.scheduled? || message.failed? || message.awaiting_follow_up?) %>
+              <div class="mt-2 flex gap-2 flex-wrap">
+                <% if message.scheduled? %>
+                  <%= button_to t("records.email_message.cancel_send"), record_email_path(message), method: :delete, class: "btn-ghost text-xs px-1.5 py-0.5", form_class: "inline-block" %>
+                <% elsif message.failed? %>
+                  <%= button_to t("records.email_message.retry"), retry_record_email_path(message), method: :post, class: "btn-ghost text-xs px-1.5 py-0.5", form_class: "inline-block" %>
+                <% elsif message.awaiting_follow_up? %>
+                  <%= button_to t("records.email_message.mark_replied"), mark_replied_record_email_path(message), method: :patch, class: "btn-ghost text-xs px-1.5 py-0.5", form_class: "inline-block" %>
+                <% end %>
+              </div>
+            <% end %>
+          </details>
+        </li>

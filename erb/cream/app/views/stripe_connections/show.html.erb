@@ -1,0 +1,72 @@
+<% page_title t("integrations.stripe.connection.page_title") %>
+<% actions = capture do %>
+  <%= link_to stripe_payments_path, class: "btn-secondary" do %>
+    <%= icon :credit_card, classes: "size-3.5" %> <%= t("integrations.stripe.connection.payments_inbox") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("integrations.stripe.connection.title"), icon_name: :credit_card, actions: actions %>
+
+<div class="p-5 max-w-xl space-y-4">
+  <div class="card p-4 space-y-3">
+    <% if @connection.errors.any? %>
+      <div class="text-sm text-danger">
+        <% @connection.errors.full_messages.each do |message| %>
+          <p><%= message %></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if @connection.persisted? && @connection.connected? %>
+      <p class="text-base text-ink-soft">
+        <%= t("integrations.stripe.connection.connected",
+              account: (@connection.account_label.present? ? t("integrations.stripe.connection.account_suffix", label: @connection.account_label) : ""),
+              key: @connection.masked_api_key).html_safe %>
+      </p>
+      <% if @connection.last_synced_at.present? %>
+        <p class="text-sm text-ink-faint"><%= t("integrations.stripe.connection.last_synced", time: l(@connection.last_synced_at, format: :short)) %></p>
+      <% end %>
+      <% if @connection.last_error.present? %>
+        <p class="text-sm text-danger"><%= t("integrations.stripe.connection.last_sync_failed", error: @connection.last_error) %></p>
+      <% end %>
+    <% else %>
+      <p class="text-base text-ink-soft">
+        <%= t("integrations.stripe.connection.disconnected_intro").html_safe %>
+      </p>
+    <% end %>
+
+    <%= form_with model: @connection, url: stripe_connection_path,
+          method: @connection.persisted? ? :patch : :post, class: "space-y-3" do |f| %>
+      <div>
+        <%= f.label :api_key, t("integrations.stripe.connection.api_key"), class: "label" %>
+        <%= f.password_field :api_key, value: "", autocomplete: "off", class: "input font-mono",
+              placeholder: @connection.connected? ? t("integrations.stripe.connection.api_key_keep") : t("integrations.stripe.connection.api_key_placeholder") %>
+      </div>
+      <div>
+        <%= f.label :account_label, t("integrations.stripe.connection.account_label"), class: "label" %>
+        <%= f.text_field :account_label, class: "input", placeholder: t("integrations.stripe.connection.account_label_placeholder") %>
+      </div>
+      <label class="flex items-center gap-2 text-base">
+        <%= f.check_box :sync_enabled %>
+        <%= t("integrations.stripe.connection.import_auto") %>
+      </label>
+      <div class="flex gap-2">
+        <%= f.submit @connection.persisted? ? t("integrations.stripe.connection.save") : t("integrations.stripe.connection.connect"), class: "btn-primary" %>
+        <% if @connection.persisted? && @connection.connected? %>
+          <%= button_to t("integrations.stripe.connection.sync_now"), sync_stripe_connection_path, method: :post, class: "btn-secondary" %>
+          <%= button_to t("integrations.stripe.connection.disconnect"), stripe_connection_path, method: :delete, class: "btn-danger",
+                form: { data: { turbo_confirm: t("integrations.stripe.connection.disconnect_confirm") } } %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="card p-4 space-y-2">
+    <h2 class="text-base font-semibold"><%= t("integrations.stripe.connection.matching_title") %></h2>
+    <p class="text-sm text-ink-faint">
+      <%= t("integrations.stripe.connection.matching_hint").html_safe %>
+    </p>
+    <p class="text-sm text-ink-faint">
+      <%= t("integrations.stripe.connection.matching_wait") %>
+    </p>
+  </div>
+</div>

@@ -1,0 +1,166 @@
+<%# locals: (deal:) %>
+<% offers = deal.offers.includes(
+     versions: [:user, {file_attachment: :blob}],
+     views: :person,
+     share_links: [:person, {views: []}]
+   ).order(created_at: :desc) %>
+<% can_edit = policy(deal).update? %>
+<% client_portal_enabled = CreamFeatures.enabled?(:client_portal) %>
+<section class="card">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-line">
+    <h2 class="text-base font-semibold flex items-center gap-2">
+      <%= icon :banknote, classes: "size-4 text-ink-faint" %> <%= t("offers.title") %>
+    </h2>
+    <% if can_edit %>
+      <%= link_to new_deal_offer_path(deal), class: "btn-secondary" do %><%= icon :plus, classes: "size-4" %> <%= t("offers.add") %><% end %>
+    <% end %>
+  </div>
+
+  <% if client_portal_enabled %>
+    <div class="px-4 py-3 border-b border-line bg-canvas-sunken/40">
+      <%= render "shared/client_portal_url", workspace: deal.workspace %>
+    </div>
+  <% end %>
+
+  <% if offers.any? %>
+    <ul class="divide-y divide-line">
+      <% offers.each do |offer| %>
+        <% versions = offer.versions.sort_by(&:number).reverse %>
+        <% current = versions.first %>
+        <% client_version = versions.find(&:published?) %>
+        <% offer_views = offer.views.sort_by(&:viewed_at).reverse %>
+        <% active_share_links = offer.share_links.select(&:active?) %>
+        <li class="px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="font-medium truncate"><%= offer.name %></p>
+              <p class="text-xs text-ink-faint">
+                <%= t("offers.version_label", number: current.number) %> · <%= current.user.name %> · <%= l(current.created_at.to_date, format: :short) %>
+                <% if current.file.attached? %> · <%= number_to_human_size(current.file.byte_size) %><% end %>
+              </p>
+              <% if client_portal_enabled %>
+                <p class="text-xs text-ink-soft mt-0.5">
+                  <%= client_version ? t("offers.client_sees", number: client_version.number) : t("offers.not_visible") %>
+                </p>
+              <% end %>
+              <% if client_portal_enabled && offer_views.any? %>
+                <p class="text-xs text-ink-soft mt-0.5">
+                  <%= t("offers.views.summary", count: offer_views.size) %>
+                  · <%= t("offers.views.last", date: l(offer_views.first.viewed_at, format: :short)) %>
+                </p>
+              <% end %>
+            </div>
+            <% current_kind = current.pdf? ? [:pdf, "red"] : (current.zip? ? [:zip, "copperfield"] : [:html, "hoki"]) %>
+            <%= badge(t("offers.kind.#{current_kind.first}"), color: current_kind.last) %>
+            <% if client_portal_enabled %>
+              <%= current.published? ? badge(t("offers.visible"), color: "green") : badge(t("offers.draft"), color: "golden") %>
+            <% end %>
+            <%= link_to deal_offer_path(deal, offer), target: "_blank", rel: "noopener", class: "btn-secondary" do %>
+              <%= icon :external, classes: "size-3.5" %> <%= t("offers.preview") %>
+            <% end %>
+            <% if can_edit && current.draft? %>
+              <%= button_to publish_deal_offer_version_path(deal, offer, current), method: :patch, class: "btn-secondary",
+                    form: { data: { turbo_confirm: t("offers.publish_confirm", number: current.number) } } do %>
+                <%= t("offers.publish") %>
+              <% end %>
+            <% end %>
+            <% if can_edit %>
+              <%= link_to new_deal_offer_version_path(deal, offer), class: "btn-ghost" do %>
+                <%= icon :plus, classes: "size-3.5" %> <%= t("offers.new_version.action") %>
+              <% end %>
+              <%= button_to deal_offer_path(deal, offer), method: :delete, class: "text-ink-faint hover:text-danger p-1",
+                    form: { data: { turbo_confirm: t("offers.remove_confirm", name: offer.name) } }, "aria-label": t("offers.remove") do %>
+                <%= icon :trash, classes: "size-3.5" %>
+              <% end %>
+            <% end %>
+          </div>
+
+          <% if client_portal_enabled && offer_views.any? %>
+            <details class="record-disclosure mt-2">
+              <summary><%= t("offers.views.title") %> (<%= offer_views.size %>)</summary>
+              <ul class="mt-2 space-y-1">
+                <% offer_views.each do |view| %>
+                  <li class="text-sm px-2 py-1.5 rounded-md hover:bg-canvas-sunken">
+                    <span class="font-medium"><%= view.person.display_name %></span>
+                    <span class="text-xs text-ink-faint">
+                      · <%= l(view.viewed_at, format: :short) %>
+                      · <%= t("offers.version_label", number: view.offer_version.number) %>
+                    </span>
+                  </li>
+                <% end %>
+              </ul>
+            </details>
+          <% end %>
+
+          <% if client_portal_enabled && (active_share_links.any? || offer.share_links.any?) %>
+            <details class="record-disclosure mt-2">
+              <summary><%= t("offers.share_links.title") %></summary>
+              <ul class="mt-2 space-y-1">
+                <% offer.share_links.sort_by(&:created_at).reverse.each do |share_link| %>
+                  <% link_views = offer_views.count { |v| v.offer_share_link_id == share_link.id } %>
+                  <li class="flex flex-wrap items-center gap-2 text-sm px-2 py-1.5 rounded-md hover:bg-canvas-sunken">
+                    <span class="min-w-0 flex-1">
+                      <span class="font-medium"><%= share_link.person.display_name %></span>
+                      <span class="text-xs text-ink-faint">
+                        · <%= l(share_link.created_at, format: :short) %>
+                        · <%= t("offers.share_links.views", count: link_views) %>
+                        <% unless share_link.active? %> · <%= t("offers.share_links.revoked") %><% end %>
+                      </span>
+                    </span>
+                    <% if can_edit && share_link.active? %>
+                      <%= button_to deal_offer_share_link_path(deal, offer, share_link), method: :delete, class: "btn-ghost text-xs",
+                            form: { data: { turbo_confirm: t("offers.share_links.revoke_confirm", name: share_link.person.display_name) } } do %>
+                        <%= t("offers.share_links.revoke") %>
+                      <% end %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            </details>
+          <% end %>
+
+          <% if versions.size > 1 %>
+            <details class="record-disclosure mt-2">
+              <summary><%= t("offers.versions", count: versions.size) %></summary>
+              <ul class="mt-2 space-y-1">
+                <% versions.each do |version| %>
+                  <li class="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-canvas-sunken text-sm">
+                    <span class="font-medium tabular-nums">v<%= version.number %></span>
+                    <span class="min-w-0 flex-1 truncate text-ink-soft">
+                      <%= version.comment.presence || t("shared.empty_value") %>
+                      <span class="text-xs text-ink-faint">· <%= version.user.name %> · <%= l(version.created_at.to_date, format: :short) %></span>
+                    </span>
+                    <% version_kind = version.pdf? ? [:pdf, "red"] : (version.zip? ? [:zip, "copperfield"] : [:html, "hoki"]) %>
+                    <%= badge(t("offers.kind.#{version_kind.first}"), color: version_kind.last) %>
+                    <% if client_portal_enabled %>
+                      <%= version.published? ? badge(t("offers.visible"), color: "green") : badge(t("offers.draft"), color: "golden") %>
+                    <% end %>
+                    <%= link_to deal_offer_version_path(deal, offer, version), target: "_blank", rel: "noopener", class: "btn-ghost" do %>
+                      <%= icon :external, classes: "size-3.5" %> <%= t("offers.preview") %>
+                    <% end %>
+                    <% if can_edit && version.draft? %>
+                      <%= button_to publish_deal_offer_version_path(deal, offer, version), method: :patch, class: "btn-secondary",
+                            form: { data: { turbo_confirm: t("offers.publish_confirm", number: version.number) } } do %>
+                        <%= t("offers.publish") %>
+                      <% end %>
+                    <% end %>
+                    <% if can_edit %>
+                      <%= button_to deal_offer_version_path(deal, offer, version), method: :delete, class: "text-ink-faint hover:text-danger p-1",
+                            form: { data: { turbo_confirm: t("offers.remove_version_confirm", number: version.number) } }, "aria-label": t("offers.remove_version") do %>
+                        <%= icon :trash, classes: "size-3.5" %>
+                      <% end %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            </details>
+          <% elsif current.comment.present? %>
+            <p class="text-xs text-ink-soft mt-1"><%= current.comment %></p>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="px-4 py-3 text-base text-ink-faint"><%= t("offers.empty") %></p>
+  <% end %>
+</section>

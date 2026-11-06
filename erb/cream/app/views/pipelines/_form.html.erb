@@ -1,0 +1,75 @@
+<%= form_with model: pipeline, class: "space-y-5" do |f| %>
+  <% if pipeline.errors.any? %>
+    <div class="rounded-lg bg-danger-soft ring-1 ring-danger-line px-3 py-2 text-sm text-danger-strong">
+      <ul class="list-disc list-inside">
+        <% pipeline.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-end">
+    <div>
+      <%= f.label :name, class: "label" %>
+      <%= f.text_field :name, class: "input", autofocus: true, placeholder: t("pipelines.form.name_placeholder") %>
+    </div>
+    <div class="pb-2">
+      <label class="flex items-center gap-2 text-base">
+        <%= f.check_box :default_pipeline, class: "rounded border-line-strong" %>
+        <%= t("pipelines.form.default_for_new_deals") %>
+      </label>
+    </div>
+  </div>
+
+  <div>
+    <p class="label mb-2"><%= t("pipelines.form.board_card_fields") %></p>
+    <div class="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+      <%= hidden_field_tag "pipeline[card_fields][]", "" %>
+      <% Pipeline.card_field_options.each do |label, key| %>
+        <label class="flex items-center gap-2 text-base">
+          <%= check_box_tag "pipeline[card_fields][]", key,
+                pipeline.card_fields.include?(key), id: "pipeline_card_fields_#{key}",
+                class: "rounded border-line-strong" %>
+          <%= label %>
+        </label>
+      <% end %>
+    </div>
+  </div>
+
+  <div data-controller="nested-form sortable-list" data-action="nested-form:changed->sortable-list#refresh">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-semibold uppercase tracking-wider text-ink-faint"><%= t("pipelines.form.stages") %></h3>
+      <button type="button" data-action="nested-form#add" class="btn-secondary">
+        <%= icon :plus, classes: "size-3.5" %> <%= t("pipelines.form.add_stage") %>
+      </button>
+    </div>
+
+    <div class="overflow-x-auto">
+      <div class="hidden min-w-[42rem] grid-cols-[1.75rem_minmax(8rem,1fr)_8rem_6rem_3.5rem_3.5rem_8.75rem] gap-2 text-xs font-medium uppercase tracking-wider text-ink-faint sm:grid">
+        <span aria-hidden="true"></span>
+        <span><%= t("pipelines.form.stage_name") %></span>
+        <span><%= t("pipelines.form.color") %></span>
+        <span><%= t("pipelines.form.probability") %></span>
+        <span class="text-center"><%= t("pipelines.form.won") %></span>
+        <span class="text-center"><%= t("pipelines.form.closed") %></span>
+        <span aria-hidden="true"></span>
+      </div>
+
+      <div data-nested-form-target="list" data-sortable-list-target="list" class="space-y-2 mt-1">
+        <%= f.fields_for :pipeline_stages do |sf| %>
+          <%= render "stage_fields", f: sf %>
+        <% end %>
+      </div>
+    </div>
+
+    <template data-nested-form-target="template">
+      <%= f.fields_for :pipeline_stages, PipelineStage.new(color: "chicago", probability: 0), child_index: "NEW_RECORD" do |sf| %>
+        <%= render "stage_fields", f: sf %>
+      <% end %>
+    </template>
+  </div>
+
+  <div class="flex items-center gap-2 pt-2">
+    <%= f.submit pipeline.persisted? ? t("pipelines.form.save") : t("pipelines.form.create"), class: "btn-primary" %>
+    <%= link_to t("pipelines.form.cancel"), pipelines_path, class: "btn-secondary" %>
+  </div>
+<% end %>

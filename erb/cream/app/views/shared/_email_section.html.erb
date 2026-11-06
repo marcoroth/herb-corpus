@@ -1,0 +1,110 @@
+<%# locals: (record:, email_message:, show_history: true) %>
+<% templates_enabled = feature_enabled?(:email_templates) %>
+<% templates = templates_enabled ? current_workspace.email_templates.visible_to(current_user).ordered.includes(attachments_attachments: :blob) : EmailTemplate.none %>
+<% email_form_id = dom_id(record, :email_form) %>
+<% preview_prefilled = {
+  "first_name" => record.try(:first_name),
+  "last_name" => record.try(:last_name),
+  "name" => (record.try(:display_name) || record.try(:name)),
+  "company" => record.try(:company)&.name,
+  "email" => record.try(:email)
+}.compact %>
+<section
+  data-controller="template-picker"
+  data-template-picker-first-name-value="<%= record.try(:first_name) %>"
+  data-template-picker-last-name-value="<%= record.try(:last_name) %>"
+  data-template-picker-name-value="<%= record.try(:display_name) || record.try(:name) %>"
+  data-template-picker-company-value="<%= record.try(:company)&.name %>"
+  data-template-picker-email-value="<%= record.try(:email) %>">
+  <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-faint mb-2">
+    <%= icon :mail, classes: "size-3.5" %> <%= t("shared.email.title") %>
+  </h3>
+
+  <%= form_with model: email_message, url: record_emails_path(record_type: record.class.name, record_id: record.id), html: { id: email_form_id }, class: "card p-3 mb-3", multipart: true do |f| %>
+    <%= hidden_field_tag :record_type, record.class.name %>
+    <%= hidden_field_tag :record_id, record.id %>
+    <% if templates_enabled %>
+      <div class="mb-2">
+        <%= select_tag :template_picker,
+              safe_join(templates.map { |template|
+                attachment_meta = template.attachments.map { |file| { id: file.id, filename: file.filename.to_s, byte_size: file.byte_size } }
+                tag.option(template.name, value: template.id, data: { subject: template.subject, body: template.picker_body, body_editor: template.picker_body_editor, attachments: attachment_meta.to_json })
+              }),
+              include_blank: t("shared.email.without_template"),
+              class: "input w-full",
+              data: { "template-picker-target" => "select", action: "template-picker#apply" } %>
+        <%= hidden_field_tag :email_template_id, nil, data: { "template-picker-target" => "templateId" } %>
+        <% if templates.none? %>
+          <p class="text-sm text-ink-faint mt-1">
+            <%= t("shared.email.create_templates_html", link: link_to(t("shared.email.create_templates_link"), email_templates_path, class: "text-accent hover:underline")).html_safe %>
+          </p>
+        <% end %>
+      </div>
+    <% end %>
+    <%= f.email_field :to_address, placeholder: t("shared.email.to"), class: "input w-full mb-2" %>
+    <%= f.text_field :subject, placeholder: t("shared.email.subject"), class: "input w-full mb-2", data: { "template-picker-target" => "subject" } %>
+    <div class="mb-2">
+      <%= render "shared/email_body_editor",
+            body_name: "email_message[body]",
+            body_editor_name: "body_editor",
+            body: email_message.body.to_s,
+            body_editor: "quill",
+            editor_id: email_form_id,
+            body_data: { template_picker_target: "body" } %>
+    </div>
+    <div class="mb-2">
+      <label class="label"><%= t("shared.email.attachments") %></label>
+      <p class="text-xs text-ink-faint mb-1"><%= t("shared.email.attachments_hint") %></p>
+      <ul class="space-y-1 mb-2" data-template-picker-target="attachmentList">
+        <% if feature_enabled?(:attachments) %>
+          <% record.record_attachments.includes(file_attachment: :blob).each do |attachment| %>
+            <li class="flex items-center gap-2 text-sm">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <%= check_box_tag "record_attachment_ids[]", attachment.id, false, class: "rounded border-line" %>
+                <%= icon :paperclip, classes: "size-3.5 text-ink-faint" %>
+                <span class="text-ink-soft"><%= attachment.display_name %></span>
+                <span class="text-xs text-ink-faint"><%= number_to_human_size(attachment.file.byte_size) %></span>
+              </label>
+            </li>
+          <% end %>
+        <% end %>
+      </ul>
+      <%= f.file_field :attachments, multiple: true, class: "file-input" %>
+    </div>
+    <%= render "shared/email_preview_panel",
+          preview_url: preview_record_emails_path,
+          source_form_id: email_form_id,
+          tokens: EmailTemplatePreview::STANDARD_TOKENS,
+          prefilled: preview_prefilled %>
+
+    <div class="flex items-end justify-between gap-2 flex-wrap">
+      <div class="flex gap-2 flex-wrap">
+        <label class="text-sm text-ink-faint flex items-center gap-1.5">
+          <%= t("shared.email.send_later") %>
+          <%= datetime_field_tag :scheduled_at, nil, class: "input py-1 text-sm" %>
+        </label>
+        <label class="text-sm text-ink-faint flex items-center gap-1.5">
+          <%= t("shared.email.follow_up") %>
+          <%= select_tag :follow_up_days,
+                options_for_select([
+                  [ t("shared.email.follow_up_options.none"), "" ],
+                  [ t("shared.email.follow_up_options.two_days"), 2 ],
+                  [ t("shared.email.follow_up_options.three_days"), 3 ],
+                  [ t("shared.email.follow_up_options.one_week"), 7 ],
+                  [ t("shared.email.follow_up_options.two_weeks"), 14 ]
+                ]),
+                class: "input py-1 text-sm" %>
+        </label>
+      </div>
+      <%= f.submit t("shared.email.send"), class: "btn-primary" %>
+    </div>
+  <% end %>
+
+  <% if show_history && record.email_messages.any? %>
+    <ul class="space-y-1.5">
+      <% record.email_messages.recent_first.limit(10).each do |message| %>
+        <%= render "shared/email_message", message: message %>
+      <% end %>
+    </ul>
+  <% end %>
+</section>

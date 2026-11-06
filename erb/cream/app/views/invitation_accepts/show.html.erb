@@ -1,0 +1,98 @@
+<% page_title t("auth.invitation.accept_title") %>
+<div class="w-full max-w-sm">
+  <div class="text-center mb-6">
+    <%= image_tag "/icon.svg", alt: "cream", class: "inline-block size-10 mb-3" %>
+    <h1 class="text-xl font-semibold"><%= t("auth.invitation.join_workspace", workspace: @invitation.workspace.name) %></h1>
+    <p class="text-base text-ink-faint mt-1">
+      <%= t("auth.invitation.invited_as", inviter: @invitation.invited_by.name, role: @invitation.role) %>
+    </p>
+  </div>
+
+  <div class="card p-6 shadow-sm">
+    <% if @ready_to_accept %>
+      <p class="text-base text-ink-soft mb-4">
+        <%= t("auth.invitation.signed_in_as", email: current_user.email_address) %>
+      </p>
+      <%= button_to t("auth.invitation.accept"), accept_invitation_path(params[:token]), method: :post, class: "btn-primary w-full justify-center" %>
+    <% elsif @email_mismatch %>
+      <div class="rounded-lg bg-orange-50 ring-1 ring-orange-200 dark:bg-orange-950 dark:ring-orange-800 px-3 py-2 text-sm text-orange-800 dark:text-orange-200 mb-4">
+        <%= t("auth.invitation.email_mismatch_html", current: current_user.email_address, invited: @invitation.email_address) %>
+      </div>
+      <%= button_to t("auth.invitation.sign_out_and_use_invited"), session_path, method: :delete, class: "btn-secondary w-full justify-center" %>
+    <% elsif @existing_user %>
+      <p class="text-base text-ink-soft mb-4">
+        <%= t("auth.invitation.existing_account_html", email: @invitation.email_address) %>
+      </p>
+      <%= render "shared/google_sign_in" %>
+      <div class="relative my-5">
+        <div class="absolute inset-0 flex items-center" aria-hidden="true">
+          <div class="w-full border-t border-line"></div>
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="bg-canvas-raised px-2 text-ink-faint"><%= t("auth.sign_in.or") %></span>
+        </div>
+      </div>
+      <%= form_with url: session_path, class: "space-y-4" do %>
+        <div>
+          <label for="email_address" class="label"><%= t("auth.sign_in.email") %></label>
+          <input type="email" name="email_address" id="email_address" required readonly
+                value="<%= @invitation.email_address %>" class="input">
+        </div>
+        <div>
+          <label for="password" class="label"><%= t("auth.sign_in.password") %></label>
+          <input type="password" name="password" id="password" required autocomplete="current-password"
+                placeholder="••••••••" maxlength="72" class="input">
+        </div>
+        <input type="hidden" name="return_to" value="<%= accept_invitation_url(token: params[:token]) %>">
+        <%= submit_tag t("auth.invitation.sign_in_and_accept"), class: "btn-primary w-full justify-center" %>
+      <% end %>
+    <% else %>
+      <p class="text-base text-ink-soft mb-4">
+        <%= t("auth.invitation.create_to_join_html", workspace: @invitation.workspace.name) %>
+      </p>
+      <%= render "shared/google_sign_in" %>
+      <div class="relative my-5">
+        <div class="absolute inset-0 flex items-center" aria-hidden="true">
+          <div class="w-full border-t border-line"></div>
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="bg-canvas-raised px-2 text-ink-faint"><%= t("auth.sign_in.or") %></span>
+        </div>
+      </div>
+
+      <% if @user&.errors&.any? %>
+        <div class="mb-4 rounded-lg bg-danger-soft ring-1 ring-danger-line px-3 py-2 text-sm text-danger-strong">
+          <ul class="list-disc list-inside">
+            <% @user.errors.full_messages.each do |msg| %>
+              <li><%= msg %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <%= form_with url: accept_invitation_path(params[:token]), method: :post, class: "space-y-4" do %>
+        <div>
+          <label for="user_name" class="label"><%= t("auth.registration.name") %></label>
+          <input type="text" name="user[name]" id="user_name" required autofocus
+                value="<%= @user&.name %>" placeholder="<%= t("auth.registration.name_placeholder") %>" class="input">
+        </div>
+        <div>
+          <label for="user_email" class="label"><%= t("auth.sign_in.email") %></label>
+          <input type="email" id="user_email" readonly
+                value="<%= @invitation.email_address %>" class="input">
+        </div>
+        <div>
+          <label for="user_password" class="label"><%= t("auth.sign_in.password") %></label>
+          <input type="password" name="user[password]" id="user_password" required
+                autocomplete="new-password" placeholder="<%= t("auth.registration.password_placeholder") %>" maxlength="72" class="input">
+        </div>
+        <div>
+          <label for="user_password_confirmation" class="label"><%= t("auth.registration.password_confirmation") %></label>
+          <input type="password" name="user[password_confirmation]" id="user_password_confirmation" required
+                autocomplete="new-password" maxlength="72" class="input">
+        </div>
+        <%= submit_tag t("auth.invitation.create_and_accept"), class: "btn-primary w-full justify-center" %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,130 @@
+<% page_title t("nav.deals") %>
+<% actions = capture do %>
+  <%= link_to board_deals_path(filter_form_params), class: "btn-secondary" do %>
+    <%= icon :columns, classes: "size-3.5" %> <%= t("shared.lists.board") %>
+  <% end %>
+  <%= link_to deals_path(index_query_params(closed: show_closed? ? nil : "1")),
+        class: show_closed? ? "btn-secondary" : "btn-ghost" do %>
+    <%= icon :check_circle, classes: "size-3.5" %>
+    <%= show_closed? ? t("shared.lists.closed_shown") : t("shared.lists.show_closed") %>
+  <% end %>
+<% if feature_enabled?(:csv_import_export) %>
+  <%= link_to new_import_path(record_type: "Deal"), class: "btn-secondary" do %>
+    <%= icon :upload, classes: "size-3.5" %> <%= t("shared.lists.import") %>
+  <% end %>
+  <%= link_to export_path(record_type: "Deal", **filter_form_params), class: "btn-secondary" do %>
+    <%= icon :download, classes: "size-3.5" %> <%= t("shared.lists.export") %>
+  <% end %>
+<% end %>
+  <%= link_to new_deal_path, class: "btn-primary" do %>
+    <%= icon :plus, classes: "size-3.5" %> <%= t("shared.lists.new_deal") %>
+  <% end %>
+<% end %>
+<%= render "shared/page_header", title: t("nav.deals"), icon_name: :banknote, count: @pagy.count, actions: actions %>
+<%= render "shared/view_tabs", views: @saved_views, record_type: "Deal", surface: "table" %>
+
+<div class="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2 shrink-0">
+  <%= form_with url: deals_path, method: :get, class: "flex flex-wrap items-center gap-2 flex-1" do %>
+    <%= hidden_field_tag :view, @active_view.id if @active_view %>
+    <%= hidden_field_tag :closed, "1" if show_closed? %>
+    <% if params.key?(:pipeline_id) && @pipeline_filter.present? %>
+      <%= hidden_field_tag :pipeline_id, @pipeline_filter == :all ? "all" : @pipeline_filter %>
+    <% end %>
+    <div class="relative max-w-xs min-w-40 flex-1">
+      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"><%= icon :search, classes: "size-3.5" %></span>
+      <%= text_field_tag :q, filter_value(:q), placeholder: t("deals.index.search_placeholder"), class: "input pl-8" %>
+    </div>
+    <%= render "filters" %>
+    <%= render "shared/custom_field_filters", fields: @custom_fields, cf: filter_value(:cf) %>
+    <% if filters_active? %>
+      <%= link_to t("shared.lists.clear"), deals_path(clear_filters: 1), class: "btn-ghost" %>
+    <% end %>
+  <% end %>
+  <% if @pipelines.size > 1 %>
+    <%= render "shared/active_pipeline_select",
+          pipelines: @pipelines,
+          selected_pipeline: current_pipeline,
+          include_all: true,
+          return_to: deals_path %>
+  <% end %>
+</div>
+
+<div class="flex-1 overflow-auto scrollbar-subtle">
+  <% if @deals.any? %>
+    <table class="table-base">
+      <thead>
+        <tr>
+          <th><%= sort_link t("records.fields.name"), :name %></th>
+          <% unless @display_pipeline %>
+            <th><%= t("deals.index.pipeline_column") %></th>
+          <% end %>
+          <th><%= @display_pipeline ? sort_link(t("records.fields.stage"), :stage) : t("records.fields.stage") %></th>
+          <th><%= sort_link t("records.fields.value"), :value %></th>
+          <th><%= t("records.fields.company") %></th>
+          <th><%= t("activerecord.attributes.person.first_name") %></th>
+          <th><%= t("activerecord.attributes.person.last_name") %></th>
+          <th><%= t("records.fields.email") %></th>
+          <th><%= t("records.fields.phone") %></th>
+          <th><%= sort_link t("records.fields.close_date"), :expected_close_date %></th>
+          <th><%= sort_link t("records.fields.execution_duration"), :execution_duration_days %></th>
+          <th><%= sort_link t("records.fields.execution_starts_on"), :execution_starts_on %></th>
+          <th><%= sort_link t("records.fields.execution_ends_on"), :execution_ends_on %></th>
+          <th><%= sort_link t("records.fields.payment_method"), :payment_method %></th>
+          <th><%= sort_link t("records.fields.payment_on"), :payment_on %></th>
+          <th><%= sort_link t("records.fields.invoice_number"), :invoice_number %></th>
+          <th><%= t("records.fields.owner") %></th>
+          <%= render "shared/magic_column_headers", record_type: "Deal" %>
+          <%= render "shared/custom_field_headers", fields: @custom_fields %>
+        </tr>
+      </thead>
+      <tbody>
+        <% @deals.each do |deal| %>
+          <tr class="cursor-pointer"
+              data-controller="row-link"
+              data-row-link-url-value="<%= deal_path(deal) %>"
+              data-action="click->row-link#navigate auxclick->row-link#navigate">
+            <td class="font-medium">
+              <%= link_to deal.name, deal_path(deal), class: "hover:text-accent" %>
+            </td>
+            <% unless @display_pipeline %>
+              <td class="text-ink-soft"><%= deal.pipeline.name %></td>
+            <% end %>
+            <td><%= render DealStageComponent.new(deal: deal) %></td>
+            <td class="text-ink-soft tabular-nums"><%= deal_field_display(deal, :value) %></td>
+            <td>
+              <% if deal.company %>
+                <span class="flex items-center gap-1.5 text-ink-soft">
+                  <%= avatar deal.company, size: "size-4", text: "text-2xs" %>
+                  <%= deal.company.name %>
+                </span>
+              <% end %>
+            </td>
+            <td class="text-ink-soft"><%= deal.contacts.filter_map { |contact| contact.first_name.presence }.to_sentence %></td>
+            <td class="text-ink-soft"><%= deal.contacts.filter_map { |contact| contact.last_name.presence }.to_sentence %></td>
+            <td class="text-ink-soft select-text cursor-text" data-controller="stop-propagation" data-action="click->stop-propagation#stop mousedown->stop-propagation#stop"><%= deal_contact_attribute(deal, :email) %></td>
+            <td class="text-ink-soft select-text cursor-text" data-controller="stop-propagation" data-action="click->stop-propagation#stop mousedown->stop-propagation#stop"><%= deal_contact_attribute(deal, :phone) %></td>
+            <td class="text-ink-soft"><%= deal.expected_close_date && l(deal.expected_close_date, format: :short) %></td>
+            <td class="text-ink-soft tabular-nums"><%= deal_field_display(deal, :execution_duration_days) %></td>
+            <td class="text-ink-soft"><%= deal_field_display(deal, :execution_starts_on) %></td>
+            <td class="text-ink-soft"><%= deal_field_display(deal, :execution_ends_on) %></td>
+            <td class="text-ink-soft"><%= deal_field_display(deal, :payment_method) %></td>
+            <td class="text-ink-soft"><%= deal_field_display(deal, :payment_on) %></td>
+            <td class="text-ink-soft select-text cursor-text" data-controller="stop-propagation" data-action="click->stop-propagation#stop mousedown->stop-propagation#stop"><%= deal.invoice_number %></td>
+            <td><%= avatar(deal.owner, size: "size-5", text: "text-2xs") if deal.owner %></td>
+            <%= render "shared/magic_column_cells", record: deal %>
+            <%= render "shared/custom_field_cells", fields: @custom_fields, record: deal %>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "shared/pagination", pagy: @pagy %>
+  <% else %>
+    <% action = capture do %>
+      <%= link_to new_deal_path, class: "btn-primary" do %>
+        <%= icon :plus, classes: "size-3.5" %> <%= t("shared.lists.new_deal") %>
+      <% end %>
+    <% end %>
+    <%= render "shared/empty_state", icon_name: :banknote, title: t("deals.index.empty_title"),
+          subtitle: t("deals.index.empty_subtitle"), action: action %>
+  <% end %>
+</div>
