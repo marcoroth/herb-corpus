@@ -1,0 +1,107 @@
+<% content_for :overlays do %>
+  <%= turbo_frame_tag "career_carl_story_panel", class: "contents" %>
+<% end %>
+
+<div class="container mx-auto px-4 py-8">
+  <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-foreground">Career profile</h1>
+      <p class="text-sm text-muted-foreground">Application links, contact details, and reusable text.</p>
+    </div>
+    <%= link_to "Applications", career_job_applications_path, class: "inline-flex items-center justify-center rounded-md border border-input px-4 py-2" %>
+  </div>
+
+  <% link_resources = [
+    [ "LinkedIn", @profile.linkedin_url ],
+    [ "GitHub", @profile.github_url ],
+    [ "Website / portfolio", @profile.website_url ],
+    [ "Resume", @profile.resume_url ]
+  ] + @profile.links.map { |link| [ link.name, link.url ] } %>
+  <% visible_links = link_resources.select { |_label, value| value.present? } %>
+
+  <% if visible_links.any? %>
+    <div class="mb-6 rounded-lg border border-border bg-card p-4">
+      <h2 class="mb-3 text-sm font-semibold text-muted-foreground">Saved links</h2>
+      <div class="flex flex-wrap gap-2">
+        <% visible_links.each do |label, value| %>
+          <% safe_url = safe_external_url(value) %>
+          <% if safe_url.present? %>
+            <%= link_to label, safe_url, class: "inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm hover:bg-muted/60", target: "_blank", rel: "noreferrer" %>
+          <% else %>
+            <span class="inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm text-muted-foreground"><%= label %>: invalid URL</span>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%= render "form" %>
+
+  <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <section class="rounded-lg border border-border bg-card p-4">
+      <h2 class="mb-3 text-lg font-semibold">Custom links</h2>
+
+      <%= form_with model: Career::ProfileLink.new, url: career_profile_links_path, class: "mb-4 grid grid-cols-1 gap-3" do |f| %>
+        <%= f.text_field :name, placeholder: "Label, e.g. Blog, Calendly, Stack Overflow", required: true, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.url_field :url, placeholder: "https://example.com", required: true, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.submit "Add link", class: "inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground" %>
+      <% end %>
+
+      <div class="space-y-2">
+        <% @profile.links.each do |link| %>
+          <div class="flex items-center justify-between gap-3 rounded-md border border-border p-3">
+            <div class="min-w-0">
+              <p class="font-medium text-foreground"><%= link.name %></p>
+              <% safe_url = safe_external_url(link.url) %>
+              <% if safe_url.present? %>
+                <%= link_to link.url, safe_url, class: "block truncate text-sm text-accent hover:underline", target: "_blank", rel: "noreferrer" %>
+              <% else %>
+                <p class="truncate text-sm text-muted-foreground"><%= link.url %></p>
+              <% end %>
+            </div>
+            <%= button_to "Remove", career_profile_link_path(link), method: :delete, class: "inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm" %>
+          </div>
+        <% end %>
+        <% if @profile.links.empty? %>
+          <p class="text-sm text-muted-foreground">No custom links yet.</p>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="rounded-lg border border-border bg-card p-4">
+      <h2 class="mb-3 text-lg font-semibold">CARL stories</h2>
+
+      <%= form_with model: Career::CarlStory.new, url: career_profile_carl_stories_path, class: "mb-4 space-y-3" do |f| %>
+        <%= f.text_area :behavioral_question, placeholder: "Behavioral question", required: true, rows: 2, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.text_area :context, placeholder: "Context", rows: 2, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.text_area :action, placeholder: "Action", rows: 2, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.text_area :result, placeholder: "Result", rows: 2, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.text_area :learning, placeholder: "Learning", rows: 2, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.submit "Add CARL story", class: "inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground" %>
+      <% end %>
+
+      <div class="space-y-3">
+        <% @profile.carl_stories.each do |story| %>
+          <div class="rounded-md border border-border p-3">
+            <div class="mb-2 flex items-start justify-between gap-3">
+              <h3 class="font-medium text-foreground"><%= story.behavioral_question %></h3>
+              <div class="flex shrink-0 gap-2">
+                <%= link_to "Edit", edit_career_profile_carl_story_path(story), data: { turbo_frame: "career_carl_story_panel" }, class: "inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm" %>
+                <%= link_to "Remove", career_profile_carl_story_path(story), data: { turbo_method: :delete }, class: "inline-flex items-center justify-center rounded-md border border-input px-3 py-1.5 text-sm" %>
+              </div>
+            </div>
+            <div class="space-y-1 text-sm text-muted-foreground">
+              <p><strong>Context:</strong> <%= story.context.presence || "-" %></p>
+              <p><strong>Action:</strong> <%= story.action.presence || "-" %></p>
+              <p><strong>Result:</strong> <%= story.result.presence || "-" %></p>
+              <p><strong>Learning:</strong> <%= story.learning.presence || "-" %></p>
+            </div>
+          </div>
+        <% end %>
+        <% if @profile.carl_stories.empty? %>
+          <p class="text-sm text-muted-foreground">No CARL stories yet.</p>
+        <% end %>
+      </div>
+    </section>
+  </div>
+</div>

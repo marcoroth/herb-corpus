@@ -1,0 +1,49 @@
+<%= tag.div id: dom_id(inventory_item), class: "bg-card rounded-xl shadow-md hover:shadow-xl transition-all duration-200 border border-border overflow-hidden" do %>
+  <div class="p-6">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <div class="flex-shrink-0">
+        <% if inventory_item.stock_state == "in_stock" %>
+          <div class="w-8 h-8 rounded-full bg-primary" title="<%= t('inventory_items.index.in_stock') %>"></div>
+        <% elsif inventory_item.stock_state == "low" %>
+          <div class="w-8 h-8 rounded-full bg-yellow-500" title="<%= t('inventory_items.index.low') %>"></div>
+        <% else %>
+          <div class="w-8 h-8 rounded-full bg-danger-soft" title="<%= t('inventory_items.index.empty_filter') %>"></div>
+        <% end %>
+      </div>
+      <div class="flex-1 min-w-0">
+        <%= link_to inventory_item.name, inventory_item, class: "text-lg font-semibold text-foreground hover:text-accent-dark hover:underline" %>
+        <p class="text-sm text-muted-foreground mt-0.5">
+          <%= inventory_item.category&.name || t("inventory_items.index.uncategorized") %>
+          <% if inventory_item.consumable? %>
+            <span class="ml-2 text-xs bg-muted px-2 py-0.5 rounded"><%= t("inventory_items.form.consumable") %></span>
+          <% end %>
+        </p>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <p class="text-sm font-medium text-foreground mb-2"><%= t("inventory_items.form.stock_state") %></p>
+      <div class="flex flex-wrap gap-2">
+        <% %w[in_stock low empty].each do |state| %>
+          <% active = inventory_item.stock_state == state %>
+          <%= link_to update_stock_state_inventory_item_path(inventory_item, stock_state: state, stock_state_filter: local_assigns[:stock_filter].presence || "all", category_id: local_assigns[:category_filter]),
+              data: { turbo_method: :patch },
+              class: "inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors #{active ? 'ring-2 ring-offset-1 ' : ''}#{state == 'in_stock' ? (active ? 'bg-primary text-white ring-green-600' : 'bg-success-soft text-success hover:bg-green-200') : state == 'low' ? (active ? 'bg-yellow-600 text-white ring-yellow-600' : 'bg-warning-soft text-warning hover:bg-yellow-200') : (active ? 'bg-red-600 text-white ring-red-600' : 'bg-danger-soft text-danger hover:bg-red-200')}" do %>
+            <%= state == "empty" ? t("inventory_items.index.empty_filter") : t("inventory_items.index.#{state}") %>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2 items-center">
+      <% if inventory_item.stock_state == "empty" || inventory_item.stock_state == "low" %>
+        <%= link_to t("inventory_items.index.add_to_shopping_list"), add_to_shopping_list_inventory_item_path(inventory_item, stock_state: local_assigns[:stock_filter].presence, category_id: local_assigns[:category_filter]),
+            data: { turbo_method: :post },
+            class: "inline-flex items-center justify-center px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 transition-colors" %>
+      <% end %>
+      <%= link_to t("shared.view"), inventory_item, class: "inline-flex items-center justify-center px-4 py-2 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/80 transition-colors" %>
+      <%= link_to t("shared.edit"), edit_inventory_item_path(inventory_item), class: "inline-flex items-center justify-center px-4 py-2 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/80 transition-colors" %>
+      <%= button_to t("shared.delete"), inventory_item, method: :delete, params: { stock_state: local_assigns[:stock_filter].presence, category_id: local_assigns[:category_filter] }, data: { turbo_confirm: t("shared.confirm_destroy") }, class: "inline-flex items-center justify-center px-4 py-2 bg-danger-soft text-white text-sm rounded-lg hover:bg-danger/90 transition-colors" %>
+    </div>
+  </div>
+<% end %>

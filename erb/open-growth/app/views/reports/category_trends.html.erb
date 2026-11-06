@@ -1,0 +1,75 @@
+<% content_for :head do %>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<% end %>
+
+<div class="container mx-auto px-4 py-4">
+  <h1 class="text-2xl font-bold mb-4"><%= t("reports.category_trends_title") %></h1>
+  <%= render "reports/report_nav", current: :category_trends, date_from: @date_from, date_to: @date_to, period: @period %>
+
+  <%= render Reports::FilterComponent.new(
+        url: reports_category_trends_path,
+        date_from: @date_from,
+        date_to: @date_to,
+        period: @period,
+        period_options: report_trend_period_options,
+        params_hash: params.permit(:from, :to, :period).to_h
+      ) %>
+
+  <% if @categories_summary.blank? %>
+    <p class="text-muted-foreground py-8"><%= t("reports.empty_trends") %></p>
+  <% else %>
+    <%= render Ui::LineChartCardComponent.new(
+          chart_config: @chart_config,
+          title: t("reports.category_trends_chart_title"),
+          description: t("reports.category_trends_description")
+        ) %>
+
+    <section class="rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden">
+      <div class="hidden md:block overflow-x-auto">
+        <table class="ui-table">
+          <thead class="bg-muted/50">
+            <tr>
+              <th scope="col" class="sticky left-0 bg-muted/50 z-10 px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide"><%= t("reports.category") %></th>
+              <% @period_labels.each do |label| %>
+                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap"><%= label %></th>
+              <% end %>
+              <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide"><%= t("reports.total") %></th>
+              <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide"><%= t("reports.view_expenses") %></th>
+            </tr>
+          </thead>
+          <tbody class="bg-card divide-y divide-border">
+            <% @categories_summary.each do |cat| %>
+              <tr>
+                <td class="sticky left-0 bg-card z-10 px-4 py-3 text-sm font-medium text-card-foreground border-r border-border max-w-[12rem] break-words"><%= cat[:category_name] %></td>
+                <% cat[:amounts].each do |amt| %>
+                  <td class="px-4 py-3 text-sm text-right tabular-nums whitespace-nowrap text-card-foreground"><%= number_to_currency(amt) %></td>
+                <% end %>
+                <td class="px-4 py-3 text-sm text-right font-medium tabular-nums text-card-foreground"><%= number_to_currency(cat[:total]) %></td>
+                <td class="px-4 py-3 text-sm text-right">
+                  <%= link_to t("reports.view_expenses"), finance_entries_path(category_id: cat[:category_id], date_from: @date_from, date_to: @date_to), class: "text-primary hover:underline font-medium" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <div class="md:hidden divide-y divide-border">
+        <% @categories_summary.each do |cat| %>
+          <div class="p-3 sm:p-4">
+            <div class="flex justify-between items-start gap-2 mb-3">
+              <span class="text-sm font-semibold text-card-foreground break-words min-w-0 flex-1 leading-snug"><%= cat[:category_name] %></span>
+              <span class="text-sm font-semibold tabular-nums text-card-foreground shrink-0"><%= number_to_currency(cat[:total]) %></span>
+            </div>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-muted-foreground mb-3">
+              <% @period_labels.each_with_index do |label, idx| %>
+                <span class="truncate min-w-0" title="<%= label %>"><%= label %></span>
+                <span class="text-right tabular-nums text-card-foreground font-medium"><%= number_to_currency(cat[:amounts][idx] || 0) %></span>
+              <% end %>
+            </div>
+            <%= link_to t("reports.view_expenses"), finance_entries_path(category_id: cat[:category_id], date_from: @date_from, date_to: @date_to), class: "inline-flex items-center justify-center w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-primary hover:bg-muted/50 transition-colors" %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+</div>

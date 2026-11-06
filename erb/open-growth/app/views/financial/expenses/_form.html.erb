@@ -1,0 +1,127 @@
+<% income_events_json = (@income_events || []).map { |ie| { id: ie.id, description: ie.description, expected_amount: ie.expected_amount.to_f, expected_date: ie.expected_date.iso8601 } }.to_json.html_safe %>
+<% form_model = @expense.persisted? ? @expense : [@budget_period, @expense].compact %>
+<% form_url = expense_path(@expense) if @expense.persisted? %>
+<%= form_with model: form_model, scope: :expense, url: form_url, local: true, class: "space-y-6", data: { controller: "expense-form", expense_form_income_events_value: income_events_json, expense_form_locale_value: I18n.locale.to_s } do |form| %>
+  <% if @expense.errors.any? %>
+    <div class="bg-danger-soft border-l-4 border-red-500 text-danger p-4 rounded mb-6">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-danger">
+            <%= pluralize(@expense.errors.count, "error") %> prohibited this expense from being saved:
+          </h3>
+          <ul class="mt-2 text-sm text-danger list-disc list-inside">
+            <% @expense.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Primary Information Section -->
+  <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border-2 border-border">
+    <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+      </svg>
+      Información Principal
+    </h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Amount (First) -->
+      <div>
+        <%= form.label :amount, "Monto", class: "block text-sm font-medium text-foreground mb-2" %>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span class="text-muted-foreground sm:text-sm">$</span>
+          </div>
+          <%= form.number_field :amount, step: 0.01, class: "block w-full pl-7 rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary", placeholder: "0.00" %>
+        </div>
+        <p class="mt-1 text-xs text-muted-foreground">Cantidad del gasto</p>
+      </div>
+
+      <!-- Date (Second) -->
+      <div>
+        <%= form.label :date, "Fecha", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.date_field :date, class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary", data: { expense_form_target: "dateField", action: "change->expense-form#filterByDate" } %>
+        <p class="mt-1 text-xs text-muted-foreground">Fecha del gasto</p>
+      </div>
+    </div>
+
+    <% account_option_groups = {
+      "Asset Accounts" => (@financial_accounts || []).map { |asset| ["#{asset.name} (#{asset.account_type.humanize})", "asset:#{asset.id}"] },
+      "Liability Accounts" => (@financial_liabilities || []).map { |liability| ["#{liability.name} (#{liability.liability_type.humanize})", "liability:#{liability.id}"] }
+    } %>
+    <% source_options = grouped_options_for_select(account_option_groups, @expense.source_selection) %>
+    <% destination_options = grouped_options_for_select(account_option_groups, @expense.destination_selection) %>
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <%= form.label :source_selection, "Source account", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.select :source_selection, source_options, { include_blank: "Select source account" }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+        <p class="mt-1 text-xs text-muted-foreground">Choose the account where this expense is charged from.</p>
+      </div>
+      <div>
+        <%= form.label :destination_selection, "Destination account", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.select :destination_selection, destination_options, { include_blank: "Leave blank for a normal expense" }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+        <p class="mt-1 text-xs text-muted-foreground">Use only for transfers or liability payments.</p>
+      </div>
+    </div>
+
+    <!-- Income Event (Third) - Filtered by Date -->
+    <div class="mt-6" data-expense-form-target="incomeEventContainer">
+      <%= form.label :income_event_id, "Evento de ingreso", class: "block text-sm font-medium text-foreground mb-2" %>
+      <%= form.collection_select :income_event_id, (@income_events || []), :id, lambda { |ie| "#{ie.description} - #{number_to_currency(ie.expected_amount)} (#{ie.expected_date.strftime('%d %b %Y')})" }, { include_blank: "Ninguno (sin asignar)", selected: @expense.persisted? ? @expense.income_event_id : nil }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary", data: { expense_form_target: "incomeEventSelect" } } %>
+      <p class="mt-1 text-xs text-muted-foreground">Opcional - Se filtrará por mes según la fecha seleccionada</p>
+      <p class="mt-1 text-xs text-accent hidden" data-expense-form-target="message"></p>
+    </div>
+  </div>
+
+  <!-- Additional Details Section -->
+  <div class="bg-card rounded-xl shadow-sm border border-border p-6 space-y-6">
+    <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+      <svg class="w-5 h-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+      </svg>
+      Detalles Adicionales
+    </h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Budget Period -->
+      <div>
+        <%= form.label :budget_period_id, "Periodo presupuestario", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.collection_select :budget_period_id, BudgetPeriod.all, :id, :name, { selected: @budget_period&.id || (@expense.persisted? ? @expense.budget_period_id : nil) }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+        <p class="mt-1 text-xs text-muted-foreground">Requerido - Puedes cambiarlo si es necesario</p>
+      </div>
+
+      <!-- Category -->
+      <div>
+        <%= form.label :category_id, "Categoría", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.collection_select :category_id, Category.all, :id, :name, { prompt: "Seleccionar categoría" }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+        <p class="mt-1 text-xs text-muted-foreground">Categoría del gasto</p>
+      </div>
+    </div>
+
+    <!-- Description -->
+    <div>
+      <%= form.label :description, "Descripción", class: "block text-sm font-medium text-foreground mb-2" %>
+      <%= form.text_field :description, class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary", placeholder: "e.g., Compras, Alquiler, Servicios..." %>
+      <p class="mt-1 text-xs text-muted-foreground">Breve descripción del gasto</p>
+    </div>
+  </div>
+
+  <!-- Form Actions -->
+  <div class="flex items-center justify-end gap-4 pt-6 border-t border-border">
+    <%= render Ui::ButtonComponent.new(
+      href: @budget_period ? @budget_period : expenses_path,
+      label: "Cancelar",
+      variant: "ghost"
+    ) %>
+    <%= form.submit "Guardar", class: "px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg shadow-md hover:shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium" %>
+  </div>
+<% end %>

@@ -1,0 +1,118 @@
+
+<% content_for :title, t("nav.tasks") %>
+
+<div class="container mx-auto px-4">
+  <h1 class="text-2xl font-bold mb-4"><%= t("nav.tasks") %></h1>
+
+  <section class="mb-8 rounded-lg border border-border bg-card p-4 shadow-sm" data-controller="task-tabs" data-task-tabs-active-tab="pending">
+    <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-foreground">Task inbox</h2>
+        <p class="text-sm text-muted-foreground">Filter tasks by project or priority. Change status inline to move between pending and completed.</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-4 flex gap-2 border-b border-border">
+      <button type="button" class="px-4 py-2 font-medium text-foreground border-b-2 border-primary" data-action="task-tabs#switchTab" data-tab="pending">
+        Pending
+      </button>
+      <button type="button" class="px-4 py-2 font-medium text-muted-foreground border-b-2 border-transparent hover:text-foreground" data-action="task-tabs#switchTab" data-tab="completed">
+        Completed
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <%= form_with url: task_root_path, method: :get, local: true, class: "mb-4 rounded-xl border border-border bg-background p-4", data: { controller: "autosubmit" } do %>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div>
+          <label class="mb-2 block text-sm font-medium text-foreground">Project</label>
+          <%= render Ui::SelectComponent.new(
+            name: "project_id",
+            options: [["All projects", "all"], ["Unassigned", "unassigned"]] + @projects.map { |project| [project.name, project.id] },
+            selected: params[:project_id].presence || "all",
+            data: { controller: "autosubmit", action: "change->autosubmit#submit" }
+          ) %>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-foreground">Priority</label>
+          <%= render Ui::SelectComponent.new(
+            name: "priority",
+            options: [["All priorities", ""]] + @task_priority_options.map { |priority| [priority.humanize, priority] },
+            selected: params[:priority],
+            data: { controller: "autosubmit", action: "change->autosubmit#submit" }
+          ) %>
+        </div>
+
+        <div>
+          <label class="mb-2 block text-sm font-medium text-foreground">Sort by</label>
+          <%= render Ui::SelectComponent.new(
+            name: "sort",
+            options: [
+              ["Urgency (Default)", "urgency"],
+              ["Priority", "priority"],
+              ["Due Date", "due_date"],
+              ["Newest First", "newest"]
+            ],
+            selected: @current_sort.to_s,
+            data: { controller: "autosubmit", action: "change->autosubmit#submit" }
+          ) %>
+        </div>
+      </div>
+
+      <div class="mt-4 flex flex-wrap gap-2">
+        <%= render Ui::ButtonComponent.new(href: task_root_path, label: "Reset filters", variant: "outline", size: :sm) %>
+      </div>
+    <% end %>
+
+    <!-- Pending Tab -->
+    <div data-task-tabs-target="tab" data-tab-name="pending">
+      <div class="space-y-3" id="pending_tasks">
+        <% @pending_tasks.each do |task| %>
+          <%= render "task/tasks/task_card", task: task, filter_params: params.permit(:project_id, :priority).to_h.symbolize_keys.compact_blank %>
+        <% end %>
+      </div>
+      <div id="pending_empty" class="<%= @pending_tasks.any? ? 'hidden' : '' %> rounded-lg border border-dashed border-input p-6 text-sm text-muted-foreground">
+        No pending tasks match the current filters.
+      </div>
+    </div>
+
+    <!-- Completed Tab -->
+    <div data-task-tabs-target="tab" data-tab-name="completed" class="hidden">
+      <div class="space-y-3" id="completed_tasks">
+        <% @completed_tasks.each do |task| %>
+          <%= render "task/tasks/task_card", task: task, filter_params: params.permit(:project_id, :priority).to_h.symbolize_keys.compact_blank %>
+        <% end %>
+      </div>
+      <div id="completed_empty" class="<%= @completed_tasks.any? ? 'hidden' : '' %> rounded-lg border border-dashed border-input p-6 text-sm text-muted-foreground">
+        No completed tasks.
+      </div>
+    </div>
+  </section>
+
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+    <div class="flex flex-wrap gap-2 items-center">
+      <%= link_to t("task.recurring_tasks.index.all_areas"), task_root_path, class: "px-3 py-1.5 rounded #{params[:task_area_id].blank? ? 'bg-primary text-white' : 'bg-muted text-foreground hover:bg-muted/80'}" %>
+      <% @task_areas.each do |area| %>
+        <%= link_to area.name, task_root_path(task_area_id: area.id), class: "px-3 py-1.5 rounded #{params[:task_area_id].to_s == area.id.to_s ? 'bg-primary text-white' : 'bg-muted text-foreground hover:bg-muted/80'}" %>
+      <% end %>
+    </div>
+    <div class="flex flex-wrap gap-2 items-center">
+      <%= link_to t("task.recurring_tasks.new_task"), new_task_recurring_task_path(task_area_id: params[:task_area_id]), class: "inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary transition-colors" %>
+      <%= link_to t("task.areas.index.title"), task_areas_path, class: "text-accent hover:underline py-2" %>
+    </div>
+  </div>
+
+  <% if @recurring_tasks.any? %>
+    <div class="space-y-4">
+      <% @recurring_tasks.each do |task| %>
+        <%= render "task_card", task: task, task_area_id_filter: params[:task_area_id] %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="text-center py-12">
+      <p class="text-muted-foreground"><%= t("task.recurring_tasks.index.empty") %></p>
+    </div>
+  <% end %>
+</div>

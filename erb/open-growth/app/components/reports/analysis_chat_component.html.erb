@@ -1,0 +1,52 @@
+<section class="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+  <%= helpers.turbo_stream_from @conversation %>
+
+  <header class="border-b border-border px-4 py-4 sm:px-6">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold text-card-foreground"><%= @conversation.title %></h2>
+        <p class="mt-1 text-sm text-muted-foreground">
+          <%= l(@conversation.date_from) %> – <%= l(@conversation.date_to) %> · Read-only analysis
+        </p>
+      </div>
+      <%= render Ui::BadgeComponent.new(label: "#{remaining} requests remaining", variant: remaining.positive? ? :secondary : :destructive) %>
+    </div>
+  </header>
+
+  <div id="analysis_turns" class="max-h-[60vh] space-y-5 overflow-y-auto px-4 py-6 sm:px-6" data-controller="scroll-bottom">
+    <% if @conversation.turns.empty? %>
+      <div class="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+        Ask about unusual transactions, missing records, category trends, or reconciliation gaps in this period.
+      </div>
+    <% else %>
+      <%= render partial: "reports/analysis_turns/turn", collection: @conversation.turns.order(:created_at), as: :turn %>
+    <% end %>
+  </div>
+
+  <footer class="border-t border-border bg-muted/20 p-4 sm:p-6">
+    <% if can_ask? %>
+      <%= form_with url: reports_ai_conversation_turns_path(@conversation), class: "space-y-3" do %>
+        <%= render Ui::TextareaComponent.new(
+              name: "question",
+              id: "analysis-question",
+              placeholder: "What looks inconsistent in these records?",
+              rows: 3,
+              required: true,
+              data: { controller: "autosubmit" }
+            ) %>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-xs text-muted-foreground">AI can make mistakes. Verify records before taking action.</p>
+          <%= render Ui::ButtonComponent.new(label: "Ask analyst", type: "submit") %>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="text-sm text-muted-foreground">
+        <% if @membership.ai_reports_available? %>
+          Your monthly AI request limit has been reached.
+        <% else %>
+          AI analysis is not enabled for this membership.
+        <% end %>
+      </p>
+    <% end %>
+  </footer>
+</section>

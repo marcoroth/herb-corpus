@@ -1,0 +1,231 @@
+<p style="color: green"><%= notice %></p>
+
+<div class="max-w-5xl mx-auto px-4">
+  <div class="mb-6">
+    <%= link_to budget_periods_path, class: "inline-flex items-center min-h-[44px] py-2 text-accent hover:text-accent-dark transition-colors mb-4" do %>
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+      </svg>
+      <%= t("budget_periods.show.back") %>
+    <% end %>
+  </div>
+
+  <h1 class="text-xl sm:text-2xl font-bold mb-4"><%= @budget_period.name %></h1>
+
+  <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-2">
+    <%= render Ui::ButtonComponent.new(href: edit_budget_period_path(@budget_period), label: "Edit", variant: "outline", css_class: "w-full sm:w-auto justify-center min-h-[44px]") %>
+    <%= render Ui::ButtonComponent.new(
+      href: finance_plans_path(budget_period_id: @budget_period.id),
+      label: t("budget_periods.show.income_events"),
+      variant: "default",
+      css_class: "w-full sm:w-auto justify-center min-h-[44px]"
+    ) %>
+    <%= render Ui::ButtonComponent.new(
+      href: new_finance_plan_path(budget_period_id: @budget_period.id),
+      label: t("income_events.new_income_event"),
+      variant: "default",
+      css_class: "w-full sm:w-auto justify-center min-h-[44px]"
+    ) %>
+  </div>
+
+<div class="bg-muted/35 p-4 rounded mb-4">
+  <div class="grid grid-cols-2 gap-4 mb-4">
+    <div>
+      <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.period_type") %></p>
+      <p class="font-semibold"><%= @budget_period.period_type || "-" %></p>
+    </div>
+    <div>
+      <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.total_amount_legacy") %></p>
+      <p class="font-semibold"><%= @budget_period.total_amount ? number_to_currency(@budget_period.total_amount) : "-" %></p>
+    </div>
+    <div class="col-span-2">
+      <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.dates") %></p>
+      <p class="font-semibold whitespace-nowrap"><%= @budget_period.start_date.strftime("%b %d, %Y") %> to <%= @budget_period.end_date.strftime("%b %d, %Y") %></p>
+    </div>
+  </div>
+
+  <div class="mt-4 pt-4 border-t border-border">
+    <h3 class="font-semibold mb-3 text-foreground"><%= t("budget_periods.show.summary") %></h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-card/80 rounded-lg p-3 border border-border">
+        <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.total_income") %></p>
+        <p class="font-semibold text-lg"><%= number_to_currency(@budget_period.total_income) %></p>
+      </div>
+      <div class="bg-card/80 rounded-lg p-3 border border-border">
+        <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.total_planned") %></p>
+        <p class="font-semibold text-lg"><%= number_to_currency(@budget_period.total_planned) %></p>
+      </div>
+      <div class="bg-card/80 rounded-lg p-3 border <%= @budget_period.remaining_budget < 0 ? 'border-danger-soft' : 'border-success-soft' %>">
+        <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.remaining_budget") %></p>
+        <p class="font-semibold text-xl <%= @budget_period.remaining_budget < 0 ? 'text-danger' : 'text-success' %>">
+          <%= number_to_currency(@budget_period.remaining_budget) %>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="text-xl font-bold mb-4"><%= t("budget_periods.show.income_events") %></h2>
+
+<% if @income_events.any? %>
+  <%# Mobile: card list %>
+  <div class="space-y-4 mb-6 md:hidden">
+    <% @income_events.each do |income_event| %>
+      <%= render partial: "income_event_card", locals: { income_event: income_event } %>
+    <% end %>
+  </div>
+
+  <%# Desktop: table %>
+  <div class="hidden md:block overflow-x-auto mb-6">
+    <table class="ui-table">
+      <thead>
+        <tr class="bg-muted">
+          <th class="px-4 py-2 text-left"><%= t("budget_periods.show.expected_date") %></th>
+          <th class="px-4 py-2 text-left"><%= t("budget_periods.show.description") %></th>
+          <th class="px-4 py-2 text-right whitespace-nowrap"><%= t("budget_periods.show.expected_amount") %></th>
+          <th class="px-4 py-2 text-left"><%= t("budget_periods.show.status") %></th>
+          <th class="px-4 py-2 text-left"><%= t("budget_periods.show.actions") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @income_events.each do |income_event| %>
+          <tr class="border-t hover:bg-muted/35 transition-colors">
+            <td class="px-4 py-2 whitespace-nowrap"><%= income_event.expected_date.strftime("%b %d, %Y") %></td>
+            <td class="px-4 py-2"><%= income_event.description %></td>
+            <td class="px-4 py-2 text-right whitespace-nowrap"><%= number_to_currency(income_event.expected_amount) %></td>
+            <td class="px-4 py-2">
+              <span class="px-2 py-1 rounded text-xs <%= 
+                case income_event.status
+                when 'pending' then 'bg-warning-soft text-warning'
+                when 'received' then 'bg-muted text-foreground'
+                when 'applied' then 'bg-success-soft text-success'
+                else 'bg-muted text-foreground'
+                end
+              %>">
+                <%= t("income_events.form.#{income_event.status}", default: income_event.status) %>
+              </span>
+            </td>
+            <td class="px-4 py-2">
+              <%= link_to t("shared.view"), income_event, class: "text-accent hover:underline" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="text-center py-10 px-4 bg-muted/35 rounded-lg border border-border mb-6">
+    <p class="text-muted-foreground mb-3"><%= t("budget_periods.show.no_income_events") %></p>
+    <%= render Ui::ButtonComponent.new(href: new_finance_plan_path(budget_period_id: @budget_period.id), label: t("budget_periods.show.add_one"), variant: :default) %>
+  </div>
+<% end %>
+
+<h2 class="text-xl font-bold mb-4"><%= t("budget_periods.show.all_planned_expenses") %></h2>
+
+<div class="mb-4">
+  <%= form_with url: budget_period_path(@budget_period), method: :get, local: true, class: "flex flex-wrap items-end gap-3" do |f| %>
+    <div>
+      <label for="planned_expense_status" class="block text-sm text-muted-foreground mb-1">Status filter</label>
+      <%= f.select :planned_expense_status,
+        options_for_select(
+          [["All statuses", nil]] + @planned_expense_status_options.map { |status| [t("activerecord.attributes.planned_expense.status_options.#{status}", default: status.humanize), status] },
+          @selected_planned_expense_status
+        ),
+        {},
+        { id: "planned_expense_status", class: "border rounded px-3 py-2 bg-background text-foreground min-w-[220px]" } %>
+    </div>
+    <div>
+      <%= f.submit "Apply", class: "px-4 py-2 rounded bg-primary text-primary-foreground hover:opacity-90" %>
+    </div>
+  <% end %>
+</div>
+
+<% if @planned_expenses.any? %>
+  <% @planned_expenses.group_by(&:income_event).each do |income_event, planned_expenses| %>
+    <div class="mb-6 border rounded bg-card">
+      <div class="px-4 py-3 bg-muted/35 border-b grid grid-cols-1 sm:grid-cols-[1fr_7rem_8rem_auto] gap-x-6 gap-y-3 sm:gap-y-1 items-baseline">
+        <div class="min-w-0">
+          <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.income_event") %></p>
+          <p class="font-semibold">
+            <%= link_to income_event.description, income_event, class: "text-accent hover:underline" %>
+          </p>
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.expected_date") %></p>
+          <p class="font-semibold whitespace-nowrap"><%= income_event.expected_date.strftime("%b %d, %Y") %></p>
+        </div>
+        <div class="min-w-0 text-right">
+          <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.expected_amount") %></p>
+          <p class="font-semibold whitespace-nowrap"><%= number_to_currency(income_event.expected_amount) %></p>
+        </div>
+        <div>
+          <p class="text-sm text-muted-foreground"><%= t("budget_periods.show.status") %></p>
+          <span class="px-2 py-1 rounded text-xs <%= 
+            case income_event.status
+            when 'pending' then 'bg-warning-soft text-warning'
+            when 'received' then 'bg-muted text-foreground'
+            when 'applied' then 'bg-success-soft text-success'
+            else 'bg-muted text-foreground'
+            end
+          %>">
+            <%= t("income_events.form.#{income_event.status}", default: income_event.status) %>
+          </span>
+        </div>
+      </div>
+
+      <%# Mobile: compact list of planned expenses %>
+      <div class="md:hidden divide-y divide-border">
+        <% planned_expenses.each do |planned_expense| %>
+          <%= render partial: "planned_expense_mobile_item", locals: { planned_expense: planned_expense } %>
+        <% end %>
+      </div>
+
+      <%# Desktop: table %>
+      <div class="hidden md:block overflow-x-auto">
+        <table class="ui-table">
+          <thead>
+            <tr class="bg-muted">
+              <th class="px-4 py-2 text-left"><%= t("budget_periods.show.income_event") %></th>
+              <th class="px-4 py-2 text-left"><%= t("budget_periods.show.expected_date") %></th>
+              <th class="px-4 py-2 text-right whitespace-nowrap"><%= t("budget_periods.show.amount") %></th>
+              <th class="px-4 py-2 text-left"><%= t("budget_periods.show.category") %></th>
+              <th class="px-4 py-2 text-left"><%= t("budget_periods.show.description") %></th>
+              <th class="px-4 py-2 text-left"><%= t("budget_periods.show.status") %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% planned_expenses.each do |planned_expense| %>
+              <tr class="border-t hover:bg-muted/35 transition-colors">
+                <td class="px-4 py-2">
+                  <%= link_to income_event.description, income_event, class: "text-accent hover:underline" %>
+                </td>
+                <td class="px-4 py-2 whitespace-nowrap"><%= income_event.expected_date.strftime("%b %d, %Y") %></td>
+                <td class="px-4 py-2 text-right whitespace-nowrap"><%= number_to_currency(planned_expense.amount) %></td>
+                <td class="px-4 py-2"><%= planned_expense.classification_label %></td>
+                <td class="px-4 py-2"><%= planned_expense.description %></td>
+                <td class="px-4 py-2">
+                  <span class="px-2 py-1 rounded text-xs <%= 
+                    case planned_expense.status
+                    when 'pending_to_pay', 'saved', 'transfer_to_savings' then 'bg-warning-soft text-warning'
+                    when 'transferring' then 'bg-muted text-foreground'
+                    when 'paid', 'transferred', 'spent' then 'bg-success-soft text-success'
+                    else 'bg-muted text-foreground'
+                    end
+                  %>">
+                    <%= t("activerecord.attributes.planned_expense.status_options.#{planned_expense.status}", default: planned_expense.status) %>
+                  </span>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+<% else %>
+  <div class="text-center py-12 px-4 bg-muted/35 rounded-lg border border-border">
+    <p class="text-muted-foreground mb-4"><%= t("budget_periods.show.no_planned_expenses") %></p>
+    <%= render Ui::ButtonComponent.new(href: new_finance_plan_path(budget_period_id: @budget_period.id), label: "Add financial plan", variant: :default) %>
+  </div>
+<% end %>
+</div>

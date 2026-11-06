@@ -1,0 +1,65 @@
+<div class="container mx-auto space-y-6 px-4 py-4">
+  <div>
+    <h1 class="text-2xl font-bold">AI report analyst</h1>
+    <p class="mt-1 text-sm text-muted-foreground">Explore your report data in private, read-only conversations.</p>
+  </div>
+
+  <%= render "reports/report_nav", current: :ai, date_from: @date_from, date_to: @date_to %>
+
+  <% if @membership.ai_reports_available? %>
+    <section class="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <h2 class="text-lg font-semibold">Start a new conversation</h2>
+      <%= form_with scope: :reporting_conversation, url: reports_ai_conversations_path, class: "mt-4 grid gap-4 md:grid-cols-3 md:items-end" do |form| %>
+        <div class="md:col-span-3">
+          <%= form.label :title, "Topic", class: "mb-1.5 block text-sm font-medium" %>
+          <%= render Ui::InputComponent.new(name: "reporting_conversation[title]", placeholder: "July reconciliation review", required: true) %>
+        </div>
+        <div>
+          <%= form.label :date_from, "From", class: "mb-1.5 block text-sm font-medium" %>
+          <%= render Ui::InputComponent.new(name: "reporting_conversation[date_from]", type: "date", value: @date_from, required: true) %>
+        </div>
+        <div>
+          <%= form.label :date_to, "To", class: "mb-1.5 block text-sm font-medium" %>
+          <%= render Ui::InputComponent.new(name: "reporting_conversation[date_to]", type: "date", value: @date_to, required: true) %>
+        </div>
+        <%= render Ui::ButtonComponent.new(label: "Create conversation", type: "submit") %>
+      <% end %>
+      <% if defined?(@conversation) && @conversation.errors.any? %>
+        <p class="mt-3 text-sm text-destructive"><%= @conversation.errors.full_messages.to_sentence %></p>
+      <% end %>
+      <div class="mt-5 border-t border-border pt-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Suggested questions</p>
+        <ul class="mt-2 grid gap-2 text-sm text-foreground md:grid-cols-3">
+          <li class="rounded-lg bg-muted/40 p-3">Which months or categories look inconsistent?</li>
+          <li class="rounded-lg bg-muted/40 p-3">Which records should I inspect while reconciling?</li>
+          <li class="rounded-lg bg-muted/40 p-3">Are there gaps between planned and recorded amounts?</li>
+        </ul>
+      </div>
+    </section>
+  <% else %>
+    <section class="rounded-xl border border-border bg-muted/30 p-6">
+      <h2 class="font-semibold">AI analysis is not enabled</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Ask an account owner to enable this membership after a system administrator enables the account.</p>
+    </section>
+  <% end %>
+
+  <section>
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="text-lg font-semibold">Your conversations</h2>
+      <%= render Ui::BadgeComponent.new(label: "#{@membership.ai_reports_requests_remaining} requests remaining", variant: :secondary) %>
+    </div>
+    <% if @conversations.any? %>
+      <div class="grid gap-3 md:grid-cols-2">
+        <% @conversations.each do |conversation| %>
+          <%= link_to reports_ai_conversation_path(conversation), class: "rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md" do %>
+            <h3 class="font-semibold text-card-foreground"><%= conversation.title %></h3>
+            <p class="mt-1 text-sm text-muted-foreground"><%= l(conversation.date_from) %> – <%= l(conversation.date_to) %></p>
+            <p class="mt-3 text-xs text-muted-foreground"><%= pluralize(conversation.turns_count, "question") %> · Updated <%= time_ago_in_words(conversation.updated_at) %> ago</p>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No conversations yet.</p>
+    <% end %>
+  </section>
+</div>

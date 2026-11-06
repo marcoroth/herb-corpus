@@ -1,0 +1,141 @@
+<% prev_balance = income_event.previous_balance %>
+<% prev_balance_negative = prev_balance < 0 %>
+<% planning_progress = if income_event.expected_amount.to_f.positive?
+     ((income_event.total_planned / income_event.expected_amount) * 100)
+   else
+     0
+   end %>
+
+<article class="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md <%= prev_balance_negative ? 'border-danger-soft' : 'border-border' %>">
+  <header class="space-y-1 border-b border-border/70 px-4 pb-2.5 pt-2">
+    <div class="flex justify-end leading-none">
+      <span class="inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide leading-none <%=
+        case income_event.status
+        when 'pending' then 'border-warning-soft bg-warning-soft text-warning'
+        when 'received' then 'border-border bg-muted/45 text-foreground'
+        when 'applied' then 'border-success-soft bg-success-soft text-success'
+        else 'border-border bg-muted/45 text-foreground'
+        end
+      %>">
+        <%= t("income_events.form.#{income_event.status}") %>
+      </span>
+    </div>
+
+    <h3 class="w-full text-base leading-snug text-foreground sm:text-lg font-semibold"><%= income_event.description %></h3>
+
+    <p class="flex items-center gap-1.5 text-[13px] leading-snug text-muted-foreground">
+      <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+      </svg>
+      Expected <span class="font-medium text-foreground"><%= income_event.expected_date.strftime("%b %d, %Y") %></span>
+    </p>
+  </header>
+
+  <div class="flex flex-1 flex-col gap-2 px-4 py-3">
+    <div class="space-y-1.5">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-sm text-muted-foreground">Expected Amount</span>
+        <span class="text-lg font-semibold text-foreground"><%= number_to_currency(income_event.expected_amount) %></span>
+      </div>
+
+      <% if income_event.received_date %>
+        <div class="flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+          <span class="text-sm text-muted-foreground">Received</span>
+          <span class="text-sm font-medium text-success">
+            <%= income_event.received_date.strftime("%b %d") %> - <%= number_to_currency(income_event.received_amount) %>
+          </span>
+        </div>
+      <% end %>
+
+      <div class="flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+        <span class="text-sm text-muted-foreground">Planned</span>
+        <span class="text-sm font-medium text-accent"><%= number_to_currency(income_event.total_planned) %></span>
+      </div>
+
+      <% if prev_balance != 0 || income_event.previous_income_event %>
+        <div class="border-t border-border/60 pt-2 <%= prev_balance_negative ? 'rounded-md bg-danger-soft/70 px-3 py-2' : '' %>">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <span class="text-sm text-muted-foreground">Previous Balance</span>
+              <% if income_event.previous_income_event %>
+                <span class="text-xs text-muted-foreground">from <%= income_event.previous_income_event.description %></span>
+              <% end %>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <% if prev_balance_negative %>
+                <svg class="h-4 w-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+              <% end %>
+              <span class="text-sm font-semibold <%= prev_balance_negative ? 'text-danger' : 'text-success' %>">
+                <%= number_to_currency(prev_balance) %>
+              </span>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+        <span class="text-sm text-muted-foreground">Remaining</span>
+        <span class="text-sm font-semibold <%= income_event.effective_remaining_budget < 0 ? 'text-danger' : 'text-success' %>">
+          <%= number_to_currency(income_event.effective_remaining_budget) %>
+        </span>
+      </div>
+
+      <% if income_event.expected_amount > 0 %>
+        <div class="border-t border-border/60 pt-2">
+          <div class="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Planning Progress</span>
+            <span class="font-semibold text-foreground"><%= planning_progress.round(1) %>%</span>
+          </div>
+          <div class="h-2 w-full rounded-full bg-muted">
+            <div class="h-2 rounded-full bg-primary transition-all duration-300" style="width: <%= [planning_progress, 100].min %>%"></div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <footer class="mt-auto border-t border-border/70 px-5 py-3">
+    <div class="grid grid-cols-2 gap-2">
+      <%= render Ui::ButtonComponent.new(href: income_event, label: "View", variant: "outline", size: "sm", css_class: "w-full justify-center") do %>
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        </svg>
+      <% end %>
+      <%= render Ui::ButtonComponent.new(href: edit_income_event_path(income_event), label: "Edit", variant: "outline", size: "sm", css_class: "w-full justify-center") %>
+
+      <% unless income_event.is_received? %>
+        <%= render Ui::ButtonComponent.new(
+          href: receive_income_event_path(income_event),
+          label: "Mark Received",
+          variant: "default",
+          size: "sm",
+          css_class: "w-full justify-center"
+        ) %>
+      <% end %>
+
+      <% if income_event.is_received? && !income_event.is_applied? %>
+        <%= render Ui::ButtonComponent.new(
+          href: apply_all_income_event_path(income_event),
+          label: "Apply All",
+          variant: "default",
+          method: :post,
+          size: "sm",
+          css_class: "w-full justify-center"
+        ) %>
+      <% end %>
+
+      <%= render Ui::ButtonComponent.new(
+        href: income_event,
+        label: "Delete",
+        variant: "destructive",
+        method: :delete,
+        data: { turbo_confirm: "Are you sure? This will delete all associated planned expenses." },
+        size: "sm",
+        css_class: "w-full justify-center"
+      ) %>
+    </div>
+  </footer>
+</article>

@@ -1,0 +1,67 @@
+<% content_for :head do %>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<% end %>
+
+<div class="container mx-auto px-4 py-4">
+  <h1 class="text-2xl font-bold mb-4"><%= t("reports.by_date_title") %></h1>
+  <%= render "reports/report_nav", current: :by_date, date_from: @date_from, date_to: @date_to, period: @period %>
+
+  <%= render Reports::FilterComponent.new(
+        url: reports_by_date_path,
+        date_from: @date_from,
+        date_to: @date_to,
+        period: @period,
+        period_options: report_period_options,
+        params_hash: params.permit(:from, :to, :period).to_h
+      ) %>
+
+  <p class="mb-6 text-sm text-muted-foreground">
+    <%= t("reports.summary_from_to", from: l(@date_from), to: l(@date_to)) %> · <%= t("reports.grouped_by") %>: <strong><%= t("reports.period_#{@period}") %></strong>
+  </p>
+
+  <% if @buckets.blank? || @buckets.all? { |b| (b[:total_expenses] || 0).zero? } %>
+    <p class="text-muted-foreground py-8"><%= t("reports.empty_by_date") %></p>
+  <% else %>
+    <section class="bg-card rounded-xl shadow-md border border-border p-4 sm:p-6 mb-6">
+      <div class="min-h-[280px] max-w-full" style="min-height: 280px;">
+        <canvas data-controller="charts" data-charts-config-value="<%= h(@chart_config.to_json) %>" style="height: 280px;"></canvas>
+      </div>
+    </section>
+
+    <section class="bg-card rounded-xl shadow-md border border-border overflow-hidden">
+      <div class="hidden md:block overflow-x-auto">
+        <table class="ui-table">
+          <thead class="bg-muted/35">
+            <tr>
+              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase"><%= t("reports.grouped_by") %></th>
+              <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase"><%= t("reports.total") %></th>
+              <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase"><%= t("reports.view_expenses") %></th>
+            </tr>
+          </thead>
+          <tbody class="bg-card divide-y divide-gray-200">
+            <% @buckets.each do |bucket| %>
+              <tr>
+                <td class="px-4 py-3 text-sm text-foreground"><%= bucket[:label] %></td>
+                <td class="px-4 py-3 text-sm text-right font-medium"><%= number_to_currency(bucket[:total_expenses] || 0) %></td>
+                <td class="px-4 py-3 text-sm text-right">
+                  <%= link_to t("reports.view_expenses"), finance_entries_path(date_from: bucket[:date_from], date_to: bucket[:date_to]), class: "text-accent hover:underline" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <div class="md:hidden divide-y divide-gray-200">
+        <% @buckets.each do |bucket| %>
+          <div class="p-4">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm font-medium text-foreground"><%= bucket[:label] %></span>
+              <span class="text-sm font-medium"><%= number_to_currency(bucket[:total_expenses] || 0) %></span>
+            </div>
+            <%= link_to t("reports.view_expenses"), finance_entries_path(date_from: bucket[:date_from], date_to: bucket[:date_to]), class: "inline-block py-2 px-4 text-sm text-accent hover:underline" %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+</div>

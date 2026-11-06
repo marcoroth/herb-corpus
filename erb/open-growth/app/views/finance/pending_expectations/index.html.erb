@@ -1,0 +1,75 @@
+<% content_for :title, "Pending expectations" %>
+
+<div class="container mx-auto space-y-6 px-4 py-6">
+  <header class="space-y-2">
+    <p class="text-sm uppercase tracking-[0.16em] text-muted-foreground">Finance</p>
+    <h1 class="text-3xl font-bold tracking-tight text-foreground">Pending expectations</h1>
+    <p class="max-w-3xl text-muted-foreground">Review planned movements that may have happened already, then register the matching actual entry.</p>
+  </header>
+
+  <%= form_with url: finance_pending_expectations_path, method: :get, class: "grid gap-4 rounded-2xl border border-border bg-card p-4 md:grid-cols-2 xl:grid-cols-5", local: true do %>
+    <% account_options = @assets.map { |asset| [asset.name, "asset:#{asset.id}"] } + @liabilities.map { |liability| [liability.name, "liability:#{liability.id}"] } %>
+    <label class="space-y-1 text-sm font-medium text-foreground">Account or card
+      <%= render Ui::SelectComponent.new(name: "account_ref", options: account_options, selected: @account_ref, include_blank: "All accounts") %>
+    </label>
+    <label class="space-y-1 text-sm font-medium text-foreground">Movement type
+      <%= render Ui::SelectComponent.new(name: "movement_type", options: Finance::PendingExpectationsController::MOVEMENT_TYPES.map { |type| [type.humanize, type] }, selected: @movement_type, include_blank: "All types") %>
+    </label>
+    <label class="space-y-1 text-sm font-medium text-foreground">From
+      <%= render Ui::InputComponent.new(name: "date_from", value: @date_from, type: "date") %>
+    </label>
+    <label class="space-y-1 text-sm font-medium text-foreground">To
+      <%= render Ui::InputComponent.new(name: "date_to", value: @date_to, type: "date") %>
+    </label>
+    <div class="flex items-end gap-2">
+      <%= render Ui::ButtonComponent.new(label: "Filter", type: "submit") %>
+      <%= render Ui::ButtonComponent.new(href: finance_pending_expectations_path, label: "Clear", variant: :outline) %>
+    </div>
+  <% end %>
+
+  <% if @pending_expectations.empty? %>
+    <div class="rounded-2xl border border-dashed border-border bg-muted/20 p-10 text-center">
+      <h2 class="font-semibold text-foreground">No pending expectations</h2>
+      <p class="mt-1 text-sm text-muted-foreground">There are no actionable planned movements matching these filters.</p>
+    </div>
+  <% else %>
+    <div class="space-y-3">
+      <% @pending_expectations.each do |expectation| %>
+        <% record = expectation[:record] %>
+        <article class="rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <div class="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
+            <div class="min-w-0 space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="font-semibold text-foreground"><%= record.description %></h2>
+                <%= render Ui::BadgeComponent.new(label: expectation[:type].humanize, variant: :outline) %>
+                <%= render Ui::BadgeComponent.new(label: "Pending", variant: :secondary) %>
+              </div>
+              <p class="text-sm text-muted-foreground">
+                <%= expectation[:date] ? l(expectation[:date]) : "No planned date" %> · <%= number_to_currency(expectation[:amount]) %> · <%= expectation[:route] %>
+              </p>
+              <% if expectation[:plan] %>
+                <%= link_to expectation[:plan].name, finance_plan_path(expectation[:plan]), class: "text-sm text-accent hover:underline" %>
+              <% else %>
+                <span class="text-sm text-muted-foreground">Unassigned to a plan</span>
+              <% end %>
+            </div>
+
+            <% if record.is_a?(Financial::FundingSource) %>
+              <%= form_with url: receive_finance_plan_funding_source_path(record.financial_plan, record), method: :post, class: "flex flex-wrap items-end gap-2" do %>
+                <label class="w-32 space-y-1 text-xs text-muted-foreground">Actual amount
+                  <%= render Ui::InputComponent.new(name: "funding_source[amount]", value: record.expected_amount, type: "number", min: 0.01, step: 0.01, required: true) %>
+                </label>
+                <label class="space-y-1 text-xs text-muted-foreground">Actual date
+                  <%= render Ui::InputComponent.new(name: "funding_source[entry_date]", value: record.expected_date, type: "date", required: true) %>
+                </label>
+                <%= render Ui::ButtonComponent.new(label: "Receive", type: "submit", size: :sm) %>
+              <% end %>
+            <% else %>
+              <%= render Financial::InstallmentPaymentFormComponent.new(transaction: record, entry_date: expectation[:date] || Date.current) %>
+            <% end %>
+          </div>
+        </article>
+      <% end %>
+    </div>
+  <% end %>
+</div>

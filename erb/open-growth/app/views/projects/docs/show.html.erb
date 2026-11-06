@@ -1,0 +1,118 @@
+<div class="container mx-auto max-w-6xl px-4 py-8" data-controller="doc-links">
+  <div class="mb-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-muted-foreground"><%= link_to @project.name, project_path(@project), class: "text-accent hover:text-foreground" %></p>
+        <h1 class="text-3xl font-bold text-foreground mt-1"><%= @doc.title %></h1>
+        <div class="flex items-center gap-3 mt-3">
+          <%= render StatusBadgeComponent.new(status: @doc.doc_type, type: :status) %>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <%= render Ui::ButtonComponent.new(href: edit_project_doc_path(@project, @doc), label: "Edit", variant: "outline") %>
+        <%= render Ui::ButtonComponent.new(href: project_doc_path(@project, @doc), label: "Delete", variant: "destructive", method: :delete) %>
+      </div>
+    </div>
+  </div>
+
+  <%= render Projects::MarkdownDocumentComponent.new(markdown: @doc.content) %>
+
+  <!-- Links Section -->
+  <div class="mt-8 bg-card rounded-lg shadow">
+    <div class="p-6 border-b border-border">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-foreground"><%= t('projects.links.title') %></h2>
+        <button type="button" data-action="click->doc-links#toggleForm" class="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-md transition-colors">
+          <%= t('projects.links.add_existing') %>
+        </button>
+      </div>
+    </div>
+
+    <!-- Add Existing Link Form -->
+    <div data-doc-links-target="form" class="hidden p-6 border-b border-border bg-slate-50">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-foreground mb-2"><%= t('projects.links.search_link') %></label>
+          <input
+            type="text"
+            autocomplete="off"
+            data-doc-links-target="search"
+            data-action="input->doc-links#filterLinks"
+            placeholder="<%= t('projects.links.search_placeholder') %>"
+            class="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:ring-primary focus:border-primary"
+>
+        </div>
+
+        <div class="max-h-64 overflow-y-auto border border-border rounded-md bg-card">
+          <% if Projects::Link.for_account(Current.account).any? %>
+            <% Projects::Link.for_account(Current.account).order(:title).each do |link| %>
+              <%= form_with url: doc_doc_links_path(@doc), method: :post, local: true, class: "border-b border-border last:border-0" do |f| %>
+                <%= f.hidden_field :link_id, value: link.id %>
+                <button
+                  type="submit"
+                  data-doc-links-target="linkItem"
+                  data-link-title="<%= link.title.downcase %>"
+                  data-link-url="<%= link.url.downcase %>"
+                  class="w-full text-left px-4 py-3 hover:bg-muted/35 transition-colors focus:bg-slate-100 focus:outline-none"
+                >
+                  <div class="font-medium text-foreground"><%= link.title %></div>
+                  <div class="text-xs text-muted-foreground truncate"><%= link.url %></div>
+                  <div class="text-xs text-muted-foreground mt-1"><%= t("projects.link_types.#{link.link_type}") %></div>
+                </button>
+              <% end %>
+            <% end %>
+          <% else %>
+            <div class="p-4 text-sm text-muted-foreground text-center">
+              <%= t('projects.links.no_available_links') %>
+            </div>
+          <% end %>
+        </div>
+
+        <button type="button" data-action="click->doc-links#toggleForm" class="inline-flex items-center px-4 py-2 bg-card hover:bg-muted/35 text-foreground text-sm font-medium rounded-md border border-input transition-colors">
+          <%= t('shared.cancel') %>
+        </button>
+      </div>
+    </div>
+
+    <!-- Links List -->
+    <div class="p-6">
+      <% if @doc.links.any? %>
+        <div class="space-y-2">
+          <% @doc.links.each do |link| %>
+            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-md hover:bg-slate-100 transition-colors">
+              <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-semibold text-foreground truncate"><%= link.title %></h3>
+                <a href="<%= link.url %>" target="_blank" rel="noopener noreferrer" class="text-sm text-accent hover:text-foreground truncate block">
+                  <%= link.url %>
+                </a>
+                <p class="text-xs text-muted-foreground mt-1"><%= t("projects.link_types.#{link.link_type}") %></p>
+              </div>
+              <div class="flex items-center gap-2 ml-4">
+                <%= link_to link_path(link), class: "inline-flex items-center px-3 py-1.5 bg-card hover:bg-muted/35 text-foreground text-xs font-medium rounded border border-input transition-colors" do %>
+                  <%= t('shared.view') %>
+                <% end %>
+                <%= button_to doc_doc_link_path(@doc, link), 
+                             method: :delete, 
+                             data: { turbo_confirm: t('shared.confirm_destroy') },
+                             class: "inline-flex items-center px-3 py-1.5 bg-danger-soft hover:bg-danger-soft text-danger text-xs font-medium rounded border border-danger-soft transition-colors" do %>
+                  <%= t('account_memberships.remove') %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-sm text-muted-foreground text-center py-8"><%= t('projects.links.no_links') %></p>
+      <% end %>
+    </div>
+
+    <!-- Create New Link -->
+    <div class="p-6 border-t border-border bg-slate-50">
+      <%= link_to t('projects.links.create_new'), new_link_path(return_to_doc_id: @doc.id, return_to_project_id: @project.id), class: "inline-flex items-center px-4 py-2 bg-card hover:bg-muted/35 text-foreground text-sm font-medium rounded-md border border-input transition-colors" %>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <%= link_to "Back to Project", project_path(@project), class: "text-accent hover:text-foreground font-medium" %>
+  </div>
+</div>

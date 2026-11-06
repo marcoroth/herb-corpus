@@ -1,0 +1,174 @@
+<div class="container mx-auto px-4 py-8">
+  <div class="mb-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-foreground"><%= @project.name %></h1>
+        <div class="flex items-center gap-3 mt-3">
+          <%= render StatusBadgeComponent.new(status: @project.status, type: :status, translation_scope: "projects.status") %>
+          <%= render StatusBadgeComponent.new(status: @project.priority, type: :priority) %>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <%= render Ui::ButtonComponent.new(href: edit_project_path(@project), label: "Edit", variant: "outline") %>
+        <%= render Ui::ButtonComponent.new(href: project_path(@project), label: "Delete", variant: "destructive", method: :delete) %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-card rounded-lg shadow p-6">
+      <h3 class="text-sm font-semibold text-muted-foreground">Completion</h3>
+      <p class="text-3xl font-bold text-foreground mt-2"><%= @project.completion_percentage %>%</p>
+      <div class="bg-slate-200 rounded-full h-2 mt-3 overflow-hidden">
+        <div class="bg-primary h-full" style="width: <%= @project.completion_percentage %>%;"></div>
+      </div>
+    </div>
+
+    <div class="bg-card rounded-lg shadow p-6">
+      <h3 class="text-sm font-semibold text-muted-foreground">Tasks</h3>
+      <p class="text-3xl font-bold text-foreground mt-2"><%= @tasks.count %></p>
+      <p class="text-xs text-muted-foreground mt-2"><%= pluralize(@tasks.where(status: "done").count, "done") %></p>
+    </div>
+
+    <div class="bg-card rounded-lg shadow p-6">
+      <h3 class="text-sm font-semibold text-muted-foreground">Dates</h3>
+      <p class="text-sm text-foreground mt-2">
+        <% if @project.start_date %>
+          From <%= @project.start_date.strftime("%b %d") %>
+        <% end %>
+        <% if @project.end_date %>
+          to <%= @project.end_date.strftime("%b %d, %Y") %>
+        <% end %>
+      </p>
+    </div>
+  </div>
+
+  <% if @project.summary %>
+    <div class="bg-card rounded-lg shadow p-6 mb-8">
+      <h3 class="text-lg font-semibold text-foreground mb-3">Summary</h3>
+      <p class="text-foreground"><%= simple_format(@project.summary) %></p>
+    </div>
+  <% end %>
+
+  <div class="bg-card rounded-lg shadow mb-8">
+    <div class="px-6 py-4 border-b border-border">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-foreground">Tasks</h2>
+          <p class="text-xs text-muted-foreground mt-1">Vista: Kanban</p>
+        </div>
+        <%= render Ui::ButtonComponent.new(href: new_project_task_path(@project), label: "New Task", variant: "default") %>
+      </div>
+    </div>
+
+    <% if @tasks.any? %>
+      <% statuses = Projects::Task::STATUSES %>
+      <div class="p-4 overflow-x-auto" data-controller="kanban">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 min-w-[900px]">
+          <% statuses.each do |status| %>
+            <% status_tasks = @tasks.select { |task| task.status == status } %>
+            <div class="bg-slate-50 rounded-lg border border-border" data-kanban-target="column" data-status="<%= status %>" data-action="dragover->kanban#dragOver drop->kanban#drop">
+              <div class="px-3 py-2 border-b border-border flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-semibold text-foreground"><%= t("tasks.status.#{status}") %></span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-muted-foreground" data-kanban-target="count" data-status="<%= status %>"><%= status_tasks.size %></span>
+                </div>
+              </div>
+
+              <div class="p-3 space-y-3">
+                <% if status_tasks.any? %>
+                  <% status_tasks.each do |task| %>
+                    <div class="bg-card rounded-md border border-border p-3 shadow-sm hover:shadow transition" draggable="true" data-kanban-target="card" data-task-id="<%= task.id %>" data-task-url="<%= project_task_path(@project, task) %>" data-action="dragstart->kanban#dragStart dragend->kanban#dragEnd">
+                      <div class="flex items-start justify-between gap-2">
+                        <%= link_to task.title, project_task_path(@project, task), class: "text-sm font-semibold text-foreground hover:text-accent-dark" %>
+                        <span class="text-[10px] font-mono text-muted-foreground"><%= task.task_number %></span>
+                      </div>
+                      <% if task.description.present? %>
+                        <p class="text-xs text-muted-foreground mt-2"><%= truncate(task.description, length: 80) %></p>
+                      <% end %>
+                      <div class="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <div class="flex items-center gap-2">
+                          <%= render StatusBadgeComponent.new(status: task.priority, type: :priority) %>
+                        </div>
+                        <% if task.due_date.present? %>
+                          <span class="<%= task.due_date < Date.current ? 'text-danger font-semibold' : '' %>">
+                            <%= task.due_date.strftime("%b %d") %>
+                          </span>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <div class="text-xs text-muted-foreground text-center py-6">Sin tareas</div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% else %>
+      <div class="p-6 text-center text-muted-foreground">
+        <%= link_to "Create the first task", new_project_task_path(@project), class: "text-accent hover:text-foreground font-medium" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="bg-card rounded-lg shadow mb-8">
+    <div class="px-6 py-4 border-b border-border flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-foreground">Documents</h2>
+      <%= render Ui::ButtonComponent.new(href: new_project_doc_path(@project), label: "New Document", variant: "default") %>
+    </div>
+    <% if @docs.any? %>
+      <div class="p-4">
+        <% @docs.each do |doc| %>
+          <div class="py-2 text-sm border-b border-border last:border-0 pb-3">
+            <p class="font-medium text-accent"><%= link_to doc.title, project_doc_path(@project, doc) %></p>
+            <p class="text-muted-foreground"><%= truncate(doc.content, length: 100) %></p>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="p-6 text-center text-muted-foreground">
+        <%= link_to "Create the first document", new_project_doc_path(@project), class: "text-accent hover:text-foreground font-medium" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="bg-card rounded-lg shadow mb-8">
+    <div class="px-6 py-4 border-b border-border flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-foreground">Links</h2>
+      <%= render Ui::ButtonComponent.new(href: new_project_link_path(@project), label: "New Link", variant: "default") %>
+    </div>
+    <% if @links.any? %>
+      <div class="p-4">
+        <% @links.each do |link| %>
+          <div class="py-2 text-sm border-b border-border last:border-0 pb-3">
+            <p class="font-medium"><%= link_to link.title, project_link_path(@project, link), class: "text-accent hover:text-foreground" %></p>
+            <p class="text-xs text-muted-foreground"><%= link_to link.url, link.url, target: "_blank", rel: "noopener noreferrer" %></p>
+            <p class="text-muted-foreground"><%= truncate(link.description, length: 100) %></p>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="p-6 text-center text-muted-foreground">
+        <%= link_to "Create the first link", new_project_link_path(@project), class: "text-accent hover:text-foreground font-medium" %>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @meetings.any? %>
+    <div class="bg-card rounded-lg shadow">
+      <div class="px-6 py-4 border-b border-border">
+        <h2 class="text-lg font-semibold text-foreground">Upcoming Meetings</h2>
+      </div>
+      <div class="p-4">
+        <% @meetings.each do |meeting| %>
+          <div class="py-2 text-sm border-b border-border last:border-0">
+            <p class="font-medium text-foreground"><%= meeting.title %></p>
+            <p class="text-muted-foreground"><%= meeting.start_time.strftime("%b %d, %Y at %I:%M %p") %></p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

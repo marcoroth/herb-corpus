@@ -1,0 +1,109 @@
+<header class="sticky top-0 z-30 bg-muted p-4 mb-6 shadow-sm" data-controller="sidebar" data-action="turbo:before-visit@window->sidebar#close">
+  <div class="container mx-auto">
+    <%# Mobile header bar: current page title + hamburger (visible only on mobile) %>
+    <div class="flex justify-between items-center sm:hidden">
+      <span class="font-semibold truncate max-w-[60%]" title="<%= nav_page_title %>"><%= nav_page_title %></span>
+      <button
+        type="button"
+        class="p-2 rounded-md text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-gray-400"
+        data-sidebar-target="button"
+        data-action="click->sidebar#toggle"
+        data-menu-open="<%= t("nav.menu_open") %>"
+        data-menu-close="<%= t("nav.menu_close") %>"
+        aria-expanded="false"
+        aria-label="<%= t("nav.menu_open") %>"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+
+    <%# Desktop nav (hidden on mobile, horizontal on sm+) %>
+    <nav class="hidden sm:flex sm:flex-row justify-between items-center" aria-label="<%= t("nav.dashboard") %>">
+      <div class="flex space-x-4">
+        <%= link_to t("nav.dashboard"), root_path, class: current_page?(root_path) ? "font-semibold text-foreground" : "font-semibold text-muted-foreground hover:text-foreground" %>
+        <%= link_to t("nav.budgets"), budget_periods_path, class: controller_path == "budget_periods" ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to "Plans", finance_plans_path, class: controller_path.in?([ "financial/plans", "financial/planned_transactions", "financial/funding_sources", "income_events", "planned_expenses" ]) ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to t("nav.expenses"), finance_entries_path, class: controller_path == "financial/entries" ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to "Finance", finance_path, class: controller_path.start_with?("finance") ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to t("nav.tasks"), task_root_path, class: controller_path.include?("task") ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to "Projects", projects_path, class: controller_path == "projects/projects" ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to "Docs", docs_path, class: controller_path == "projects/standalone_docs" ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+        <%= link_to t("nav.reports"), reports_path, class: controller_path == "reports" ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground" %>
+      </div>
+      <div class="flex space-x-4 items-center">
+        <% if authenticated? %>
+          <% if current_account %>
+            <div class="relative">
+              <%= form_with url: account_switch_path, method: :post, local: true, class: "inline" do |f| %>
+                <%= f.select :account_id,
+                    options_from_collection_for_select(Current.user.accounts, :id, :name, current_account.id),
+                    {},
+                    {
+                      onchange: "this.form.submit()",
+                      class: "px-3 py-1 border rounded text-sm"
+                    } %>
+              <% end %>
+            </div>
+            <%= link_to t("nav.accounts"), accounts_path, class: "text-sm #{controller_path == "accounts" || controller_path == "account_memberships" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+          <% end %>
+          <%= link_to t("nav.settings"), edit_settings_path(section: (controller_path == "categories" ? "finance" : nil)), class: "text-sm #{controller_path == "settings" || controller_path == "categories" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+          <%= link_to session_path, data: { turbo_method: :delete }, class: "px-4 py-2 bg-muted text-white text-sm rounded-lg hover:bg-muted/80 transition-colors" do %>
+            <%= t("nav.log_out") %>
+          <% end %>
+        <% end %>
+      </div>
+    </nav>
+  </div>
+
+  <%# Mobile sliding drawer: backdrop + panel (visible only on mobile) %>
+  <div
+    data-sidebar-target="backdrop"
+    data-action="click->sidebar#close"
+    class="sm:hidden fixed inset-0 bg-black/50 z-40 hidden transition-opacity"
+    aria-hidden="true"
+  ></div>
+  <aside
+    data-sidebar-target="panel"
+    class="sm:hidden fixed left-0 top-0 bottom-0 w-64 bg-card shadow-xl z-50 -translate-x-full transition-transform duration-200 ease-out overflow-y-auto"
+    aria-label="<%= t("nav.menu_open") %>"
+  >
+    <div class="p-4 flex flex-col gap-4 pt-8">
+      <div class="flex flex-col gap-2">
+        <%= link_to t("nav.dashboard"), root_path, class: "py-2 #{current_page?(root_path) ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to t("nav.budgets"), budget_periods_path, class: "py-2 #{controller_path == "budget_periods" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to "Plans", finance_plans_path, class: "py-2 #{controller_path.in?([ "financial/plans", "financial/planned_transactions", "financial/funding_sources", "income_events", "planned_expenses" ]) ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to t("nav.expenses"), finance_entries_path, class: "py-2 #{controller_path == "financial/entries" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to "Finance", finance_path, class: "py-2 #{controller_path.start_with?("finance") ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to t("nav.tasks"), task_root_path, class: "py-2 #{controller_path.include?("task") ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to "Projects", projects_path, class: "py-2 #{controller_path == "projects/projects" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to "Docs", docs_path, class: "py-2 #{controller_path == "projects/standalone_docs" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+        <%= link_to t("nav.reports"), reports_path, class: "py-2 #{controller_path == "reports" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+      </div>
+      <% if authenticated? %>
+        <hr class="border-border">
+        <div class="flex flex-col gap-2">
+          <% if current_account %>
+            <div>
+              <%= form_with url: account_switch_path, method: :post, local: true, class: "block" do |f| %>
+                <%= f.select :account_id,
+                    options_from_collection_for_select(Current.user.accounts, :id, :name, current_account.id),
+                    {},
+                    {
+                      onchange: "this.form.submit()",
+                      class: "w-full px-3 py-2 border rounded text-sm"
+                    } %>
+              <% end %>
+            </div>
+            <%= link_to t("nav.accounts"), accounts_path, class: "py-2 text-sm #{controller_path == "accounts" || controller_path == "account_memberships" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+          <% end %>
+          <%= link_to t("nav.settings"), edit_settings_path(section: (controller_path == "categories" ? "finance" : nil)), class: "py-2 text-sm #{controller_path == "settings" || controller_path == "categories" ? "font-semibold text-foreground" : "text-foreground hover:text-foreground"}" %>
+          <%= link_to session_path, data: { turbo_method: :delete }, class: "px-4 py-2 bg-muted text-white text-sm rounded-lg hover:bg-muted/80 transition-colors inline-block w-fit" do %>
+            <%= t("nav.log_out") %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </aside>
+</header>

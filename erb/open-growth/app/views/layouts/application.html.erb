@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="<%= I18n.locale %>" class="<%= current_theme_palette_class %>" data-default-palette="<%= current_theme_palette %>">
+  <head>
+    <title><%= content_for(:title) || "Diego App" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <script>
+      (() => {
+        try {
+          const paletteKey = "theme_palette"
+          const palettePrefix = "palette-"
+          const legacyPaletteMap = {
+            "ios-balanced": "executive-calm",
+            "ios-ocean": "ocean-depth",
+            "ios-forest": "forest-mint",
+            "ios-sunset": "sunset-ember"
+          }
+          const normalizePalette = (palette) => legacyPaletteMap[palette] || palette
+          const defaultPalette = normalizePalette(document.documentElement.dataset.defaultPalette || "executive-calm")
+          const storedPalette = normalizePalette(localStorage.getItem(paletteKey)) || defaultPalette
+
+          document.documentElement.classList.forEach((cssClass) => {
+            if (cssClass.startsWith(palettePrefix)) document.documentElement.classList.remove(cssClass)
+          })
+          document.documentElement.classList.add(`${palettePrefix}${storedPalette}`)
+          localStorage.setItem(paletteKey, storedPalette)
+
+          const storedTheme = localStorage.getItem("theme")
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+          const useDark = storedTheme ? storedTheme === "dark" : prefersDark
+          document.documentElement.classList.toggle("dark", useDark)
+        } catch (_) {
+          // no-op: keep default light theme when storage is unavailable
+        }
+      })()
+    </script>
+
+    <!-- Load site fonts (Poppins) to match diego-blog-w-astro theme -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
+    <%= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => navigator.serviceWorker.register("/service-worker"))
+      }
+    </script>
+  </head>
+
+  <body data-controller="theme quick-add-offline">
+    <%= render SidebarProviderComponent.new do %>
+      <%= render AppSidebarComponent.new(current_controller: controller_path) %>
+
+      <div data-sidebar-target="content" class="min-h-screen md:pl-[var(--sidebar-width,16rem)] transition-[padding-left] duration-200 ease-linear bg-[linear-gradient(180deg,hsl(var(--shell-gradient-start))_0%,hsl(var(--shell-gradient-end))_100%)]">
+        <header class="sticky top-0 z-30 mb-6 border-b border-sidebar-border bg-[hsl(var(--shell-main-surface))] p-3 text-sidebar-foreground shadow-sm md:hidden">
+          <div class="container mx-auto flex items-center justify-between gap-4">
+            <div class="min-w-0 font-semibold truncate max-w-[70%] text-sm" title="<%= nav_page_title %>"><%= nav_page_title %></div>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                data-action="theme#toggle"
+                class="inline-flex h-9 items-center justify-center rounded-md border border-sidebar-border px-2 text-xs font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              >
+                <span data-theme-target="label">Dark mode</span>
+              </button>
+              <%= render SidebarTriggerComponent.new(variant: :menu) %>
+            </div>
+          </div>
+        </header>
+
+        <div class="mx-auto w-full max-w-7xl px-4 pt-4">
+          <div id="flash-container">
+            <%= render "shared/flash" %>
+          </div>
+        </div>
+
+        <% if Current.account.present? %>
+          <%= render QuickAddMenuComponent.new %>
+          <div id="quick-add-modal-container"></div>
+          <%= turbo_frame_tag "task_detail_panel" %>
+          <%= render "task/tasks/drawer" %>
+        <% end %>
+
+        <%= yield :overlays %>
+
+        <main class="mx-auto w-full max-w-7xl px-0 pt-4 pb-8 sm:px-4">
+          <div class="rounded-none border-0 bg-[hsl(var(--shell-main-surface))] p-0 shadow-none sm:rounded-3xl sm:border sm:border-border sm:p-6 sm:shadow-[var(--shell-main-shadow)] sm:backdrop-blur-sm">
+            <%= yield %>
+          </div>
+        </main>
+      </div>
+    <% end %>
+  </body>
+</html>

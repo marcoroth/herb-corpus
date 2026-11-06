@@ -1,0 +1,164 @@
+<% content_for :overlays do %>
+  <%= turbo_frame_tag "career_doc_panel" %>
+<% end %>
+
+<div class="container mx-auto px-4 py-8">
+  <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div>
+      <p class="text-sm text-muted-foreground"><%= @job_application.company.name %></p>
+      <h1 class="text-2xl font-bold text-foreground"><%= @job_application.role_title %></h1>
+      <p class="text-sm text-muted-foreground">Status: <%= @job_application.status.humanize %> • Priority: <%= @job_application.priority.humanize %></p>
+    </div>
+    <div class="flex gap-2">
+      <%= link_to "Profile", career_profile_path, class: "inline-flex items-center justify-center rounded-md border border-input px-4 py-2" %>
+      <%= link_to "Edit", edit_career_job_application_path(@job_application), class: "inline-flex items-center justify-center rounded-md border border-input px-4 py-2" %>
+      <%= link_to "Back", career_job_applications_path, class: "inline-flex items-center justify-center rounded-md border border-input px-4 py-2" %>
+    </div>
+  </div>
+
+  <div class="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+    <div class="rounded-lg border border-border bg-card p-4">
+      <h2 class="mb-3 text-lg font-semibold">Details</h2>
+      <p><strong>Source:</strong> <%= @job_application.source.presence || "-" %></p>
+      <p><strong>Remote type:</strong> <%= @job_application.remote_type.presence || "-" %></p>
+      <p><strong>Location:</strong> <%= @job_application.location.presence || "-" %></p>
+      <p><strong>Salary:</strong> <%= [@job_application.salary_min, @job_application.salary_max].compact.join(" - ") %> <%= @job_application.currency %></p>
+      <p><strong>Found on:</strong> <%= @job_application.found_on %></p>
+      <p><strong>Applied on:</strong> <%= @job_application.applied_on %></p>
+      <% if @job_application.job_url.present? %>
+        <% safe_job_url = safe_external_url(@job_application.job_url) %>
+        <p><strong>Job URL:</strong>
+          <% if safe_job_url.present? %>
+            <%= link_to @job_application.job_url, safe_job_url, class: "text-accent hover:underline", target: "_blank", rel: "noreferrer" %>
+          <% else %>
+            <span class="text-muted-foreground">Invalid URL</span>
+          <% end %>
+        </p>
+      <% end %>
+    </div>
+
+    <div class="rounded-lg border border-border bg-card p-4">
+      <h2 class="mb-3 text-lg font-semibold">Update status</h2>
+      <%= form_with model: @job_application, url: career_job_application_path(@job_application), method: :patch, class: "space-y-3" do |f| %>
+        <%= f.select :status, Career::JobApplication::STATUSES.map { |status| [status.humanize, status] }, {}, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+        <%= f.submit "Update status", class: "inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground" %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mb-6 rounded-lg border border-border bg-card p-4">
+    <h2 class="mb-3 text-lg font-semibold">Suggested next actions</h2>
+    <p class="mb-3 text-sm text-muted-foreground">Based on current status: <strong><%= @job_application.status.humanize %></strong></p>
+
+    <% if @suggested_actions.any? %>
+      <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+        <% @suggested_actions.each do |action| %>
+          <%= form_with url: create_suggested_task_career_job_application_path(@job_application), method: :post, class: "rounded-md border border-border p-3" do %>
+            <%= hidden_field_tag :template_key, action.key %>
+            <p class="font-medium text-foreground"><%= action.title %></p>
+            <p class="text-xs text-muted-foreground mb-2">
+              Priority: <%= action.priority.humanize %> •
+              <%= action.due_in_days.zero? ? "Due today" : "Due in #{action.due_in_days} days" %>
+            </p>
+            <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-primary-foreground text-sm">Add action</button>
+          <% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="rounded-md border border-dashed border-input p-3 text-sm text-muted-foreground">You’re up to date for this stage. Add custom task if needed.</p>
+    <% end %>
+  </div>
+
+  <div class="mb-6 rounded-lg border border-border bg-card p-4">
+    <h2 class="mb-3 text-lg font-semibold">Tasks</h2>
+    <%= form_with url: create_task_career_job_application_path(@job_application), method: :post, class: "mb-4 grid grid-cols-1 gap-3 md:grid-cols-5" do %>
+      <%= text_field_tag "task[title]", nil, placeholder: "Task title", required: true, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= select_tag "task[status]", options_for_select(Projects::Task::STATUSES.map { |s| [s.humanize, s] }, "backlog"), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= select_tag "task[priority]", options_for_select(Projects::Task::PRIORITIES.map { |p| [p.humanize, p] }, "medium"), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= date_field_tag "task[due_date]", nil, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground">Add task</button>
+    <% end %>
+
+    <div class="space-y-2">
+      <% @tasks.each do |task| %>
+        <div class="rounded-md border border-border p-3">
+          <p class="font-medium"><%= task.title %></p>
+          <p class="text-sm text-muted-foreground"><%= task.status.humanize %> • <%= task.priority.humanize %> • Due: <%= task.due_date || "-" %></p>
+        </div>
+      <% end %>
+      <% if @tasks.empty? %>
+        <p class="text-sm text-muted-foreground">No tasks yet.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mb-6 rounded-lg border border-border bg-card p-4">
+    <h2 class="mb-3 text-lg font-semibold">Meetings</h2>
+    <%= form_with url: create_meeting_career_job_application_path(@job_application), method: :post, class: "mb-4 grid grid-cols-1 gap-3 md:grid-cols-4" do %>
+      <%= text_field_tag "meeting[title]", nil, placeholder: "Meeting title", required: true, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= datetime_local_field_tag "meeting[start_time]", nil, required: true, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= text_field_tag "meeting[location]", nil, placeholder: "Location", class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground">Add meeting</button>
+    <% end %>
+
+    <div class="space-y-2">
+      <% @meetings.each do |meeting| %>
+        <div class="rounded-md border border-border p-3">
+          <p class="font-medium"><%= meeting.title %></p>
+          <p class="text-sm text-muted-foreground"><%= meeting.start_time %> • <%= meeting.location.presence || "No location" %></p>
+        </div>
+      <% end %>
+      <% if @meetings.empty? %>
+        <p class="text-sm text-muted-foreground">No meetings yet.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="mb-6 rounded-lg border border-border bg-card p-4">
+    <h2 class="mb-3 text-lg font-semibold">Documents and notes</h2>
+    <%= form_with url: create_document_career_job_application_path(@job_application), method: :post, class: "mb-4 grid grid-cols-1 gap-3" do %>
+      <%= text_field_tag "doc[title]", nil, placeholder: "Document title", required: true, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= text_area_tag "doc[content]", nil, placeholder: "Write notes or paste useful snippets", rows: 4, class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= hidden_field_tag "doc[doc_type]", "note" %>
+      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground">Add note</button>
+    <% end %>
+
+    <div class="space-y-2">
+      <% @documents.each do |document| %>
+        <div class="rounded-md border border-border p-3">
+          <%= link_to document.title, doc_path(document), data: { turbo_frame: "career_doc_panel" }, class: "font-medium text-accent hover:underline" %>
+          <p class="text-sm text-muted-foreground line-clamp-2"><%= document.content.to_s.truncate(160) %></p>
+        </div>
+      <% end %>
+      <% if @documents.empty? %>
+        <p class="text-sm text-muted-foreground">No documents yet.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="rounded-lg border border-border bg-card p-4">
+    <h2 class="mb-3 text-lg font-semibold">Timeline</h2>
+
+    <%= form_with url: create_event_career_job_application_path(@job_application), method: :post, class: "mb-4 grid grid-cols-1 gap-3 md:grid-cols-4" do %>
+      <%= select_tag "career_event[event_type]", options_for_select(Career::Event::EVENT_TYPES.map { |et| [et.humanize, et] }, "note"), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= datetime_local_field_tag "career_event[occurred_at]", Time.current.strftime("%Y-%m-%dT%H:%M"), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= text_field_tag "career_event[metadata][note]", nil, placeholder: "Optional note", class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground">Add event</button>
+    <% end %>
+
+    <div class="space-y-2">
+      <% @events.each do |event| %>
+        <div class="rounded-md border border-border p-3">
+          <p class="font-medium"><%= event.event_type.humanize %></p>
+          <p class="text-sm text-muted-foreground"><%= event.occurred_at.strftime("%Y-%m-%d %H:%M") %></p>
+          <% if event.metadata.present? %>
+            <p class="text-sm text-muted-foreground"><%= event.metadata.to_json %></p>
+          <% end %>
+        </div>
+      <% end %>
+      <% if @events.empty? %>
+        <p class="text-sm text-muted-foreground">No events yet.</p>
+      <% end %>
+    </div>
+  </div>
+</div>

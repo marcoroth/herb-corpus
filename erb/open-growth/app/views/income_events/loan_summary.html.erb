@@ -1,0 +1,116 @@
+<p style="color: green"><%= notice %></p>
+
+<div class="mb-6">
+  <%= link_to @income_event, class: "inline-flex items-center text-accent hover:text-foreground transition-colors mb-4" do %>
+    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+    </svg>
+    Back to Loan
+  <% end %>
+</div>
+
+<div class="rounded-2xl border border-border bg-[linear-gradient(135deg,color-mix(in_oklab,hsl(var(--card))_90%,hsl(var(--background))_10%),hsl(var(--card)))] shadow-sm p-8 mb-8 text-foreground">
+  <div class="flex items-start justify-between gap-6 flex-wrap">
+    <div>
+      <h1 class="text-3xl font-bold mb-2"><%= @income_event.description %></h1>
+      <p class="text-muted-foreground">Loan summary and repayment checklist</p>
+    </div>
+    <div class="text-right">
+      <p class="text-muted-foreground text-sm">Start date</p>
+      <p class="text-lg font-semibold"><%= @income_event.expected_date.strftime("%B %d, %Y") %></p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-8">
+    <div class="bg-muted/35 rounded-xl p-4 border border-border">
+      <p class="text-muted-foreground text-sm">Loan amount</p>
+      <p class="text-2xl font-bold"><%= number_to_currency(@income_event.loan_amount || @income_event.expected_amount) %></p>
+    </div>
+    <div class="bg-muted/35 rounded-xl p-4 border border-border">
+      <p class="text-muted-foreground text-sm">Interest rate</p>
+      <p class="text-2xl font-bold"><%= number_with_precision(@income_event.interest_rate || 0, precision: 3) %>%</p>
+      <p class="text-xs text-muted-foreground mt-1"><%= @income_event.inferred_interest_rate? ? "Estimated from payment amount" : "Provided by user" %></p>
+    </div>
+    <div class="bg-muted/35 rounded-xl p-4 border border-border">
+      <p class="text-muted-foreground text-sm">Total repayable</p>
+      <p class="text-2xl font-bold"><%= number_to_currency(@income_event.loan_total_repayment) %></p>
+    </div>
+    <div class="bg-muted/35 rounded-xl p-4 border border-border">
+      <p class="text-muted-foreground text-sm">Remaining balance</p>
+      <p class="text-2xl font-bold"><%= number_to_currency(@income_event.loan_remaining_balance) %></p>
+    </div>
+    <div class="bg-muted/35 rounded-xl p-4 border border-border">
+      <p class="text-muted-foreground text-sm">Payments</p>
+      <p class="text-2xl font-bold"><%= @loan_payment_schedules.count %></p>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+  <div class="bg-card rounded-xl shadow-sm border border-border p-6">
+    <h2 class="text-xl font-semibold text-foreground mb-4">Payment schedule</h2>
+    <% if @loan_payment_schedules.any? %>
+      <div class="space-y-3">
+        <% @loan_payment_schedules.each do |schedule| %>
+          <div class="flex items-center justify-between rounded-lg border border-border p-4 <%= schedule.paid? ? 'bg-success-soft' : 'bg-card' %>">
+            <div>
+              <p class="font-medium text-foreground">Payment <%= schedule.installment_number %></p>
+              <p class="text-sm text-muted-foreground"><%= schedule.due_date.strftime("%b %d, %Y") %></p>
+            </div>
+            <div class="text-right">
+              <p class="font-semibold text-foreground"><%= number_to_currency(schedule.amount) %></p>
+              <p class="text-xs text-muted-foreground"><%= schedule.status %></p>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-muted-foreground">No payment schedule has been generated yet.</p>
+    <% end %>
+  </div>
+
+  <div class="bg-card rounded-xl shadow-sm border border-border p-6">
+    <h2 class="text-xl font-semibold text-foreground mb-4">Checklist</h2>
+    <p class="text-sm text-muted-foreground mb-4">Planned expenses and loan payments together for execution.</p>
+
+    <% if @planned_expenses.any? %>
+      <div class="mb-6">
+        <h3 class="text-sm font-semibold text-foreground mb-2">Planned expenses</h3>
+        <div class="space-y-2">
+          <% @planned_expenses.each do |planned_expense| %>
+            <div class="rounded-lg border border-border px-4 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <%= link_to [planned_expense.income_event, planned_expense], class: "text-sm text-accent hover:text-foreground hover:underline" do %>
+                  <%= planned_expense.description %>
+                <% end %>
+                <span class="text-sm font-medium text-foreground"><%= number_to_currency(planned_expense.amount) %></span>
+              </div>
+              <p class="mt-1 text-xs text-muted-foreground">
+                Pays from:
+                <% if planned_expense.income_event_id == @income_event.id %>
+                  this loan event
+                <% else %>
+                  <%= planned_expense.income_event.description %>
+                <% end %>
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @loan_payment_schedules.any? %>
+      <div>
+        <h3 class="text-sm font-semibold text-foreground mb-2">Loan payments</h3>
+        <div class="space-y-2">
+          <% @loan_payment_schedules.each do |schedule| %>
+            <div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+              <span class="text-sm text-foreground">Payment <%= schedule.installment_number %></span>
+              <span class="text-sm font-medium text-foreground"><%= number_to_currency(schedule.amount) %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,68 @@
+<p style="color: green"><%= notice %></p>
+
+<div class="container mx-auto px-4">
+  <h1 class="text-2xl font-bold mb-4"><%= t("shopping_items.index.title") %></h1>
+
+  <div class="mb-6 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between sm:items-center">
+    <%= render Ui::ButtonComponent.new(
+        href: new_shopping_item_path,
+        label: t("shopping_items.index.add_item"),
+        variant: "default"
+      ) %>
+
+    <div class="flex flex-wrap gap-2">
+      <%= link_to t("shopping_items.index.pending"), shopping_items_path(status: "pending"),
+          class: "px-3 py-1.5 rounded #{@status_filter == 'pending' ? 'nav-link-active' : 'bg-muted text-foreground hover:bg-muted/80'}" %>
+        <%= link_to t("shopping_items.index.purchased"), shopping_items_path(status: "purchased"),
+          class: "px-3 py-1.5 rounded #{@status_filter == 'purchased' ? 'nav-link-active' : 'bg-muted text-foreground hover:bg-muted/80'}" %>
+      <%= link_to t("shopping_items.index.all"), shopping_items_path(status: "all"),
+          class: "px-3 py-1.5 rounded #{@status_filter == 'all' ? 'nav-link-active' : 'bg-muted text-foreground hover:bg-muted/80'}" %>
+    </div>
+  </div>
+
+  <% if @grouped_shopping_items.any? %>
+    <div class="space-y-8">
+      <% @grouped_shopping_items.each do |category, items| %>
+        <section>
+          <h2 class="text-lg font-semibold text-foreground mb-3 pb-2 border-b border-border">
+            <%= category ? category.name : t("shopping_items.index.uncategorized") %>
+          </h2>
+          <div class="space-y-4">
+            <% items.each do |shopping_item| %>
+              <div class="bg-card rounded-xl shadow-md hover:shadow-xl transition-all duration-200 border border-border overflow-hidden">
+                <div class="p-6">
+                  <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <%= link_to shopping_item.name, shopping_item, class: "text-lg font-semibold text-foreground hover:text-accent-dark hover:underline" %>
+                    <span class="px-2 py-1 rounded text-xs <%= shopping_item.status == 'pending' ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success' %>">
+                      <%= t("activerecord.attributes.shopping_item.status_options.#{shopping_item.status}") %>
+                    </span>
+                    <span class="px-2 py-1 rounded text-xs bg-muted text-foreground">
+                      <%= t("activerecord.attributes.shopping_item.item_type.#{shopping_item.item_type}") %>
+                    </span>
+                  </div>
+                  <p class="text-sm text-muted-foreground mb-4">
+                    <%= shopping_item.category&.name || "-" %> · <%= shopping_item.quantity.presence || "-" %> · <%= shopping_item.estimated_amount ? number_to_currency(shopping_item.estimated_amount) : "-" %>
+                  </p>
+                  <div class="flex flex-wrap gap-2 items-center justify-start">
+                    <%= link_to t("shared.view"), shopping_item, class: "btn btn-primary" %>
+                    <%= link_to t("shared.edit"), edit_shopping_item_path(shopping_item), class: "inline-flex items-center justify-center px-4 py-2 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/80 transition-colors" %>
+                    <% if shopping_item.status == "pending" %>
+                      <%= link_to t("shopping_items.index.mark_purchased"), mark_as_purchased_shopping_item_path(shopping_item),
+                          data: { turbo_method: :patch },
+                          class: "inline-flex items-center justify-center px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-primary/90 transition-colors" %>
+                    <% end %>
+                    <%= button_to t("shared.delete"), shopping_item, method: :delete, data: { turbo_confirm: t("shared.confirm_destroy") }, class: "inline-flex items-center justify-center px-4 py-2 bg-danger-soft text-white text-sm rounded-lg hover:bg-danger/90 transition-colors" %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="text-center py-12">
+      <p class="text-muted-foreground"><%= t("shopping_items.index.empty") %></p>
+    </div>
+  <% end %>
+</div>

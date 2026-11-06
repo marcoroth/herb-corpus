@@ -1,0 +1,48 @@
+<% content_for :title do %>
+  <%= @repo[:repo]['full_name'] %>
+<% end %>
+<% content_for :javascripts do %>
+  <% unless ENV["SOCKET_BACKEND"].nil? %>
+  <script src='<%= ENV['SOCKET_BACKEND']%>/client.js'></script>
+  <% end %>
+<%= javascript_include_tag 'vendor' %>
+<%= javascript_include_tag 'huboard-app' %>
+<%= javascript_include_tag 'bootstrap' %>
+<%= javascript_include_tag 'vendor/jquery-ui' %>
+<%= javascript_include_tag 'jquery-ui.superSortable' %>
+
+<script>
+    Ember.Application.initializer({
+      name: 'advanceReadiness',
+      after: 'deferReadiness',
+      initialize: function(container, application){
+        window.App = application;
+        application.set("repo", Ember.Object.create(<%= @repo.to_hash.to_json.html_safe %>));
+        <% if logged_in? %>
+          application.set("loggedIn", true);
+          application.set("currentUser",<%= current_user.attribs.to_json.html_safe %>);
+          <% if Rails.application.config.sockets.socket_backend %>
+            application.set("socketBackend", "<%= Rails.application.config.sockets.socket_backend %>");
+          <% end %>
+        <% else %>
+          application.set("loggedIn", false);
+        <% end %>
+
+        if(window.analytics) {
+          application.Router.reopen({
+            notifySegmentIo: function(){
+              return window.analytics.page(this.get('url'),{
+                page: this.get('url'),
+                title: this.get('url')
+              }) 
+            }.on("didTransition")
+
+          });
+
+        }
+        application.advanceReadiness();
+      }
+    });
+
+  </script>
+<% end %>

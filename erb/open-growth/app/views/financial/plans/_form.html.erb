@@ -1,0 +1,64 @@
+<% form_url = plan.persisted? ? finance_plan_path(plan) : finance_plans_path %>
+<% form_method = plan.persisted? ? :patch : :post %>
+<%= form_with model: plan, url: form_url, method: form_method, class: "space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm" do |form| %>
+  <% if plan.errors.any? || funding_source&.errors&.any? %>
+    <div class="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+      <%= (plan.errors.full_messages + [ funding_source ].compact.flat_map { |source| source.errors.full_messages }).to_sentence %>
+    </div>
+  <% end %>
+
+  <fieldset class="grid gap-4 sm:grid-cols-2">
+    <legend class="col-span-full text-lg font-semibold">Plan</legend>
+    <label class="space-y-1 text-sm font-medium">
+      Name
+      <%= render Ui::InputComponent.new(name: "financial_plan[name]", value: plan.name, required: true) %>
+    </label>
+    <label class="space-y-1 text-sm font-medium">
+      Planned for
+      <%= render Ui::InputComponent.new(name: "financial_plan[planned_for]", value: plan.planned_for, type: "date", disabled: plan.lifecycle_status.in?(%w[closed cancelled]), required: true) %>
+    </label>
+    <label class="space-y-1 text-sm font-medium">
+      Budget period (optional)
+      <%= render Ui::SelectComponent.new(name: "financial_plan[budget_period_id]", options: budget_periods.map { |period| [ period.name, period.id ] }, selected: plan.budget_period_id, include_blank: "None", disabled: plan.lifecycle_status.in?(%w[closed cancelled])) %>
+    </label>
+    <label class="space-y-1 text-sm font-medium">
+      Lifecycle
+      <%= render Ui::SelectComponent.new(name: "financial_plan[lifecycle_status]", options: %w[draft active].map { |status| [ status.humanize, status ] }, selected: plan.lifecycle_status, disabled: plan.lifecycle_status.in?(%w[closed cancelled]), required: true) %>
+    </label>
+  </fieldset>
+
+  <% if funding_source %>
+    <fieldset class="grid gap-4 border-t border-border pt-6 sm:grid-cols-2">
+      <legend class="col-span-full text-lg font-semibold">Initial funding source</legend>
+      <label class="space-y-1 text-sm font-medium">
+        Description
+        <%= render Ui::InputComponent.new(name: "financial_funding_source[description]", value: funding_source.description, required: true) %>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        Expected amount
+        <%= render Ui::InputComponent.new(name: "financial_funding_source[expected_amount]", value: funding_source.expected_amount, type: "number", min: 0.01, step: 0.01, required: true) %>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        Expected date
+        <%= render Ui::InputComponent.new(name: "financial_funding_source[expected_date]", value: funding_source.expected_date, type: "date", required: true) %>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        Kind
+        <%= render Ui::SelectComponent.new(name: "financial_funding_source[kind]", options: Financial::FundingSource::KINDS.reject { |kind| kind == "borrowed" }.map { |kind| [ kind.humanize, kind ] }, selected: funding_source.kind, required: true) %>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        Expected asset destination
+        <%= render Ui::SelectComponent.new(name: "financial_funding_source[expected_destination_asset_id]", options: assets.map { |asset| [ asset.name, asset.id ] }, selected: funding_source.expected_destination_asset_id, include_blank: "None") %>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        Or liability destination
+        <%= render Ui::SelectComponent.new(name: "financial_funding_source[expected_destination_liability_id]", options: liabilities.map { |liability| [ liability.name, liability.id ] }, selected: funding_source.expected_destination_liability_id, include_blank: "None") %>
+      </label>
+    </fieldset>
+  <% end %>
+
+  <div class="flex gap-2 border-t border-border pt-5">
+    <%= render Ui::ButtonComponent.new(label: plan.persisted? ? "Save plan" : "Create plan", type: "submit") %>
+    <%= render Ui::ButtonComponent.new(href: plan.persisted? ? finance_plan_path(plan) : finance_plans_path, label: "Cancel", variant: :outline) %>
+  </div>
+<% end %>

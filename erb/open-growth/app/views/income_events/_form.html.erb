@@ -1,0 +1,97 @@
+<%= form_with model: [@budget_period, @income_event].compact, local: true, data: { controller: "income-event-form", income_event_form_loan_value: @income_event.loan? } do |form| %>
+  <% if @income_event.errors.any? %>
+    <div class="bg-danger-soft border border-danger-soft text-danger px-4 py-3 rounded mb-4">
+      <h2 class="font-bold"><%= pluralize(@income_event.errors.count, "error") %> prohibited this income event from being saved:</h2>
+      <ul class="list-disc list-inside">
+        <% @income_event.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="mb-4">
+    <%= form.label :budget_period_id, "Budget Period (optional)", class: "block text-sm font-medium text-foreground mb-1" %>
+    <%= form.collection_select :budget_period_id, BudgetPeriod.for_account(Current.account), :id, :name, { include_blank: "None" }, { class: "border rounded px-3 py-2 w-full" } %>
+  </div>
+
+  <div class="mb-4">
+    <%= form.label :income_type, "Income Type", class: "block text-sm font-medium text-foreground mb-1" %>
+    <%= form.select :income_type, [["Regular", "regular"], ["Loan", "loan"]], {}, { class: "border rounded px-3 py-2 w-full", data: { action: "change->income-event-form#toggleLoanFields", income_event_form_target: "incomeTypeSelect" } } %>
+  </div>
+
+  <div class="mb-4">
+    <%= form.label :description, class: "block text-sm font-medium text-foreground mb-1" %>
+    <%= form.text_field :description, class: "border rounded px-3 py-2 w-full" %>
+  </div>
+
+  <div class="mb-4">
+    <%= form.label :expected_date, class: "block text-sm font-medium text-foreground mb-1" %>
+    <%= form.date_field :expected_date, class: "border rounded px-3 py-2 w-full" %>
+  </div>
+
+  <div class="mb-4" data-income-event-form-target="expectedAmountField">
+    <%= form.label :expected_amount, class: "block text-sm font-medium text-foreground mb-1" %>
+    <%= form.number_field :expected_amount, step: 0.01, class: "border rounded px-3 py-2 w-full" %>
+  </div>
+
+  <div class="mb-4">
+    <%= form.label :destination_selection, "Destination Account", class: "block text-sm font-medium text-foreground mb-1" %>
+    <% destination_options = grouped_options_for_select({
+      "Asset Accounts" => (@financial_assets || []).map { |asset| [asset.name, "asset:#{asset.id}"] },
+      "Liability Accounts" => (@financial_liabilities || []).map { |liability| [liability.name, "liability:#{liability.id}"] }
+    }, @income_event.destination_selection) %>
+    <%= form.select :destination_selection, destination_options, { include_blank: "Select destination account" }, { class: "border rounded px-3 py-2 w-full" } %>
+    <p class="mt-1 text-xs text-muted-foreground">For regular income this is where money is credited. For loans this is disbursement destination.</p>
+  </div>
+
+  <div class="mb-4 hidden" data-income-event-form-target="loanFields">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <%= form.label :loan_amount, "Loan Amount", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.number_field :loan_amount, step: 0.01, class: "border rounded px-3 py-2 w-full", data: { income_event_form_target: "loanAmountField", action: "input->income-event-form#onSharedTermsChanged" } %>
+      </div>
+      <div>
+        <%= form.label :interest_rate, "Interest Rate (Annual %)", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.number_field :interest_rate, step: 0.001, class: "border rounded px-3 py-2 w-full", data: { income_event_form_target: "interestRateField", action: "input->income-event-form#onInterestInput" } %>
+        <p class="mt-1 text-xs text-muted-foreground">Use annual nominal rate (APR). Example: 36 means 36% annual.</p>
+        <p class="mt-1 text-xs text-muted-foreground hidden" data-income-event-form-target="interestHint"></p>
+      </div>
+      <div>
+        <%= form.label :number_of_payments, "Number of Payments", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.number_field :number_of_payments, min: 1, step: 1, class: "border rounded px-3 py-2 w-full", data: { income_event_form_target: "numberOfPaymentsField", action: "input->income-event-form#onSharedTermsChanged" } %>
+      </div>
+      <div>
+        <%= form.label :payment_frequency, "Payment Frequency", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.select :payment_frequency, [["Weekly (cada 7 dias)", "weekly"], ["Quincenal (cada 15 dias)", "quincenal"], ["Biweekly / Catorcenal (cada 14 dias)", "biweekly"], ["Monthly", "monthly"]], { include_blank: true }, { class: "border rounded px-3 py-2 w-full", data: { income_event_form_target: "paymentFrequencyField", action: "change->income-event-form#onSharedTermsChanged" } } %>
+      </div>
+      <div>
+        <%= form.label :payment_amount, "Payment Amount", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.number_field :payment_amount, step: 0.01, class: "border rounded px-3 py-2 w-full", data: { income_event_form_target: "paymentAmountField", action: "input->income-event-form#onPaymentInput" } %>
+      </div>
+      <div>
+        <%= form.label :lender_name, "Lender Name", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.text_field :lender_name, class: "border rounded px-3 py-2 w-full" %>
+      </div>
+      <div>
+        <%= form.label :loan_liability_id, "Loan Origin Liability", class: "block text-sm font-medium text-foreground mb-1" %>
+        <%= form.collection_select :loan_liability_id, (@financial_liabilities || []), :id, :name, { include_blank: "Select liability account" }, { class: "border rounded px-3 py-2 w-full" } %>
+      </div>
+    </div>
+    <div class="mt-4">
+      <%= form.label :notes, class: "block text-sm font-medium text-foreground mb-1" %>
+      <%= form.text_area :notes, rows: 3, class: "border rounded px-3 py-2 w-full" %>
+    </div>
+    <p class="mt-2 text-xs text-muted-foreground">For loans, the expected date acts as the loan start date.</p>
+  </div>
+
+  <div class="mb-4">
+    <%= form.label :status, class: "block text-sm font-medium text-foreground mb-1" %>
+    <%= form.select :status, [['Pending', 'pending'], ['Received', 'received'], ['Applied', 'applied']], {}, { class: "border rounded px-3 py-2 w-full" } %>
+  </div>
+
+  <div class="mb-4">
+    <%= form.submit class: "px-4 py-2 bg-primary text-white rounded hover:bg-primary" %>
+    <%= link_to "Cancel", @income_event.persisted? ? @income_event : income_events_path, class: "px-4 py-2 bg-muted text-foreground rounded hover:bg-muted/80 ml-2" %>
+  </div>
+<% end %>

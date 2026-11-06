@@ -1,0 +1,79 @@
+<section class="space-y-6 p-6 sm:p-8">
+  <header class="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Income Events</h1>
+      <p class="mt-1 text-sm text-muted-foreground">Track expected income, planning status, and remaining balance with a calmer scan flow.</p>
+    </div>
+    <%= render Ui::ButtonComponent.new(
+      href: @budget_period ? new_budget_period_income_event_path(@budget_period) : new_income_event_path,
+      label: "New Income Event",
+      variant: :default,
+      css_class: "h-10"
+    ) %>
+  </header>
+
+  <% if @budget_period %>
+    <section class="rounded-xl border border-border bg-secondary/45 p-4">
+      <p class="text-sm font-medium text-foreground">Budget Period: <span class="font-semibold"><%= @budget_period.name %></span></p>
+    </section>
+  <% end %>
+
+  <% if @income_events.any? && @available_months.any? %>
+    <section class="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <label for="month-selector" class="text-sm font-medium text-foreground">Filter by month</label>
+        <%= form_with url: @budget_period ? budget_period_income_events_path(@budget_period) : income_events_path, method: :get, local: true do |f| %>
+          <%= f.select :month,
+              options_for_select(
+                [["All Months", ""]] + @available_months.map { |m| [m.strftime("%B %Y"), m.strftime("%Y-%m-%d")] },
+                @selected_month ? @selected_month.strftime("%Y-%m-%d") : ""
+              ),
+              { include_blank: false },
+              {
+                id: "month-selector",
+                class: "rounded-md border-input bg-card px-3 py-2 text-sm shadow-sm focus:border-primary focus:ring-primary",
+                onchange: "this.form.submit()"
+              } %>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+
+  <% if @income_events.any? %>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <article class="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total Expected</p>
+        <p class="mt-2 text-2xl font-bold text-foreground"><%= number_to_currency(@income_events.sum { |ie| ie.expected_amount }) %></p>
+      </article>
+      <article class="rounded-xl border border-warning-soft bg-card p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pending Events</p>
+        <p class="mt-2 text-2xl font-bold text-warning"><%= @income_events.count { |ie| ie.status == 'pending' } %></p>
+      </article>
+      <article class="rounded-xl border border-success-soft bg-card p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Received / Applied</p>
+        <p class="mt-2 text-2xl font-bold text-success"><%= @income_events.count { |ie| ie.status == 'received' || ie.status == 'applied' } %></p>
+      </article>
+    </section>
+
+    <% @grouped_events.each do |month_date, month_events| %>
+      <%= render partial: "month_header", locals: { month_date: month_date, events: month_events } %>
+      <section class="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <% month_events.each do |income_event| %>
+          <%= render partial: "income_event_card", locals: { income_event: income_event } %>
+        <% end %>
+      </section>
+    <% end %>
+  <% else %>
+    <section class="rounded-xl border-2 border-dashed border-input bg-card py-12 text-center">
+      <h2 class="text-base font-semibold text-foreground">No income events</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Create your first income event to start planning.</p>
+      <div class="mt-5">
+        <%= render Ui::ButtonComponent.new(
+          href: @budget_period ? new_budget_period_income_event_path(@budget_period) : new_income_event_path,
+          label: "New Income Event",
+          variant: :default
+        ) %>
+      </div>
+    </section>
+  <% end %>
+</section>

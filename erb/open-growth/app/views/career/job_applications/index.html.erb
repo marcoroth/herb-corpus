@@ -1,0 +1,55 @@
+<div class="container mx-auto px-4 py-8">
+  <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-foreground">Career applications</h1>
+      <p class="text-sm text-muted-foreground">Track opportunities, interviews, and next actions.</p>
+    </div>
+    <div class="flex gap-2">
+      <%= link_to "Profile", career_profile_path, class: "inline-flex items-center justify-center rounded-md border border-input px-4 py-2" %>
+      <%= link_to "New application", new_career_job_application_path, class: "inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground" %>
+    </div>
+  </div>
+
+  <%= form_with url: career_job_applications_path, method: :get, local: true, class: "mb-6 rounded-lg border border-border bg-card p-4" do %>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-5">
+      <%= select_tag :status, options_for_select([["All statuses", ""]] + Career::JobApplication::STATUSES.map { |s| [s.humanize, s] }, params[:status]), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= select_tag :priority, options_for_select([["All priorities", ""]] + Career::JobApplication.priorities.keys.map { |p| [p.humanize, p] }, params[:priority]), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= select_tag :source, options_for_select([["All sources", ""]] + @sources, params[:source]), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <%= select_tag :remote_type, options_for_select([["All remote types", ""]] + @remote_types, params[:remote_type]), class: "rounded-md border border-input bg-background px-3 py-2 text-foreground" %>
+      <label class="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-foreground">
+        <%= check_box_tag :needs_action, "1", params[:needs_action].present? %>
+        Needs action
+      </label>
+    </div>
+    <div class="mt-4 flex gap-2">
+      <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground">Filter</button>
+      <%= link_to "Reset", career_job_applications_path, class: "inline-flex items-center justify-center rounded-md border border-input px-4 py-2" %>
+    </div>
+  <% end %>
+
+  <div class="space-y-3">
+    <% @job_applications.each do |application| %>
+      <%= link_to career_job_application_path(application), class: "block rounded-lg border border-border bg-card p-4 hover:border-primary/40" do %>
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-sm text-muted-foreground"><%= application.company.name %></p>
+            <h2 class="text-lg font-semibold text-foreground"><%= application.role_title %></h2>
+            <p class="text-sm text-muted-foreground">
+              Status: <%= application.status.humanize %>
+              <% if application.applied_on.present? %>
+                • Applied on <%= application.applied_on.strftime("%Y-%m-%d") %>
+              <% end %>
+            </p>
+          </div>
+          <div class="text-sm text-muted-foreground">
+            Next action: <%= application.tasks.pending.order(:due_date).first&.title || "No pending tasks" %>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+
+    <% if @job_applications.empty? %>
+      <div class="rounded-lg border border-dashed border-input p-6 text-sm text-muted-foreground">No job applications found for these filters.</div>
+    <% end %>
+  </div>
+</div>

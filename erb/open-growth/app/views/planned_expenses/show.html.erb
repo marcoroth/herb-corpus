@@ -1,0 +1,140 @@
+<p style="color: green"><%= notice %></p>
+
+  <div class="mb-6">
+  <%= link_to income_event_planned_expenses_path(@income_event), class: "inline-flex items-center text-accent hover:text-accent-dark transition-colors mb-4" do %>
+    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+    </svg>
+    Back to Planned Expenses
+  <% end %>
+</div>
+
+<div class="bg-card rounded-xl shadow-md border border-border p-6 mb-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-foreground">Planned Expense Details</h1>
+    <span class="px-3 py-1 rounded-full text-xs font-medium <%= 
+      case @planned_expense.status
+      when 'pending_to_pay', 'saved', 'transfer_to_savings' then 'bg-warning-soft text-warning border border-warning-soft'
+      when 'transferring' then 'bg-muted text-foreground border border-border'
+      when 'paid', 'transferred', 'spent' then 'bg-success-soft text-success border border-success-soft'
+      else 'bg-muted text-foreground border border-border'
+      end
+    %>">
+      <%= t("activerecord.attributes.planned_expense.status_options.#{@planned_expense.status}") %>
+    </span>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div>
+      <p class="text-sm font-medium text-muted-foreground mb-1">Amount</p>
+      <p class="text-2xl font-bold text-foreground"><%= number_to_currency(@planned_expense.amount) %></p>
+      <p class="text-xs text-muted-foreground mt-1"><%= @planned_expense.percentage_of_income.round(1) %>% of income</p>
+    </div>
+    <div>
+      <p class="text-sm font-medium text-muted-foreground mb-1">Category</p>
+      <p class="text-lg font-semibold text-foreground"><%= @planned_expense.classification_label %></p>
+    </div>
+    <div class="md:col-span-2">
+      <p class="text-sm font-medium text-muted-foreground mb-1">Description</p>
+      <p class="text-lg text-foreground"><%= @planned_expense.description %></p>
+    </div>
+    <% if @planned_expense.notes.present? %>
+      <div class="md:col-span-2">
+        <p class="text-sm font-medium text-muted-foreground mb-1">Notes</p>
+        <p class="text-foreground bg-muted/35 p-3 rounded-lg"><%= @planned_expense.notes %></p>
+      </div>
+    <% end %>
+    <% if @planned_expense.routing_summary.present? %>
+      <div class="md:col-span-2">
+        <p class="text-sm font-medium text-muted-foreground mb-1">Routing</p>
+        <div class="rounded-lg border border-border bg-muted/40 p-3 shadow-sm">
+          <p class="text-sm font-medium text-foreground leading-6"><%= @planned_expense.routing_summary %></p>
+        </div>
+      </div>
+    <% end %>
+    <% if @planned_expense.financial_entry.present? %>
+      <div class="md:col-span-2">
+        <p class="text-sm font-medium text-muted-foreground mb-1">Transaction</p>
+        <%= link_to "View Transaction", finance_entry_path(@planned_expense.financial_entry), class: "inline-flex items-center justify-center rounded-md border border-input px-3 py-2 text-sm hover:bg-muted/35" %>
+      </div>
+    <% elsif @planned_expense.transaction_missing? %>
+      <div class="md:col-span-2">
+        <p class="text-sm font-medium text-muted-foreground mb-1">Transaction</p>
+        <%= button_to "Create Transaction", create_transaction_income_event_planned_expense_path(@income_event, @planned_expense), method: :post, class: "inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground" %>
+      </div>
+    <% end %>
+    <% if @planned_expense.expense_template %>
+      <div class="md:col-span-2">
+        <p class="text-sm font-medium text-muted-foreground mb-1">Template</p>
+        <% progress = @planned_expense.template_progress %>
+        <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+          <%= link_to @planned_expense.expense_template, class: "text-indigo-700 hover:text-indigo-900 font-medium flex items-center gap-2 mb-2" do %>
+            <% if progress && progress[:complete] %>
+              <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            <% end %>
+            <%= @planned_expense.expense_template.name %>
+          <% end %>
+          <% if progress %>
+            <div class="w-full bg-indigo-200 rounded-full h-2 mb-2">
+              <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: <%= [progress[:percentage], 100].min %>%"></div>
+            </div>
+            <p class="text-xs text-indigo-600">
+              <%= number_to_currency(progress[:saved]) %> of <%= number_to_currency(progress[:total]) %> saved (<%= progress[:percentage].round(1) %>%)
+            </p>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+    <div class="pt-6 border-t border-border flex items-center gap-3 flex-wrap">
+    <%= render Ui::ButtonComponent.new(href: edit_income_event_planned_expense_path(@income_event, @planned_expense), label: "Edit", variant: "outline") %>
+    <button onclick="document.getElementById('move-modal').classList.remove('hidden')" class="btn btn-secondary">
+      Move to...
+    </button>
+    <% if @planned_expense.transaction_missing? %>
+      <%= button_to "Create Transaction", create_transaction_income_event_planned_expense_path(@income_event, @planned_expense), method: :post, class: "inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-primary-foreground" %>
+    <% elsif @planned_expense.expense.nil? && @planned_expense.financial_entry.nil? %>
+      <%= render Ui::ButtonComponent.new(
+        href: apply_income_event_planned_expense_path(@income_event, @planned_expense),
+        label: "Apply",
+        variant: "default",
+        data: {
+          turbo_method: :patch,
+          turbo_confirm: "Apply this planned expense now? This will create an expense record for #{number_to_currency(@planned_expense.amount)}."
+        }
+      ) %>
+    <% end %>
+    <%= render Ui::ButtonComponent.new(
+      href: [@income_event, @planned_expense],
+      label: "Delete",
+      variant: "destructive",
+      method: :delete,
+      data: {
+        turbo_confirm: "Delete this planned expense? This action cannot be undone."
+      }
+    ) %>
+  </div>
+</div>
+
+<div class="bg-muted/35 rounded-xl p-4 border border-border">
+  <p class="text-sm text-muted-foreground mb-2">Income Event</p>
+  <%= link_to @income_event.description, @income_event, class: "text-accent hover:text-foreground font-medium" %>
+</div>
+
+<!-- Move Modal -->
+<div id="move-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target === this) this.classList.add('hidden')">
+  <div class="bg-card rounded-xl shadow-xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-foreground">Move Planned Expense</h2>
+      <button onclick="document.getElementById('move-modal').classList.add('hidden')" class="text-gray-400 hover:text-muted-foreground">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+    <%= render "move_form" %>
+  </div>
+</div>

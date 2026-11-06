@@ -1,0 +1,110 @@
+<section aria-labelledby="funding-sources-title" class="space-y-4">
+  <div>
+    <h2 id="funding-sources-title" class="text-xl font-semibold">
+      Funding sources
+    </h2>
+
+    <p class="text-sm text-muted-foreground">
+      Expected values stay on the source; actual amount and date come from its
+      entry.
+    </p>
+  </div>
+
+  <div class="space-y-3">
+    <% funding_sources.each do |source| %>
+      <% source_path = source.financial_loan ? finance_loan_path(source.financial_loan) : (finance_entry_path(source.receipt_entry) if source.receipt_entry) %>
+      <article class="rounded-xl border border-border bg-card p-4">
+        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="font-semibold">
+                <%= source_path ? link_to(source.description, source_path, class: "hover:text-primary hover:underline") : source.description %>
+              </h3>
+              <%= render Ui::BadgeComponent.new(label: source.kind.humanize, variant: :outline) %>
+              <%= render Ui::BadgeComponent.new(label: source.resolution.humanize, variant: source.receipt_entry ? :secondary : :outline) %>
+
+              <% destination = source.expected_destination_asset || source.expected_destination_liability %>
+              <%= render Ui::BadgeComponent.new(label: "Destination: #{destination.name}", variant: :outline) if destination %>
+            </div>
+
+            <p class="mt-2 text-sm text-muted-foreground">
+              Expected <%= number_to_currency(source.expected_amount) %> on
+              <%= l(source.expected_date) %>
+              <% if source.receipt_entry %>
+                · Actual <%= number_to_currency(source.actual_amount) %> on
+                <%= l(source.actual_date) %>
+              <% end %>
+            </p>
+          </div>
+
+          <% if !plan.lifecycle_status.in?(%w[closed cancelled]) && (other_plans.any? || (source.receipt_entry.nil? && source.kind != "borrowed")) %>
+            <div class="space-y-2">
+              <% if other_plans.any? %>
+                <details class="group relative w-fit text-sm">
+                  <summary class="cursor-pointer list-none text-muted-foreground hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    Move
+                  </summary>
+                  <div class="absolute right-0 z-20 mt-2 w-72 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md">
+                    <p class="mb-2 text-xs font-medium">Move to another plan</p>
+                    <%= form_with url: finance_plan_funding_source_plan_assignment_path(plan, source), method: :patch, class: "space-y-2" do %>
+                      <%= render Ui::SelectComponent.new(name: "target_plan_id", options: other_plans.map { |candidate| [ candidate.name, candidate.id ] }, include_blank: "Select plan", required: true) %>
+                      <%= render Ui::ButtonComponent.new(label: "Move funding source", type: "submit", variant: :outline, size: :sm, css_class: "w-full") %>
+                    <% end %>
+                  </div>
+                </details>
+              <% end %>
+
+              <% if source.receipt_entry.nil? && source.kind != "borrowed" %>
+                <%= form_with url: receive_finance_plan_funding_source_path(plan, source), method: :post, class: "flex flex-wrap items-end gap-2" do %>
+                  <label class="w-28 space-y-1 text-xs text-muted-foreground">Actual amount<%= render Ui::InputComponent.new(name: "funding_source[amount]", value: source.expected_amount, type: "number", min: 0.01, step: 0.01, required: true) %></label>
+                  <label class="space-y-1 text-xs text-muted-foreground">Actual date<%= render Ui::InputComponent.new(name: "funding_source[entry_date]", value: source.expected_date, type: "date", required: true) %></label>
+
+                  <%= render Ui::ButtonComponent.new(label: "Receive", type: "submit", size: :sm) %>
+                <% end %>
+
+                <details class="text-sm">
+                  <summary class="cursor-pointer text-primary">
+                    Edit expectation
+                  </summary>
+
+                  <%= form_with url: finance_plan_funding_source_path(plan, source), method: :patch, class: "mt-2 grid gap-2 sm:grid-cols-2" do %>
+                    <%= render Ui::InputComponent.new(name: "funding_source[description]", value: source.description, required: true) %>
+                    <%= render Ui::InputComponent.new(name: "funding_source[expected_amount]", value: source.expected_amount, type: "number", min: 0.01, step: 0.01, required: true) %>
+                    <%= render Ui::InputComponent.new(name: "funding_source[expected_date]", value: source.expected_date, type: "date", required: true) %>
+                    <%= render Ui::SelectComponent.new(name: "funding_source[kind]", options: Financial::FundingSource::KINDS.reject { |kind| kind == "borrowed" }.map { |kind| [ kind.humanize, kind ] }, selected: source.kind, required: true) %>
+                    <%= render Ui::SelectComponent.new(name: "funding_source[expected_destination_asset_id]", options: assets.map { |asset| [ asset.name, asset.id ] }, selected: source.expected_destination_asset_id, include_blank: "No asset") %>
+                    <%= render Ui::SelectComponent.new(name: "funding_source[expected_destination_liability_id]", options: liabilities.map { |liability| [ liability.name, liability.id ] }, selected: source.expected_destination_liability_id, include_blank: "No liability") %>
+
+                    <div class="flex gap-2 sm:col-span-2">
+                      <%= render Ui::ButtonComponent.new(label: "Save source", type: "submit", size: :sm) %>
+                      <%= render Ui::ButtonComponent.new(href: finance_plan_funding_source_path(plan, source), label: "Delete", variant: :destructive, method: :delete, size: :sm, data: { turbo_confirm: "Delete this expected funding source?" }) %>
+                    </div>
+                  <% end %>
+                </details>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </article>
+    <% end %>
+  </div>
+
+  <% unless plan.lifecycle_status.in?(%w[closed cancelled]) %>
+    <details class="rounded-xl border border-border bg-card p-4">
+      <summary class="cursor-pointer font-semibold">Add funding source</summary>
+
+      <%= form_with url: finance_plan_funding_sources_path(plan), method: :post, class: "mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3" do %>
+        <label class="space-y-1 text-sm">Description<%= render Ui::InputComponent.new(name: "funding_source[description]", required: true) %></label>
+        <label class="space-y-1 text-sm">Amount<%= render Ui::InputComponent.new(name: "funding_source[expected_amount]", type: "number", min: 0.01, step: 0.01, required: true) %></label>
+        <label class="space-y-1 text-sm">Expected date<%= render Ui::InputComponent.new(name: "funding_source[expected_date]", value: plan.planned_for, type: "date", required: true) %></label>
+        <label class="space-y-1 text-sm">Kind<%= render Ui::SelectComponent.new(name: "funding_source[kind]", options: Financial::FundingSource::KINDS.reject { |kind| kind == "borrowed" }.map { |kind| [ kind.humanize, kind ] }, selected: "income", required: true) %></label>
+        <label class="space-y-1 text-sm">Asset destination<%= render Ui::SelectComponent.new(name: "funding_source[expected_destination_asset_id]", options: assets.map { |asset| [ asset.name, asset.id ] }, include_blank: "None") %></label>
+        <label class="space-y-1 text-sm">Or liability destination<%= render Ui::SelectComponent.new(name: "funding_source[expected_destination_liability_id]", options: liabilities.map { |liability| [ liability.name, liability.id ] }, include_blank: "None") %></label>
+
+        <div class="md:col-span-2 lg:col-span-3">
+          <%= render Ui::ButtonComponent.new(label: "Add source", type: "submit", size: :sm) %>
+        </div>
+      <% end %>
+    </details>
+  <% end %>
+</section>

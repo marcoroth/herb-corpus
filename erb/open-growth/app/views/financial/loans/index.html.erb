@@ -1,0 +1,64 @@
+<section class="space-y-6 p-6 sm:p-8">
+  <header class="flex flex-wrap items-center justify-between gap-4">
+    <div><h1 class="text-3xl font-bold">Loans</h1><p class="mt-1 text-muted-foreground">Simulate obligations separately from actual debt transactions.</p></div>
+    <%= render Ui::ButtonComponent.new(href: new_finance_loan_path, label: "New simulation") %>
+  </header>
+
+  <div class="flex flex-col gap-4 border-b border-border sm:flex-row sm:items-end sm:justify-between">
+    <nav aria-label="Loan status" class="flex overflow-x-auto">
+      <% [["All", nil], ["Simulations", "simulated"], ["Pending", "active"], ["Paid", "paid"], ["Cancelled", "cancelled"]].each do |label, status| %>
+        <% current = @status == status %>
+        <%= link_to label, finance_loans_path(status: status, sort: @sort),
+          class: "whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium #{current ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}",
+          aria: { current: ("page" if current) } %>
+      <% end %>
+    </nav>
+
+    <%= form_with url: finance_loans_path, method: :get, class: "pb-3", data: { controller: "autosubmit" } do %>
+      <%= hidden_field_tag :status, @status if @status %>
+      <label class="flex items-center gap-2 text-sm font-medium">
+        Sort by
+        <%= render Ui::SelectComponent.new(
+          name: "sort",
+          options: [["Newest", "newest"], ["Oldest", "oldest"], ["Amount: high to low", "amount_desc"], ["Amount: low to high", "amount_asc"], ["Name", "name"]],
+          selected: @sort,
+          css_class: "w-48",
+          data: { action: "change->autosubmit#submit" }
+        ) %>
+      </label>
+    <% end %>
+  </div>
+
+  <% if @loans.any? %>
+    <div class="grid gap-4 lg:grid-cols-2">
+      <% @loans.each do |loan| %>
+        <% total_payments = loan.installments_count.to_i %>
+        <% paid_payments = loan.paid_installments_count.to_i %>
+        <% display_status = total_payments.positive? && paid_payments == total_payments ? "paid" : loan.lifecycle_status %>
+        <article class="rounded-xl border border-border bg-card p-5 shadow-sm" data-loan-id="<%= loan.id %>">
+          <div class="flex items-start justify-between gap-3"><%= link_to loan.name, finance_loan_path(loan), class: "text-lg font-semibold hover:text-primary" %><%= render Ui::BadgeComponent.new(label: display_status.humanize, variant: :outline) %></div>
+        <p class="mt-3 text-2xl font-bold"><%= number_to_currency(loan.principal_amount) %></p>
+        <p class="mt-1 text-sm text-muted-foreground"><%= loan.number_of_payments || "No" %> payments · <%= loan.liability&.name || "No real liability yet" %></p>
+        <div class="mt-4">
+          <% if total_payments.positive? %>
+            <% payment_progress = (paid_payments * 100.0 / total_payments).round %>
+            <div class="mb-1 flex justify-between text-xs text-muted-foreground">
+              <span><%= paid_payments %> of <%= total_payments %> payments made</span>
+              <span><%= payment_progress %>%</span>
+            </div>
+            <div class="h-2 w-full overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Payment progress for <%= loan.name %>" aria-valuenow="<%= paid_payments %>" aria-valuemin="0" aria-valuemax="<%= total_payments %>">
+              <div class="h-full rounded-full bg-primary transition-all duration-300" style="width: <%= payment_progress %>%"></div>
+            </div>
+          <% else %>
+            <p class="text-xs text-muted-foreground">No payment schedule</p>
+          <% end %>
+        </div>
+        </article>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-xl border-2 border-dashed border-border p-10 text-center text-muted-foreground">
+      <%= @status ? "No #{@status == 'active' ? 'pending' : @status} loans found." : "No loans found." %>
+    </div>
+  <% end %>
+</section>

@@ -1,0 +1,168 @@
+<p style="color: green"><%= notice %></p>
+
+<div class="mb-6">
+  <%= link_to expense_templates_path, class: "inline-flex items-center text-accent hover:text-accent-dark transition-colors mb-4" do %>
+    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+    </svg>
+    Back to Expense Templates
+  <% end %>
+</div>
+
+<!-- Hero Section -->
+<div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-xl p-8 mb-8 text-white">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-bold mb-2"><%= @expense_template.name %></h1>
+      <div class="flex items-center gap-4 text-indigo-100">
+        <span class="flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+          </svg>
+          <%= @expense_template.category.name %>
+        </span>
+        <span class="flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <%= t("expense_templates.form.#{@expense_template.frequency}", default: @expense_template.frequency.humanize) %>
+        </span>
+      </div>
+    </div>
+    <% if @expense_template.is_complete? %>
+      <span class="px-4 py-2 rounded-full text-sm font-medium bg-primary/20 backdrop-blur-sm border border-green-300/30 text-green-100 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        Complete
+      </span>
+    <% else %>
+      <span class="px-4 py-2 rounded-full text-sm font-medium bg-yellow-500/20 backdrop-blur-sm border border-yellow-300/30 text-yellow-100">
+        In Progress
+      </span>
+    <% end %>
+  </div>
+
+  <!-- Large Progress Bar -->
+  <div class="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold">Progress Toward Goal</h3>
+      <span class="text-2xl font-bold"><%= @expense_template.progress_percentage.round(1) %>%</span>
+    </div>
+    <div class="w-full bg-card/20 rounded-full h-6 mb-4 relative overflow-hidden">
+      <div class="bg-gradient-to-r from-green-400 to-green-500 h-6 rounded-full transition-all duration-500 flex items-center justify-end pr-2" style="width: <%= [@expense_template.progress_percentage, 100].min %>%">
+        <% if @expense_template.is_complete? %>
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+        <% end %>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <p class="text-indigo-100 text-sm mb-1">Total Goal</p>
+        <p class="text-xl font-bold"><%= number_to_currency(@expense_template.total_amount) %></p>
+      </div>
+      <div>
+        <p class="text-indigo-100 text-sm mb-1">Saved</p>
+        <p class="text-xl font-bold text-success"><%= number_to_currency(@expense_template.total_saved) %></p>
+      </div>
+      <div>
+        <p class="text-indigo-100 text-sm mb-1">Remaining</p>
+        <p class="text-xl font-bold <%= @expense_template.remaining_amount > 0 ? 'text-yellow-200' : 'text-success' %>">
+          <%= number_to_currency(@expense_template.remaining_amount) %>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Details Section -->
+<div class="bg-card rounded-xl shadow-md border border-border p-6 mb-8">
+  <h2 class="text-xl font-bold text-foreground mb-4">Template Details</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <% if @expense_template.description.present? %>
+      <div>
+        <p class="text-sm font-medium text-muted-foreground mb-1">Description</p>
+        <p class="text-foreground"><%= @expense_template.description %></p>
+      </div>
+    <% end %>
+    <% if @expense_template.notes.present? %>
+      <div>
+        <p class="text-sm font-medium text-muted-foreground mb-1">Notes</p>
+        <p class="text-foreground"><%= @expense_template.notes %></p>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="mb-8">
+  <%= render Ui::ButtonComponent.new(href: edit_expense_template_path(@expense_template), label: "Edit Template", variant: "outline", size: "lg") %>
+</div>
+
+<!-- Planned Expenses Timeline -->
+<div class="mb-6">
+  <h2 class="text-2xl font-bold text-foreground mb-4">Planned Expenses Timeline</h2>
+
+  <% if @planned_expenses.any? %>
+    <div class="space-y-4">
+      <% @planned_expenses.each do |planned_expense| %>
+        <div class="bg-card rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-border p-5">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-semibold">
+                  <%= number_to_currency(planned_expense.amount) %>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground">
+                    <%= link_to planned_expense.income_event.description, planned_expense.income_event, class: "hover:text-indigo-600 transition-colors" %>
+                  </h3>
+                  <p class="text-sm text-muted-foreground"><%= planned_expense.created_at.strftime("%B %d, %Y") %></p>
+                </div>
+              </div>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-medium <%= 
+              case planned_expense.status
+              when 'pending_to_pay', 'saved', 'transfer_to_savings' then 'bg-warning-soft text-warning border border-warning-soft'
+              when 'transferring' then 'bg-muted text-foreground border border-border'
+              when 'paid', 'transferred', 'spent' then 'bg-success-soft text-success border border-success-soft'
+              else 'bg-muted text-foreground border border-border'
+              end
+            %>">
+              <%= t("activerecord.attributes.planned_expense.status_options.#{planned_expense.status}") %>
+            </span>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-muted/35 rounded-lg p-4 border border-border">
+        <p class="text-sm font-medium text-accent mb-1">Total Contributions</p>
+        <p class="text-2xl font-bold text-foreground"><%= @planned_expenses.count %></p>
+      </div>
+      <div class="bg-green-50 rounded-lg p-4 border border-success-soft">
+        <p class="text-sm font-medium text-success mb-1">Total Amount Saved</p>
+        <p class="text-2xl font-bold text-green-900"><%= number_to_currency(@expense_template.total_saved) %></p>
+      </div>
+      <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+        <p class="text-sm font-medium text-indigo-600 mb-1">Average per Contribution</p>
+        <p class="text-2xl font-bold text-indigo-900">
+          <%= @planned_expenses.any? ? number_to_currency(@expense_template.total_saved / @planned_expenses.count) : number_to_currency(0) %>
+        </p>
+      </div>
+    </div>
+  <% else %>
+    <!-- Empty State -->
+    <div class="text-center py-12 bg-card rounded-xl border-2 border-dashed border-input">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-foreground">No planned expenses yet</h3>
+      <p class="mt-1 text-sm text-muted-foreground">Start using this template in your planned expenses to track progress.</p>
+    </div>
+  <% end %>
+</div>

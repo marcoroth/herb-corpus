@@ -1,0 +1,120 @@
+<div class="container mx-auto space-y-8 px-4 py-6">
+  <div>
+    <h1 class="text-2xl font-bold text-foreground">AI operations</h1>
+    <p class="mt-1 text-sm text-muted-foreground">Control report analysis access and review usage metadata. Conversation contents are never shown here.</p>
+  </div>
+
+  <section class="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <h2 class="text-lg font-semibold">System controls</h2>
+    <%= form_with model: @configuration, url: admin_ai_configuration_path, method: :patch, class: "mt-4 grid gap-4 md:grid-cols-3 md:items-end" do |form| %>
+      <label class="flex items-center gap-3 rounded-lg border border-border p-3">
+        <%= form.check_box :reports_enabled, class: "h-4 w-4 rounded border-input" %>
+        <span>
+          <span class="block text-sm font-medium">Enable AI reports globally</span>
+          <span class="block text-xs text-muted-foreground">Emergency kill switch for all accounts</span>
+        </span>
+      </label>
+      <div>
+        <%= form.label :default_monthly_request_limit, "Default requests per member", class: "mb-1.5 block text-sm font-medium" %>
+        <%= render Ui::InputComponent.new(name: "ai_configuration[default_monthly_request_limit]", type: "number", min: 1, value: @configuration.default_monthly_request_limit) %>
+      </div>
+      <div>
+        <%= form.label :maximum_monthly_request_limit, "Maximum assignable limit", class: "mb-1.5 block text-sm font-medium" %>
+        <%= render Ui::InputComponent.new(name: "ai_configuration[maximum_monthly_request_limit]", type: "number", min: 1, value: @configuration.maximum_monthly_request_limit) %>
+      </div>
+      <div>
+        <%= form.label :provider, "Provider", class: "mb-1.5 block text-sm font-medium" %>
+        <%= render Ui::SelectComponent.new(name: "ai_configuration[provider]", options: [["OpenAI", "openai"]], selected: @configuration.provider, required: true) %>
+      </div>
+      <div>
+        <%= form.label :model, "Model", class: "mb-1.5 block text-sm font-medium" %>
+        <%= render Ui::InputComponent.new(name: "ai_configuration[model]", value: @configuration.model, required: true, autocomplete: "off") %>
+      </div>
+      <div>
+        <%= form.label :openai_api_key, "OpenAI API key", class: "mb-1.5 block text-sm font-medium" %>
+        <%= render Ui::InputComponent.new(
+              name: "ai_configuration[openai_api_key]",
+              type: "password",
+              placeholder: @configuration.credentials_configured? ? "Configured — leave blank to keep" : "sk-…",
+              autocomplete: "new-password"
+            ) %>
+        <p class="mt-1 text-xs text-muted-foreground"><%= @configuration.credentials_configured? ? "A credential is configured." : "No credential is configured." %></p>
+      </div>
+      <div class="md:col-span-3">
+        <%= render Ui::ButtonComponent.new(label: "Save system controls", type: "submit") %>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <div class="border-b border-border px-5 py-4">
+      <h2 class="text-lg font-semibold">Accounts and current-month usage</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="ui-table">
+        <thead class="bg-muted/35">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Account</th>
+            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-muted-foreground">Access</th>
+            <th class="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Requests</th>
+            <th class="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Input tokens</th>
+            <th class="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Output tokens</th>
+            <th class="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Cached tokens</th>
+            <th class="px-4 py-3 text-right text-xs font-medium uppercase text-muted-foreground">Failures</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+          <% @accounts.each do |account| %>
+            <tr>
+              <td class="px-4 py-3 align-top">
+                <p class="font-medium"><%= account.name %></p>
+                <div class="mt-2 space-y-1 text-xs text-muted-foreground">
+                  <% account.account_memberships.each do |membership| %>
+                    <p><%= membership.user.name %>: <%= membership.ai_reports_requests_used %>/<%= membership.ai_reports_monthly_request_limit %></p>
+                  <% end %>
+                </div>
+              </td>
+              <td class="px-4 py-3 align-top">
+                <%= form_with url: admin_ai_account_access_path(account), method: :patch do %>
+                  <%= hidden_field_tag :enabled, !account.ai_reports_enabled? %>
+                  <%= render Ui::ButtonComponent.new(
+                        label: account.ai_reports_enabled? ? "Disable" : "Enable",
+                        type: "submit",
+                        variant: account.ai_reports_enabled? ? :outline : :default,
+                        size: :sm
+                      ) %>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-right tabular-nums"><%= @usage_by_account.fetch(account.id, 0) %></td>
+              <td class="px-4 py-3 text-right tabular-nums"><%= number_with_delimiter(@input_tokens_by_account.fetch(account.id, 0)) %></td>
+              <td class="px-4 py-3 text-right tabular-nums"><%= number_with_delimiter(@output_tokens_by_account.fetch(account.id, 0)) %></td>
+              <td class="px-4 py-3 text-right tabular-nums"><%= number_with_delimiter(@cached_tokens_by_account.fetch(account.id, 0)) %></td>
+              <td class="px-4 py-3 text-right tabular-nums"><%= @failures_by_account.fetch(account.id, 0) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <div class="border-b border-border px-5 py-4">
+      <h2 class="text-lg font-semibold">Recent provider failures</h2>
+      <p class="mt-1 text-xs text-muted-foreground">Operational metadata only; prompts, answers, and report data are excluded.</p>
+    </div>
+    <% if @recent_failures.any? %>
+      <div class="divide-y divide-border">
+        <% @recent_failures.each do |event| %>
+          <div class="grid gap-1 px-5 py-3 text-sm md:grid-cols-4">
+            <span class="font-medium"><%= event.account.name %></span>
+            <span><%= event.user.name %></span>
+            <span class="font-mono text-xs"><%= event.error_code %></span>
+            <time class="text-muted-foreground md:text-right"><%= l(event.created_at, format: :short) %></time>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="px-5 py-6 text-sm text-muted-foreground">No provider failures this month.</p>
+    <% end %>
+  </section>
+</div>

@@ -1,0 +1,32 @@
+<div class="space-y-6">
+  <div>
+    <h1 class="text-3xl font-bold"><%= @plan ? @plan.name : "Unassigned planned transactions" %></h1>
+    <p class="mt-1 text-muted-foreground">Expectations remain separate from actual financial entries.</p>
+  </div>
+
+  <% if @planned_transactions.empty? %>
+    <p class="rounded-xl border border-border bg-muted/20 p-6 text-muted-foreground">No planned transactions here.</p>
+  <% else %>
+    <div class="space-y-3">
+      <% @planned_transactions.each do |transaction| %>
+        <article class="rounded-xl border border-border p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="font-semibold"><%= transaction.description %></h2>
+              <p class="text-sm text-muted-foreground"><%= transaction.kind.humanize %> · <%= number_to_currency(transaction.amount) %> · <%= transaction.execution_status.humanize %></p>
+            </div>
+            <% if transaction.execution_status == "pending" %>
+              <%= render Financial::InstallmentPaymentFormComponent.new(transaction: transaction) %>
+              <% unless @plan %>
+                <%= form_with url: move_finance_planned_transaction_path(transaction), method: :patch, class: "mt-2 flex items-end gap-2" do %>
+                  <%= render Ui::SelectComponent.new(name: "target_plan_id", options: @plans.map { |plan| [ plan.name, plan.id ] }, include_blank: "Select plan", required: true) %>
+                  <%= render Ui::ButtonComponent.new(label: "Assign", type: "submit", variant: :outline, size: :sm) %>
+                <% end %>
+              <% end %>
+            <% end %>
+          </div>
+        </article>
+      <% end %>
+    </div>
+  <% end %>
+</div>

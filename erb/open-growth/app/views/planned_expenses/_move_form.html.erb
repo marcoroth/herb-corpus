@@ -1,0 +1,31 @@
+<% planned_expense = local_assigns[:planned_expense] || @planned_expense_for_move || @planned_expense %>
+<% reference_date = planned_expense&.due_date %>
+<% ranked_income_events = if reference_date.present?
+  same_month, others = @income_events.partition { |event| event.expected_date.year == reference_date.year && event.expected_date.month == reference_date.month }
+  on_or_before, after = same_month.partition { |event| event.expected_date <= reference_date }
+  on_or_before.sort_by(&:expected_date).reverse + after.sort_by(&:expected_date) + others.sort_by(&:expected_date).reverse
+else
+  @income_events
+end %>
+<%= form_with url: move_income_event_planned_expense_path(@income_event, planned_expense), method: :patch, local: true, class: "space-y-4" do |form| %>
+  <div>
+    <label class="block text-sm font-medium text-foreground mb-2">Move to Income Event</label>
+    <select name="target_income_event_id" required class="block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary">
+      <option value="">Select an income event...</option>
+      <% ranked_income_events.each do |income_event| %>
+        <% next if income_event.id == @income_event.id %>
+        <option value="<%= income_event.id %>">
+          <%= income_event.description %> - <%= number_to_currency(income_event.expected_amount) %> (Expected: <%= income_event.expected_date.strftime("%b %d, %Y") %>)
+        </option>
+      <% end %>
+    </select>
+    <p class="mt-1 text-xs text-muted-foreground">Select the income event to move this planned expense to</p>
+  </div>
+  
+  <div class="flex items-center justify-end gap-3 pt-4 border-t border-border">
+    <button type="button" onclick="this.closest('[id^=\"move-modal\"]').classList.add('hidden')" class="px-4 py-2 border border-input rounded-lg text-foreground hover:bg-muted/35 transition-colors">
+      Cancel
+    </button>
+    <%= form.submit "Move Expense", class: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors" %>
+  </div>
+<% end %>

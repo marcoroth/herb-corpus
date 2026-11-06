@@ -1,0 +1,357 @@
+<div class="mb-6">
+  <%= link_to income_events_path, class: "inline-flex items-center text-accent hover:text-foreground transition-colors" do %>
+    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+    </svg>
+    Back to Income Events
+  <% end %>
+</div>
+
+<!-- Hero Section -->
+<section aria-labelledby="income-event-title" class="mb-8 border-b border-border/70 pb-8 text-foreground">
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div class="min-w-0">
+      <h1 id="income-event-title" class="mb-2 text-3xl font-bold"><%= @income_event.description %></h1>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground">
+        <span class="flex items-center">
+          <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+          Expected: <%= @income_event.expected_date.strftime("%B %d, %Y") %>
+        </span>
+        <% if @income_event.budget_period %>
+          <span class="flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            <%= link_to @income_event.budget_period.name, @income_event.budget_period, class: "hover:underline" %>
+          </span>
+        <% end %>
+      </div>
+    </div>
+    <span class="shrink-0 px-4 py-2 rounded-full text-sm font-medium bg-muted/35 border border-border <%=
+      case @income_event.status
+      when 'pending' then 'bg-warning-soft text-warning border-warning-soft'
+      when 'received' then 'bg-muted text-foreground border-border'
+      when 'applied' then 'bg-success-soft text-success border-success-soft'
+      end
+    %>">
+      <%= t("income_events.form.#{@income_event.status}") %>
+    </span>
+  </div>
+
+  <!-- Key Metrics -->
+  <% prev_balance = @projection.opening_balance %>
+  <% prev_event = nil %>
+  <% has_previous = prev_balance != 0 || prev_event %>
+  <div id="income-event-metrics" class="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-xl bg-muted/20 md:grid-cols-2 md:divide-x md:divide-y-0 <%= has_previous ? 'lg:grid-cols-5' : 'lg:grid-cols-4' %>">
+    <div class="p-4 lg:p-5">
+      <p class="text-muted-foreground text-sm mb-2">Expected / Actual Funding</p>
+      <p class="text-3xl font-bold"><%= number_to_currency(@projection.expected_funding) %></p>
+      <p class="text-muted-foreground text-xs mt-2">Actual: <%= number_to_currency(@actuals.actual_funding) %></p>
+    </div>
+    <% if prev_balance != 0 || prev_event %>
+      <div class="p-4 lg:p-5 <%= prev_balance < 0 ? 'bg-danger-soft/35' : '' %>">
+        <div class="flex items-center gap-2 mb-2">
+          <p class="text-muted-foreground text-sm">Previous Balance</p>
+          <% if prev_balance < 0 %>
+            <svg class="w-4 h-4 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          <% end %>
+        </div>
+        <p class="text-3xl font-bold <%= prev_balance < 0 ? 'text-danger' : 'text-success' %>">
+          <%= number_to_currency(prev_balance) %>
+        </p>
+        <% if prev_event %>
+          <p class="text-muted-foreground text-xs mt-2">From: <%= prev_event.description %></p>
+        <% end %>
+      </div>
+    <% end %>
+    <div class="p-4 lg:p-5">
+      <p class="text-muted-foreground text-sm mb-2">Planned Consumption</p>
+      <p class="text-3xl font-bold"><%= number_to_currency(@projection.planned_consumption) %></p>
+      <p class="text-muted-foreground text-xs mt-2"><%= @planned_expenses.count %> planned transactions</p>
+    </div>
+    <div class="p-4 lg:p-5">
+      <p class="text-muted-foreground text-sm mb-2">Total Spent</p>
+      <p class="text-3xl font-bold"><%= number_to_currency(@actuals.actual_consumption) %></p>
+      <p class="text-muted-foreground text-xs mt-2">Entry-derived actuals</p>
+    </div>
+    <div class="p-4 lg:p-5">
+      <p class="text-muted-foreground text-sm mb-2">Projected / Actual Ending</p>
+      <p class="text-3xl font-bold <%= @projection.ending_balance < 0 ? 'text-danger' : 'text-success' %>">
+        <%= number_to_currency(@projection.ending_balance) %>
+      </p>
+      <p class="text-muted-foreground text-xs mt-2">Actual: <%= number_to_currency(@actuals.ending_balance) %></p>
+    </div>
+  </div>
+
+  <!-- Breakdown Section -->
+  <% if prev_balance != 0 || prev_event %>
+    <div class="mt-5 border-l-2 border-primary/35 pl-4">
+      <p class="text-muted-foreground text-sm">
+        <strong>Calculation:</strong>
+        <%= number_to_currency(@projection.expected_funding) %> (Expected funding)
+        <% if prev_balance < 0 %>
+          - <%= number_to_currency(prev_balance.abs) %> (Previous deficit)
+        <% elsif prev_balance > 0 %>
+          + <%= number_to_currency(prev_balance) %> (Previous surplus)
+        <% end %>
+        - <%= number_to_currency(@projection.planned_consumption) %> (Planned)
+        = <%= number_to_currency(@projection.ending_balance) %> (Projected ending)
+      </p>
+    </div>
+  <% end %>
+</section>
+
+<!-- Action Buttons -->
+<div class="flex flex-wrap gap-3 mb-8">
+  <%= render Ui::ButtonComponent.new(href: edit_income_event_path(@income_event), label: "Edit", variant: "outline", size: "lg") %>
+  <% if @income_event.loan? %>
+    <%= render Ui::ButtonComponent.new(
+      href: loan_summary_income_event_path(@income_event),
+      label: "Loan Summary",
+      variant: "default",
+      size: "lg"
+    ) %>
+  <% end %>
+  <% unless @income_event.is_received? %>
+    <%= render Ui::ButtonComponent.new(
+      href: receive_income_event_path(@income_event),
+      label: "Mark as Received",
+      variant: "default",
+      size: "lg"
+    ) %>
+  <% end %>
+  <% if @income_event.is_received? && !@income_event.is_applied? %>
+    <%= render Ui::ButtonComponent.new(
+      href: apply_all_income_event_path(@income_event),
+      label: "Apply All Expenses",
+      variant: "default",
+      method: :post,
+      size: "lg"
+    ) %>
+  <% end %>
+  <%= render Ui::ButtonComponent.new(
+    href: income_event_planned_expenses_path(@income_event),
+    label: "View Plan",
+    variant: "default",
+    size: "lg"
+  ) %>
+  <%= render Ui::ButtonComponent.new(
+    href: @income_event,
+    label: "Delete",
+    variant: "destructive",
+    method: :delete,
+    data: { turbo_confirm: "Are you sure? This will delete this income event and all associated planned expenses." },
+    size: "lg"
+  ) %>
+</div>
+
+<!-- Planned Transactions Section -->
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-2xl font-bold text-foreground">Planned Transactions</h2>
+    <%= render Ui::ButtonComponent.new(
+      href: new_income_event_planned_expense_path(@income_event),
+      label: "Plan Transaction",
+      variant: "default"
+    ) %>
+  </div>
+
+  <% if @planned_transactions.any? %>
+    <div class="space-y-8">
+      <% [
+        ["planned-expenses", "Planned Expenses", "Budget-consuming outflows", @planned_expenses, false],
+        ["planned-movements", "Planned Movements", "Transfers and card payments · budget-neutral", @planned_movements, true]
+      ].each do |section_id, title, subtitle, transactions, movement| %>
+        <section id="<%= section_id %>" aria-labelledby="<%= section_id %>-title">
+          <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h3 id="<%= section_id %>-title" class="text-lg font-semibold text-foreground"><%= title %> <span class="text-sm font-normal text-muted-foreground">(<%= transactions.size %>)</span></h3>
+              <p class="text-sm text-muted-foreground"><%= subtitle %></p>
+            </div>
+            <p class="text-sm text-muted-foreground">Total <span class="font-semibold text-foreground"><%= number_to_currency(transactions.sum(&:amount)) %></span></p>
+          </div>
+
+          <% if transactions.any? %>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <% transactions.each do |planned_expense| %>
+                <div class="rounded-lg border border-border bg-card p-5 shadow-md transition-shadow duration-200 hover:shadow-lg">
+                  <div class="mb-3 flex items-start justify-between gap-3">
+                    <div class="flex-1">
+                      <h4 class="mb-1 font-semibold text-foreground"><%= planned_expense.description %></h4>
+                      <p class="text-sm text-muted-foreground"><%= movement ? planned_expense.movement_label : planned_expense.classification_label %></p>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-medium <%=
+                      case planned_expense.status
+                      when 'pending_to_pay', 'saved', 'transfer_to_savings' then 'bg-warning-soft text-warning border border-warning-soft'
+                      when 'transferring' then 'bg-muted text-foreground border border-border'
+                      when 'paid', 'transferred', 'spent' then 'bg-success-soft text-success border border-success-soft'
+                      else 'bg-muted text-foreground border border-border'
+                      end
+                    %>">
+                      <%= t("activerecord.attributes.planned_expense.status_options.#{planned_expense.status}") %>
+                    </span>
+                  </div>
+
+                  <div class="mb-3">
+                    <p class="text-2xl font-bold text-foreground"><%= number_to_currency(planned_expense.amount) %></p>
+                    <% if movement %>
+                      <p class="mt-1 text-xs font-medium text-muted-foreground">Does not affect budget</p>
+                      <% if planned_expense.routing_summary.present? %>
+                        <p class="mt-2 text-xs text-muted-foreground"><%= planned_expense.routing_summary %></p>
+                      <% end %>
+                    <% else %>
+                      <p class="mt-1 text-xs text-muted-foreground"><%= planned_expense.percentage_of_income.round(1) %>% of income</p>
+                    <% end %>
+                  </div>
+
+                  <% if planned_expense.notes.present? %>
+                    <div class="mb-3 rounded bg-muted/35 p-2 text-xs text-muted-foreground">
+                      <%= truncate(planned_expense.notes, length: 50) %>
+                    </div>
+                  <% end %>
+
+                  <div class="border-t border-border pt-3">
+                    <%= link_to "View Details", [@income_event, planned_expense], class: "text-accent hover:text-foreground text-sm font-medium" %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="rounded-lg border border-dashed border-input bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+              No <%= title.downcase %> yet.
+            </div>
+          <% end %>
+        </section>
+      <% end %>
+    </div>
+  <% else %>
+    <!-- Empty State -->
+    <div class="text-center py-12 bg-card rounded-xl border-2 border-dashed border-input">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-foreground">No planned transactions</h3>
+      <p class="mt-1 text-sm text-muted-foreground">Start planning how to use this income.</p>
+      <div class="mt-6">
+        <%= render Ui::ButtonComponent.new(
+          href: new_income_event_planned_expense_path(@income_event),
+          label: "Plan Transaction",
+          variant: "default"
+        ) %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<!-- Pending Liability Payments Section -->
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-2xl font-bold text-foreground">Pending Liability Payments</h2>
+    <p class="text-sm text-muted-foreground">Apply payments from this income event to reduce debt balances.</p>
+  </div>
+
+  <% if @pending_liabilities.any? %>
+    <div class="space-y-4">
+      <% @pending_liabilities.each do |liability| %>
+        <div class="bg-card rounded-lg border border-border p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <h3 class="font-semibold text-foreground"><%= liability.name %></h3>
+              <p class="text-sm text-muted-foreground"><%= liability.liability_type.humanize %></p>
+            </div>
+            <div class="text-right">
+              <p class="text-xs text-muted-foreground">Current owed</p>
+              <p class="text-lg font-bold text-danger"><%= number_to_currency(liability.current_balance) %></p>
+            </div>
+          </div>
+
+          <%= form_with url: pay_liability_income_event_path(@income_event), method: :post, local: true, class: "grid grid-cols-1 md:grid-cols-5 gap-3" do %>
+            <%= hidden_field_tag "income_event_liability_payment[financial_liability_id]", liability.id %>
+
+            <div class="md:col-span-2">
+              <%= label_tag "income_event_liability_payment_financial_account_id_#{liability.id}", "Pay from account", class: "block text-xs font-medium text-muted-foreground mb-1" %>
+              <%= select_tag "income_event_liability_payment[financial_account_id]", options_from_collection_for_select(@active_financial_accounts, :id, :name), include_blank: "Select account", class: "border rounded px-3 py-2 w-full", required: true, id: "income_event_liability_payment_financial_account_id_#{liability.id}" %>
+            </div>
+
+            <div>
+              <%= label_tag "income_event_liability_payment_amount_#{liability.id}", "Amount", class: "block text-xs font-medium text-muted-foreground mb-1" %>
+              <%= number_field_tag "income_event_liability_payment[amount]", liability.current_balance, step: 0.01, min: 0.01, max: liability.current_balance, class: "border rounded px-3 py-2 w-full", required: true, id: "income_event_liability_payment_amount_#{liability.id}" %>
+            </div>
+
+            <div>
+              <%= label_tag "income_event_liability_payment_entry_date_#{liability.id}", "Date", class: "block text-xs font-medium text-muted-foreground mb-1" %>
+              <%= date_field_tag "income_event_liability_payment[entry_date]", Date.current, class: "border rounded px-3 py-2 w-full", required: true, id: "income_event_liability_payment_entry_date_#{liability.id}" %>
+            </div>
+
+            <div>
+              <%= label_tag "income_event_liability_payment_description_#{liability.id}", "Description", class: "block text-xs font-medium text-muted-foreground mb-1" %>
+              <%= text_field_tag "income_event_liability_payment[description]", "Payment to #{liability.name}", class: "border rounded px-3 py-2 w-full", id: "income_event_liability_payment_description_#{liability.id}" %>
+            </div>
+
+            <div class="md:col-span-5 flex justify-end">
+              <%= submit_tag "Apply payment", class: "px-4 py-2 bg-primary text-white rounded hover:bg-primary/90", data: { turbo_confirm: "Apply payment to #{liability.name}? Please verify source account and amount before continuing." } %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="text-center py-8 bg-card rounded-xl border-2 border-dashed border-input">
+      <p class="text-sm text-muted-foreground">No pending liabilities with outstanding balances.</p>
+    </div>
+  <% end %>
+</div>
+
+<!-- Direct Expenses Section -->
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-4 gap-3">
+    <div>
+      <h2 class="text-2xl font-bold text-foreground"><%= t("income_events.show.direct_expenses") %></h2>
+      <p class="text-sm text-muted-foreground"><%= t("income_events.show.direct_expenses_hint") %></p>
+    </div>
+    <%= render Ui::ButtonComponent.new(
+      href: income_event_new_direct_expense_path(@income_event),
+      label: t("income_events.show.quick_add_direct_expense"),
+      variant: "default"
+    ) %>
+  </div>
+
+  <% if @direct_expenses.any? %>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <% @direct_expenses.each do |expense| %>
+        <div class="bg-card rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-border p-5">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1">
+              <h3 class="font-semibold text-foreground mb-1"><%= expense.description %></h3>
+              <p class="text-sm text-muted-foreground"><%= expense.category&.name || t("expenses.index.unassigned") %></p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-success-soft text-success border border-success-soft">
+              Spent
+            </span>
+          </div>
+
+          <div class="mb-3">
+            <p class="text-2xl font-bold text-foreground"><%= number_to_currency(expense.amount) %></p>
+            <p class="text-xs text-muted-foreground mt-1"><%= expense.date.strftime("%b %d, %Y") %></p>
+          </div>
+
+          <div class="pt-3 border-t border-border">
+            <%= link_to "View Details", finance_entry_path(expense), class: "text-accent hover:text-foreground text-sm font-medium" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="text-center py-12 bg-card rounded-xl border-2 border-dashed border-input">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0 0V3m0 18v-5m9-4h-5M8 12H3"></path>
+      </svg>
+      <h3 class="mt-2 text-sm font-medium text-foreground"><%= t("income_events.show.no_direct_expenses") %></h3>
+      <p class="mt-1 text-sm text-muted-foreground"><%= t("income_events.show.no_direct_expenses_hint") %></p>
+    </div>
+  <% end %>
+</div>

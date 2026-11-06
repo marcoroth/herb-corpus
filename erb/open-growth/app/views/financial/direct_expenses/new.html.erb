@@ -1,0 +1,74 @@
+<div class="container mx-auto px-4 py-4">
+  <h1 class="text-2xl font-bold mb-2"><%= t("expenses.quick_new.title") %></h1>
+  <p class="text-sm text-muted-foreground mb-6"><%= t("expenses.quick_new.subtitle") %></p>
+
+  <%= form_with model: @financial_entry, url: income_event_direct_expenses_path(@income_event), local: true, class: "space-y-6" do |form| %>
+    <% if @financial_entry.errors.any? %>
+      <div class="bg-danger-soft border-l-4 border-red-500 text-danger p-4 rounded">
+        <h3 class="text-sm font-medium text-danger mb-2">
+          <%= pluralize(@financial_entry.errors.count, "error") %> prohibited this expense from being saved:
+        </h3>
+        <ul class="text-sm text-danger list-disc list-inside">
+          <% @financial_entry.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="bg-muted/35 border border-border rounded-lg p-4">
+      <p class="text-xs font-medium uppercase tracking-wide text-accent mb-1"><%= t("expenses.quick_new.income_event") %></p>
+      <p class="text-base font-semibold text-foreground"><%= @income_event.description %></p>
+      <p class="text-sm text-muted-foreground"><%= number_to_currency(@income_event.expected_amount) %> - <%= @income_event.expected_date.strftime("%d %b %Y") %></p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <%= form.label :amount, t("expenses.quick_new.amount"), class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.number_field :amount, step: 0.01, required: true, class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary", placeholder: "0.00" %>
+      </div>
+
+      <div>
+        <%= form.label :date, t("expenses.quick_new.date"), class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.date_field :date, required: true, value: (@financial_entry.entry_date || Date.current), class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" %>
+      </div>
+
+      <div>
+        <%= form.label :category_id, t("expenses.quick_new.category"), class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.collection_select :category_id, @categories, :id, :name, { prompt: t("expenses.quick_new.select_category") }, { required: true, class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+      </div>
+
+      <div>
+        <%= form.label :budget_period_id, t("expenses.quick_new.budget_period"), class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.collection_select :budget_period_id, @budget_periods, :id, :name, { prompt: t("expenses.quick_new.select_budget_period"), selected: @financial_entry.budget_period_id }, { required: true, class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+      </div>
+    </div>
+
+    <div>
+      <%= form.label :description, t("expenses.quick_new.description"), class: "block text-sm font-medium text-foreground mb-2" %>
+      <%= form.text_field :description, required: true, class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary", placeholder: t("expenses.quick_new.description_placeholder") %>
+    </div>
+
+    <% account_option_groups = {
+      "Asset Accounts" => (@financial_accounts || []).map { |asset| ["#{asset.name} (#{asset.account_type.humanize})", "asset:#{asset.id}"] },
+      "Liability Accounts" => (@financial_liabilities || []).map { |liability| ["#{liability.name} (#{liability.liability_type.humanize})", "liability:#{liability.id}"] }
+    } %>
+    <% source_options = grouped_options_for_select(account_option_groups, @financial_entry.source_selection) %>
+    <% destination_options = grouped_options_for_select(account_option_groups, @financial_entry.destination_selection) %>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <%= form.label :source_selection, "Source account", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.select :source_selection, source_options, { include_blank: "Select source account" }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+      </div>
+      <div>
+        <%= form.label :destination_selection, "Destination account", class: "block text-sm font-medium text-foreground mb-2" %>
+        <%= form.select :destination_selection, destination_options, { include_blank: "Leave blank for a normal expense" }, { class: "block w-full rounded-lg border-input shadow-sm focus:border-primary focus:ring-primary" } %>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-4 pt-2">
+      <%= link_to t("expenses.quick_new.cancel"), @income_event, class: "px-4 py-2 rounded-lg bg-muted text-foreground hover:bg-muted" %>
+      <%= form.submit t("expenses.quick_new.save"), class: "px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg shadow-md hover:shadow-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 font-medium" %>
+    </div>
+  <% end %>
+</div>

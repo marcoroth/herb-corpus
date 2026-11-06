@@ -1,0 +1,161 @@
+<section class="space-y-6 p-6 sm:p-8">
+  <div><%= link_to "← Back to loans", finance_loans_path, class: "text-sm text-primary hover:underline" %></div>
+
+  <header class="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-3xl font-bold"><%= @loan.name %></h1>
+        <%= render Ui::BadgeComponent.new(label: @loan.lifecycle_status.humanize, variant: :outline) %>
+      </div>
+      <p class="mt-2 text-muted-foreground"><%= @loan.lender_name.presence || "No lender specified" %></p>
+    </div>
+    <div class="flex gap-2">
+      <%= render Ui::ButtonComponent.new(href: edit_finance_loan_path(@loan), label: "Edit terms", variant: :outline) %>
+      <% if @loan.lifecycle_status == "active" && (@loan.entries.where(entry_type: "loan_disbursement").exists? || @loan.funding_sources.exists?) %>
+        <%= render Ui::ButtonComponent.new(href: disbursement_finance_loan_path(@loan), label: "Undo disbursement", variant: :destructive, method: :delete, data: { turbo_confirm: "Undo this disbursement? The actual loan transaction and borrowed funding source will be deleted. Installment payments must be undone first." }) %>
+      <% elsif @loan.entries.empty? && @loan.funding_sources.empty? %>
+        <%= render Ui::ButtonComponent.new(href: finance_loan_path(@loan), label: "Delete loan", variant: :destructive, method: :delete, data: { turbo_confirm: "Delete this loan and its unused schedule? Planned installments must be deleted first." }) %>
+      <% end %>
+    </div>
+  </header>
+
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Principal</p><p class="mt-2 text-xl font-bold"><%= number_to_currency(@loan.principal_amount) %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Actual debt</p><p class="mt-2 text-xl font-bold"><%= number_to_currency(@loan.actual_balance) %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4">
+      <p class="text-sm text-muted-foreground">Annual interest</p>
+      <div class="mt-2 flex items-center gap-2"><p class="text-xl font-bold"><%= @loan.interest_rate ? "#{@loan.interest_rate}%" : "—" %></p><% if @loan.interest_rate_estimated? %><%= render Ui::BadgeComponent.new(label: "Estimated", variant: :secondary) %><% end %></div>
+    </div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Projected repayment</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.projected_repayment) : "—" %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Projected interest</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.projected_interest) : "—" %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Remaining projected interest</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.remaining_projected_interest) : "—" %></p></div>
+  </div>
+
+  <% if @loan.lifecycle_status == "simulated" %>
+    <section class="rounded-xl border border-border bg-card p-5">
+      <h2 class="font-semibold">Activate and disburse</h2>
+      <p class="mt-1 text-sm text-muted-foreground">Activation creates one actual disbursement transaction. Configure one liability and one destination before activating.</p>
+      <%= form_with url: activate_finance_loan_path(@loan), method: :post, class: "mt-4 flex flex-wrap items-end gap-2" do %>
+        <label class="min-w-56 space-y-1 text-sm">Financial plan<%= render Ui::SelectComponent.new(name: "plan_id", options: @plans.map { |plan| [ plan.name, plan.id ] }, include_blank: "Select plan", required: true) %></label>
+        <%= render Ui::ButtonComponent.new(label: "Activate loan", type: "submit") %>
+      <% end %>
+    </section>
+  <% end %>
+
+  <section class="space-y-3">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 class="text-xl font-semibold">Expected installments</h2>
+        <p class="text-sm text-muted-foreground">Regeneration updates this schedule. Linked planned dates require a separate explicit choice; paid installments remain unchanged.</p>
+        <% if @loan.different_payment_amount.present? %>
+          <p class="mt-1 text-sm text-muted-foreground">Different payment: <%= number_to_currency(@loan.different_payment_amount) %> at the <%= @loan.different_payment_position %> position.</p>
+        <% end %>
+      </div>
+      <%= form_with url: finance_loan_schedule_path(@loan), method: :post, class: "flex items-end gap-2" do %>
+        <label class="space-y-1 text-sm">First payment date<%= render Ui::InputComponent.new(name: "first_payment_date", id: "first-payment-date", value: @first_payment_date, type: "date", required: true) %><span id="first-payment-date-help" class="block max-w-xs text-xs text-muted-foreground">The date the first repayment is due, not the date the loan money was received or disbursed.</span></label>
+        <% manual_installments = @installments.select(&:manual_due_date?) %>
+        <% if manual_installments.any? %>
+          <details class="max-w-xs text-xs">
+            <summary class="cursor-pointer text-primary">Reset manually edited dates</summary>
+            <div class="mt-2 space-y-1 rounded-lg border border-border p-2">
+              <p class="text-muted-foreground">Choose each manual date that may be replaced by the regenerated schedule.</p>
+              <% manual_installments.each do |manual_installment| %>
+                <label class="flex items-center gap-2"><%= check_box_tag "reset_manual_installment_ids[]", manual_installment.id %>Installment #<%= manual_installment.installment_number %> (<%= l(manual_installment.due_date) %>)</label>
+              <% end %>
+            </div>
+          </details>
+        <% end %>
+        <%= render Ui::ButtonComponent.new(label: @installments.any? ? "Regenerate schedule" : "Generate schedule", type: "submit", variant: :outline, size: :sm, disabled: @loan.repayment_basis.blank?, data: (@installments.any? ? { turbo_confirm: "Regenerate installments? Manual dates selected below will be reset; linked planned dates will not be changed automatically." } : {})) %>
+      <% end %>
+    </div>
+
+    <% if @loan.repayment_basis.blank? %>
+      <p class="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">Configure annual-rate or payment-amount terms before generating a schedule.</p>
+    <% elsif @loan.projected_interest.positive? && @loan.interest_category.blank? %>
+      <p class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm">Select an interest expense category before recording installment payments.</p>
+    <% end %>
+
+    <div class="overflow-x-auto rounded-xl border border-border bg-card">
+      <table class="w-full text-left text-sm">
+        <thead class="border-b border-border bg-muted/30"><tr><th class="p-3">#</th><th class="p-3">Due</th><th class="p-3">Expected</th><th class="p-3">Principal</th><th class="p-3">Interest</th><th class="p-3">Status</th><th class="p-3">Planning</th><th class="p-3">Due-date actions</th></tr></thead>
+        <tbody class="divide-y divide-border">
+          <% @installments.each do |installment| %>
+            <tr>
+              <td class="p-3"><%= installment.installment_number %></td>
+              <td class="p-3"><%= l(installment.due_date) %></td>
+              <td class="p-3"><%= number_to_currency(installment.expected_amount) %></td>
+              <td class="p-3"><%= number_to_currency(installment.expected_principal) %></td>
+              <td class="p-3"><%= number_to_currency(installment.expected_interest) %></td>
+              <td class="p-3"><%= installment.resolution.humanize %></td>
+              <td class="p-3">
+                <% if installment.planned_transaction %>
+                  <div class="flex flex-wrap items-center gap-1" data-controller="dialog">
+                    <%= link_to installment.planned_transaction.plan&.name || "Unassigned", installment.planned_transaction.plan ? finance_plan_path(installment.planned_transaction.plan) : finance_planned_transactions_path, class: "text-primary hover:underline" %>
+                    <% if installment.payment_entry || installment.interest_entry %>
+                      <%= render Ui::ButtonComponent.new(aria_label: "Delete payment records", variant: :ghost, size: :icon, css_class: "h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive", data: { action: "dialog#open" }) do %>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
+                      <% end %>
+                      <%= render Ui::DialogComponent.new(id: "delete-installment-#{installment.id}", title: "Delete this installment's records?", description: "This correction permanently removes the real accounting records and planning history. Installment ##{installment.installment_number} will stay in the schedule so it can be planned again.") do %>
+                        <ul class="space-y-2 text-sm">
+                          <li class="flex justify-between gap-4"><span class="text-muted-foreground">Actual payment</span><strong><%= number_to_currency(installment.payment_entry.amount) %> on <%= l(installment.payment_entry.entry_date) %></strong></li>
+                          <% if installment.interest_entry %><li class="flex justify-between gap-4"><span class="text-muted-foreground">Interest transaction</span><strong><%= number_to_currency(installment.interest_entry.amount) %></strong></li><% end %>
+                          <li class="flex justify-between gap-4"><span class="text-muted-foreground">Planned transaction</span><strong><%= installment.planned_transaction.plan&.name || "Unassigned" %></strong></li>
+                        </ul>
+                        <p class="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">The payment, interest, and planned transaction will be deleted. The installment remains available to plan again.</p>
+                        <div class="mt-5 flex justify-end gap-2">
+                          <form method="dialog"><%= render Ui::ButtonComponent.new(label: "Cancel", type: "submit", variant: :outline) %></form>
+                          <%= form_with url: history_finance_loan_installment_path(@loan, installment), method: :delete do %><%= render Ui::ButtonComponent.new(label: "Delete payment records", type: "submit", variant: :destructive) %><% end %>
+                        </div>
+                      <% end %>
+                    <% elsif installment.planned_transaction.execution_status == "pending" %>
+                      <%= render Ui::ButtonComponent.new(href: finance_loan_installment_plan_path(@loan, installment), aria_label: "Delete planned installment", variant: :ghost, method: :delete, size: :icon, css_class: "h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive", data: { turbo_confirm: "Delete this planned installment? The installment will remain in the loan schedule and can be planned again." }) do %>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 14H7L6 7m4 4v6m4-6v6" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
+                      <% end %>
+                    <% end %>
+                  </div>
+                <% elsif @loan.lifecycle_status == "active" %>
+                  <%= form_with url: finance_loan_installment_plan_path(@loan, installment), method: :post, class: "flex min-w-80 items-end gap-2" do %>
+                    <%= render Ui::SelectComponent.new(name: "plan_id", options: @plans.map { |plan| [ plan.name, plan.id ] }, include_blank: "Plan", required: true) %>
+                    <%= render Ui::SelectComponent.new(name: "financial_account_id", options: @assets.map { |asset| [ asset.name, asset.id ] }, include_blank: "Pay from", required: true) %>
+                    <%= render Ui::ButtonComponent.new(label: "Plan", type: "submit", size: :sm) %>
+                  <% end %>
+                <% else %>
+                  <span class="text-muted-foreground">—</span>
+                <% end %>
+              </td>
+              <td class="p-3">
+                <details>
+                  <summary class="cursor-pointer text-primary hover:underline">Edit due date</summary>
+                  <%= form_with model: installment, scope: :installment, url: finance_loan_installment_path(@loan, installment), method: :patch, data: { turbo_confirm: "Review the impact summary before saving. Only explicitly selected pending planned records will change; actual payment history remains unchanged." }, class: "mt-2 min-w-64 space-y-2 rounded-lg border border-border p-3" do |form| %>
+                    <%= form.label :due_date, "Contractual due date", class: "block text-xs font-medium" %>
+                    <%= form.date_field :due_date, class: "w-full rounded-md border border-input bg-background px-2 py-1 text-sm" %>
+                    <%= form.hidden_field :expected_updated_at, value: installment.updated_at.iso8601(6) %>
+                    <p class="text-xs text-muted-foreground">Impact review: this changes the installment’s contractual due date. Actual payment dates, amounts, interest, and accounting history remain protected.</p>
+                    <% if installment.planned_transaction&.execution_status == "pending" %>
+                      <label class="flex items-start gap-2 text-xs"><%= form.check_box :update_planned_transaction %><span>Also update this pending planned record's due date. Leave unchecked to keep it unchanged.</span></label>
+                    <% end %>
+                    <% if installment.payment_entry %>
+                      <p class="text-xs text-muted-foreground">Paid installment: this changes only the contractual due date. The actual payment/application date (<%= l(installment.payment_entry.entry_date) %>) and accounting history remain unchanged.</p>
+                    <% elsif installment.planned_transaction && installment.planned_transaction.execution_status != "pending" %>
+                      <p class="text-xs text-muted-foreground">This linked planned record has already been applied. Only the contractual due date changes; the applied record and actual payment date remain unchanged.</p>
+                    <% end %>
+                    <%= render Ui::ButtonComponent.new(label: "Review and save", type: :submit, size: :sm) %>
+                  <% end %>
+                </details>
+              </td>
+            </tr>
+          <% end %>
+          <% if @installments.empty? %><tr><td colspan="8" class="p-4 text-center text-muted-foreground">No schedule generated yet.</td></tr><% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="text-xl font-semibold">Actual loan transactions</h2>
+    <div class="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+      <% @entries.each do |entry| %><%= link_to finance_entry_path(entry), class: "flex justify-between p-4 hover:bg-muted/30" do %><span><%= entry.description %> · <%= entry.entry_type.humanize %></span><strong><%= number_to_currency(entry.amount) %></strong><% end %><% end %>
+      <% if @entries.empty? %><p class="p-4 text-sm text-muted-foreground">Simulation only—no actual debt transactions.</p><% end %>
+    </div>
+  </section>
+</section>
