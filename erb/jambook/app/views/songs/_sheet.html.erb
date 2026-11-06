@@ -1,0 +1,71 @@
+<%# locals: (song:, key:, key_label:, room_controls: false, actions: nil) %>
+<div id="sheet" class="song-view"
+     data-controller="chord-sheet chord-diagrams"
+     data-action="turbo:morph@window->chord-sheet#render resize@window->chord-sheet#fitTabs chord-sheet:rendered->chord-diagrams#refresh resize@window->chord-diagrams#fitBar"
+     data-chord-diagrams-shapes-url-value="<%= asset_path("guitar_chords.json") %>"
+     data-chord-sheet-sheet-value="<%= song.sheet %>"
+     data-chord-sheet-format-value="<%= song.sheet_format %>"
+     data-chord-sheet-written-key-value="<%= song.written_key %>"
+     data-chord-sheet-written-capo-value="<%= song.written_capo %>"
+     data-chord-sheet-key-value="<%= key %>"
+     data-chord-sheet-song-id-value="<%= song.id %>">
+  <header class="song-head">
+    <div class="song-id">
+      <h1><%= song.title %></h1>
+      <p class="artist"><%= song.artist %></p>
+    </div>
+    <% if key.present? %>
+      <div class="keybox" id="room-key">
+        <span class="key-label"><%= key_label %></span>
+        <div class="stepper">
+          <%= button_to "−", room_key_path(delta: -1), method: :patch, class: "step", form_class: "step-form", "aria-label": "Key down a semitone" if room_controls %>
+          <span class="key"><%= key %></span>
+          <%= button_to "+", room_key_path(delta: 1), method: :patch, class: "step", form_class: "step-form", "aria-label": "Key up a semitone" if room_controls %>
+        </div>
+      </div>
+    <% end %>
+    <div class="capo-strip">
+      <span class="capo-label" id="capo-label-<%= song.id %>">Capo</span>
+      <button type="button" class="step" data-action="chord-sheet#capoDown" aria-label="Capo down one fret">−</button>
+      <output class="capo-value" data-chord-sheet-target="capo" aria-labelledby="capo-label-<%= song.id %>"><%= song.written_capo %></output>
+      <button type="button" class="step" data-action="chord-sheet#capoUp" aria-label="Capo up one fret">+</button>
+      <span class="sheet-status" data-chord-sheet-target="status" aria-live="polite"></span>
+    </div>
+  </header>
+
+  <% if actions.present? %>
+    <div class="song-actions row-of-buttons"><%= actions %></div>
+  <% end %>
+  <%= render "songs/notes", song: song %>
+  <% if song.sheet.blank? %>
+    <p class="empty-sheet">No chord sheet yet.<% if authenticated? %> <%= link_to "Add one", edit_song_path(song) %><% end %></p>
+  <% end %>
+  <div class="chord-bar-wrap">
+    <ul id="chord-bar" class="chord-bar" data-chord-diagrams-target="bar" aria-label="Chords in this song" data-turbo-permanent></ul>
+    <button type="button" class="chord-bar-toggle small" data-chord-diagrams-target="toggle" data-action="chord-diagrams#toggleBar"
+            aria-controls="chord-bar" aria-expanded="false" hidden>Show all chords</button>
+  </div>
+  <div id="sheet-output" class="sheet-output" data-chord-sheet-target="output" data-action="click->chord-diagrams#openFromSheet" data-turbo-permanent></div>
+
+  <%# How to play one chord, opened from the bar or by tapping a chord in the sheet. %>
+  <div id="chord-card" class="chord-card" popover role="dialog" aria-labelledby="chord-card-name" tabindex="-1"
+       data-chord-diagrams-target="card" data-action="beforetoggle->chord-diagrams#closing" data-turbo-permanent>
+    <p id="chord-card-name" class="chord-card-name" data-chord-diagrams-target="name"></p>
+    <div data-chord-diagrams-target="diagram"></div>
+    <p class="chord-card-note" data-chord-diagrams-target="note"></p>
+    <div class="voicings" data-chord-diagrams-target="voicings">
+      <button type="button" class="step" data-action="chord-diagrams#previous" aria-label="Previous voicing">‹</button>
+      <output data-chord-diagrams-target="count"></output>
+      <button type="button" class="step" data-action="chord-diagrams#next" aria-label="Next voicing">›</button>
+    </div>
+    <button type="button" class="small" popovertarget="chord-card" popovertargetaction="hide">Close</button>
+  </div>
+
+  <%# This device's own auto-scroll, never synced (Mick's call). %>
+  <div class="autoscroll" data-controller="autoscroll" data-autoscroll-song-id-value="<%= song.id %>" data-action="turbo:morph@window->autoscroll#sync">
+    <button type="button" class="step" data-action="autoscroll#slower" aria-label="Scroll slower">−</button>
+    <output class="scroll-speed" data-autoscroll-target="speed" aria-label="Scroll speed"></output>
+    <button type="button" class="step" data-action="autoscroll#faster" aria-label="Scroll faster">+</button>
+    <button type="button" class="primary scroll-toggle" data-autoscroll-target="toggle" data-action="autoscroll#toggle">Scroll</button>
+  </div>
+</div>

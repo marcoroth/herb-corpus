@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title><%= content_for(:title) || "Jambook" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Jambook">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <%# Directly, never turbo_refreshes_with: that one provides :head and vanishes after yield :head (spec §6.4). %>
+    <%= turbo_refresh_method_tag :morph %>
+    <%= turbo_refresh_scroll_tag :preserve %>
+    <%= turbo_exempts_page_from_cache_tag %>
+
+    <%= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1c2420">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#e6ebe7">
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+
+    <%# Includes all stylesheet files in app/assets/stylesheets %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="<%= content_for(:body_class) %>" data-controller="resync" data-action="visibilitychange@document->resync#refresh turbo:before-morph-element->resync#keepUnsavedInput">
+    <%= turbo_stream_from Room.instance if guest_access? %>
+    <main><%= yield %></main>
+    <%# Pinned to the bottom of the screen, so it comes last when tabbing and reading too. %>
+    <%= render "rooms/banner", page_song: @song if controller_name == "songs" && action_name.in?(%w[ index show ]) %>
+  </body>
+</html>

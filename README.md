@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **360** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,008** from 296 apps |
+| Applications and engines | **361** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,030** from 297 apps |
 | Size of `erb/` | ~66 MB |
 | Excluded pending license review | 64 apps |
 
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**147 of 360** applications use Herb: `herb` 95, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 110, `.herb/` 1.
+**148 of 361** applications use Herb: `herb` 96, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 111, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -423,6 +423,9 @@ cannot make a comparison silently measure the same Herb twice.
 |  | linter | ^0.11.1 | explicit | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in package.json") |
 |  | formatter | ^0.11.1 | explicit | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in package.json") |
 |  | .herb.yml | 0.11.1 | – | [2026-02-17](https://github.com/phac-nml/irida-next/commit/96e998bea3387d2d24c641f00db0718b56c7e7dd "first seen in .herb.yml") |
+|  |  |  |  |  |
+| [jambook](https://github.com/mickzijdel/jambook/tree/70d9bbea87e24a012fca92b89726b20e3f4f9d27) | herb | 0.11.1 | explicit | [2026-10-30](https://github.com/mickzijdel/jambook/commit/d915eaa49f2ca9dec10aa35bce958dc4e39b4c51 "first seen in Gemfile") |
+|  | .herb.yml | 0.10.1 | – | [2026-10-30](https://github.com/mickzijdel/jambook/commit/d915eaa49f2ca9dec10aa35bce958dc4e39b4c51 "first seen in .herb.yml") |
 |  |  |  |  |  |
 | [javierjulio.github.io](https://github.com/javierjulio/javierjulio.github.io/tree/b8cf9ce649e90798ffbc8ed5a932860594c51fee) | herb | 0.11.1 | explicit | [2026-04-11](https://github.com/javierjulio/javierjulio.github.io/commit/37bb4c7e3044d62af49e0aff53d8c557f0379b1b "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2026-04-11](https://github.com/javierjulio/javierjulio.github.io/commit/37bb4c7e3044d62af49e0aff53d8c557f0379b1b "first seen in .herb.yml") |
@@ -672,7 +675,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**29 of 360** applications use ReActionView: `reactionview` 29.
+**29 of 361** applications use ReActionView: `reactionview` 29.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -740,19 +743,19 @@ cannot make a comparison silently measure the same Herb twice.
 xychart
   title "Cumulative adoption, by project"
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]
-  y-axis "Apps" 0 --> 148
-  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 91, 103, 111, 124, 130, 136, 146, 147]
+  y-axis "Apps" 0 --> 149
+  line [3, 8, 15, 21, 33, 45, 53, 64, 80, 91, 103, 111, 124, 130, 136, 147, 148]
   line [0, 0, 5, 9, 16, 16, 17, 18, 20, 21, 21, 23, 24, 26, 27, 28, 29]
 ```
 
-Herb 147 · ReActionView 29
+Herb 148 · ReActionView 29
 
 ### Herb releases in use
 
 ```mermaid
 pie showData
-  title Herb releases across 91 apps
-  "0.11.1" : 24
+  title Herb releases across 92 apps
+  "0.11.1" : 25
   "0.11.0" : 34
   "0.10.4" : 4
   "0.10.3" : 13
@@ -767,10 +770,10 @@ pie showData
 
 ### How the config is used
 
-Of the 110 Herb configs, the sections people set are `linter` (106), `formatter` (99), `version` (88), `files` (40), `framework` (28), `template_engine` (8), `engine` (6).
+Of the 111 Herb configs, the sections people set are `linter` (107), `formatter` (100), `version` (89), `files` (40), `framework` (28), `template_engine` (8), `engine` (6).
 
-`formatter.maxLineLength`: **80** (65), **120** (21), **100** (2), **110** (1), **400** (1)
-`formatter.indentWidth`: **2** (90)
+`formatter.maxLineLength`: **80** (65), **120** (22), **100** (2), **110** (1), **400** (1)
+`formatter.indentWidth`: **2** (91)
 
 Rewriters: `pre: tailwind-class-sorter` (16)
 
@@ -803,7 +806,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**39 of 360** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
+**39 of 361** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -910,7 +913,7 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 360** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
+**9 of 361** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
 
 > History could not be searched in 97 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -951,7 +954,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 360** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 361** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 

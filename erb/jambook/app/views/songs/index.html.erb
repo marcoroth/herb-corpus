@@ -1,0 +1,48 @@
+<header class="list-head">
+  <h1>Songs</h1>
+  <% if authenticated? %>
+    <nav class="host-nav" aria-label="Host">
+      <%= link_to "Add a song", new_song_path %>
+      <%= link_to "Import", new_imports_song_list_path %>
+      <%= link_to "Settings", edit_settings_path %>
+    </nav>
+  <% end %>
+</header>
+
+<%= form_with url: songs_path, method: :get, class: "song-filters", data: { controller: "song-filter" } do |form| %>
+  <div class="field">
+    <%= form.label :q, "Search" %>
+    <%= form.search_field :q, value: params[:q], placeholder: "Title or artist", autocomplete: "off", data: { song_filter_target: "query", action: "input->song-filter#filter" } %>
+  </div>
+  <div class="field">
+    <%= form.label :status, "Status" %>
+    <%= form.select :status, [ [ "Liked", "liked" ], [ "Maybe", "maybe" ] ], { include_blank: "Any", selected: params[:status] }, { data: { action: "change->song-filter#submit" } } %>
+  </div>
+  <%= hidden_field_tag :tag, params[:tag] if params[:tag].present? %>
+<% end %>
+
+<% if params[:tag].present? %>
+  <p class="active-tag">Tagged <strong><%= params[:tag] %></strong>. <%= link_to "Show all songs", songs_path(q: params[:q].presence, status: params[:status].presence) %></p>
+<% end %>
+
+<ul class="songs" data-song-filter-target="list">
+  <% @songs.each do |song| %>
+    <% playing = song.id == @playing_song_id %>
+    <li class="song<%= " is-playing" if playing %>" data-search="<%= "#{song.title} #{song.artist}".downcase %>">
+      <%= link_to song, class: "song-link" do %><span class="title"><%= song.title %></span> <span class="by"><%= song.artist %></span><% end %>
+      <span class="song-key" aria-label="Key <%= song.house_key %>"><%= song.house_key %></span>
+      <div class="meta">
+        <% if playing %><span class="playing">Now playing</span><% end %>
+        <span><%= song.liked? ? "Liked" : "Maybe" %></span>
+        <% song.tag_names.each do |name| %>
+          <%= link_to name, songs_path(tag: name) %>
+        <% end %>
+        <% if authenticated? && song.needs_paste? %><span>needs a pasted sheet</span><% end %>
+      </div>
+      <% if authenticated? %>
+        <div class="row-play"><%= button_to "Play", song_play_path(song), class: "small", "aria-label": "Play #{song.title} now" %></div>
+      <% end %>
+    </li>
+  <% end %>
+</ul>
+<p class="no-matches muted" data-song-filter-target="empty" hidden>No songs match.</p>
