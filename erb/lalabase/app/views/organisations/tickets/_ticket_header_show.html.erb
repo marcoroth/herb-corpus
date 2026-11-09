@@ -116,13 +116,15 @@
           <%= ticket.title %>
         <% end %>
       </h2>
-      <%# Sub-task backlink — neutral pill (not a status/action colour), links to the parent. %>
-      <% if ticket.parent_id.present? %>
-        <%= link_to organisation_project_tickets_path(current_organisation, project, ticket_id: ticket.parent_id),
-                    class: "inline-flex h-6 w-fit items-center gap-1 rounded-full border border-cream-300 px-2 text-xs text-cream-700 hover:bg-cream-100" do %>
-          <i class="bi bi-arrow-return-right text-[11px]"></i>
-          <%= t('views.organisations.tickets.shared.subtasks.part_of', number: ticket.parent.number) %>
-        <% end %>
+      <%# Where a sub-task sits in its tree: every ticket above it, then its own number.
+          Decided by what the walk finds, not by parent_id alone: a parent it cannot
+          reach (deleted meanwhile, legacy data in another project) leaves no
+          ancestors, and a trail of the own number alone would say nothing. %>
+      <% ancestors = ticket.parent_id.present? ? Tickets::Ancestry.call(ticket: ticket) : [] %>
+      <% if ancestors.any? %>
+        <%= render 'organisations/tickets/ticket_breadcrumbs',
+                   ticket: ticket, ancestors: ancestors, project: project,
+                   current_organisation: current_organisation %>
       <% end %>
     </div>
 
@@ -147,17 +149,13 @@
           <%# Description body - clamped to two lines while collapsed. The
               measure is 70ch (user mockup 05.09.2026): every running-text
               surface on this page sits in it, only the heading and the
-              attribute row run wider. Editing at the object (designer round
-              8a): a click on the text opens the editor; clicks that mean
-              something else (links, images, a text selection) keep their
-              meaning - ticket_inline_edit_controller guards them. %>
+              attribute row run wider. Plain text, deliberately: the
+              description had a click-to-edit with a hover surface (designer
+              round 8a) and lost it again on user decision (10.09.2026) - the
+              hover made the whole text read as one big button. Editing
+              stays with the pencil and the title link above. %>
           <div data-ticket-description-collapse-target="body"
-               <% if can_edit_ticket %>
-               data-controller="ticket-inline-edit"
-               data-ticket-inline-edit-url-value="<%= edit_ticket_url %>"
-               data-action="click->ticket-inline-edit#open"
-               <% end %>
-               class="prose max-w-[70ch] text-[15px] leading-relaxed text-cream-800 <%= 'line-clamp-2' if collapsed %> <%= 'rounded-md transition-colors hover:bg-cream-200/40' if can_edit_ticket %>"><%= ticket.content %></div>
+               class="prose max-w-[70ch] text-[15px] leading-relaxed text-cream-800 <%= 'line-clamp-2' if collapsed %>"><%= ticket.content %></div>
 
           <%# The attachment DATA first, on its own line; the ACTIONS
               ("Einklappen", "Datei anhaengen") on the line below - data and
@@ -221,14 +219,9 @@
           <% end %>
         </div>
       <% else %>
-        <%# Not collapsible (new ticket / no own comment yet) - full content.
-            Click-to-edit like the collapsible branch above. %>
-        <div class="mt-4 prose max-w-[70ch] text-[15px] leading-relaxed text-cream-800 <%= 'rounded-md transition-colors hover:bg-cream-200/40' if can_edit_ticket %>"
-             <% if can_edit_ticket %>
-             data-controller="ticket-inline-edit"
-             data-ticket-inline-edit-url-value="<%= edit_ticket_url %>"
-             data-action="click->ticket-inline-edit#open"
-             <% end %>><%= ticket.content %></div>
+        <%# Not collapsible (new ticket / no own comment yet) - full content,
+            plain text like the collapsible branch above. %>
+        <div class="mt-4 prose max-w-[70ch] text-[15px] leading-relaxed text-cream-800"><%= ticket.content %></div>
       <% end %>
     <% end %>
 

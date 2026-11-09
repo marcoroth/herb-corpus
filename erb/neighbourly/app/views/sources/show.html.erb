@@ -1,4 +1,6 @@
 <% content_for :title, @source.name %>
+<% turbo_refreshes_with method: :morph, scroll: :preserve %>
+<%= turbo_stream_from @source %>
 
 <div class="w-full">
   <div class="flex justify-between items-center">
@@ -8,6 +10,7 @@
         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
           <%= @source.source_type.upcase %>
         </span>
+        <%= render "ingestion_status", source: @source %>
         <% if @source.url.present? %>
           <span><%= @source.url %></span>
         <% end %>
@@ -21,6 +24,15 @@
       <%= button_to "Delete", source_path(@source), method: :delete, class: "rounded-md px-3.5 py-2.5 bg-red-600 hover:bg-red-500 text-white inline-block font-medium cursor-pointer", data: { turbo_confirm: "Delete source '#{@source.name}' and all its documents?" } %>
     </div>
   </div>
+
+  <% if @source.ingestion_failed? %>
+    <div class="mt-6 bg-red-50 text-red-700 px-4 py-3 rounded-md">
+      <p class="font-medium">Ingestion stopped with an error. Documents saved before the error are kept.</p>
+      <p class="mt-1 text-sm"><%= @source.ingestion_error %></p>
+    </div>
+  <% elsif @source.ingestion_pending? || @source.ingestion_ingesting? %>
+    <p class="mt-6 text-sm text-gray-600">This page updates when ingestion finishes.</p>
+  <% end %>
 
   <div class="mt-6">
     <% if @documents.any? %>

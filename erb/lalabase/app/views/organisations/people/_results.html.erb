@@ -1,0 +1,54 @@
+<%# locals: (entries:, counts:, selected: nil, member: nil) %>
+<%# The rows of the directory (People::Directory): the chip (filled for a
+    member, an outline for a contact), the name, function and company below,
+    the age of the last contact on the right, empty without one. Every row opens the lane: a person row through person_id, a member
+    without a row through member_id. The two column heads sort the list
+    (?sort=last, E5), a full visit that keeps search, filter and the open
+    person. The person is rendered from this request; a row click changes it
+    in the address only, so data-lane-keep takes the live one at click time
+    (layout_toggle#syncFilterContext). %>
+<% open_lane = request.query_parameters.slice('person_id', 'member_id').select { |_key, value| value.is_a?(String) } %>
+<turbo-frame id="<%= Organisations::PeopleController::LIST_FRAME_ID %>">
+  <% if entries.any? %>
+    <% sort = list_state['sort'] == 'last' ? 'last' : 'name' %>
+    <%# The list is a list, not a table: the heads are two links, the active
+        one marked with aria-current and a word for screen readers. %>
+    <div class="people-columns">
+      <%# Class names written out: Tailwind keeps only component classes it finds whole in a template. %>
+      <% { 'name' => 'people-columns__head--name', 'last' => 'people-columns__head--last' }.each do |key, head_class| %>
+        <% active = sort == key %>
+        <%= tag.span class: "people-columns__head #{head_class}" do %>
+          <%= link_to organisation_people_path(@current_organisation, list_state.except('sort').merge(key == 'last' ? { 'sort' => 'last' } : {}).merge(open_lane)),
+                      class: "people-columns__link #{'people-columns__link--active' if active}", 'aria-current': (active ? 'true' : nil),
+                      data: { turbo_frame: '_top', lane_keep: true } do %>
+            <%= t("views.organisations.people.index.columns.#{key}") %>
+            <% if active %><i class="bi bi-arrow-down" aria-hidden="true"></i><span class="sr-only"><%= t('views.organisations.people.index.columns.sorted') %></span><% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+    <ul class="people-list">
+      <% entries.each do |entry| %>
+        <%= render 'organisations/people/row', entry: entry, selected: selected, member: member %>
+      <% end %>
+    </ul>
+  <% elsif list_state['q'].present? %>
+    <div class="people-empty">
+      <p class="people-empty__title"><%= t('views.organisations.people.index.no_hits_title', query: list_state['q']) %></p>
+      <p class="people-empty__text"><%= t('views.organisations.people.index.no_hits_text') %></p>
+      <%= link_to t('views.organisations.people.index.clear_search'),
+                  organisation_people_path(@current_organisation, list_state.except('q')), class: 'people-text-action',
+                                                                                         data: { turbo_frame: '_top' } %>
+    </div>
+  <% elsif counts['all'].zero? %>
+    <div class="people-empty">
+      <i class="bi bi-people people-empty__icon" aria-hidden="true"></i>
+      <p class="people-empty__title"><%= t('views.organisations.people.index.empty_title') %></p>
+      <p class="people-empty__text width-text"><%= t('views.organisations.people.index.empty_description') %></p>
+    </div>
+  <% else %>
+    <div class="people-empty">
+      <p class="people-empty__text"><%= t("views.organisations.people.index.empty_kind.#{list_state['kind']}", default: t('views.organisations.people.index.empty_no_results')) %></p>
+    </div>
+  <% end %>
+</turbo-frame>

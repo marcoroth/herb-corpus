@@ -1,65 +1,94 @@
 <%= form_with url: quick_add_create_expense_path, local: false, data: { turbo: true, quick_add_offline: true } do |f| %>
-  <div class="space-y-3">
-    <div>
-      <label class="block text-sm font-medium text-foreground mb-1">Description</label>
-      <%= render Ui::InputComponent.new(name: "expense[description]", placeholder: "Groceries", value: @expense&.description, required: true) %>
-    </div>
-
-    <div>
-      <label class="block text-sm font-medium text-foreground mb-1">Amount</label>
-      <%= render Ui::InputComponent.new(name: "expense[amount]", type: "number", placeholder: "0.00", step: "0.01", value: @expense&.amount, required: true) %>
-    </div>
-
-    <div>
-      <label class="block text-sm font-medium text-foreground mb-1">From account</label>
-
-      <%= render Ui::SelectComponent.new(
-        name: "expense[origin]",
-        options: quick_add_account_options(Current.account),
-        selected: nil,
-        include_blank: "Select account",
+  <div class="space-y-4">
+    <div class="border-b border-border pb-3">
+      <%= f.label :amount, t("quick_add.expense_form.amount"), class: "block text-xs font-medium text-muted-foreground" %>
+      <%= number_field_tag "expense[amount]",
+        @expense&.amount,
+        id: "amount",
+        inputmode: "decimal",
+        placeholder: "0.00",
+        step: "0.01",
+        min: "0.01",
         required: true,
-        searchable: true
-      ) %>
+        data: { quick_add_menu_target: "expenseAmount", quick_add_autofocus: true },
+        class: "h-16 w-full min-w-0 border-0 bg-transparent px-0 py-2 text-5xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/70 focus:ring-0 focus-visible:ring-0"
+      %>
     </div>
 
     <div>
-      <label class="block text-sm font-medium text-foreground mb-1">Category</label>
-
-      <%= render Ui::SelectComponent.new(
-        name: "expense[category_id]",
-        options: Current.account&.categories&.pluck(:name, :id) || [],
-        selected: @expense&.category_id,
-        include_blank: "Select category",
-        required: true,
-        searchable: true
-      ) %>
+      <%= f.label :description, t("quick_add.expense_form.description"), class: "sr-only" %>
+      <%= render Ui::InputComponent.new(name: "expense[description]", id: "description", placeholder: t("quick_add.expense_form.description_placeholder"), value: @expense&.description, required: true, autocomplete: "off", css_class: "!h-12 rounded-none border-x-0 border-b border-t-0 border-input bg-transparent px-0 text-lg shadow-none focus-visible:border-ring focus-visible:ring-0") %>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-foreground mb-1">Income Event (optional)</label>
+    <div class="grid grid-cols-2 gap-2 sm:gap-3">
+      <div>
+        <%= f.label :origin, t("quick_add.expense_form.account"), class: "mb-1 block truncate text-xs font-medium text-muted-foreground" %>
+        <%= render Ui::SelectComponent.new(
+          name: "expense[origin]",
+          options: quick_add_account_options(Current.account),
+          selected: nil,
+          include_blank: t("quick_add.expense_form.select_account"),
+          required: true,
+          aria_label: t("quick_add.expense_form.account"),
+          searchable: true
+        ) %>
+      </div>
 
-      <%= render Ui::SelectComponent.new(
-        name: "expense[income_event_id]",
-        options: (Current.account&.income_events&.by_date || []).map { |ie| ["#{ie.description} (#{ie.expected_date.strftime('%Y-%m-%d')})", ie.id] },
-        selected: @expense&.income_event_id,
-        include_blank: "None",
-        searchable: true
-      ) %>
+      <div>
+        <%= f.label :category_id, t("quick_add.expense_form.category"), class: "mb-1 block truncate text-xs font-medium text-muted-foreground" %>
+        <%= render Ui::SelectComponent.new(
+          name: "expense[category_id]",
+          options: Current.account&.categories&.map { |category| [category.selection_label, category.id] } || [],
+          selected: @expense&.category_id,
+          include_blank: t("quick_add.expense_form.select_category"),
+          required: true,
+          aria_label: t("quick_add.expense_form.category"),
+          searchable: true
+        ) %>
+      </div>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-foreground mb-1">Date</label>
-      <%= render Ui::InputComponent.new(name: "expense[date]", type: "date", value: @expense&.date || Date.today, required: true) %>
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="inline-flex h-10 items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm text-foreground">
+        <svg aria-hidden="true" class="size-4 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path stroke-linecap="round" d="M16 3v4M8 3v4M3 10h18" />
+        </svg>
+        <span class="sr-only"><%= t("quick_add.expense_form.date") %></span>
+        <%= date_field_tag "expense[date]", @expense&.date || Date.current, id: "expense_date", required: true, class: "w-32 border-0 bg-transparent p-0 text-sm text-foreground focus:ring-0" %>
+      </label>
+
+      <button type="button" data-action="quick-add-menu#toggleDetails" aria-expanded="false" aria-controls="quick-add-expense-details" class="inline-flex h-10 items-center gap-2 rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-muted md:hidden">
+        <svg aria-hidden="true" class="size-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+        </svg>
+        <%= t("quick_add.expense_form.more_details") %>
+      </button>
     </div>
 
-    <div>
-      <label class="block text-sm font-medium text-foreground mb-1">Time (optional)</label>
-      <%= render Ui::InputComponent.new(name: "expense[time]", type: "time") %>
+    <div id="quick-add-expense-details" data-quick-add-menu-target="details" class="hidden md:block">
+      <div class="grid gap-3 md:grid-cols-2">
+        <div>
+          <%= f.label :income_event_id, t("quick_add.expense_form.income_event"), class: "mb-1 block text-sm font-medium text-foreground" %>
+          <%= render Ui::SelectComponent.new(
+            name: "expense[income_event_id]",
+            options: (Current.account&.income_events&.by_date || []).map { |ie| [ "#{ie.description} (#{ie.expected_date.strftime('%Y-%m-%d')})", ie.id ] },
+            selected: @expense&.income_event_id,
+            include_blank: t("quick_add.expense_form.none"),
+            aria_label: t("quick_add.expense_form.income_event"),
+            searchable: true
+          ) %>
+        </div>
+
+        <div>
+          <%= f.label :time, t("quick_add.expense_form.time"), class: "mb-1 block text-sm font-medium text-foreground" %>
+          <%= render Ui::InputComponent.new(name: "expense[time]", id: "quick-add-expense-time", type: "time") %>
+        </div>
+      </div>
     </div>
 
-    <div class="flex justify-end gap-2 pt-2">
-      <%= render Ui::ButtonComponent.new(label: "Create Expense", variant: :default, type: "submit") %>
+    <div class="sticky bottom-0 -mx-4 border-t border-border bg-card/95 px-4 pb-1 pt-3 backdrop-blur md:static md:mx-0 md:flex md:justify-end md:border-0 md:bg-transparent md:p-0 md:pt-2">
+      <%= render Ui::ButtonComponent.new(label: t("quick_add.expense_form.submit"), variant: :default, type: "submit", css_class: "w-full py-3 md:w-auto md:py-2") %>
     </div>
   </div>
 <% end %>

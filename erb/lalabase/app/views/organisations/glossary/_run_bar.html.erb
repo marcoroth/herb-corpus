@@ -1,0 +1,55 @@
+<%# locals: (run:) %>
+<%# The bar on top of the review list (K5b). For manage_glossary the start of
+    a run ("Begriffe vorschlagen", Actors::StartGlossaryExtraction), with
+    "Alles erneut lesen" to read everything instead of what changed since
+    the last run. It is off while a run is active or without AI for the
+    extraction, and its reason stands beside it: since when the run runs, or
+    the registry's words (as the ticket suggestions of a meeting show them).
+    For every reader the line about the last run (glossary_run_status).
+    The rights are asked here, in the request; no broadcast renders the bar.
+    glossary-run-poll reloads the list frame around it every few seconds
+    while a run is active, and the fresh bar says whether to go on. %>
+<% can_start = policy(GlossaryExtractionRun).start? %>
+<% active = glossary_run_active?(run) %>
+<% availability = @current_organisation.ai_available_for?(:glossary_extraction) if can_start && !active %>
+<% ai_reason = Lalabase::Llm::FeatureRegistry.unavailable_hint(availability, @current_organisation) if availability %>
+<% status_id = 'glossary-run-status' %>
+<% reason_id = 'glossary-run-reason' %>
+<% described_by = if active then status_id elsif ai_reason then reason_id end %>
+<%= tag.div class: 'mx-6 mb-3 flex flex-col gap-1.5 rounded-lg border border-cream-300 bg-cream-50 px-3 py-2.5',
+            data: { glossary_run_bar: true, controller: 'glossary-run-poll', glossary_run_poll_active_value: active.to_s,
+                    glossary_run_poll_url_value: organisation_glossary_terms_path(@current_organisation, list_state),
+                    glossary_run_poll_frame_value: Organisations::GlossaryController::LIST_FRAME_ID } do %>
+  <% if can_start %>
+    <%= form_with url: runs_organisation_glossary_terms_path(@current_organisation), method: :post,
+                  class: 'flex flex-wrap items-center gap-x-4 gap-y-2', data: { turbo_frame: '_top' } do %>
+      <% list_state.each do |name, value| %>
+        <%= hidden_field_tag name, value, id: nil %>
+      <% end %>
+      <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :ai, size: :small, icon: 'magic', type: 'submit', disabled: described_by.present?,
+        **(described_by ? { aria: { describedby: described_by } } : {})
+      ) do %>
+        <%= t('views.organisations.glossary.runs.start') %>
+      <% end %>
+      <label class="inline-flex items-center gap-1.5 text-[13px] text-heading" title="<%= t('views.organisations.glossary.runs.everything_hint') %>">
+        <%= check_box_tag :everything, '1', false, id: 'glossary-run-everything', disabled: described_by.present? %>
+        <%= t('views.organisations.glossary.runs.everything') %>
+      </label>
+    <% end %>
+  <% end %>
+  <p id="<%= status_id %>" class="flex flex-wrap items-center gap-1.5 text-[13px] text-muted" data-glossary-run-status>
+    <% if active %>
+      <i class="bi bi-arrow-repeat inline-block animate-spin" aria-hidden="true"></i>
+    <% end %>
+    <%= glossary_run_status(run) %>
+    <% if glossary_run_truncated?(run) %>
+      <span class="glossary-status glossary-status--proposed" title="<%= t('views.organisations.glossary.runs.truncated_hint') %>"
+            data-glossary-run-truncated><%= t('views.organisations.glossary.runs.truncated') %></span>
+    <% end %>
+  </p>
+  <% if ai_reason %>
+    <%# text-amber-700, not -600: only 700/800/900 are dark-theme remapped. %>
+    <p id="<%= reason_id %>" class="text-[13px] text-amber-700" data-glossary-run-reason><%= ai_reason %></p>
+  <% end %>
+<% end %>

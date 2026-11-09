@@ -1,0 +1,41 @@
+<%# locals: (document:) %>
+<%# Rendered only in an authorized request. Refresh this fragment while its
+    text or another run is pending; replacing its children also replaces the
+    polling controller, so the fresh state decides whether to keep asking. %>
+<% current = document.current_version %>
+<% organisation = @current_organisation || document.organisation %>
+<% path_args = { organisation_id: organisation.id, project_id: document.project_id, id: document.id } %>
+<% gs = 'views.organisations.documents.glossary_source' %>
+<% text_status = current.text_status %>
+<% run_active = text_status == 'available' &&
+                glossary_run_active?(GlossaryExtractionRun.where(organisation_id: organisation.id, status: GlossaryExtractionRun::ACTIVE_STATUSES).take) %>
+<% availability = organisation.ai_available_for?(:glossary_extraction) if text_status == 'available' && !run_active %>
+<% glossary_reason, glossary_reason_class = if text_status != 'available'
+                                              [t("#{gs}.text_#{text_status}"), 'text-cream-600']
+                                            elsif run_active
+                                              [t("#{gs}.run_active"), 'text-cream-600']
+                                            elsif !availability.available?
+                                              [Lalabase::Llm::FeatureRegistry.unavailable_hint(availability, organisation), 'text-amber-700']
+                                            end %>
+<% glossary_reason_id = "#{dom_id(document)}_glossary_reason" %>
+<% frame_id = "#{dom_id(document)}_glossary_source" %>
+<%= turbo_frame_tag frame_id, class: 'block' do %>
+  <%= tag.div class: 'flex flex-wrap items-center gap-x-3 gap-y-1.5',
+              data: { document_glossary_source: true, controller: 'glossary-run-poll',
+                      glossary_run_poll_active_value: (text_status == 'unavailable' || run_active).to_s,
+                      glossary_run_poll_max_wait_value: (10.minutes.in_milliseconds if text_status == 'unavailable'),
+                      glossary_run_poll_url_value: glossary_source_organisation_project_document_path(**path_args),
+                      glossary_run_poll_frame_value: frame_id } do %>
+    <%= render Neo::Buttons::ButtonComponent.new(
+          variant: :ai, size: :small, icon: 'magic', disabled: glossary_reason.present?,
+          form: { action: propose_glossary_terms_organisation_project_document_path(**path_args), method: :post, data: { turbo_frame: '_top' } },
+          **(glossary_reason ? { aria: { describedby: glossary_reason_id } } : { title: t("#{gs}.hint") })
+        ) do %>
+      <%= t("#{gs}.propose") %>
+    <% end %>
+    <% if glossary_reason %>
+      <%# text-amber-700, not -600: only 700/800/900 are dark-theme remapped. %>
+      <p id="<%= glossary_reason_id %>" class="<%= class_names('text-[13px]', glossary_reason_class) %>" data-document-glossary-reason><%= glossary_reason %></p>
+    <% end %>
+  <% end %>
+<% end %>

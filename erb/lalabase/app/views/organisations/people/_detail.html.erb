@@ -1,0 +1,66 @@
+<%# locals: (person:) %>
+<%# One person row: the name with what it is, rows that may be the same
+    person (read only), the ways to reach them and the other fields, the
+    note, the meetings, and one line of who created it that unfolds the
+    history. Delete waits behind "···". For a member the row holds the extra
+    details; name and email come from the account, and "delete" removes only
+    those details (the account stays). The body ends at reading width. %>
+<% member = person_member_user(person) %>
+<% can_write = policy(person).update? %>
+<% name = person_display_name(person: person, user: member) %>
+<% if can_write %>
+  <% key = member ? 'remove_details' : 'delete' %>
+  <% menu = button_to t("views.organisations.people.show.#{key}"), organisation_person_path(@current_organisation, person, list_state),
+                      method: :delete, class: 'more-menu__danger',
+                      form: { data: { turbo_frame: '_top', turbo_confirm: t("views.organisations.people.show.#{key}_confirm", name: name) } } %>
+<% end %>
+<div class="people-detail">
+  <%= render 'organisations/people/lane_head',
+             edit_url: (edit_organisation_person_path(@current_organisation, person, list_state) if can_write), menu: menu %>
+
+  <div class="people-detail__body width-text">
+    <%= render 'organisations/people/identity', name: name, user: member, line: person_kind_line(person, member) %>
+
+    <% duplicates = People::Directory.new(viewer: current_user, organisation: @current_organisation).duplicates_of(person) %>
+    <% if duplicates.any? %>
+      <div class="people-callout people-callout--warning">
+        <i class="bi bi-people" aria-hidden="true"></i>
+        <div class="people-callout__body">
+          <% duplicates.each do |entry| %>
+            <p>
+              <%= t('views.organisations.people.show.duplicate_prefix') %>
+              <%= link_to person_display_name(person: entry.person, user: entry.user),
+                          organisation_people_path(@current_organisation, list_state.merge(entry.person ? { 'person_id' => entry.person.id } : { 'member_id' => entry.user.id })),
+                          data: { turbo_frame: '_top' }, class: 'people-callout__name' %>
+              (<%= entry.member? ? t('views.organisations.people.index.member_badge') : t('views.organisations.people.show.contact_label') %>).
+            </p>
+          <% end %>
+          <% if can_write && member.nil? && duplicates.any?(&:member?) %>
+            <%= link_to t('views.organisations.people.show.duplicate_link'), edit_organisation_person_path(@current_organisation, person, list_state),
+                        class: 'people-text-action' %>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% if member && person_bare?(person) %>
+      <%= render 'organisations/people/bare_hint', member: member, url: (edit_organisation_person_path(@current_organisation, person, list_state) if can_write) %>
+    <% end %>
+
+    <%= render 'organisations/people/fields', fields: person_fields(person, member) %>
+
+    <% if person.notes.present? %>
+      <p class="people-note"><%= person.notes %></p>
+    <% end %>
+
+    <%= render 'organisations/people/contact_summary', person: person, member: member,
+                                                       more_url: organisation_person_path(@current_organisation, person, list_state.merge('meetings' => 'all')) %>
+
+    <div class="people-footer">
+      <%= render 'organisations/people/history', person: person, created_line: person_created_line(person, member) %>
+      <% unless can_write %>
+        <p class="people-footer__readonly"><%= t('views.organisations.people.show.read_only') %></p>
+      <% end %>
+    </div>
+  </div>
+</div>

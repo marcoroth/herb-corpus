@@ -1,0 +1,37 @@
+<%# locals: (index:, detail:, invalid: false) %>
+<%# One additional detail in the form (PersonDetail): kind, label, value and
+    a remove button. The rows travel as an indexed hash; the template row
+    carries __INDEX__, which person_details_controller replaces. The value
+    field and the label suggestions follow the kind (person_detail_field).
+    The row is a group named by its position ("Angabe 3"), the number a
+    refused save names; person_details_controller renumbers after a change. %>
+<% field = person_detail_field(detail.kind) %>
+<%# A date field cannot show a value that is no date (it would come back empty
+    and the next save would lose it): such a value stays in a text field. %>
+<% input = field[:input] == 'date' && detail.value.present? && detail.date.nil? ? 'text' : field[:input] %>
+<% name = "person[additional_details][#{index}]" %>
+<div class="people-detail-row" role="group" data-person-details-target="row" data-index="<%= index %>"
+     aria-label="<%= t('views.organisations.people.form.detail_position', position: index.is_a?(Integer) ? index + 1 : index) %>">
+  <%= select_tag "#{name}[kind]", options_for_select(person_detail_kind_options, detail.kind),
+                 id: nil, class: 'people-input people-detail-row__kind',
+                 'aria-label': t('views.organisations.people.form.detail_kind'),
+                 data: { action: 'change->person-details#changeKind' } %>
+  <%= text_field_tag "#{name}[label]", detail.label, id: nil, class: 'people-input', maxlength: PersonDetail::MAX_LABEL_LENGTH,
+                                                     list: field[:list], autocomplete: 'off',
+                                                     placeholder: t('views.organisations.people.form.detail_label_placeholder'),
+                                                     'aria-label': t('views.organisations.people.form.detail_label'),
+                                                     data: { person_details_label: true } %>
+  <button type="button" class="people-icon-action" data-action="person-details#remove"
+          aria-label="<%= t('views.organisations.people.form.remove_detail') %>"
+          title="<%= t('views.organisations.people.form.remove_detail') %>">
+    <i class="bi bi-x-lg" aria-hidden="true"></i>
+  </button>
+  <% value_options = { id: nil, maxlength: field[:maxlength], 'aria-label': t('views.organisations.people.form.detail_value'),
+                       'aria-invalid': ('true' if invalid),
+                       data: { person_details_value: true } } %>
+  <% if input == 'textarea' %>
+    <%= text_area_tag "#{name}[value]", detail.value, rows: 3, class: 'people-input people-input--area people-detail-row__value', **value_options %>
+  <% else %>
+    <%= tag.input type: input, name: "#{name}[value]", value: detail.value, class: 'people-input people-detail-row__value', **value_options %>
+  <% end %>
+</div>

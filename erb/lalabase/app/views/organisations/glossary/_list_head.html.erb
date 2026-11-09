@@ -1,0 +1,137 @@
+<%# locals: (status_counts:, origin_projects:, proposal_counts:) %>
+<%# The head of the list: the title, "Liste importieren" for every reader of
+    the glossary and the "+" for those who may keep it (both open their state
+    in the lane, ?new=import and ?new=term), the status filter as pills with
+    their counts, and project and category as selects (a full visit of the
+    index, auto-submitted). Above the terms a pill leads to the review list
+    of the extraction (K5b), with the number of open proposals, also at 0;
+    in the review list the pills are the statuses of a proposal, behind the
+    way back to the terms. Switching the view leaves the status behind (it
+    belongs to its view); project and category go along. %>
+<% frame_id = Organisations::GlossaryController::DETAIL_FRAME_ID %>
+<% mobile = @viewport_mode == 'mobile' %>
+<% can_create = policy(GlossaryTerm).create? %>
+<% add_url = organisation_glossary_terms_path(@current_organisation, list_state.merge('new' => Organisations::GlossaryController::NEW_STATE)) %>
+<% add_data = {
+     controller: 'lane-link',
+     action: 'click->lane-link#click',
+     lane_link_url_value: new_organisation_glossary_term_path(@current_organisation),
+     lane_link_frame_value: frame_id,
+     lane_link_set_value: { new: Organisations::GlossaryController::NEW_STATE }.to_json,
+     lane_link_remove_value: GlossaryHelper::SELECTION_PARAMS.to_json,
+     lane_link_focus_value: '#glossary_term_term'
+   } %>
+<%# The index answers the lane frame for ?new=import itself (no route of its own). %>
+<% import_state = Organisations::GlossaryController::IMPORT_STATE %>
+<% import_url = organisation_glossary_terms_path(@current_organisation, list_state.merge('new' => import_state)) %>
+<% import_data = {
+     controller: 'lane-link',
+     action: 'click->lane-link#click',
+     lane_link_url_value: organisation_glossary_terms_path(@current_organisation, new: import_state),
+     lane_link_frame_value: frame_id,
+     lane_link_set_value: { new: import_state }.to_json,
+     lane_link_remove_value: GlossaryHelper::SELECTION_PARAMS.to_json,
+     lane_link_focus_value: '#glossary_import_text',
+     glossary_import_link: true
+   } %>
+<div class="people-head">
+  <% if mobile %>
+    <%# Without its icon: below sm the button drops the gap between icon and word. %>
+    <div class="people-head__action flex items-center gap-2">
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :large, url: import_url, data: import_data) do %>
+        <%= t('views.organisations.glossary.import.open') %>
+      <% end %>
+      <% if can_create %>
+        <%= render Neo::Buttons::IconButtonComponent.new(variant: :primary, icon: 'plus-lg', size: :large, url: add_url,
+                                                         title: t('views.organisations.glossary.index.new_term'), data: add_data) %>
+      <% end %>
+    </div>
+  <% else %>
+    <%= render NeoTitleBoxComponent.new(title: t('views.organisations.glossary.index.title'), margin_bottom: nil) do |box| %>
+      <% box.with_title_action do %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, icon: 'list-ul', url: import_url, data: import_data) do %>
+          <%= t('views.organisations.glossary.import.open') %>
+        <% end %>
+        <% if can_create %>
+          <%= render Neo::Buttons::IconButtonComponent.new(variant: :primary, icon: 'plus-lg', size: :medium, url: add_url,
+                                                           title: t('views.organisations.glossary.index.new_term'), data: add_data) %>
+        <% end %>
+      <% end %>
+      <%# The way back into the meetings area this page belongs to (no sidebar
+          entry of its own since 04.11.2026), for those who may read meetings. %>
+      <% if AccessCheck::ProjectAccessService.accessible_project_ids(current_user, @current_organisation, action: :read, area: :meetings).any? %>
+        <% box.with_right_content do %>
+          <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, icon: 'arrow-left',
+                                                       url: organisation_meetings_path(@current_organisation),
+                                                       data: { turbo_frame: '_top', glossary_meetings_link: true }) do %>
+            <%= t('navigation.all_meetings') %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="people-tools glossary-tools">
+  <% if glossary_proposals_view? %>
+    <nav class="people-filters" aria-label="<%= t('views.organisations.glossary.proposals.status_filter_label') %>">
+      <%= link_to organisation_glossary_terms_path(@current_organisation, list_state.except('view', 'status')),
+                  class: 'people-pill', data: { turbo_frame: '_top', glossary_terms_link: true } do %>
+        <i class="bi bi-arrow-left" aria-hidden="true"></i><%= t('views.organisations.glossary.proposals.back_to_terms') %>
+      <% end %>
+      <% GlossaryProposal::STATUSES.each do |status| %>
+        <% active = glossary_proposal_status == status %>
+        <%# The open ones are the review list without a status: one address per state. %>
+        <% shown = status == Organisations::GlossaryController::DEFAULT_PROPOSAL_STATUS ? nil : status %>
+        <%= link_to organisation_glossary_terms_path(@current_organisation, list_state.merge('status' => shown).compact),
+                    class: "people-pill #{'people-pill--active' if active}", 'aria-current': (active ? 'true' : nil),
+                    data: { turbo_frame: '_top', glossary_proposal_status: status } do %>
+          <%= glossary_proposal_status_name(status) %>
+          <span class="people-pill__count"><%= proposal_counts.fetch(status, 0) %></span>
+        <% end %>
+      <% end %>
+    </nav>
+  <% else %>
+    <nav class="people-filters" aria-label="<%= t('views.organisations.glossary.index.status_filter_label') %>">
+      <% ([nil] + GlossaryTerm::STATUSES).each do |status| %>
+        <% active = list_state['status'] == status %>
+        <% count = status ? status_counts.fetch(status, 0) : status_counts.values.sum %>
+        <%= link_to organisation_glossary_terms_path(@current_organisation, list_state.merge('status' => status).compact),
+                    class: "people-pill #{'people-pill--active' if active}", 'aria-current': (active ? 'true' : nil),
+                    data: { turbo_frame: '_top' } do %>
+          <%= status ? t("views.organisations.glossary.index.status_filter.#{status}") : t('views.organisations.glossary.index.status_filter.all') %>
+          <span class="people-pill__count"><%= count %></span>
+        <% end %>
+      <% end %>
+    </nav>
+
+    <% review_state = list_state.except('status').merge('view' => Organisations::GlossaryController::PROPOSALS_VIEW) %>
+    <%= link_to organisation_glossary_terms_path(@current_organisation, review_state),
+                class: 'people-pill', data: { turbo_frame: '_top', glossary_review_link: true } do %>
+      <i class="bi bi-list-check" aria-hidden="true"></i><%= t('views.organisations.glossary.proposals.review_list') %>
+      <span class="people-pill__count"><%= proposal_counts.fetch('open', 0) %></span>
+    <% end %>
+  <% end %>
+
+  <%= form_with url: organisation_glossary_terms_path(@current_organisation), method: :get, class: 'glossary-filters',
+                data: { controller: 'auto-submit', turbo_frame: '_top' } do %>
+    <%= hidden_field_tag :view, list_state['view'], id: nil if list_state['view'] %>
+    <%= hidden_field_tag :status, list_state['status'], id: nil if list_state['status'] %>
+    <%= hidden_field_tag :viewport, 'mobile', id: nil if list_state['viewport'] %>
+    <label class="glossary-filters__field">
+      <span class="sr-only"><%= t('views.organisations.glossary.index.project_filter_label') %></span>
+      <%= select_tag :project_id, options_for_select(origin_projects.map { |id, name| [name, id] }, list_state['project_id']),
+                     include_blank: t('views.organisations.glossary.index.all_projects'), class: 'people-input glossary-filters__select',
+                     id: 'glossary-project-filter' %>
+    </label>
+    <label class="glossary-filters__field">
+      <span class="sr-only"><%= t('views.organisations.glossary.index.category_filter_label') %></span>
+      <%= select_tag :category, options_for_select(glossary_category_options, list_state['category']),
+                     include_blank: t('views.organisations.glossary.index.all_categories'), class: 'people-input glossary-filters__select',
+                     id: 'glossary-category-filter' %>
+    </label>
+    <noscript>
+      <button type="submit" class="people-secondary-action"><%= t('views.organisations.glossary.index.apply_filters') %></button>
+    </noscript>
+  <% end %>
+</div>

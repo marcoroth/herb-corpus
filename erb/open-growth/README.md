@@ -4,6 +4,8 @@ A comprehensive Ruby on Rails application to manage budgets, income events, expe
 
 ## Features
 
+Product decisions and feature behavior are documented in [docs/FEATURES.md](docs/FEATURES.md).
+
 ### Budget Management
 - **Budget Periods**: Create and manage budget periods with start/end dates and total planned amount.
 - **Budget Line Items**: Break down a budget period into categories with planned amounts.

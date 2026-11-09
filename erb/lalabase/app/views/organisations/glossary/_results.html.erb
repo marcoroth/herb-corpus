@@ -1,0 +1,62 @@
+<%# locals: (entries:, status_counts:, selected: nil, run: nil) %>
+<%# The terms of the glossary, open proposals first (GlossaryTerm.ordered):
+    the spelling with category and status, the heard forms below, then who
+    spoke and in which projects. Every row opens the term in the lane.
+    In the review list (?view=proposals, K5b) the proposals of one status
+    instead (GlossaryProposal.in_review_order), below the bar of the last
+    run. Both stand in this frame, so the bar's reload while a run is active
+    (glossary-run-poll) brings the new proposals along. %>
+<turbo-frame id="<%= Organisations::GlossaryController::LIST_FRAME_ID %>">
+  <% if glossary_proposals_view? %>
+    <%= render 'organisations/glossary/run_bar', run: run %>
+    <% if entries.any? %>
+      <% can_decide = policy(GlossaryProposal).create? %>
+      <%# One batched rights check for the complete model context of every hint. %>
+      <% access = glossary_source_access(entries.flat_map(&:hint_source_references)) %>
+      <ul class="people-list glossary-list" data-glossary-proposal-list>
+        <% entries.each do |proposal| %>
+          <%= render 'organisations/glossary/proposal_row', proposal: proposal, selected: selected, can_decide: can_decide,
+                                                            access: access %>
+        <% end %>
+      </ul>
+    <% elsif status_counts.values.sum.zero? %>
+      <div class="people-empty">
+        <i class="bi bi-list-check people-empty__icon" aria-hidden="true"></i>
+        <p class="people-empty__title"><%= t('views.organisations.glossary.proposals.empty_title') %></p>
+        <p class="people-empty__text width-text"><%= t('views.organisations.glossary.proposals.empty_description') %></p>
+      </div>
+    <% else %>
+      <%# Filtered by project or category: the way back keeps the status. Without
+          such a filter an empty open list means everything is decided. %>
+      <% filtered = list_state.key?('category') || list_state.key?('project_id') %>
+      <% decided = !filtered && glossary_proposal_status == Organisations::GlossaryController::DEFAULT_PROPOSAL_STATUS %>
+      <div class="people-empty">
+        <p class="people-empty__text"><%= decided ? t('views.organisations.glossary.proposals.empty_open') : t('views.organisations.glossary.proposals.empty_no_results') %></p>
+        <% if filtered %>
+          <%= link_to t('views.organisations.glossary.index.clear_filters'),
+                      organisation_glossary_terms_path(@current_organisation, list_state.slice('view', 'status', 'viewport')),
+                      class: 'people-text-action', data: { turbo_frame: '_top' } %>
+        <% end %>
+      </div>
+    <% end %>
+  <% elsif entries.any? %>
+    <ul class="people-list glossary-list">
+      <% entries.each do |term| %>
+        <%= render 'organisations/glossary/row', term: term, selected: selected %>
+      <% end %>
+    </ul>
+  <% elsif status_counts.values.sum.zero? %>
+    <div class="people-empty">
+      <i class="bi bi-book people-empty__icon" aria-hidden="true"></i>
+      <p class="people-empty__title"><%= t('views.organisations.glossary.index.empty_title') %></p>
+      <p class="people-empty__text width-text"><%= t('views.organisations.glossary.index.empty_description') %></p>
+    </div>
+  <% else %>
+    <div class="people-empty">
+      <p class="people-empty__text"><%= t('views.organisations.glossary.index.empty_no_results') %></p>
+      <%= link_to t('views.organisations.glossary.index.clear_filters'),
+                  organisation_glossary_terms_path(@current_organisation, list_state.slice('viewport')),
+                  class: 'people-text-action', data: { turbo_frame: '_top' } %>
+    </div>
+  <% end %>
+</turbo-frame>

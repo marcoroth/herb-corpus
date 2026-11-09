@@ -1,0 +1,92 @@
+<%# locals: (text:, report:) %>
+<%# The check of a pasted list (K5): what the import would do, from a dry run
+    of Actors::ImportGlossaryTerms; nothing is saved yet. The counts on top,
+    then a row for every line that is not blank, by its number in the list:
+    the spelling (a line without a term shows its text, cut), the category
+    and the verdict. The category shows only where the import gives it to
+    the term (Line#category_applied); a category it drops (a duplicate line,
+    a term that keeps its own, a term the glossary has without
+    manage_glossary) shows nothing. The text travels on in a hidden field:
+    "Importieren" sends it to the import, which leaves the frame (_top);
+    "Liste ändern" sends it back to the textarea in this frame, with the
+    text kept. Without manage_glossary the new terms come in as proposals,
+    and the lane says so. %>
+<% counts = report.counts %>
+<% cancel_url = organisation_glossary_terms_path(@current_organisation, list_state) %>
+<div class="people-form-wrap" data-glossary-import-preview>
+  <div class="people-lane__head" data-lane-head data-lane-index-url="<%= organisation_glossary_terms_path(@current_organisation) %>">
+    <h2 class="people-form__title"><%= t('views.organisations.glossary.import.preview_title') %></h2>
+    <%= link_to cancel_url, class: 'people-icon-action', title: t('views.organisations.glossary.show.close'),
+                            data: { lane_close: true, turbo_frame: '_top' } do %>
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    <% end %>
+  </div>
+
+  <p class="people-form__hint"><%= t('views.organisations.glossary.import.preview_hint') %></p>
+
+  <ul class="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-heading" data-glossary-import-counts>
+    <% Actors::ImportGlossaryTerms::VERDICTS.each do |verdict| %>
+      <li class="<%= verdict == :new ? 'font-semibold' : 'text-cream-600' %>" data-glossary-import-count="<%= verdict %>">
+        <%= t("views.organisations.glossary.import.counts.#{verdict}", count: counts[verdict]) %>
+      </li>
+    <% end %>
+    <% if counts[:categorized].positive? %>
+      <li class="text-cream-600" data-glossary-import-count="categorized">
+        <%= t('views.organisations.glossary.import.counts.categorized', count: counts[:categorized]) %>
+      </li>
+    <% end %>
+  </ul>
+
+  <% unless policy(GlossaryTerm).create? %>
+    <p class="people-callout" data-glossary-import-proposals><%= t('views.organisations.glossary.import.proposals') %></p>
+  <% end %>
+
+  <div class="overflow-x-auto">
+    <table class="w-full border-collapse text-left text-[13px]">
+      <thead>
+        <tr class="border-b border-ink text-xs text-muted">
+          <th scope="col" class="w-12 py-1.5 pr-3 font-normal"><%= t('views.organisations.glossary.import.columns.line') %></th>
+          <th scope="col" class="py-1.5 pr-3 font-normal"><%= t('views.organisations.glossary.import.columns.term') %></th>
+          <th scope="col" class="py-1.5 pr-3 font-normal"><%= t('views.organisations.glossary.import.columns.category') %></th>
+          <th scope="col" class="py-1.5 font-normal"><%= t('views.organisations.glossary.import.columns.verdict') %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% report.lines.each do |line| %>
+          <tr class="border-b border-cream-200 align-top" data-glossary-import-line="<%= line.number %>">
+            <td class="py-1.5 pr-3 tabular-nums text-muted"><%= line.number %></td>
+            <td class="break-all py-1.5 pr-3 text-heading">
+              <%= line.term || truncate(line.text, length: GlossaryHelper::IMPORT_LINE_SHOWN, omission: '…') %>
+            </td>
+            <td class="py-1.5 pr-3 text-cream-600"><%= glossary_category_name(line.category) if line.category_applied %></td>
+            <td class="py-1.5 <%= line.verdict == :new ? 'text-heading' : 'text-cream-600' %>">
+              <%= t("views.organisations.glossary.import.verdicts.#{line.verdict}") %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%= form_with url: import_organisation_glossary_terms_path(@current_organisation), scope: :import, class: 'people-form',
+                data: { turbo_frame: '_top' } do |f| %>
+    <% list_state.each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <%= f.hidden_field :text, value: text, id: nil %>
+    <div class="people-form__actions">
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :medium, type: 'submit') do %>
+        <%= t('views.organisations.glossary.import.submit') %>
+      <% end %>
+      <%# The way back: the same text to the check, in this frame, which
+          answers the textarea instead of a second check. %>
+      <%= render Neo::Buttons::ButtonComponent.new(
+        variant: :secondary, size: :medium, type: 'submit', name: 'edit', value: '1',
+        formaction: import_preview_organisation_glossary_terms_path(@current_organisation),
+        data: { turbo_frame: Organisations::GlossaryController::DETAIL_FRAME_ID }
+      ) do %>
+        <%= t('views.organisations.glossary.import.back') %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

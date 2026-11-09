@@ -1,0 +1,167 @@
+<%# locals: (term:) %>
+<%# One term: its spelling with category and status, confirm and reject, the
+    heard forms with speaker, project, meeting and date, merging into another
+    term, and delete. Projects stand for every reader of the glossary (E3);
+    a meeting's title and link only for a reader of that meeting
+    (glossary_readable_meetings), a speaker's name only for a reader who may
+    see the speaker (glossary_speaker_visible?), its link only with
+    view_people as well (glossary_speaker_url). The body ends at reading
+    width. %>
+<% can_write = policy(term).update? %>
+<% corrections = term.term_corrections.includes(:project, :person, :user).in_lane_order.to_a %>
+<%# K4d: where a device applied a form (TermApplication), by heard form. A form that
+    was only righted in its spelling stands at the head, judged against the stored
+    replacement even after a rename or merge. Classify each application before grouping:
+    the same heard form may have had different replacements. A form whose corrections
+    were deleted keeps its applications as a group of its own, so the trace to the
+    meetings stays. %>
+<% applications = term.term_applications.includes(:project).in_text_order.to_a %>
+<% spelling_applied, heard_applied = applications.partition(&:spelling?) %>
+<% applied = heard_applied.group_by(&:normalized_heard) %>
+<% meetings = glossary_readable_meetings(corrections + applications) %>
+<% groups = corrections.group_by(&:normalized_heard).values %>
+<% applied_only = applied.except(*groups.map { |group| group.first.normalized_heard }) %>
+<div class="people-detail glossary-detail">
+  <%= render 'organisations/glossary/lane_head',
+             edit_url: (edit_organisation_glossary_term_path(@current_organisation, term, list_state) if can_write) %>
+
+  <div class="people-detail__body width-text">
+    <div class="people-identity__text">
+      <h2 class="people-identity__name"><%= term.term %></h2>
+      <p class="people-identity__line">
+        <%= [(glossary_category_name(term.category) if term.category), glossary_status_name(term.status)].compact.join(' · ') %>
+      </p>
+      <% if spelling_applied.any? %>
+        <p class="people-identity__line glossary-detail__spelling">
+          <%= t('views.organisations.glossary.show.spelling_applied',
+                times: t('views.organisations.glossary.show.times', count: spelling_applied.sum(&:replaced_count)),
+                meetings: t('views.organisations.glossary.show.in_meetings', count: spelling_applied.map(&:meeting_id).uniq.size)) %>
+        </p>
+      <% end %>
+    </div>
+
+    <% if can_write %>
+      <%= render 'organisations/glossary/status_actions', term: term, lane: true %>
+    <% end %>
+
+    <section class="glossary-heard" aria-labelledby="glossary-heard-title">
+      <h3 id="glossary-heard-title" class="people-meetings__title"><%= t('views.organisations.glossary.show.heard_title') %></h3>
+      <% if groups.empty? && applied_only.empty? %>
+        <p class="people-meetings__empty"><%= t('views.organisations.glossary.show.no_heard') %></p>
+      <% else %>
+        <ul class="glossary-heard__groups">
+          <% groups.each do |group| %>
+            <% open_count = group.count(&:proposed?) %>
+            <% form_name = t('views.organisations.glossary.quoted', text: group.first.heard) %>
+            <li class="glossary-heard__group">
+              <div class="glossary-heard__form">
+                <%= form_name %>
+                <span class="glossary-heard__count"><%= t('views.organisations.glossary.show.times', count: group.size) %></span>
+                <%# K4b (E3): a form with proposals works nowhere until someone with
+                    manage_glossary confirms it; rejecting removes the proposals only. %>
+                <% if open_count.positive? %>
+                  <span class="glossary-status glossary-status--proposed"><%= t('views.organisations.glossary.show.open_form') %></span>
+                  <% if can_write %>
+                    <span class="glossary-heard__decide">
+                      <%= render Neo::Buttons::ButtonComponent.new(
+                        variant: :secondary, size: :small, icon: 'check-lg',
+                        form: { action: confirm_heard_form_organisation_glossary_term_path(@current_organisation, term, correction_id: group.first.id),
+                                method: :patch, params: list_state, data: { turbo_frame: '_top' } }
+                      ) do %>
+                        <%= t('views.organisations.glossary.show.confirm') %><span class="sr-only"> <%= form_name %></span>
+                      <% end %>
+                      <%= render Neo::Buttons::ButtonComponent.new(
+                        variant: :secondary, size: :small, icon: 'x-lg',
+                        confirm: t('views.organisations.glossary.show.reject_form_confirm', heard: group.first.heard, term: term.term,
+                                                                                             count: open_count),
+                        form: { action: reject_heard_form_organisation_glossary_term_path(@current_organisation, term, correction_id: group.first.id),
+                                method: :delete, params: list_state, data: { turbo_frame: '_top' } }
+                      ) do %>
+                        <%= t('views.organisations.glossary.show.reject') %><span class="sr-only"> <%= form_name %></span>
+                      <% end %>
+                    </span>
+                  <% end %>
+                <% end %>
+                <% if can_write %>
+                  <%# The whole form goes, with every correction of it (plan §6: a form learnt wrong). %>
+                  <span class="glossary-heard__delete">
+                    <%= render Neo::Buttons::ButtonComponent.new(
+                      variant: :ghost, size: :small, icon: 'trash',
+                      title: t('views.organisations.glossary.show.delete_heard', heard: group.first.heard),
+                      confirm: t('views.organisations.glossary.show.delete_heard_confirm', heard: group.first.heard, term: term.term,
+                                                                                           count: group.size),
+                      form: { action: heard_form_organisation_glossary_term_path(@current_organisation, term, correction_id: group.first.id),
+                              method: :delete, params: list_state, data: { turbo_frame: '_top' } }
+                    ) do %>
+                      <span class="sr-only"><%= t('views.organisations.glossary.show.delete_heard', heard: group.first.heard) %></span>
+                    <% end %>
+                  </span>
+                <% end %>
+              </div>
+              <ul class="glossary-heard__list">
+                <% group.each do |correction| %>
+                  <%= render 'organisations/glossary/correction', correction: correction, meetings: meetings %>
+                <% end %>
+                <% applied.fetch(group.first.normalized_heard, []).each do |application| %>
+                  <%= render 'organisations/glossary/application', application: application, meetings: meetings %>
+                <% end %>
+              </ul>
+            </li>
+          <% end %>
+          <% applied_only.each_value do |group| %>
+            <li class="glossary-heard__group">
+              <div class="glossary-heard__form">
+                <%= t('views.organisations.glossary.quoted', text: group.first.heard) %>
+                <span class="glossary-heard__count"><%= t('views.organisations.glossary.show.applied_only') %></span>
+              </div>
+              <ul class="glossary-heard__list">
+                <% group.each do |application| %>
+                  <%= render 'organisations/glossary/application', application: application, meetings: meetings %>
+                <% end %>
+              </ul>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+
+    <% if can_write %>
+      <% options = glossary_merge_options(term) %>
+      <% if options.any? %>
+        <%= form_with url: merge_organisation_glossary_term_path(@current_organisation, term), method: :post, class: 'glossary-merge',
+                      data: { turbo_frame: '_top', turbo_confirm: t('views.organisations.glossary.show.merge_confirm', term: term.term) } do %>
+          <% list_state.each do |name, value| %>
+            <%= hidden_field_tag name, value, id: nil %>
+          <% end %>
+          <label for="glossary-merge-target" class="glossary-merge__label"><%= t('views.organisations.glossary.show.merge_label') %></label>
+          <p class="people-form__hint"><%= t('views.organisations.glossary.show.merge_hint') %></p>
+          <div class="glossary-merge__row">
+            <%= select_tag :target_id, options_for_select(options), include_blank: t('views.organisations.glossary.show.merge_choose'),
+                           id: 'glossary-merge-target', class: 'people-input', required: true %>
+            <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, type: 'submit') do %>
+              <%= t('views.organisations.glossary.show.merge_submit') %>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <div class="people-footer">
+      <p class="people-history__line"><%= t('views.organisations.glossary.show.created_at', date: l(term.created_at.to_date, format: :default)) %></p>
+      <% if can_write %>
+        <div>
+          <%= render Neo::Buttons::ButtonComponent.new(
+            variant: :danger, size: :small, icon: 'trash',
+            confirm: t('views.organisations.glossary.show.delete_confirm', term: term.term, count: groups.size),
+            form: { action: organisation_glossary_term_path(@current_organisation, term), method: :delete,
+                    params: list_state, data: { turbo_frame: '_top' } }
+          ) do %>
+            <%= t('views.organisations.glossary.show.delete') %>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="people-footer__readonly"><%= t('views.organisations.glossary.show.read_only') %></p>
+      <% end %>
+    </div>
+  </div>
+</div>

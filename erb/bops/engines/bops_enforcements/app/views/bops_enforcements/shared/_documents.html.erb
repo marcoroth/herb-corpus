@@ -1,0 +1,70 @@
+<%# locals: (enforcement:, documents:, actions: false) %>
+
+<% if documents.empty? %>
+  <p>There are no active documents</p>
+<% else %>
+  <% if actions %>
+    <p data-download-target="button">
+      <%= govuk_button_link_to "Download all documents", data: {action: "click->download#submit"}, secondary: true %>
+    </p>
+  <% end %>
+
+  <%= govuk_table(classes: "govuk-!-margin-top-4", ) do |table| %>
+    <% table.with_head do |head| %>
+      <% head.with_row do |row| %>
+        <% row.with_cell(text: "Document name") %>
+        <% row.with_cell(text: "Date received") %>
+        <% row.with_cell(text: "Source") %>
+        <% row.with_cell(text: "Type of document") %>
+
+        <% if actions %>
+          <% row.with_cell(text: "Action") %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <% table.with_body do |body| %>
+      <% documents.each do |document| %>
+        <% next unless document.representable? %>
+
+        <% body.with_row(
+            html_attributes: {
+                "data-document-url-value" => url_for_document(document.document),
+                "data-document-title-value" => document.file.filename
+            }
+        ) do |row| %>
+          <%= row.with_cell do %>
+            <p>
+              <%= link_to_document(truncate(document.reference_or_name, length: 50), document.document) %>
+            </p>
+
+            <% if document.tags.present? %>
+              <% document.tags.each do |tag| %>
+                <strong class="govuk-tag govuk-tag--grey document-tag"><%= I18n.t(:"#{tag}", scope: :document_tags) %></strong>
+              <% end %>
+            <% else %>
+              <p class="govuk govuk-!-margin-bottom-1">
+                <em>No tags added</em>
+              </p>
+            <% end %>
+          <% end %>
+
+          <%= row.with_cell(text: document.received_at_or_created || "-") %>
+          <%= row.with_cell(text: document.source) %>
+          <%= row.with_cell(text: govuk_tag(text: document.type.to_s.humanize, colour: document.type_tag_colour)) %>
+
+          <% if actions %>
+            <% row.with_cell(text: "Actions") do %>
+              <%= govuk_link_to "Edit", @task.edit_component_url(document) %><br>
+
+              <%= form_with model: @form, url: @task.component_url(document), method: :delete do |form| %>
+                <%= form.hidden_field :document_id, value: document.id %>
+                <%= form.govuk_task_button "Archive", class: "button-as-link", action: :archive_document %>
+              <% end %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

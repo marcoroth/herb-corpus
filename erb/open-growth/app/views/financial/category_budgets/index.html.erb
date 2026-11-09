@@ -1,0 +1,67 @@
+<section class="mx-auto max-w-5xl space-y-6 p-6 sm:p-8">
+  <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold"><%= t("category_budgets.title") %></h1>
+      <p class="mt-1 text-sm text-muted-foreground"><%= t("category_budgets.subtitle") %></p>
+    </div>
+    <%= form_with url: finance_category_budgets_path, method: :get, class: "flex flex-wrap items-end gap-2" do %>
+      <label class="text-sm"><%= t("category_budgets.view_period") %>
+        <%= select_tag :period, options_for_select(%w[week two_weeks month custom].map { |period| [t("category_budgets.periods.#{period}"), period] }, @period), class: "mt-1 block rounded border-border bg-card" %>
+      </label>
+      <label class="text-sm"><%= t("category_budgets.from") %> <%= date_field_tag :start_date, @range_start, class: "mt-1 block rounded border-border bg-card" %></label>
+      <label class="text-sm"><%= t("category_budgets.to") %> <%= date_field_tag :end_date, @range_end, class: "mt-1 block rounded border-border bg-card" %></label>
+      <%= render Ui::ButtonComponent.new(label: t("category_budgets.show"), type: :submit, variant: :outline) %>
+    <% end %>
+  </header>
+
+  <p class="text-sm text-muted-foreground"><%= t("category_budgets.showing_range", start_date: l(@range_start), end_date: l(@range_end)) %></p>
+
+  <% if @rows.any? %>
+    <div class="space-y-3">
+      <% @rows.each do |row| %>
+        <% budget = row.budget %>
+        <% percent = row.allowance.zero? ? 0 : (row.spent / row.allowance * 100).round %>
+        <% over = row.spent > row.allowance %>
+        <article class="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 class="font-semibold"><%= link_to budget.category.name, finance_entries_path(category_id: budget.category_id, date_from: @range_start, date_to: @range_end), class: "hover:text-primary hover:underline" %></h2>
+              <p class="text-sm text-muted-foreground"><%= t("category_budgets.spent_of", spent: number_to_currency(row.spent), allowance: number_to_currency(row.allowance)) %> · <%= over ? t("category_budgets.over_by", amount: number_to_currency(-row.remaining)) : t("category_budgets.left", amount: number_to_currency(row.remaining)) %></p>
+            </div>
+            <span class="text-sm font-medium <%= over ? "text-danger" : "text-success" %>"><%= percent %>%</span>
+          </div>
+          <div class="mt-3 h-3 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="<%= "#{budget.category.name} #{t("category_budgets.used")}" %>" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<%= [percent, 100].min %>">
+            <div class="h-full rounded-full <%= over ? "bg-danger" : "bg-success" %>" style="width: <%= [percent, 100].min %>%"></div>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+            <span class="text-xs text-muted-foreground"><%= number_to_currency(budget.amount) %> / <%= budget.frequency == "custom" ? t("category_budgets.custom_days_count", count: budget.custom_days) : t("category_budgets.frequencies.#{budget.frequency}") %></span>
+            <%= form_with model: budget, url: finance_category_budget_path(budget), method: :patch, class: "flex flex-wrap items-end gap-2" do |form| %>
+              <%= form.label :amount, t("category_budgets.limit"), class: "text-xs" %><%= form.number_field :amount, step: "0.01", min: "0.01", class: "w-28 rounded border-border bg-card px-2 py-1 text-sm" %>
+              <%= form.select :frequency, Financial::CategoryBudget::FREQUENCIES.map { |frequency| [t("category_budgets.frequencies.#{frequency}"), frequency] }, {}, class: "rounded border-border bg-card px-2 py-1 text-sm" %>
+              <%= form.number_field :custom_days, min: 1, placeholder: t("category_budgets.custom_days"), class: "w-20 rounded border-border bg-card px-2 py-1 text-sm" %>
+              <%= form.date_field :starts_on, class: "rounded border-border bg-card px-2 py-1 text-sm", aria: { label: t("category_budgets.starts_on") } %>
+              <%= form.submit t("category_budgets.save"), class: "rounded bg-primary px-3 py-1 text-sm text-white" %>
+              <%= link_to t("category_budgets.remove"), finance_category_budget_path(budget), data: { turbo_method: :delete, turbo_confirm: t("category_budgets.confirm_remove") }, class: "text-sm text-danger" %>
+            <% end %>
+          </div>
+        </article>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="rounded-xl border border-dashed border-border p-6 text-muted-foreground"><%= t("category_budgets.empty") %></p>
+  <% end %>
+
+  <% if @categories.any? %>
+    <section class="rounded-xl border border-border bg-card p-5">
+      <h2 class="text-lg font-semibold"><%= t("category_budgets.add_title") %></h2>
+      <%= form_with model: @new_budget, url: finance_category_budgets_path, class: "mt-4 flex flex-wrap items-end gap-3" do |form| %>
+        <label class="text-sm"><%= t("category_budgets.category") %> <%= form.collection_select :category_id, @categories, :id, :selection_label, { prompt: t("category_budgets.choose_category") }, required: true, class: "mt-1 block rounded border-border bg-card" %></label>
+        <label class="text-sm"><%= t("category_budgets.amount") %> <%= form.number_field :amount, min: "0.01", step: "0.01", required: true, class: "mt-1 block w-32 rounded border-border bg-card" %></label>
+        <label class="text-sm"><%= t("category_budgets.frequency") %> <%= form.select :frequency, Financial::CategoryBudget::FREQUENCIES.map { |frequency| [t("category_budgets.frequencies.#{frequency}"), frequency] }, {}, class: "mt-1 block rounded border-border bg-card" %></label>
+        <label class="text-sm"><%= t("category_budgets.custom_days") %> <%= form.number_field :custom_days, min: 1, placeholder: "10", class: "mt-1 block w-24 rounded border-border bg-card" %></label>
+        <label class="text-sm"><%= t("category_budgets.starts_on") %> <%= form.date_field :starts_on, required: true, class: "mt-1 block rounded border-border bg-card" %></label>
+        <%= render Ui::ButtonComponent.new(label: t("category_budgets.add"), type: :submit) %>
+      <% end %>
+    </section>
+  <% end %>
+</section>
