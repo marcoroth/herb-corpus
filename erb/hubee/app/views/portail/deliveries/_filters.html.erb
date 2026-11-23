@@ -1,0 +1,54 @@
+<%# locals: (criteria:, selectable_data_streams:, data_stream_names:) %>
+<%# Un panneau repliable, à part du menu d'états : naviguer par état est un clic, filtrer est
+    une soumission. Ouvert quand un filtre est posé, pour montrer ce qui restreint la liste. %>
+<section class="fr-accordion fr-mb-3w">
+  <h2 class="fr-accordion__title">
+    <button type="button" class="fr-accordion__btn" aria-expanded="<%= criteria.filtered? %>" aria-controls="delivery-filters">
+      <%= t(".title") %>
+    </button>
+  </h2>
+  <div id="delivery-filters" class="<%= class_names("fr-collapse", "fr-collapse--expanded" => criteria.filtered?) %>">
+    <%# En GET : l'état de navigation est l'URL, rechargeable et partageable. L'état et le tri
+        voyagent en champs cachés parce que seule l'URL les connaît : filtrer ne doit pas remettre
+        l'ordre par défaut. Les flux proposés sont ceux du périmètre. %>
+    <%= form_with url: teledossiers_path, method: :get, class: "fr-background-alt--grey fr-p-3w" do |f| %>
+      <% criteria.link_params.slice(:statut, :tri, :ordre).each do |name, value| %>
+        <%= f.hidden_field name, value: value %>
+      <% end %>
+
+      <%# En tête : l'usage le plus fréquent. `maxlength` : la longueur d'un numéro complet, l'amont
+          refuse au-delà. %>
+      <%= f.dsfr_input_field :numero, :search_field, label: t(".number"), hint: t(".number_hint"),
+            value: criteria.number, maxlength: Portail::HubAPI::Deliveries::NUMBER_MAX_LENGTH %>
+
+      <fieldset class="fr-fieldset delivery-data-streams" id="delivery-data-streams" aria-labelledby="delivery-data-streams-legend">
+        <legend class="fr-fieldset__legend" id="delivery-data-streams-legend">
+          <%= t("portail.deliveries.fields.data_stream") %>
+        </legend>
+        <% selectable_data_streams.each_with_index do |code, index| %>
+          <div class="fr-fieldset__element">
+            <div class="fr-checkbox-group fr-checkbox-group--sm">
+              <%= f.check_box :flux, {multiple: true, id: "flux-#{index}", checked: criteria.data_stream_codes.include?(code), include_hidden: false}, code, nil %>
+              <%= f.label :flux, data_stream_name(code, data_stream_names[code]), value: code, for: "flux-#{index}", class: "fr-label" %>
+            </div>
+          </div>
+        <% end %>
+      </fieldset>
+
+      <%# Rien n'est transmis dans le futur : le sélecteur s'arrête à aujourd'hui. %>
+      <fieldset class="fr-fieldset" id="delivery-period" aria-labelledby="delivery-period-legend">
+        <legend class="fr-fieldset__legend" id="delivery-period-legend"><%= t(".period") %></legend>
+        <div class="fr-fieldset__element fr-fieldset__element--inline">
+          <%= f.dsfr_input_field :du, :date_field, label: t(".from"), value: criteria.transmitted_from,
+                max: Date.current.iso8601 %>
+        </div>
+        <div class="fr-fieldset__element fr-fieldset__element--inline">
+          <%= f.dsfr_input_field :au, :date_field, label: t(".to"), value: criteria.transmitted_to,
+                max: Date.current.iso8601 %>
+        </div>
+      </fieldset>
+
+      <%= f.dsfr_submit t(".submit"), class: "fr-btn--secondary fr-mb-3w" %>
+    <% end %>
+  </div>
+</section>

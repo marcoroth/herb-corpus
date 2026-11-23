@@ -1,0 +1,113 @@
+<%# Le secret révélé ne doit pas survivre dans l'instantané que Turbo garde de la page : sans cela,
+    le retour arrière le réafficherait. %>
+<% content_for :head, tag.meta(name: "turbo-cache-control", content: "no-cache") %>
+<%# Le nom seul, comme la fiche d'un télédossier : le code est dans le récapitulatif. %>
+<% content_for :title, t(".title", data_stream: @subscription.data_stream_display_name) %>
+
+<%# Le bouton de repli est requis : sur petit écran, le DSFR réduit le fil à ce seul contrôle. %>
+<nav role="navigation" class="fr-breadcrumb" aria-label="<%= t(".breadcrumb") %>">
+  <button class="fr-breadcrumb__button" aria-expanded="false" aria-controls="subscription-breadcrumb">
+    <%= t(".breadcrumb_open") %>
+  </button>
+  <div class="fr-collapse" id="subscription-breadcrumb">
+    <ol class="fr-breadcrumb__list">
+      <li><%= link_to t(".home"), root_path, class: "fr-breadcrumb__link" %></li>
+      <li><%= link_to t("portail.subscriptions.index.heading"), abonnements_path, class: "fr-breadcrumb__link" %></li>
+      <%# Sans href : le DSFR marque l'étape courante par `aria-current`. %>
+      <li><a class="fr-breadcrumb__link" aria-current="page"><%= @subscription.data_stream_display_name %></a></li>
+    </ol>
+  </div>
+</nav>
+
+<h1><%= @subscription.data_stream_display_name %></h1>
+
+<%# Inactif, l'abonnement ne fait pas arriver de télédossier ; un autre abonnement de la structure
+    sur le même flux pourrait pourtant faire écrire à ces adresses. La page dit ce qui est réglé,
+    sans affirmer qu'aucun courriel ne part. Une alerte dans le contenu : `fr-notice` est le
+    bandeau d'information de tout le site. %>
+<% unless @subscription.read_package %>
+  <div class="fr-alert fr-alert--info fr-alert--sm fr-mb-3w">
+    <p><%= t(".inactive") %></p>
+  </div>
+<% end %>
+
+<%# Le récapitulatif de la fiche d'un télédossier : chaque couple dt/dd dans un div, permis dans un
+    dl depuis HTML 5.2, pour que la grille ait des cellules à placer. Les icônes DSFR se posent en
+    `::before` par la classe, sans texte à masquer. %>
+<div class="fr-background-alt--grey fr-p-3w fr-mb-4w">
+  <dl class="fr-grid-row fr-grid-row--gutters subscription-summary">
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-flag-line fr-icon--sm fr-hint-text fr-mb-1v"><%= t(".fields.activity") %></dt>
+      <dd><%= subscription_activity(@subscription) %></dd>
+    </div>
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-window-line fr-icon--sm fr-hint-text fr-mb-1v"><%= t(".fields.access_mode") %></dt>
+      <dd class="fr-text--bold"><%= subscription_access_mode(@subscription, missing: t(".access_mode_unset")) %></dd>
+    </div>
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-file-text-line fr-icon--sm fr-hint-text fr-mb-1v"><%= t(".fields.data_stream") %></dt>
+      <dd class="fr-text--bold"><%= @subscription.data_stream_code %></dd>
+    </div>
+  </dl>
+</div>
+
+<%# Deux blocs côte à côte : qui se connecte, qui est prévenu. Un petit titre chacun, la valeur
+    mise en avant dessous. %>
+<div class="fr-grid-row fr-grid-row--gutters fr-mb-4w">
+  <%# En mode API seulement, quoi que l'amont serve : un éditeur affiché sur un abonnement portail
+      laisserait croire qu'un tiers se connecte à la place de la structure. %>
+  <% if @subscription.api_access? %>
+    <div class="fr-col-12 fr-col-md-6">
+      <section class="subscription-panel fr-p-3w fr-border-default--grey">
+        <h2 class="fr-h6 fr-mb-2w">
+          <span class="fr-icon-building-line fr-mr-1w" aria-hidden="true"></span><%= t(".delegation") %>
+        </h2>
+        <% if @delegation %>
+          <% identifiers = t(".editor_identifiers", siret: @delegation.editor_siret, insee_code: @delegation.editor_insee_code) %>
+          <%# Le nom vient du référentiel des organisations et peut manquer : le couple identifie
+              alors l'éditeur, et passe au premier plan. %>
+          <% if @delegation.editor_name %>
+            <p class="fr-text--lg fr-text--bold fr-mb-1v"><%= @delegation.editor_name %></p>
+            <p class="fr-text--sm fr-text-mention--grey fr-mb-0"><%= identifiers %></p>
+          <% else %>
+            <p class="fr-text--lg fr-text--bold fr-mb-0"><%= identifiers %></p>
+          <% end %>
+        <% else %>
+          <p class="fr-text--lg fr-text--bold fr-mb-1v"><%= t(".self_connected") %></p>
+          <p class="fr-text--sm fr-text-mention--grey fr-mb-0"><%= t(".self_connected_hint") %></p>
+        <% end %>
+      </section>
+    </div>
+  <% end %>
+
+  <div class="<%= @subscription.api_access? ? "fr-col-12 fr-col-md-6" : "fr-col-12" %>">
+    <section class="subscription-panel fr-p-3w fr-border-default--grey">
+      <h2 class="fr-h6 fr-mb-2w">
+        <span class="fr-icon-mail-line fr-mr-1w" aria-hidden="true"></span><%= t(".emails") %>
+      </h2>
+      <%# Un réglage, pas un statut : du texte, le badge reste à l'état de l'abonnement. %>
+      <p class="fr-text--lg fr-text--bold fr-mb-1v"><%= subscription_email_frequency(@emails) %></p>
+      <% if (hint = subscription_email_frequency_hint(@emails)) %>
+        <p class="fr-text--sm fr-text-mention--grey fr-mb-2w"><%= hint %></p>
+      <% end %>
+      <%# Sans courriel, les adresses conservées ne reçoivent rien : les montrer le ferait croire. %>
+      <% if @emails.sends_emails? %>
+        <% if @emails.recipients.any? %>
+          <ul class="fr-raw-list" aria-label="<%= t(".recipients") %>">
+            <% @emails.recipients.each do |recipient| %>
+              <li class="fr-mb-1v">
+                <span class="fr-icon-mail-line fr-icon--sm fr-mr-1w" aria-hidden="true"></span><%= recipient %>
+              </li>
+            <% end %>
+          </ul>
+        <% else %>
+          <p class="fr-text-mention--grey fr-mb-0"><%= t(".no_recipient") %></p>
+        <% end %>
+      <% end %>
+    </section>
+  </div>
+</div>
+
+<%= render "portail/subscriptions/credentials", subscription: @subscription %>
+
+<%= link_to t(".back"), abonnements_path, class: "fr-link fr-icon-arrow-left-line fr-link--icon-left" %>

@@ -1,0 +1,47 @@
+<%# locals: (delivery:, states:, data_stream:, message: nil) %>
+<%# Sous le récapitulatif, sans script : l'agent décide en gardant le dossier sous les yeux, et la
+    confirmation tient dans les deux gestes, choisir puis enregistrer. %>
+<section class="fr-background-alt--grey fr-p-3w fr-mb-4w" aria-labelledby="state-heading">
+  <h2 id="state-heading" class="fr-h5 fr-mb-2w"><%= t(".heading") %></h2>
+
+  <%# Avant les contrôles, là où un lecteur d'écran l'entend avant d'agir : ce geste sort de
+      l'administration. Relié au champ par aria-describedby. %>
+  <p id="state-notice" class="fr-hint-text fr-mb-2w"><%= t(".notice") %></p>
+
+  <%= form_with url: teledossier_etat_path(delivery.id), method: :patch, multipart: true do |form| %>
+    <%# Groupes frères, sans grille : le DSFR n'espace un groupe que s'il n'est pas le dernier enfant. %>
+    <div class="fr-select-group">
+      <%= label_tag :etat, t(".label"), class: "fr-label" %>
+      <%# L'invite n'est pas une option : sélectionnée, désactivée et cachée une fois la liste
+          ouverte, comme le DSFR l'écrit. %>
+      <%= select_tag :etat,
+            content_tag(:option, t(".placeholder"), value: "", selected: true, disabled: true, hidden: true) +
+            options_for_select(states.map { |state| [delivery_state_label(state), state] }),
+            required: true, class: "fr-select", aria: {describedby: "state-notice"} %>
+    </div>
+    <% if delivery_accepts_message?(data_stream) %>
+      <div class="fr-input-group">
+        <%= label_tag :message, class: "fr-label" do %>
+          <%= t(".message_label") %>
+          <span class="fr-hint-text"><%= t(".message_hint", max: Portail::Delivery::StateMessage::MAX_LENGTH) %></span>
+        <% end %>
+        <%= text_area_tag :message, message, class: "fr-input", rows: 3,
+              maxlength: Portail::Delivery::StateMessage::MAX_LENGTH %>
+      </div>
+    <% end %>
+    <% if delivery_accepts_attachment?(delivery, data_stream) %>
+      <%# Le DSFR ne marge pas ce groupe et y écarte l'aide plus qu'ailleurs : réalignés à la main. %>
+      <div class="fr-upload-group fr-mb-3w">
+        <%= label_tag :piece, class: "fr-label" do %>
+          <%= t(".attachment_label") %>
+          <span class="fr-hint-text fr-mt-1v"><%= t(".attachment_hint",
+                formats: delivery_attachment_formats(data_stream.v1),
+                max: number_to_human_size(data_stream.v1.attachment_max_byte_size)) %></span>
+        <% end %>
+        <%= file_field_tag :piece, class: "fr-upload",
+              accept: data_stream.v1.attachment_content_types.join(",") %>
+      </div>
+    <% end %>
+    <%= form.dsfr_submit t(".submit") %>
+  <% end %>
+</section>

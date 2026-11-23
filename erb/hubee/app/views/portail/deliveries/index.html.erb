@@ -1,0 +1,64 @@
+<%= render "heading" %>
+
+<%# Refus ou panne : rien à lister ni à compter, la page ne dit que la conséquence. %>
+<% if @failure %>
+  <p class="fr-text--lead"><%= t(".failures.#{@failure}") %></p>
+<% else %>
+<div class="fr-grid-row fr-grid-row--gutters">
+  <div class="fr-col-12 fr-col-md-4 fr-col-lg-3">
+    <%= render "state_menu", counts_by_state: @page.counts_by_state, criteria: @criteria %>
+  </div>
+
+  <div class="fr-col-12 fr-col-md-8 fr-col-lg-9">
+    <%# Avant la liste, vide comprise : c'est lui qui permet de lever un filtre. %>
+    <%= render "filters", criteria: @criteria, selectable_data_streams: @selectable_data_streams,
+          data_stream_names: @data_stream_names %>
+    <%= render "active_filters", criteria: @criteria, data_stream_names: @data_stream_names %>
+
+    <%# Le message vide reste à côté du menu : le compteur d'un autre état dit où aller. %>
+    <% if @deliveries.empty? %>
+      <p class="fr-text--lead"><%= t(@criteria.filtered? ? ".empty_filtered" : ".empty") %></p>
+    <% else %>
+      <%# Le total est celui de l'amont, compté avant la policy : une page servie hors périmètre
+          montre moins de lignes qu'annoncé. L'écart est alerté, pas masqué. %>
+      <p class="fr-text--sm fr-text-mention--grey">
+        <%= t(".total", count: @page.pagination.total) %>
+      </p>
+
+      <%# Emboîtement DSFR qui porte le défilement horizontal. Pas de colonne « État » :
+          l'amont ne sert qu'un état à la fois. Les dates se trient par leur en-tête. %>
+      <div class="fr-table fr-table--bordered">
+        <div class="fr-table__wrapper">
+          <div class="fr-table__container">
+            <div class="fr-table__content">
+              <table>
+                <caption><%= t(".caption", state: delivery_state_label(@criteria.state)) %></caption>
+                <thead>
+                  <tr>
+                    <th scope="col"><%= t("portail.deliveries.fields.number") %></th>
+                    <th scope="col"><%= t("portail.deliveries.fields.data_stream") %></th>
+                    <%= delivery_sort_header("transmitted_at", @criteria) %>
+                    <%= delivery_sort_header("updated_at", @criteria) %>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @deliveries.each do |delivery| %>
+                    <tr>
+                      <td><%= link_to delivery.number, teledossier_path(delivery.id) %></td>
+                      <td><%= data_stream_name(delivery.data_stream_code, @data_stream_names[delivery.data_stream_code]) %></td>
+                      <td><%= delivery_transmitted_at(delivery) %></td>
+                      <td><%= delivery_updated_at(delivery) %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%= render "pagination", pagination: @page.pagination, criteria: @criteria %>
+    <% end %>
+  </div>
+</div>
+<% end %>

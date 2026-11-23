@@ -1,0 +1,169 @@
+<%# Rendue aussi par StatesController sur un refus : les partiels se nomment par leur chemin complet. %>
+<% content_for :title, t(".title", number: @delivery.number) %>
+
+<%# Le bouton de repli est requis : sur petit écran, le DSFR réduit le fil à ce seul contrôle. %>
+<nav role="navigation" class="fr-breadcrumb" aria-label="<%= t(".breadcrumb") %>">
+  <button class="fr-breadcrumb__button" aria-expanded="false" aria-controls="delivery-breadcrumb">
+    <%= t(".breadcrumb_open") %>
+  </button>
+  <div class="fr-collapse" id="delivery-breadcrumb">
+    <ol class="fr-breadcrumb__list">
+      <li><%= link_to t(".home"), root_path, class: "fr-breadcrumb__link" %></li>
+      <li><%= link_to t("portail.deliveries.index.heading"), teledossiers_path, class: "fr-breadcrumb__link" %></li>
+      <%# Sans href : le DSFR marque l'étape courante par `aria-current`. %>
+      <li><a class="fr-breadcrumb__link" aria-current="page"><%= @delivery.number %></a></li>
+    </ol>
+  </div>
+</nav>
+
+<h1><%= t(".heading", number: @delivery.number) %></h1>
+
+<% if policy(@delivery).update? && (proposed_state = delivery_proposed_state(@delivery, @data_stream)) %>
+  <%= render "portail/deliveries/state_callout", delivery: @delivery, state: proposed_state %>
+<% end %>
+
+<h2 class="fr-h4 fr-mt-4w"><%= t(".summary") %></h2>
+<%# Une seule largeur pour les cinq champs : les colonnes s'alignent d'une ligne à l'autre à
+    toutes les largeurs. Les icônes DSFR se posent en `::before` par la classe, sans texte à
+    masquer. Chaque couple dt/dd est enveloppé dans un div, permis dans un dl depuis HTML 5.2,
+    pour que la grille ait des cellules à placer. %>
+<div class="fr-background-alt--grey fr-p-3w fr-mb-4w">
+  <dl class="fr-grid-row fr-grid-row--gutters delivery-summary">
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-flag-line fr-icon--sm fr-hint-text fr-mb-1v">
+        <%= t("portail.deliveries.fields.state") %>
+      </dt>
+      <dd><%= delivery_state_badge(@delivery) %></dd>
+    </div>
+
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-file-text-line fr-icon--sm fr-hint-text fr-mb-1v">
+        <%= t("portail.deliveries.fields.data_stream") %>
+      </dt>
+      <%# Le flux est lu une fois par le controller, nil s'il ne se lit pas : la page reste servie. %>
+      <dd class="fr-text--bold"><%= data_stream_label(@delivery.data_stream_code, @data_stream&.name) %></dd>
+    </div>
+
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-user-line fr-icon--sm fr-hint-text fr-mb-1v">
+        <%= t("portail.deliveries.fields.applicant") %>
+      </dt>
+      <dd class="fr-text--bold"><%= delivery_applicant(@delivery) %></dd>
+    </div>
+
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-calendar-line fr-icon--sm fr-hint-text fr-mb-1v">
+        <%= t("portail.deliveries.fields.transmitted_at") %>
+      </dt>
+      <dd class="fr-text-mention--grey"><%= delivery_transmitted_at(@delivery) %></dd>
+    </div>
+
+    <div class="fr-col-12 fr-col-sm-6 fr-col-md-4">
+      <dt class="fr-icon-refresh-line fr-icon--sm fr-hint-text fr-mb-1v">
+        <%= t("portail.deliveries.fields.updated_at") %>
+      </dt>
+      <dd class="fr-text-mention--grey"><%= delivery_updated_at(@delivery) %></dd>
+    </div>
+  </dl>
+</div>
+
+<%# La garde de droits coïncide aujourd'hui avec la lecture ; elle dit l'intention pour le jour
+    où elles divergeront. %>
+<% if policy(@delivery).update? %>
+  <%= delivery_retrieval_callout(@delivery, @data_stream) %>
+  <% offered = delivery_offered_states(@delivery, @data_stream) %>
+  <% if offered.any? %>
+    <%= render "portail/deliveries/state_form", delivery: @delivery, states: offered, data_stream: @data_stream, message: @state_message %>
+  <% end %>
+<% end %>
+
+<section class="fr-p-3w fr-mb-4w fr-border-default--grey">
+  <%# Le lien de l'archive suit le titre dans le DOM, à sa droite dès le point de rupture MD. %>
+  <div class="fr-grid-row fr-grid-row--gutters fr-mb-2w">
+    <div class="fr-col-12 fr-col-md">
+      <h2 class="fr-h4 fr-mb-0"><%= t(".attachments") %></h2>
+    </div>
+    <%= delivery_archive_access(@delivery) %>
+  </div>
+  <% if @delivery.attachments.any? %>
+    <%# Caption « du dépôt » : elle distingue ce tableau de ceux des pièces ajoutées ensuite. %>
+    <%= render "portail/deliveries/attachments", attachments: @delivery.attachments, caption: t(".deposit_attachments"),
+          delivery: @delivery %>
+  <% else %>
+    <p><%= t(".deposit_attachments_empty") %></p>
+  <% end %>
+
+  <%# Deux magasins en amont, deux sous-parties : une pièce arrivée en cours d'instruction ne dit
+      pas la même chose qu'une pièce déposée d'emblée. %>
+  <h3 class="fr-h5 fr-mt-4w"><%= t(".added_attachments") %></h3>
+  <% events_with_attachments = delivery_events_with_attachments(@delivery) %>
+  <% if events_with_attachments.any? %>
+    <% events_with_attachments.each do |event| %>
+      <p class="fr-text--sm fr-text-mention--grey fr-mb-1w">
+        <%= t(".added_by", time: delivery_event_time(event),
+              author: event.author.presence || t("portail.deliveries.events.unknown_author").downcase_first) %>
+      </p>
+      <%# La provenance dans la caption : plusieurs inventaires se suivent ici. %>
+      <%= render "portail/deliveries/attachments", attachments: event.attachments,
+            caption: t(".added_attachments_caption", time: delivery_event_time(event)), delivery: @delivery %>
+    <% end %>
+  <% else %>
+    <p class="fr-mb-0"><%= t(".added_attachments_empty") %></p>
+  <% end %>
+</section>
+
+<section class="fr-p-3w fr-mb-4w fr-border-default--grey">
+  <h2 class="fr-h4"><%= t(".history") %></h2>
+  <% if @delivery.events.any? %>
+    <ol class="delivery-timeline">
+      <% delivery_events_by_month(@delivery).each do |month, events| %>
+        <li>
+          <p class="delivery-timeline__month fr-text--sm fr-mb-2w">
+            <%= delivery_event_month(month) %>
+          </p>
+
+          <ol class="delivery-timeline__entries">
+            <% events.each do |event| %>
+              <li class="delivery-timeline__entry fr-p-2w fr-mb-2w">
+                <p class="fr-text--xs fr-text-mention--grey fr-mb-1v">
+                  <%= delivery_event_time(event) %>
+                </p>
+
+                <p class="fr-mb-0"><%= delivery_event_sentence(event) %></p>
+
+                <% if (message = delivery_event_message(event)) %>
+                  <% if delivery_event_for_applicant?(event) %>
+                    <div class="fr-highlight fr-ml-0 fr-my-1w">
+                      <p class="fr-text--xs fr-text--bold fr-mb-1v"><%= t(".applicant_message") %></p>
+                      <p class="delivery-timeline__message fr-text--sm fr-mb-0"><%= message %></p>
+                    </div>
+                  <% else %>
+                    <p class="delivery-timeline__message fr-mb-0"><%= message %></p>
+                  <% end %>
+                <% end %>
+
+                <%# Seule lecture de `si_comment` : si la décision de l'afficher s'inverse, c'est ici. %>
+                <% if event.si_comment.present? %>
+                  <p class="fr-text--sm fr-mb-0">
+                    <strong><%= t(".si_comment") %></strong> : <%= event.si_comment %>
+                  </p>
+                <% end %>
+
+                <% if event.attachments.any? %>
+                  <p class="fr-text--sm fr-mb-0">
+                    <%= t(".event_attachments") %> :
+                    <%= event.attachments.map(&:filename).join(", ") %>
+                  </p>
+                <% end %>
+              </li>
+            <% end %>
+          </ol>
+        </li>
+      <% end %>
+    </ol>
+  <% else %>
+    <p class="fr-mb-0"><%= t(".history_empty") %></p>
+  <% end %>
+</section>
+
+<%= link_to t(".back"), teledossiers_path, class: "fr-link fr-icon-arrow-left-line fr-link--icon-left" %>
