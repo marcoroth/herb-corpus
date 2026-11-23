@@ -296,7 +296,7 @@ cannot make a comparison silently measure the same Herb twice.
 |  |  |  |  |  |
 | [conference-app](https://github.com/kaigionrails/conference-app/tree/a59ee022329668def7c2c1723ae5009470e9065b) | herb | 0.11.0 | explicit | [2025-10-02](https://github.com/kaigionrails/conference-app/commit/ef7ff517d6676a169f21fa3ac8d822cd974ed3c0 "first seen in Gemfile") |
 |  |  |  |  |  |
-| [consuldemocracy](https://github.com/consuldemocracy/consuldemocracy/tree/dcee73dcb84bc99745e052d473ed9986550b6aeb) | herb | 0.11.1 | explicit | – |
+| [consuldemocracy](https://github.com/consuldemocracy/consuldemocracy/tree/dcee73dcb84bc99745e052d473ed9986550b6aeb) | herb | 0.11.1 | explicit | [2026-10-06](https://github.com/consuldemocracy/consuldemocracy/commit/9754129968b3abcbf4c0ec958e9985f1e2a6fd75 "first seen in Gemfile") |
 |  | linter | =0.11.0 | explicit | [2026-10-06](https://github.com/consuldemocracy/consuldemocracy/commit/9754129968b3abcbf4c0ec958e9985f1e2a6fd75 "first seen in package.json") |
 |  | .herb.yml | 0.11.0 | – | [2026-10-06](https://github.com/consuldemocracy/consuldemocracy/commit/9754129968b3abcbf4c0ec958e9985f1e2a6fd75 "first seen in .herb.yml") |
 |  |  |  |  |  |
