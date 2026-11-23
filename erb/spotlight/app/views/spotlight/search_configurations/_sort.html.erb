@@ -1,0 +1,44 @@
+<% default_field = @blacklight_configuration.blacklight_config.default_sort_field %>
+<%= field_set_tag(t(:'.header')) do %>
+  <p class="instructions"><%= t(:'.help') %></p>
+
+  <%= f.fields_for :sort_fields, @blacklight_configuration.blacklight_config.sort_fields.keys do |vt| %>
+    <ol class="dd-list col-10 disabled-sort-option sort_fields_admin">
+      <li>
+        <div class="panel">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="h6 card-title">
+                <%= vt.fields_for default_field.key, default_field do |sort| %>
+                  <%= sort.check_box_without_bootstrap :enable, checked: true, disabled: true, data: { readonly: true } %>
+                  <%= sort.hidden_field :enabled, value: '1', readonly: true %>
+                  <%= sort.hidden_field :label, readonly: true %>
+                  <%= sort.hidden_field :weight, value: "-1", readonly: true %>
+                  <%= default_field.label %>
+                <% end %>
+              </h3>
+            </div>
+            <div class="card-body">
+              <p class="card-text"><%= translate_sort_fields(default_field) %></p>
+            </div>
+          </div>
+        </div>
+      </li>
+    </ol>
+    <div class="panel-group dd sort_fields_admin col-10" id="nested-sort-fields" data-behavior="nestable" data-max-depth="1">
+      <ol class="dd-list">
+        <% @blacklight_configuration.blacklight_config.sort_fields.select { |k, v| blacklight_configuration_context.evaluate_if_unless_configuration(v.original) }.except(default_field.key).each_with_index do |(k, config), index| %>
+
+          <%= vt.fields_for k, config do |field| %>
+            <%= render layout: 'spotlight/shared/dd3_item', locals: { id: k, index: index, field: field, card_data: { behavior: 'restore-default' }, label: config.label } do |_, section| %>
+              <% case section %>
+              <% when :card_body %>
+                <p class="card-text"><%= translate_sort_fields(config) %></p>
+              <% end %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </ol>
+    </div>
+  <% end %>
+<% end %>

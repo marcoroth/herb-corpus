@@ -1,0 +1,29 @@
+<p class="instructions"><%= t(:'.help') %></p>
+<div class="dd facet_fields" id="nested-fields" data-behavior="nestable" data-max-depth="1">
+  <ol class="dd-list">
+    <%= f.fields_for :facet_fields do |idxf| %>
+      <% @blacklight_configuration.blacklight_config.facet_fields.select { |k, v| blacklight_configuration_context.evaluate_if_unless_configuration(v.original) }.each do |key, config| %>
+        <% metadata = @field_metadata.field(key) %>
+        <% next unless metadata[:document_count] > 0 || config.custom_field %>
+        <%= idxf.fields_for key, config do |facet| %>
+          <%= render layout: 'spotlight/shared/dd3_item', locals: { id: key, field: facet, index: facet.index, dd3_content_classes: "facet-config-#{key.parameterize} page" , enabled_method: :show, label_method: :label, label: facet_field_label(key) } do |_, section| %>
+            <% case section %>
+            <% when :additional_content %>
+              <div class="mt-2">
+                <%= facet.form_group :terms, label_col: 'col-md-2 offset-md-1', label: { text: t(:'spotlight.search_configurations.facets.sort_by.label') } do %>
+                  <%= facet.radio_button :sort, 'count', label: t(:'spotlight.search_configurations.facets.sort_by.count'), checked: (config.sort.to_s == 'count' || config.sort.nil?) %>
+                  <%= facet.radio_button :sort, 'index', label: t(:'spotlight.search_configurations.facets.sort_by.index'), checked: (config.sort.to_s == 'index') %>
+                <% end %>
+              </div>
+            <% when :additional_options %>
+              <div class="facet-metadata me-3">
+                <%= render partial: 'facet_metadata', locals: { blacklight_config: @blacklight_configuration.blacklight_config, field_config: config, metadata: metadata } %>
+              </div>
+            <% else %>
+            <% end %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </ol>
+</div>

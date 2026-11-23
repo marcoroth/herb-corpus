@@ -9,9 +9,9 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **363** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,163** from 298 apps |
-| Size of `erb/` | ~66 MB |
+| Applications and engines | **364** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,371** from 299 apps |
+| Size of `erb/` | ~67 MB |
 | Excluded pending license review | 65 apps |
 
 <!-- corpus:stats:end -->
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**149 of 363** applications use Herb: `herb` 97, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 112, `.herb/` 1.
+**150 of 364** applications use Herb: `herb` 97, `@herb-tools/linter` 61, `@herb-tools/formatter` 36, `.herb.yml` 113, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -623,6 +623,9 @@ cannot make a comparison silently measure the same Herb twice.
 |  |  |  |  |  |
 | [solid_litequeen](https://github.com/kivS/solid_litequeen/tree/b47dda8701f4a83025cd7520f549eeaca578ad61) | .herb.yml | 0.8.3 | – | [2025-12-09](https://github.com/kivS/solid_litequeen/commit/05918675e04d887de1666ba912844dd2a6413125 "first seen in .herb.yml") |
 |  |  |  |  |  |
+| [spotlight](https://github.com/projectblacklight/spotlight/tree/c1c721ec39514ea24deb9aec89f9289e0ef7d237) | linter | ^0.11.2 | explicit | [2026-11-19](https://github.com/projectblacklight/spotlight/commit/a11580b2f6fc85ac434fdf6ef6656470ead23477 "first seen in package.json") |
+|  | .herb.yml | 0.11.2 | – | [2026-11-19](https://github.com/projectblacklight/spotlight/commit/a11580b2f6fc85ac434fdf6ef6656470ead23477 "first seen in .herb.yml") |
+|  |  |  |  |  |
 | [sul-requests](https://github.com/sul-dlss/sul-requests/tree/63ff9f960aca083eb5a5f9beb70c9da3bb9ac89a) | herb | 0.11.0 | explicit | [2026-02-10](https://github.com/sul-dlss/sul-requests/commit/09471f0a37184412ca29675b4e2cea17b19bfbba "first seen in Gemfile") |
 |  | .herb.yml | present | – | [2026-04-28](https://github.com/sul-dlss/sul-requests/commit/7d3e6eb0d1745383f9e32f707815b5506330f209 "first seen in .herb.yml") |
 |  |  |  |  |  |
@@ -678,7 +681,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**30 of 363** applications use ReActionView: `reactionview` 30.
+**30 of 364** applications use ReActionView: `reactionview` 30.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -748,12 +751,12 @@ cannot make a comparison silently measure the same Herb twice.
 xychart
   title "Cumulative adoption, by project"
   x-axis ["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]
-  y-axis "Apps" 0 --> 150
-  line [3, 8, 16, 22, 34, 46, 54, 65, 81, 92, 104, 112, 125, 131, 137, 148, 149]
+  y-axis "Apps" 0 --> 151
+  line [3, 8, 16, 22, 34, 46, 54, 65, 81, 92, 104, 112, 125, 131, 137, 148, 150]
   line [0, 0, 6, 10, 17, 17, 18, 19, 21, 22, 22, 24, 25, 27, 28, 29, 30]
 ```
 
-Herb 149 · ReActionView 30
+Herb 150 · ReActionView 30
 
 ### Herb releases in use
 
@@ -775,7 +778,7 @@ pie showData
 
 ### How the config is used
 
-Of the 112 Herb configs, the sections people set are `linter` (108), `formatter` (101), `version` (90), `files` (40), `framework` (28), `template_engine` (8), `engine` (6).
+Of the 113 Herb configs, the sections people set are `linter` (109), `formatter` (102), `version` (91), `files` (41), `framework` (29), `template_engine` (8), `engine` (6).
 
 `formatter.maxLineLength`: **80** (66), **120** (22), **100** (2), **110** (1), **400** (1)
 `formatter.indentWidth`: **2** (92)
@@ -787,12 +790,12 @@ The linter rules most often adjusted:
 | Rule | Disabled | Tuned |
 | --- | ---: | ---: |
 | `html-require-script-nonce` | 18 | 4 |
-| `erb-no-instance-variables-in-partials` | 16 | 4 |
+| `erb-no-instance-variables-in-partials` | 17 | 4 |
 | `actionview-no-silent-helper` | 11 | 3 |
 | `erb-no-unsafe-raw` | 8 | 6 |
+| `erb-no-unused-expressions` | 10 | 4 |
 | `erb-no-interpolated-class-names` | 11 | 2 |
 | `html-anchor-require-href` | 8 | 5 |
-| `erb-no-unused-expressions` | 9 | 4 |
 | `erb-prefer-image-tag-helper` | 8 | 4 |
 | `erb-no-duplicate-branch-elements` | 9 | 2 |
 | `erb-no-output-in-attribute-position` | 7 | 1 |
@@ -811,7 +814,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**39 of 363** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
+**39 of 364** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -918,7 +921,7 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 363** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
+**9 of 364** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
 
 > History could not be searched in 97 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -959,7 +962,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 363** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 364** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 

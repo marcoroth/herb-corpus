@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<%= content_tag :html, class: 'no-js', **(try(:html_tag_attributes) || {}) do %>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <%= render partial: 'shared/analytics' %>
+    <title><%= h(@page_title || application_name.to_s) %></title>
+    <link href="<%= current_exhibit ? spotlight.opensearch_exhibit_catalog_url(current_exhibit, format: 'xml') : main_app.opensearch_catalog_url(format: 'xml') %>" title="<%= h(@page_title || application_name.to_str) %>" type="application/opensearchdescription+xml" rel="search">
+    <%= favicon_link_tag 'favicon.ico' %>
+    <% if current_exhibit %>
+      <%= exhibit_stylesheet_link_tag "application" %>
+    <% else %>
+      <%= stylesheet_link_tag "application" %>
+    <% end %>
+    <%= javascript_tag "window.sirTrevorIcon = '#{asset_path('spotlight/blocks/sir-trevor-icons.svg')}'" %>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <%= javascript_tag 'L.Icon.Default.prototype.options.imagePath = "https://unpkg.com/leaflet@1.9.4/dist/images/"' %>
+    <%= javascript_include_tag 'leaflet-iiif', "data-turbo-track": "reload", defer: true %>
+    <%= javascript_include_tag 'Leaflet.Editable', "data-turbo-track": "reload", defer: true %>
+    <%= javascript_include_tag 'Path.Drag', "data-turbo-track": "reload", defer: true %>
+    <% if defined? Importmap %>
+      <%= javascript_importmap_tags %>
+    <% else %>
+      <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
+    <% end %>
+    <%= csrf_meta_tags %>
+    <%= content_for(:head) %>
+    <% if @document %>
+      <% add_document_meta_content(@document) %>
+    <% elsif current_exhibit %>
+      <% description(current_exhibit.description) if current_exhibit %>
+      <% add_exhibit_meta_content %>
+    <% end %>
+    <%= yield(:meta) %>
+  </head>
+  <body class="<%= render_body_class %>">
+    <%= render partial: 'shared/body_preamble' %>
+    <%= render blacklight_config.skip_link_component.new(render_search_link: should_render_spotlight_search_bar?) do %>
+      <%= content_for(:skip_links) %>
+    <% end %>
+    <%= render blacklight_config.header_component.new(blacklight_config:) %>
+    <%= render Spotlight::MastheadComponent.new(current_exhibit:, current_masthead:, resource_masthead: resource_masthead?) %>
+    <%= content_for?(:header_content) ? yield(:header_content) : "" %>
+
+    <main id="main-container" class="<%= container_classes %>" aria-label="<%= t('blacklight.main.aria.main_container') %>">
+      <%= content_for(:container_header) %>
+
+      <%= render partial: 'shared/flash_msg', layout: 'shared/flash_messages' %>
+
+      <div class="row">
+        <%= content_for?(:content) ? yield(:content) : yield %>
+      </div>
+    </main>
+
+    <%= render partial: 'shared/footer' %>
+    <%= render partial: 'shared/modal' %>
+  </body>
+<% end %>

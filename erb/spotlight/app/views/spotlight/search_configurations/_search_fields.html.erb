@@ -1,0 +1,69 @@
+<% default_field = @blacklight_configuration.blacklight_config.default_search_field %>
+<div class="checkbox">
+  <label for="enable_feature">
+    <%= check_box_tag :enable_feature, '1', @blacklight_configuration.blacklight_config.search_fields.select { |_k, v| v.enabled && v.include_in_simple_select != false }.any?, data: { behavior: 'enable-feature', target: '#search_fields' } %> <%= t(:'.enable_feature') %>
+  </label>
+</div>
+
+<%= field_set_tag(t(:'.header'), id: 'search_fields') do %>
+  <p class="instructions"><%= t(:'.help') %></p>
+  <p class="instructions"><%= t(:'.instructions') %></p>
+
+  <%= f.fields_for :search_fields, @blacklight_configuration.blacklight_config.search_fields.keys do |vt| %>
+    <ol class="dd-list col-md-7 disabled-search-option search_fields_admin">
+      <li>
+        <div class="card">
+          <div class="panel-content">
+            <div class="card-header">
+              <h3 class="h6 card-title">
+                <%= vt.fields_for default_field.key, default_field do |field| %>
+                  <%= field.check_box_without_bootstrap :enabled, data: { readonly: true }, class: 'disabled' %>
+                  <%= field.hidden_field :label, readonly: true %>
+                  <%= field.hidden_field :weight, value: "-1", readonly: true %>
+                  <%= default_field.label %>
+                <% end %>
+              </h3>
+            </div>
+          </div>
+        </div>
+      </li>
+    </ol>
+    <div class="panel-group dd search_fields_admin col-sm-7" id="nested-search-fields" data-behavior="nestable" data-max-depth="1">
+      <ol class="dd-list">
+        <% @blacklight_configuration.blacklight_config.search_fields.select { |_k, v| blacklight_configuration_context.evaluate_if_unless_configuration(v.original) && v.include_in_simple_select != false }.except(default_field.key).each_with_index do |(k, config), index| %>
+          <%= vt.fields_for k, config do |field| %>
+            <%= render layout: 'spotlight/shared/dd3_item', locals: { id: k, index: index, field: field } do %>
+            <% end %>
+          <% end %>
+        <% end %>
+      </ol>
+    </div>
+  <% end %>
+<% end %>
+
+<% if can? :manage, Spotlight::CustomSearchField.new(exhibit: current_exhibit) %>
+  <h2><%= t(:'.exhibit_specific.header') %></h2>
+  <p class="instructions"><%= t(:'.exhibit_specific.instructions') %></p>
+
+  <table class="table table-striped" id="exhibit-specific-fields">
+    <tbody>
+      <% @exhibit.custom_search_fields.each do |field| %>
+        <tr>
+          <td>
+            <div class="field-label"><%= field.label %></div>
+            <div class="actions">
+              <%= exhibit_edit_link field %> &middot;
+              <%= exhibit_delete_link field %>
+            </div>
+          </td>
+          <td class="field-description">
+            <%= field.field %>
+          </td>
+        </tr>
+      <% end %>
+
+    </tbody>
+  </table>
+
+  <%= exhibit_create_link Spotlight::CustomSearchField.new, class: 'btn btn-primary' %>
+<% end %>
