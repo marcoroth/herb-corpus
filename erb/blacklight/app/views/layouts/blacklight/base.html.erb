@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<%= content_tag :html, class: 'no-js', **html_tag_attributes do %>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <title><%= render_page_title %></title>
+
+    <% if dark_mode_support? %>
+    <script>
+      (() => {
+        let theme = 'auto';
+        try {
+          theme = localStorage.getItem('theme') || 'auto';
+        } catch {
+          // localStorage may be unavailable (e.g. disabled or corrupt browser storage)
+        }
+        if (theme === 'auto') {
+          document.documentElement.setAttribute('data-bs-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        } else {
+          document.documentElement.setAttribute('data-bs-theme', theme);
+        }
+        document.querySelector('html').classList.remove('no-js');
+      })();
+    </script>
+    <% end %>
+    
+    <%= opensearch_description_tag application_name, opensearch_catalog_url(format: 'xml') %>
+    <%= favicon_link_tag %>
+    <%= stylesheet_link_tag "application", media: "all", "data-turbo-track": "reload"  %>
+
+    <% if defined? Importmap %>
+      <%= javascript_importmap_tags %>
+    <% else %>
+      <%= javascript_include_tag "application", "data-turbo-track": "reload", defer: true %>
+    <% end %>
+
+    <%= csrf_meta_tags %>
+    <%= content_for?(:open_graph) ? yield(:open_graph) : render(blacklight_config.open_graph_component.new) %>
+    <%= content_for(:head) %>
+  </head>
+  <body class="<%= render_body_class %>">
+    <%= render blacklight_config.skip_link_component.new do %>
+      <%= content_for(:skip_links) %>
+    <% end %>
+
+    <%= render blacklight_config.header_component.new(blacklight_config: blacklight_config) %>
+
+    <main id="main-container" class="<%= container_classes %>" aria-label="<%= t('blacklight.main.aria.main_container') %>">
+      <%= content_for(:container_header) %>
+
+      <%= render 'shared/flash_msg', layout: 'shared/flash_messages' if flash.any? %>
+
+      <div class="row">
+        <%= content_for?(:content) ? yield(:content) : yield %>
+      </div>
+    </main>
+
+    <%= render partial: 'shared/footer' %>
+    <%= render partial: 'shared/modal' %>
+  </body>
+<% end %>
