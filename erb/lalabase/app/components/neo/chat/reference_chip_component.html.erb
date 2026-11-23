@@ -24,8 +24,9 @@
     On the OUTER element, and it stays there in both states: it is the turbo
     anchor and the panel's channel, and neither may depend on how many entries
     there happen to be. %>
-<% entries = capture do %>
-  <% references.each do |record| %>
+<% entries = {} %>
+<% references.each do |record| %>
+  <% entries[record] = capture do %>
     <% title = title_for(record) %>
     <%# The pill carries the value AND the remove button, so the two read as one
         object rather than as a label with a stray x next to it. max-w + truncate
@@ -34,7 +35,9 @@
         pasted stacktrace from turning one entry into three lines. %>
     <%# div and not span: the pill contains a form (the remove button), and a form
         inside phrasing content is invalid nesting. %>
-    <div class="inline-flex max-w-[13rem] items-center gap-1 rounded-full border border-ink bg-cream-200 px-2.5 py-0.5 text-xs font-semibold text-cream-900">
+    <%# Quiet since the writing-zone plan (2026-11-19): white on the zone's cream,
+        a hairline, regular weight. A reference is read, not pressed. %>
+    <div class="inline-flex max-w-[13rem] items-center gap-1 rounded-full border border-cream-300 bg-surface-raised px-2.5 py-0.5 text-xs text-cream-900">
       <%# The type's own glyph, from the citation map (see #icon_for). Decorative:
           the title beside it already says what this is, and from S3 on the KIND is
           what tells two entries of one collection apart at a glance. %>
@@ -76,41 +79,74 @@
 <% end %>
 <div id="<%= dom_id %>" class="contents" data-reference-keys="<%= reference_keys %>">
   <% if collection? %>
-    <%# ⚠️ open:basis-full, and it has to sit on the element that carries the
-        `open` attribute: the Tailwind variant is `&[open]`, so it reaches no
-        ancestor. Without it the open list does not break out of the context row,
-        it grows INSIDE it -- and the scope chip, vertically centred beside it,
-        ends up wedged between the label and the list. With it the whole block
-        takes its own line of the wrapping row and "Sucht in" drops below it,
-        which is where the layout spec measures it.
+    <%# From two entries on: a summary chip, and the list behind it (§8.1).
 
-        min-w-0 so the summary's truncation has something to truncate against;
-        `group` for the chevron below. %>
-    <details class="group min-w-0 open:basis-full" <%= tag.attributes(open: expanded?) %>>
-      <%# list-none: the native marker is a triangle at the start of the line,
-          which would sit to the LEFT of the "Bezug" label and read as a bullet.
-          The chevron below says the same thing at the end, where the eye is after
-          reading the count. cursor-pointer because a summary is a control that
-          does not otherwise look like one. %>
-      <summary class="flex cursor-pointer list-none select-none items-center gap-1.5">
+        Since S2 of the writing-zone plan (2026-11-19) the open list FLOATS above
+        the context row, over the transcript, from lg on: it used to break out
+        into a line of its own and push the field down. Still a native <details>
+        (E6): it opens without JavaScript, and `open` after a reference write is
+        still the server's to render. neo-disclosure adds Escape (claimed before
+        the panel's own, so one press does not close the assistant) and a click
+        beside it.
+
+        `static` on purpose: the layer is positioned against the context row
+        (`relative` in ChatContainerComponent), so it spans the row rather than
+        the few pixels of the summary. Below lg it stays in the flow, a line of
+        its own (rule 7: moved, not shrunk): the phone's writing zone scrolls,
+        and a floating list would be clipped by it.
+
+        No slide: an empty concealed class, so nothing waits on the controller
+        to become visible. %>
+    <details class="group static min-w-0 open:basis-full lg:open:basis-auto"
+             data-controller="neo-disclosure"
+             data-action="toggle->neo-disclosure#toggled"
+             data-neo-disclosure-concealed-class=""
+             <%= tag.attributes(open: expanded?) %>>
+      <%# list-none: the native marker would sit left of the label and read as a
+          bullet; the chevron says the same at the end. %>
+      <summary class="flex cursor-pointer list-none select-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
         <span class="text-xs text-faint"><%= t('views.organisations.assistant_panels.reference.label') %></span>
-        <span class="inline-flex max-w-[13rem] items-center gap-1 rounded-full border border-ink bg-cream-200 px-2.5 py-0.5 text-xs font-semibold text-cream-900">
+        <span class="inline-flex max-w-[13rem] items-center gap-1 rounded-full border border-cream-300 bg-surface-raised px-2.5 py-0.5 text-xs text-cream-900 group-open:bg-cream-200">
           <span class="truncate"><%= summary_label %></span>
           <i class="bi bi-chevron-down shrink-0 text-[10px] transition-transform group-open:rotate-180" aria-hidden="true"></i>
         </span>
       </summary>
-      <%# One line per object (§8.1), not a wrapped band of pills: at ten entries a
-          wrapped band is a block whose height nobody can predict, and an eye
-          looking for the one to remove has no column to run down. mt-1.5 lines up
-          with the row's own gap-y. %>
-      <div class="mt-1.5 flex flex-col items-start gap-1">
-        <%= entries %>
+      <%# A floating layer from lg on: soft shadow (rule 5), head after F41 (name
+          left, close right), one group per type in registry order. %>
+      <div data-neo-disclosure-target="layer"
+           class="mt-1.5 rounded-lg border border-cream-300 bg-surface-raised
+                  lg:absolute lg:bottom-full lg:left-0 lg:z-20 lg:mt-0 lg:mb-2 lg:w-[min(22rem,100%)] lg:shadow-lg">
+        <div class="flex items-center gap-2 border-b border-cream-300 px-3 py-1.5">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-muted">
+            <%= t('views.organisations.assistant_panels.reference.list_title',
+                  count: references.size, limit: Assistant::ReferenceRegistry::MAX_REFERENCES) %>
+          </span>
+          <button type="button"
+                  data-action="neo-disclosure#close"
+                  aria-label="<%= t('views.organisations.assistant_panels.reference.close_list') %>"
+                  title="<%= t('views.organisations.assistant_panels.reference.close_list') %>"
+                  class="ms-auto flex h-6 w-6 items-center justify-center rounded-md text-muted hover:bg-cream-100 hover:text-heading focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+            <i class="bi bi-x-lg text-xs" aria-hidden="true"></i>
+          </button>
+        </div>
+        <%# One line per object (§8.1), grouped by type under its count. The pills
+            may use the list's width here: the 13rem cap is for the row. %>
+        <div class="flex flex-col items-start gap-1 px-3 py-2 [&>div]:max-w-full">
+          <% grouped_entries.each do |type_label, group| %>
+            <span class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted first:mt-0"><%= type_label %></span>
+            <% group.each do |record| %>
+              <%= entries[record] %>
+            <% end %>
+          <% end %>
+        </div>
       </div>
     </details>
   <% else %>
     <div class="flex items-center gap-1.5">
       <span class="text-xs text-faint"><%= t('views.organisations.assistant_panels.reference.label') %></span>
-      <%= entries %>
+      <% references.each do |record| %>
+        <%= entries[record] %>
+      <% end %>
     </div>
   <% end %>
 </div>

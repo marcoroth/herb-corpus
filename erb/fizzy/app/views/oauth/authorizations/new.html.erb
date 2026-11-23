@@ -1,0 +1,57 @@
+<%# One heading for every app. Its name, which a self-registered app typed
+    itself, goes in the panel beside who set it (oauth/authorizations/client),
+    so the heading never repeats a claim Fizzy can't vouch for. %>
+<% @page_title = "Connect this app to Fizzy" %>
+
+<%# Arriving by Turbo, as after signing in, would keep the previous page's
+    Content-Security-Policy, whose form-action 'self' blocks the Authorize
+    redirect to the app. A full load applies this page's own. %>
+<% turbo_page_requires_reload %>
+
+<% content_for :header do %>
+  <h1 class="header__title">Connect this app to Fizzy?</h1>
+
+  <%# "Use a different account?" signs out and returns whoever signs in to this same request %>
+  <div class="oauth-consent__identity flex align-center justify-center gap-half txt-small txt-subtle">
+    <span>Signed in as <strong><%= Current.identity.email_address %></strong></span>
+    <%= button_to "Use a different account?", oauth_authorization_switch_path,
+          params: { client_id: @client.client_id, redirect_uri: @redirect_uri, response_type: "code", scope: @scope,
+            state: @state, code_challenge: @code_challenge, code_challenge_method: "S256", resource: @resource }.compact,
+          class: "btn btn--plain txt-link txt-small", form: { data: { turbo: false } } %>
+  </div>
+<% end %>
+
+<article class="oauth-consent panel panel--wide shadow center txt-align-start margin-block-start-half">
+  <%= render "oauth/authorizations/client", client: @client, redirect_uri: @redirect_uri %>
+
+  <%= form_with url: oauth_authorization_path, method: :post, data: { turbo: false }, html: { class: "flex flex-column gap" } do |f| %>
+    <%= f.hidden_field :client_id, value: @client.client_id %>
+    <%= f.hidden_field :redirect_uri, value: @redirect_uri %>
+    <%= f.hidden_field :state, value: @state %>
+    <%= f.hidden_field :code_challenge, value: @code_challenge %>
+    <%= f.hidden_field :code_challenge_method, value: "S256" %>
+    <%= f.hidden_field :response_type, value: "code" %>
+    <%= f.hidden_field :resource, value: @resource if @resource %>
+
+    <%# Account binding sets @accounts: a connection then reaches the one account chosen here %>
+    <% if @accounts %>
+      <%= render "oauth/authorizations/account_picker", form: f, accounts: @accounts, selected_account_id: @account_id %>
+    <% end %>
+
+    <%= render "oauth/authorizations/access", form: f, client: @client, scope: @scope, one_account: @accounts.present? %>
+
+    <p class="oauth-consent__fine-print txt-x-small txt-subtle margin-none">
+      If you change your mind, you can revoke its access at any time in <%= link_to "Connected apps", my_connected_apps_path, class: "txt-link" %>.
+    </p>
+
+    <div class="oauth-consent__actions flex gap">
+      <%= f.button type: :submit, class: "btn btn--link txt-medium" do %>
+        <span>Authorize</span>
+      <% end %>
+
+      <%= f.button type: :submit, name: :error, value: "access_denied", class: "btn btn--outline txt-medium" do %>
+        <span>Deny</span>
+      <% end %>
+    </div>
+  <% end %>
+</article>

@@ -1,0 +1,72 @@
+<div class="flex h-full min-h-0" data-controller="chat-workspace composer" data-action="turbo:before-cache@document->chat-workspace#closeDrawer">
+  <aside id="chat_sidebar" data-chat-workspace-target="sidebar" aria-label="Conversation sidebar" class="hidden w-64 shrink-0 flex-col bg-stone-50 p-4 md:flex">
+    <%= render "chats/sidebar", chat: chat %>
+  </aside>
+
+  <dialog id="chat_drawer" data-chat-workspace-target="drawer" data-action="click->chat-workspace#closeOutside close->chat-workspace#drawerClosed" aria-labelledby="chat_drawer_title" class="fixed inset-y-0 left-0 m-0 h-dvh max-h-none w-80 max-w-[85vw] border-0 bg-stone-50 p-0 shadow-xl backdrop:bg-black/40">
+    <div class="flex h-full flex-col p-4">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 id="chat_drawer_title" class="font-semibold text-stone-900">Conversations</h2>
+        <button type="button" autofocus data-action="chat-workspace#closeDrawer" class="min-h-11 rounded-lg px-3 py-2 text-sm text-stone-600 hover:bg-stone-200">Close</button>
+      </div>
+      <%= render "chats/sidebar", chat: chat %>
+    </div>
+  </dialog>
+
+  <section aria-label="Chat workspace" data-controller="<%= "chat-scroll response-sync" if chat.persisted? %>" data-response-sync-url-value="<%= latest_chat_chat_responses_path(chat) if chat.persisted? %>" data-response-sync-stream-id-value="chat_<%= chat.id %>_stream" class="flex min-h-0 min-w-0 flex-1 flex-col">
+    <header class="flex shrink-0 flex-wrap items-center gap-3 bg-white px-4 py-2">
+      <button type="button" data-action="chat-workspace#toggleSidebar" data-chat-workspace-target="sidebarToggle" aria-label="Toggle conversation sidebar" aria-controls="chat_sidebar" aria-expanded="true" class="hidden size-11 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 md:inline-flex">
+        <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M4 5h16v14H4zM9 5v14" /></svg>
+      </button>
+      <button type="button" data-action="chat-workspace#openDrawer" data-chat-workspace-target="drawerToggle" aria-label="Open conversations" aria-controls="chat_drawer" aria-haspopup="dialog" aria-expanded="false" class="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 md:hidden">
+        <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
+      <h1 data-chat-title="<%= chat.id %>" class="min-w-0 flex-1 truncate text-sm font-medium text-stone-700"><%= chat_title(chat) %></h1>
+      <% unless user_signed_in? %>
+        <p class="w-full text-xs text-stone-600">
+          Guest chat. Refreshing or closing this tab ends access to your conversation.
+          <% if chat.persisted? %>
+            <%= link_to "Sign in to save your chats", new_user_session_path, class: "font-medium text-sage-800 underline" %>
+          <% end %>
+        </p>
+      <% end %>
+    </header>
+
+    <div class="relative min-h-0 flex-1">
+    <div data-chat-scroll-target="viewport" data-action="scroll->chat-scroll#scrolled" class="h-full overflow-y-auto px-4 py-6" tabindex="0" aria-label="Conversation">
+      <% if chat.persisted? %>
+        <div data-chat-scroll-target="content" class="mx-auto w-full max-w-3xl">
+          <div id="messages" class="space-y-8">
+            <% chat.messages.visible_in_conversation.includes(:ruby_llm_usages, :ruby_llm_tool_calls, rag_documents: :source).each do |message| %>
+            <%= render message %>
+          <% end %>
+          </div>
+          <%= render "chats/response_status", chat: chat, response: chat.latest_response %>
+        </div>
+      <% else %>
+        <div class="mx-auto flex min-h-full max-w-3xl flex-col items-center justify-center text-center">
+          <h2 class="text-2xl font-medium tracking-tight text-stone-800 sm:text-3xl">What would you like help finding?</h2>
+          <div role="group" class="mt-6 flex flex-wrap justify-center gap-2" aria-label="Suggested questions">
+            <% { "Find free meals" => "Where can I find free meals?", "Find shelter" => "Help me find a shelter for tonight.", "Find community support" => "What community support services are available near me?" }.each do |label, prompt| %>
+              <button type="button" data-action="composer#useSuggestion" data-composer-prompt-param="<%= prompt %>" class="min-h-11 rounded-full border border-stone-200 px-4 py-2 text-sm text-stone-600 hover:bg-stone-50 focus-visible:outline-sage-600"><%= label %></button>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    <% if chat.persisted? %>
+      <button type="button" data-chat-scroll-target="jump" data-action="chat-scroll#jumpToLatest" hidden class="absolute bottom-4 left-1/2 min-h-11 -translate-x-1/2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm text-stone-600 shadow-sm focus-visible:outline-sage-600">Jump to latest</button>
+    <% end %>
+    </div>
+
+    <div class="shrink-0 bg-white px-4 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div class="mx-auto w-full max-w-3xl rounded-2xl border border-stone-200 bg-stone-50 p-3 focus-within:border-sage-500">
+        <% if chat.persisted? %>
+          <%= render "messages/form", chat: chat, message: @message %>
+        <% else %>
+          <%= render "chats/form", chat: chat %>
+        <% end %>
+      </div>
+    </div>
+  </section>
+</div>

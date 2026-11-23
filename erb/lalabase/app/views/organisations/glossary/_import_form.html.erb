@@ -1,0 +1,52 @@
+<%# locals: (text:, message: nil) %>
+<%# The import of a pasted list in the lane (K5): one term per line, a
+    category after a semicolon, named as the page names it. "Prüfen" sends the
+    text to the check in this frame (a dry run); nothing is written before
+    "Importieren" there. Without manage_glossary the new terms come in as
+    proposals, and the lane says so. A refused list comes back here with its
+    reason and the text kept. The filters ride in hidden fields; the ✕ and
+    "Abbrechen" leave the lane (_top), as on the form of a new term. %>
+<% cancel_url = organisation_glossary_terms_path(@current_organisation, list_state) %>
+<div class="people-form-wrap" data-glossary-import>
+  <div class="people-lane__head" data-lane-head data-lane-index-url="<%= organisation_glossary_terms_path(@current_organisation) %>">
+    <h2 class="people-form__title"><%= t('views.organisations.glossary.import.title') %></h2>
+    <%= link_to cancel_url, class: 'people-icon-action', title: t('views.organisations.glossary.show.close'),
+                            data: { lane_close: true, turbo_frame: '_top' } do %>
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    <% end %>
+  </div>
+
+  <% if message.present? %>
+    <p class="people-callout people-callout--danger" role="alert"><%= message %></p>
+  <% end %>
+
+  <%= form_with url: import_preview_organisation_glossary_terms_path(@current_organisation), scope: :import, class: 'people-form' do |f| %>
+    <% list_state.each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+
+    <div class="people-form__field">
+      <%= f.label :text, t('views.organisations.glossary.import.text_label'), for: 'glossary_import_text' %>
+      <%= f.text_area :text, value: text, id: 'glossary_import_text', rows: 12, required: true, spellcheck: false,
+                             autocomplete: 'off', class: 'people-input people-input--area',
+                             aria: { describedby: 'glossary_import_hint' } %>
+      <div id="glossary_import_hint" class="people-form__hint">
+        <p><%= t('views.organisations.glossary.import.hint') %></p>
+        <p><%= t('views.organisations.glossary.import.categories', names: glossary_category_options.map(&:first).join(', ')) %></p>
+        <p><%= t('views.organisations.glossary.import.limit', max: Actors::ImportGlossaryTerms::MAX_LINES) %></p>
+      </div>
+    </div>
+
+    <% unless policy(GlossaryTerm).create? %>
+      <p class="people-callout" data-glossary-import-proposals><%= t('views.organisations.glossary.import.proposals') %></p>
+    <% end %>
+
+    <div class="people-form__actions">
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :medium, type: 'submit') do %>
+        <%= t('views.organisations.glossary.import.check') %>
+      <% end %>
+      <%= link_to t('views.organisations.glossary.import.cancel'), cancel_url, class: 'people-quiet-action',
+                                                                              data: { turbo_frame: '_top' } %>
+    </div>
+  <% end %>
+</div>

@@ -1,4 +1,4 @@
-<%# locals: (tabs:, active:, aria_label:, title:, badge: nil, title_action: nil, right_content: nil) %>
+<%# locals: (tabs:, active:, aria_label:, title:, subtitle: nil, badge: nil, title_action: nil, right_content: nil, below_tab: false) %>
 <%#
   The ONE area header: title box and tab bar, rendered by one file so they
   cannot disagree about the left edge.
@@ -24,8 +24,19 @@
   A bar with one tab is no bar: there is nothing to switch to. The title box
   then takes the wider gap, because it is the last thing before the content.
 
-  @param tabs [Array<Hash>] {key:, label:, path:} from NavigationHelper
-  @param active [Symbol] the tab that is current
+  @param tabs [Array<Hash>] {key:, label:, path:} from NavigationHelper, plus
+    locked: true and locked_title: (the reason) on a tab that does not open
+    yet: the AI tabs while AI is off (NavigationHelper#ai_section_tabs). A
+    locked tab stays in the row, as the AI hub keeps its locked rows, and is
+    no link but a span marked aria-disabled, as those rows are. It carries a
+    lock sign, which the rows do not, and its label is faint (text-faint), the
+    tone a locked row gives only its description (the row's name is
+    text-muted). The reason is its tooltip and is read once more to screen
+    readers. Opened by its URL anyway, it is the active tab like any other (the
+    marker in place of the faint label, aria-current), still no link and still
+    with the lock. A locked tab without a reason raises.
+  @param active [Symbol] the tab that is current (with below_tab: the tab the
+    page belongs to)
   @param aria_label [String] names the nav for screen readers
   ⚠️ The bar looks the SAME on every page, whatever comes below it. What
   follows adapts; never the other way round. So the rule and the gap are not
@@ -36,11 +47,30 @@
   different owners (2px ink, short; 1px hairline, long) meeting in one row of
   pixels.
 
+  On a phone the bar is ONE row (since 2026-11-11): below md the tabs keep
+  their line and the row scrolls sideways, without a scrollbar (scrollbar-hide,
+  as the ticket list's strip), and tab_strip_controller keeps the open tab in
+  view by moving the row, never the page. Wrapped, the six KI tabs took two
+  rows there, and an open tab of the first row had its underline in the middle
+  of the bar instead of on its rule. From md on the row wraps as before.
+  Measured in spec/system/management_phone_spec.rb.
+
+  @param subtitle [String] the line under the title where it is not the
+    organisation's name: the account area has no organisation and names the
+    person (the preferences). Without it the title box names the organisation.
   @param title_action / right_content [String] captured blocks from the caller
+  @param below_tab [Boolean] the page is not the active tab itself but a page
+    below it (a form or a record of that tab, which names itself in the crumb
+    line under the bar, organisations/shared/_section_crumb). The tab then reads
+    as the parent: aria-current="true" ("you are in here") instead of "page"
+    ("this is the page"), so a page has one aria-current="page", the crumb's.
+    The tab looks the same either way: the marker says where the reader is.
 %>
 <% has_bar = tabs.size > 1 %>
+<% active_tab_current = below_tab ? "true" : "page" %>
 <%= render NeoTitleBoxComponent.new(
       title: title,
+      subtitle: subtitle,
       badge: badge,
       variant: :organisation,
       margin_bottom: has_bar ? 'mb-3.5' : 'mb-6'
@@ -51,14 +81,29 @@
 
 <% if has_bar %>
   <nav class="border-b border-cream-300 mb-3.5" aria-label="<%= aria_label %>">
-    <ul class="flex flex-wrap gap-x-6 gap-y-1 md:gap-x-8 -mb-px">
+    <%# One box and one active marker for every tab, link or locked, so a locked
+        tab stands and marks exactly where an open one would. %>
+    <% tab_box = 'inline-block border-b-2 pb-3 pt-1 text-sm whitespace-nowrap' %>
+    <% active_marker = 'border-ink text-cream-900 font-bold' %>
+    <ul class="flex overflow-x-auto scrollbar-hide gap-x-6 gap-y-1 md:flex-wrap md:overflow-visible md:gap-x-8 -mb-px"
+        data-controller="tab-strip">
       <% tabs.each do |tab| %>
         <% is_active = (active.to_sym == tab[:key]) %>
         <li>
-          <%= link_to tab[:path],
-                "aria-current": (is_active ? "page" : nil),
-                class: "inline-block border-b-2 pb-3 pt-1 text-sm whitespace-nowrap transition-colors #{is_active ? 'border-ink text-cream-900 font-bold' : 'border-transparent text-cream-600 font-medium hover:text-cream-900 hover:border-cream-400'}" do %>
+          <% if tab[:locked] %>
+          <% reason = tab.fetch(:locked_title) %>
+          <%= tag.span aria: { current: (is_active ? active_tab_current : nil), disabled: true }, title: reason,
+                       class: "#{tab_box} #{is_active ? active_marker : 'border-transparent text-faint font-medium'}" do %>
             <%= tab[:label] %>
+            <i class="bi bi-lock text-xs" aria-hidden="true"></i>
+            <span class="sr-only"><%= reason %></span>
+          <% end %>
+          <% else %>
+          <%= link_to tab[:path],
+                "aria-current": (is_active ? active_tab_current : nil),
+                class: "#{tab_box} transition-colors #{is_active ? active_marker : 'border-transparent text-cream-600 font-medium hover:text-cream-900 hover:border-cream-400'}" do %>
+            <%= tab[:label] %>
+          <% end %>
           <% end %>
         </li>
       <% end %>

@@ -1,0 +1,104 @@
+<%# locals: (user:, field_class:, label_class:, hint_class:) %>
+<%# What the others see of the person: the profile picture and which email is shown.
+    The second form of the account's profile tab, saved WITHOUT the current password
+    (Users::RegistrationsController#update_display, User::ProfileDisplayForm). It lived
+    on the preferences page until 2026-11-12.
+
+    user: the account as the form holds it. After a refused save that is the copy the
+    save was tried on (what was typed, the errors), not current_user. %>
+<% choice_class = 'flex cursor-pointer items-center gap-3 rounded border border-cream-300 bg-surface-raised px-4 py-3 transition-all hover:border-ink' %>
+<%= form_with url: user_registration_display_path, method: :patch, local: true, multipart: true,
+              data: { turbo: false }, class: 'mt-4 space-y-5' do %>
+  <% if user.errors.any? %>
+    <%# autofocus: the tab comes back scrolled to its top, and this form is its lower
+        half. Focus brings the reason into view and reads it out. %>
+    <div class="rounded-lg border border-red-300 bg-surface px-4 py-3 text-sm text-red-700" role="alert" tabindex="-1" autofocus>
+      <ul class="space-y-1">
+        <% user.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div data-controller="neo-avatar-crop">
+    <span class="<%= label_class %>"><%= t('user_preferences.edit.display.avatar.label') %></span>
+    <div class="flex items-center gap-4">
+      <%= render Neo::Users::AvatarComponent.new(user: user, size: :medium) %>
+      <div class="flex-1">
+        <%= file_field_tag 'user[avatar]', accept: UserAvatar.accept,
+            data: { neo_avatar_crop_target: 'input', action: 'change->neo-avatar-crop#pick' },
+            aria: { label: t('user_preferences.edit.display.avatar.label') },
+            class: 'block w-full text-sm text-body file:mr-3 file:cursor-pointer file:rounded file:border file:border-cream-300 file:bg-surface-raised file:px-3 file:py-2 file:text-sm' %>
+        <p class="<%= hint_class %>">
+          <%= t('user_preferences.edit.display.avatar.hint', max_megabytes: UserAvatar.max_megabytes) %>
+        </p>
+      </div>
+    </div>
+
+    <%# Crop tool: appears once a picture is picked. Drag pans, the range input zooms;
+        the hidden fields carry the framed square in original-image pixels. Without JS
+        this block stays hidden and the server keeps its center crop. %>
+    <div hidden data-neo-avatar-crop-target="editor" class="mt-4">
+      <p class="mb-2 text-xs text-muted"><%= t('user_preferences.edit.display.avatar.crop_hint') %></p>
+      <div data-avatar-crop-stage
+           class="relative h-60 w-60 cursor-grab touch-none select-none overflow-hidden rounded-[5px] border-2 border-cream-300 bg-cream-100"
+           data-action="pointerdown->neo-avatar-crop#dragStart">
+        <img data-neo-avatar-crop-target="image"
+             data-action="load->neo-avatar-crop#loaded error->neo-avatar-crop#failed"
+             alt="" draggable="false" class="absolute left-0 top-0 origin-top-left">
+      </div>
+      <label class="mt-3 flex w-60 items-center gap-3 text-xs text-cream-700">
+        <i class="bi bi-zoom-in" aria-hidden="true"></i>
+        <input type="range" min="1" max="3" step="0.01" value="1" class="w-full" autocomplete="off"
+               data-neo-avatar-crop-target="zoom" data-action="input->neo-avatar-crop#zoom"
+               aria-label="<%= t('user_preferences.edit.display.avatar.zoom_label') %>">
+      </label>
+      <%= hidden_field_tag 'user[avatar_crop_x]', '', data: { neo_avatar_crop_target: 'fieldX' } %>
+      <%= hidden_field_tag 'user[avatar_crop_y]', '', data: { neo_avatar_crop_target: 'fieldY' } %>
+      <%= hidden_field_tag 'user[avatar_crop_size]', '', data: { neo_avatar_crop_target: 'fieldSize' } %>
+    </div>
+
+    <%# persisted?, not just attached?: after a rejected upload the tab re-renders with
+        the picked file still staged, and attached? is true for that. Without the blob
+        check a user WITHOUT a picture is offered "remove profile picture". Same guard
+        as Neo::Users::NameComponent. %>
+    <% if user.avatar.attached? && user.avatar.blob&.persisted? %>
+      <label class="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm text-body">
+        <%= check_box_tag 'user[remove_avatar]', '1', false %>
+        <%= t('user_preferences.edit.display.avatar.remove') %>
+      </label>
+    <% end %>
+  </div>
+
+  <%# Which email the others see (User::EmailDisplay): the login address, a separate
+      contact address, or none. Signing in and Lalabase's mail keep the login address. %>
+  <div>
+    <span class="<%= label_class %>"><%= t('user_preferences.edit.display.email_visibility.label') %></span>
+    <div class="space-y-2">
+      <% User::EmailDisplay::EMAIL_VISIBILITIES.each do |choice| %>
+        <label class="<%= choice_class %>">
+          <%= radio_button_tag 'user[email_visibility]', choice, user.email_visibility == choice %>
+          <span class="text-sm text-body"><%= t("user_preferences.edit.display.email_visibility.#{choice}", email: current_user.email) %></span>
+        </label>
+      <% end %>
+    </div>
+    <div class="mt-3">
+      <%= label_tag 'user_contact_email', t('user_preferences.edit.display.email_visibility.contact_label'), class: label_class %>
+      <%= email_field_tag 'user[contact_email]', user.contact_email, id: 'user_contact_email', autocomplete: 'email',
+                          maxlength: User::EmailDisplay::MAX_CONTACT_EMAIL_LENGTH, class: field_class %>
+      <small class="<%= hint_class %>"><%= t('user_preferences.edit.display.email_visibility.contact_hint') %></small>
+    </div>
+    <p class="<%= hint_class %> mt-2"><%= t('user_preferences.edit.display.email_visibility.description') %></p>
+  </div>
+
+  <%# The main action of THIS form (F1). The tab has two forms, and each form's foot is
+      an area of its own: F1 comes once per area, not once per page. Until 2026-11-12
+      this save was the secondary button, and read as less of a save than the one
+      above it (user, the same day). %>
+  <div class="flex justify-end">
+    <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :large, tag: :button, type: 'submit') do %>
+      <%= t('views.devise.registrations.edit.display.save') %>
+    <% end %>
+  </div>
+<% end %>

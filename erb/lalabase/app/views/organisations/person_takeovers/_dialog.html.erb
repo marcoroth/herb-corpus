@@ -1,0 +1,156 @@
+<%# locals: (person:, targets:, token:, target_id: nil, fields: Actors::TakeOverPerson::DEFAULT_FIELDS, question: nil, confirm_target: nil, duplicates: [], from: nil) %>
+<%# The dialog "In andere Organisation übernehmen" (People S0). Lives in the frame
+    beside the card; the "···" menu loads person_takeovers#new into it. The root
+    carries the id of THIS opening (token): a submit that asks about a same-named
+    entry replaces exactly it, a refusal removes it. Shape and lifecycle after
+    README_MODAL_PATTERN.md; its controller is the reference modal's.
+
+    The ticks say WHICH fields travel; the values shown are the source row's and
+    are not sent: the server reads them again from the row. A field without a
+    value is not offered. The name always travels. The form leaves the frame
+    (_top), so a copy opens on the target's page. While it is sent, every
+    submit button of the form is disabled (the controller's lock), so a second
+    click sends nothing: Turbo alone disables only the button that sent it,
+    and Enter sends through the default button below, which nobody sees.
+
+    Under the duplicate question stands "merge instead", one button per
+    same-named entry of the target (duplicates: { id:, name: }). It is a second
+    submit of the SAME form (merge_with carries the address of that entry), not
+    a form of its own: nothing is created, the source and that entry become one
+    person for the reader alone. The buttons go with the question when the
+    reader chooses another target, and are disabled then: a hidden button
+    must not be sent.
+
+    ⚠️ Enter in a field sends a form through its default button, and which one
+    that is depends on the browser: the FIRST submit button in the markup for
+    Chrome, shown or not, the first one that is DRAWN for Safari up to
+    version 16 at least (WebKit asked for a renderer there; its current source
+    no longer does). The offers stand above the main button, so the form opens
+    with a default button of its own, without a name: Enter takes over or
+    creates anyway, as the main button does, and never merges. It is drawn and
+    clipped (sr-only), never taken out with the hidden attribute: a button
+    without a box is no default button for those Safaris, and Enter would
+    merge there. Nobody reaches it: out of the tab order, and not in the
+    accessibility tree. %>
+<% scope = 'views.organisations.people.takeover' %>
+<% modal_id = person_takeover_modal_id(person.id) %>
+<% selected = targets.find { |organisation| organisation.id == target_id } || targets.first %>
+<% offered = Actors::TakeOverPerson::FIELDS.select { |field| person.public_send(field).present? } %>
+<div id="<%= person_takeover_modal_instance_id(person.id, token) %>"
+     data-controller="person-takeover-modal"
+     data-person-takeover-modal-return-id-value="<%= person_more_actions_id(person.id) %>"
+     data-action="keydown@window->person-takeover-modal#closeOnEscape keydown@window->person-takeover-modal#trapFocus">
+  <div class="fixed inset-0 z-50 overflow-y-auto"
+       data-action="click->person-takeover-modal#closeOnBackdrop">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm" aria-hidden="true"></div>
+    <div class="relative flex min-h-screen items-center justify-center p-4"
+         data-action="click->person-takeover-modal#closeOnBackdrop">
+      <div class="relative w-full max-w-md rounded-lg border border-slate-200 bg-surface-raised shadow-xl"
+           role="dialog" aria-modal="true" aria-labelledby="<%= modal_id %>-title"
+           data-person-takeover-modal-target="card">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+          <div class="min-w-0">
+            <h3 id="<%= modal_id %>-title" class="text-lg font-bold text-cream-900">
+              <i class="bi bi-box-arrow-right mr-1" aria-hidden="true"></i>
+              <%= t("#{scope}.title") %>
+            </h3>
+            <p class="mt-0.5 text-sm text-cream-600 break-words"><%= person.name %></p>
+          </div>
+          <button type="button" class="text-gray-400 hover:text-gray-600"
+                  title="<%= t("#{scope}.close") %>" aria-label="<%= t("#{scope}.close") %>"
+                  data-action="click->person-takeover-modal#close">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <%= form_with url: organisation_person_takeover_path(current_organisation, person), method: :post,
+                      id: "#{modal_id}-form", class: 'space-y-4 p-5',
+                      data: { turbo_frame: '_top',
+                              action: 'turbo:submit-start->person-takeover-modal#lock turbo:submit-end->person-takeover-modal#unlock' } do %>
+          <%= hidden_field_tag :modal_token, token, id: nil %>
+          <%# Opened on the card above the organisations: the answers lead back there. %>
+          <%= hidden_field_tag :from, from, id: nil if from %>
+          <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true" data-person-takeover-default></button>
+
+          <div>
+            <label for="<%= modal_id %>-target" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{scope}.target") %></label>
+            <%= select_tag :target, options_for_select(targets.map { |organisation| [organisation.name, organisation.id] }, selected&.id),
+                           id: "#{modal_id}-target",
+                           class: 'w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink',
+                           data: { person_takeover_modal_target: 'organisation', action: 'change->person-takeover-modal#organisationChanged' } %>
+          </div>
+
+          <fieldset>
+            <legend class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{scope}.fields") %></legend>
+            <ul class="space-y-1 text-sm">
+              <li class="flex items-baseline gap-2">
+                <input type="checkbox" checked disabled id="<%= modal_id %>-field-name" class="rounded border-cream-300">
+                <label for="<%= modal_id %>-field-name" class="min-w-0">
+                  <span class="font-medium text-heading"><%= Person.human_attribute_name(:name) %></span>
+                  <span class="text-cream-600 break-words"><%= person.name %></span>
+                  <span class="text-xs text-cream-500">(<%= t("#{scope}.always") %>)</span>
+                </label>
+              </li>
+              <% offered.each do |field| %>
+                <li class="flex items-baseline gap-2">
+                  <%= check_box_tag 'fields[]', field, fields.include?(field), id: "#{modal_id}-field-#{field}", class: 'rounded border-cream-300' %>
+                  <label for="<%= modal_id %>-field-<%= field %>" class="min-w-0">
+                    <span class="font-medium text-heading"><%= Person.human_attribute_name(field) %></span>
+                    <span class="text-cream-600 break-words">
+                      <% if field == 'additional_details' %>
+                        <%= t("#{scope}.details_count", count: person.additional_details.size) %>
+                      <% else %>
+                        <%= truncate(person.public_send(field).to_s, length: 60) %>
+                      <% end %>
+                    </span>
+                  </label>
+                </li>
+              <% end %>
+            </ul>
+          </fieldset>
+
+          <p class="text-xs text-cream-600">
+            <%= t("#{scope}.visibility_html", organisation: tag.strong(selected&.name, data: { person_takeover_modal_target: 'organisationName' })) %>
+            <%= t("#{scope}.copy_hint") %>
+          </p>
+
+          <% if question %>
+            <%# The question holds for the target it was asked for; choosing another
+                one hides it (the controller), and the server asks again there. %>
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="alert"
+                 data-person-takeover-modal-target="question" data-confirm-target="<%= confirm_target %>">
+              <p><%= question %></p>
+              <% if duplicates.any? %>
+                <p class="mt-2 text-xs"><%= t("#{scope}.merge_instead_hint") %></p>
+                <div class="mt-1 flex flex-col items-start gap-1">
+                  <% duplicates.each do |duplicate| %>
+                    <button type="submit" name="merge_with" value="<%= duplicate[:id] %>"
+                            class="text-left text-sm font-medium underline hover:no-underline"
+                            data-person-takeover-modal-target="merge" data-turbo-submits-with="<%= t("#{scope}.merging") %>">
+                      <%= t("#{scope}.merge_instead", name: duplicate[:name]) %>
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+            <%= hidden_field_tag :confirm_target, confirm_target, id: nil %>
+          <% end %>
+
+          <div class="flex justify-end gap-2 border-t border-cream-200 pt-3">
+            <button type="button"
+                    class="h-9 rounded border border-cream-300 bg-cream-100 px-4 text-sm font-medium text-cream-800 hover:bg-cream-200"
+                    data-action="click->person-takeover-modal#close">
+              <%= t("#{scope}.cancel") %>
+            </button>
+            <button type="submit" data-turbo-submits-with="<%= t("#{scope}.submitting") %>"
+                    data-person-takeover-modal-target="submit"
+                    data-submit-label="<%= t("#{scope}.submit") %>" data-confirm-label="<%= t("#{scope}.confirm") %>"
+                    class="h-9 rounded border border-ink bg-lime-300 px-4 text-sm font-bold text-ink hover:bg-lime-400">
+              <%= question ? t("#{scope}.confirm") : t("#{scope}.submit") %>
+            </button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

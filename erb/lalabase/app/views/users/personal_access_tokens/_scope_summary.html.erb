@@ -3,7 +3,12 @@
 <% if token.all_organisations? %>
   <%= t('views.users.personal_access_tokens.index.scope_all_organisations') %>
 <% else %>
-<% scope_lines = token.personal_access_token_organisations.includes(:organisation).map do |link|
+<%# The list preloads the links (PersonalAccessTokensController#index). Asking the
+    association for `includes` again would throw that away and read once per token
+    (an N+1 until 2026-11-12); a single token (rename, just created) loads them here. %>
+<% links = token.personal_access_token_organisations %>
+<% links = links.includes(:organisation) unless links.loaded? %>
+<% scope_lines = links.map do |link|
      project_count = token.personal_access_token_projects.count { |p| p.project&.organisation_id == link.organisation_id }
      org_label = link.organisation&.name || t('views.users.personal_access_tokens.index.scope_unknown_org')
      if link.all_projects?

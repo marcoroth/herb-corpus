@@ -1,33 +1,18 @@
 <% content_for :title, "Analytics — Openstage" %>
-<% content_for :main_class, "os-wrap pt-1.5" %>
-<% serializer = AnalyticsViewSerializer.new(@report) %>
-<% view = serializer.attributes %>
-<% default_range = Progress::Window::DEFAULT %>
-<% path_for = ->(changes) { analytics_view_path(view, panels: @panels, **changes) } %>
+<% content_for :wrap, "os-wide" %>
+<% content_for :main_class, "os-wide pt-1.5" %>
 
-<%# The chart filter every chart page shares, as the page's script draws it
-    (AnalyticsIsland) and as it reads without the script: the window beside
-    the title; the numbers in their groups, each with its change; the chart;
-    and the pages under it, each value with its change. Then the panels of
-    the builder's websites or of their pages on Openstage, for the same
-    window and pages. %>
-<%= react_island("analytics", { initial: serializer.as_json, endpoint: api_analytics_path, defaultRange: default_range }, id: "analytics", class: "os-stack") do %>
-  <div class="os-between">
-    <div class="flex items-center gap-2.5">
-      <h1 class="os-h2 text-[30px]">Analytics</h1>
-      <span class="os-tag pro">✦ Pro</span>
-    </div>
-    <%= render "charts/window", view: view, path_for: path_for, css: "max-md:flex max-md:w-full max-md:justify-between" %>
-  </div>
-
-  <section class="os-panel" aria-label="Numbers">
-    <%= render "charts/toggles", view: view, path_for: path_for, changes: true, groups: true %>
-    <%= render "charts/chart", view: view, height: "h-[260px]" %>
-    <% if view[:changes_note] %>
-      <p class="os-xs os-muted mt-5.5"><%= view[:changes_note] %></p>
-    <% end %>
-    <%= render "charts/table", view: view, path_for: path_for, label: "Pages" %>
-  </section>
-
-  <%= render "analytics/panels", view: view, panels: @panels, path_for: path_for %>
+<%# The page is its builder's alone, so its script draws the whole of it
+    (AnalyticsIsland): the title and the window, the tabs, then the tab's
+    numbers, chart, table and lists, or on a tab Free does not open, the Go
+    Pro view. Under an empty chart, what the builder can do to fill it,
+    as far as the tab asks (chart_step). %>
+<% if @report %>
+  <% serializer = AnalyticsViewSerializer.new(@report) %>
+  <% initial = serializer.as_json %>
+  <% step = chart_step(current_user, serializer.attributes, steps: @tab.steps) %>
+<% else %>
+  <% initial = AnalyticsLockedSerializer.new(current_user, @tab).as_json %>
 <% end %>
+<%= react_island("analytics", { initial: initial, endpoint: api_analytics_path(tab: @tab.param), defaultRange: Progress::Window::DEFAULT,
+                                pro: current_user.pro?, step: step }, id: "analytics") %>

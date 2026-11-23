@@ -2,24 +2,30 @@
 <%= form_with model: form_object,
               url: form_object.form_path,
               method: form_object.form_method,
+              builder: Gustwave::FormBuilder,
               class: "mx-auto space-y-4" do |f| %>
-  <%= render Form::SelectComponent.new(
-      f,
-      :project_id,
-      Project.model_name.human,
-      form_object.project_options, :id, :title,
-      error_field_attribute: :project,
-      prompt: t(".choose_initiative")) do |project_select| %>
-    <%# Creates the initiative in a modal, so the entries of this form are kept %>
-    <% project_select.with_trailing_button(
-         id: "new-project-button",
-         data: { "modal-target": "new-project-modal", "modal-show": "new-project-modal" }).with_content(t(".new_initiative_button")) if can?(:create, Project) %>
+  <%= render Gustwave::Form::Field.new(:project_id, form: f, label: Project.model_name.human) do |field| %>
+    <% field.with_control_input_group do |group| %>
+      <% group.with_control_select(
+           choices: form_object.project_options.map { |project| [ project.title, project.id ] },
+           prompt: t(".choose_initiative")) %>
+
+      <%# Creates the initiative in a modal, so the entries of this form are kept %>
+      <% if can?(:create, Project) %>
+        <% group.with_trailing_addon_button(
+             t(".new_initiative_button"),
+             id: "new-project-button",
+             **Gustwave::Modal.trigger_options("new-project-modal", action: :show)) %>
+      <% end %>
+    <% end %>
   <% end %>
 
-  <%= render Form::TextFieldComponent.new(f, :title) %>
+  <%= f.text_field :title %>
 
-  <%= render Form::RichTextAreaComponent.new(f, :description) do |with| %>
-    <% with.disabled_buttons(:heading1, :heading2, :heading3) %>
+  <%= render Gustwave::Form::Field.new(:description, form: f) do |field| %>
+    <% field.with_control_rich_textarea(spellcheck: false) do |editor| %>
+      <% editor.with_header_toolbar(disabled: %i[heading1 heading2 heading3]) %>
+    <% end %>
   <% end %>
 
   <%= render Form::CoordinatorPickerComponent.new(f, :coordinators) %>

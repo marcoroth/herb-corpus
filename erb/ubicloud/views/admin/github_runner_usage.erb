@@ -6,15 +6,19 @@ total[:aws_quota] = 0
 types = %w[runner vm].freeze
 @data.each do |row|
     row[:name] = table_link(value: row[:name], link: "/model/GithubInstallation/#{UBID.to_ubid(row.delete(:id))}")
+    row[:aws_quota] = "X" if row.delete(:no_alien)
     row.each { |k, v| total[k] += v if v.is_a?(Numeric) }
+    aws_quota = row.delete(:aws_quota)
+    row[:aws_vcpus] = (aws_quota == "X") ? "X" : "#{row[:aws_vcpus]} / #{aws_quota}"
     types.each do |type|
       row[:"#{type}_vcpus"] = "#{row.delete(:"allocated_#{type}_vcpus")} / #{row[:"#{type}_vcpus"]}"
     end
 end
+total[:aws_vcpus] = "#{total[:aws_vcpus]} / #{total.delete(:aws_quota)}"
 types.each do |type|
   total[:"#{type}_vcpus"] = "#{total.delete(:"allocated_#{type}_vcpus")} / #{total[:"#{type}_vcpus"]}"
 end
-@data.prepend({name: "TOTAL", prem: "", **total}) if @data.any? %>
+@data.prepend({name: "TOTAL", family: "", **total}) if @data.any? %>
 
 <% other_arch = (@arch == "x64") ? "arm64" : "x64" %>
 
@@ -22,7 +26,7 @@ end
 
 <p>
   <strong>standard:</strong>
-  <%= "vcpu #{@family_utilization.dig("standard", 0) || 0}%, hugepage #{@family_utilization.dig("standard", 1) || 0}%, spilled vcpus #{@spilled_vcpus}, spilled runners #{@spilled_runners}" %>
+  <%= "vcpu #{@family_utilization.dig("standard", 0) || 0}%, hugepage #{@family_utilization.dig("standard", 1) || 0}%, spilled vcpus #{@spilled_vcpus}, spilled runners #{@spilled_runners}, total AWS VPCs #{@aws_vpcs}" %>
 
   <% if @arch == "x64" %>
     - <strong>premium:</strong>
@@ -30,21 +34,24 @@ end
   <% end %>
 </p>
 
-<%== part("components/table", title: nil, table_class: "github-runner-usage-table", data: @data, use_admin_label: false) %>
+<div class="github-runner-usage">
+  <%== part("components/table", title: nil, table_class: "github-runner-usage-table", data: @data, use_admin_label: false) %>
+
+  <% if @data.any? %>
+    <details id="github-runner-usage-family-sizes">
+      <summary title="Toggle s*, p* and a* columns"><span class="show-label">Show sizes &rsaquo;</span><span class="hide-label">&lsaquo; Hide sizes</span></summary>
+    </details>
+  <% end %>
+</div>
 
 <h3>Columns</h3>
 
 <p>
-  <strong>prem:</strong> Whether premium runners are enabled. Even when enabled, runners can still fall back to
-  standard.
+  <strong>family:</strong> premium if premium runners are enabled, standard if not. Even when enabled, runners can
+  still fall back to standard.
 </p>
 
 <p><strong>quota:</strong> Effective GithubRunnerVCpu quota for the project.</p>
-
-<p>
-  <strong>aws_quota:</strong> Effective GithubRunnerVCpuAws (spill) quota for the project, blank if the
-  spill_to_alien_runners feature flag isn't enabled for the project.
-</p>
 
 <p><strong>r*:</strong> Number of requested runners with the specified vCPU count.</p>
 
@@ -56,6 +63,12 @@ end
 <p>
   <strong>vm_vcpus:</strong> Total allocated vCPUs / total vCPUs. Unallocated VMs have passed the concurrency limit but
   haven't found an available VM host yet.
+</p>
+
+<p>
+  <strong>aws_vcpus:</strong> Total spilled AWS vCPUs / AWS vCPUs quota for the project. The quota is 0 if the
+  spill_to_alien_runners feature flag isn't enabled for the project. X if the no_alien_runners feature flag is enabled
+  for the project.
 </p>
 
 <p><strong>s*:</strong> Number of runners with that standard family, including ones that fell back from premium.</p>

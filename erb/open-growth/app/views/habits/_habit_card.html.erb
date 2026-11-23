@@ -1,0 +1,16 @@
+<% entry = habit.check_ins.find { |item| item.on_date == today } %>
+<article class="rounded-xl border border-border bg-card p-5 shadow-sm">
+  <div class="flex items-start justify-between gap-3"><div><%= link_to habit.name, habit_path(habit), class: "text-lg font-semibold hover:underline" %>
+    <p class="text-sm text-muted-foreground"><%= habit.scheduled_time&.strftime("%H:%M") || t("habits.anytime") %> · <%= habit.skill_on(today)&.name || t("habits.no_skill") %></p></div>
+    <% if entry&.complete? %><span class="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800"><%= t("habits.done") %></span>
+    <% elsif habit.scheduled_time && habit.scheduled_on?(today) && Time.find_zone!(Current.user.time_zone).now.strftime("%H:%M") > habit.scheduled_time.strftime("%H:%M") %><span class="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800"><%= t("habits.late") %></span><% end %>
+  </div>
+  <% if habit.scheduled_on?(today) %>
+    <% if habit.kind == "simple" %>
+      <%= form_with url: habit_check_ins_path(habit), method: :post, class: "mt-4" do |form| %>
+        <%= hidden_field_tag "habit_check_in[on_date]", today %><%= hidden_field_tag "habit_check_in[done]", !entry&.complete? %><%= hidden_field_tag :return_to, "dashboard" if local_assigns[:dashboard] %>
+        <%= form.submit entry&.complete? ? t("habits.undo") : t("habits.check_in"), class: "btn btn-primary cursor-pointer" %>
+      <% end %>
+    <% else %><%= link_to t("habits.log_progress"), habit_path(habit), class: "mt-4 inline-block text-sm font-medium text-primary hover:underline" %><% end %>
+  <% end %>
+</article>

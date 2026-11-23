@@ -1,72 +1,74 @@
 <% content_for :title, @source.name %>
+<% turbo_refreshes_with method: :morph, scroll: :preserve %>
+<%= turbo_stream_from @source %>
+<% content_for :admin_actions do %>
+  <%= link_to "Back to sources", sources_path, class: "admin-button-secondary" %>
+  <%= button_to "Delete", source_path(@source), method: :delete, class: "admin-button-danger", data: { turbo_confirm: "Delete source '#{@source.name}' and all its documents?" } %>
+<% end %>
 
-<div class="w-full">
-  <div class="flex justify-between items-center">
-    <div>
-      <h1 class="font-bold text-4xl"><%= @source.name %></h1>
-      <div class="mt-2 flex items-center gap-3 text-sm text-gray-500">
-        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-          <%= @source.source_type.upcase %>
-        </span>
-        <% if @source.url.present? %>
-          <span><%= @source.url %></span>
-        <% end %>
-        <span><%= pluralize(@documents.count, "document") %></span>
-        <% if @source.last_fetched_at %>
-          <span>Last ingested <%= time_ago_in_words(@source.last_fetched_at) %> ago</span>
-        <% end %>
-      </div>
-    </div>
-    <div class="flex gap-2">
-      <%= button_to "Delete", source_path(@source), method: :delete, class: "rounded-md px-3.5 py-2.5 bg-red-600 hover:bg-red-500 text-white inline-block font-medium cursor-pointer", data: { turbo_confirm: "Delete source '#{@source.name}' and all its documents?" } %>
-    </div>
-  </div>
+<%= render "admin/page_header", title: @source.name, description: "Review this source and the documents it contributes to community search." %>
 
-  <div class="mt-6">
-    <% if @documents.any? %>
-      <div class="space-y-4">
-        <% @documents.each do |doc| %>
-          <div id="document_<%= doc.id %>" class="bg-white shadow-sm rounded-lg border border-gray-200 p-5">
-            <div class="flex justify-between items-start">
-              <h3 class="font-medium text-stone-900"><%= doc.title || "Untitled" %></h3>
-              <%= button_to "Delete", document_path(doc), method: :delete, class: "ml-2 rounded-md px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium cursor-pointer", data: { turbo_confirm: "Delete document '#{doc.title}'?" } %>
-            </div>
-
-            <% if doc.metadata.present? && doc.metadata.keys.any? %>
-              <dl class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                <% doc.metadata.each do |key, value| %>
-                  <% next if value.blank? %>
-                  <div>
-                    <dt class="font-medium text-gray-500"><%= key.to_s.titleize %></dt>
-                    <dd class="mt-0.5 text-gray-900">
-                      <% if value.is_a?(Array) %>
-                        <%= value.join(", ") %>
-                      <% elsif value.is_a?(Hash) %>
-                        <%= value.map { |k, v| "#{k}: #{v}" }.join(", ") %>
-                      <% else %>
-                        <%= value %>
-                      <% end %>
-                    </dd>
-                  </div>
-                <% end %>
-              </dl>
-            <% end %>
-
-            <% if doc.content.present? %>
-              <details class="mt-3">
-                <summary class="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-700">Raw content</summary>
-                <pre class="mt-2 text-xs text-gray-600 whitespace-pre-wrap bg-gray-50 rounded p-3 max-h-48 overflow-y-auto"><%= doc.content %></pre>
-              </details>
-            <% end %>
-          </div>
-        <% end %>
-      </div>
-    <% else %>
-      <p class="text-center my-10 text-gray-500">No documents in this source.</p>
+<div class="admin-panel mb-6 space-y-3 p-5 sm:p-6">
+  <div class="flex flex-wrap items-center gap-3 text-sm text-stone-600">
+    <span class="admin-badge bg-stone-100 text-stone-600"><%= @source.source_type.upcase %></span>
+    <%= render "ingestion_status", source: @source %>
+    <% if @source.enrich_documents? %>
+      <span class="admin-badge bg-sage-100 text-sage-800">AI summaries</span>
+    <% end %>
+    <span><%= pluralize(@documents.count, "document") %></span>
+    <% if @source.last_fetched_at %>
+      <span>Last ingested <%= time_ago_in_words(@source.last_fetched_at) %> ago</span>
     <% end %>
   </div>
-
-  <div class="mt-4">
-    <%= link_to "Back to sources", sources_path, class: "rounded-md px-3.5 py-2.5 bg-gray-100 hover:bg-gray-50 inline-block font-medium" %>
-  </div>
+  <% if @source.url.present? %>
+    <p class="break-all text-sm text-stone-500"><%= @source.url %></p>
+  <% end %>
+  <% if @source.ingestion_failed? %>
+    <div role="alert" class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+      <p class="text-sm font-medium">Ingestion stopped with an error. Documents saved before the error are kept.</p>
+      <p class="mt-1 break-words text-sm leading-6"><%= @source.ingestion_error %></p>
+    </div>
+  <% elsif @source.ingestion_pending? || @source.ingestion_ingesting? %>
+    <p class="text-sm text-stone-600">This page updates when ingestion finishes.</p>
+  <% end %>
 </div>
+
+<% if @documents.any? %>
+  <div class="space-y-4">
+    <% @documents.each do |doc| %>
+      <article id="document_<%= doc.id %>" class="admin-panel p-5 sm:p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h2 class="min-w-0 font-semibold text-stone-900"><%= link_to doc.title.presence || "Untitled", doc, class: "admin-link text-base" %></h2>
+          <%= button_to "Delete", document_path(doc), method: :delete, class: "admin-button-danger", form: { class: "shrink-0" }, data: { turbo_confirm: "Delete document '#{doc.title}'?" } %>
+        </div>
+        <% if doc.metadata.present? %>
+          <dl class="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+            <% doc.metadata.each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="min-w-0">
+                <dt class="font-medium text-stone-500"><%= key.to_s.titleize %></dt>
+                <dd class="mt-1 break-words text-stone-900">
+                  <% if value.is_a?(Array) %>
+                    <%= value.join(", ") %>
+                  <% elsif value.is_a?(Hash) %>
+                    <%= value.map { |k, v| "#{k}: #{v}" }.join(", ") %>
+                  <% else %>
+                    <%= value %>
+                  <% end %>
+                </dd>
+              </div>
+            <% end %>
+          </dl>
+        <% end %>
+        <% if doc.content.present? %>
+          <details class="mt-4 border-t border-stone-100 pt-1">
+            <summary class="min-h-11 cursor-pointer py-3 text-sm font-medium text-sage-700 focus-visible:outline-sage-600">Raw content</summary>
+            <pre class="max-h-48 overflow-auto whitespace-pre-wrap rounded-xl bg-stone-50 p-4 text-xs leading-6 text-stone-600 [overflow-wrap:anywhere]"><%= doc.content %></pre>
+          </details>
+        <% end %>
+      </article>
+    <% end %>
+  </div>
+<% else %>
+  <p class="admin-empty-state">No documents in this source.</p>
+<% end %>

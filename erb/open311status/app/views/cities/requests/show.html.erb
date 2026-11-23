@@ -1,23 +1,41 @@
 <%
-  service_request = ServiceRequestDecorator.decorate @service_request
+  service_request = @service_request
 
   provide(:meta_title) { "#{service_request.raw_data.fetch('service_name', 'Service Request')} - #{service_request.city.name} - ##{service_request.raw_data['service_request_id']}" }
   provide(:meta_description) { service_request.raw_data['description'].presence || "311 service request in #{service_request.city.name}." }
-  provide(:canonical_url) { polymorphic_url(service_request) }
+  provide(:canonical_url) { service_request_url(service_request) }
 %>
 
 <h2 class="h4">
   <%= service_request.city.name %>
   <% badge_class = service_request.status == 'open' ? 'badge-warning' : 'badge-success' %>
   <span class="badge <%= badge_class %>"><%= service_request.status.presence&.capitalize %></span>
-  <small><%= time_ago_in_words(service_request.requested_datetime).capitalize %></small>
+  <% if service_request.requested_datetime %>
+    <small><%= time_ago_in_words(service_request.requested_datetime).capitalize %> ago</small>
+<% end %>
 </h2>
 
 <h1 style="margin-top: 0"><%= service_request.raw_data['service_name'] %></h1>
 
 <p><%= service_request.raw_data['description'] %></p>
-<td>
-  <% if service_request.media_url.present? %>
-    <%= image_tag service_request.media_url, class: 'img-responsive', alt: service_request.raw_data['service_name'] %>
-  <% end %>
-</td>
+<% if service_request.media_url.present? %>
+  <%= image_tag service_request.media_url, class: 'img-responsive', alt: service_request.raw_data['service_name'] %>
+<% end %>
+
+<% nearby = service_request.city.nearby_service_requests(service_request) %>
+<% if nearby.any? %>
+  <h2 class="h4">Nearby requests</h2>
+  <table class="table table-condensed nearby-service-requests">
+    <tbody>
+      <% nearby.each do |other, distance| %>
+        <% badge_class = other.status == 'open' ? 'badge-warning' : 'badge-success' %>
+        <tr>
+          <td><a href="<%= service_request_path(other) %>"><%= other.raw_data['service_name'].presence || 'Service Request' %></a></td>
+          <td><%= distance < 1000 ? "#{distance.round} m" : "#{(distance / 1000).round(1)} km" %></td>
+          <td><span class="badge <%= badge_class %>"><%= other.status.presence&.capitalize %></span></td>
+          <td><%= other.requested_datetime ? "#{time_ago_in_words(other.requested_datetime)} ago" : 'Unknown' %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

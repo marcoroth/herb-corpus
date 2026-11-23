@@ -1,95 +1,118 @@
 <div>
-  <%= render 'organisations/shared/ai_area_header', title: t('views.organisations.ai_overview.pages.personas') %>
+  <%# The Chat-Personas tab of the AI section (doc/verwaltung_seitennavigation_plan.md
+      §5, S3): the head names the section, as on every tab, and carries the page's help,
+      as every page head does. The "+" is the page's main action and stands in the head
+      as title_action, outermost, as on Mitglieder and Rollen (#143); until 2026-11-12 it
+      stood beside the list instead, the one page of the area that did so. %>
+  <% head_tools = capture do %>
+    <%= render 'common/contextual_help_menu', context: :settings_prompt_personas %>
+  <% end %>
+  <% new_persona = capture do %>
+    <%= render Neo::Buttons::IconButtonComponent.new(
+      variant: :primary,
+      icon: "plus-lg",
+      size: :medium,
+      title: t('views.organisations.prompt_personas.index.add'),
+      url: new_organisation_prompt_persona_path(@current_organisation)
+    ) %>
+  <% end %>
+  <%= render 'organisations/shared/settings_subnav', active: :ai,
+                                                     tabs: ai_section_tabs(@current_organisation), tab_active: :personas,
+                                                     right_content: head_tools, title_action: new_persona %>
 
-  <div class="flex items-center justify-between mb-4">
-    <div>
-      <h2 class="text-lg font-bold text-slate-900"><%= t('views.organisations.prompt_personas.index.your_personas') %></h2>
-      <p class="text-sm text-slate-500"><%= t('views.organisations.prompt_personas.index.your_personas_hint') %></p>
-    </div>
-    <div class="flex items-center gap-2">
-      <%= render 'common/contextual_help_menu', context: :settings_prompt_personas %>
-      <%= render Neo::Buttons::IconButtonComponent.new(
-        variant: :primary,
-        icon: "plus-lg",
-        size: :medium,
-        title: t('views.organisations.prompt_personas.index.add'),
-        url: new_organisation_prompt_persona_path(@current_organisation)
-      ) %>
-    </div>
-  </div>
+  <%# The shapes of the surface table, like the other tabs of the section: a section is a
+      quiet heading with its hint (no large bold title), lists are tables with the column
+      head (F43) over an ink line, a mark of a row is a flat label (F15), and "Override
+      anlegen" is a link to another place (F5). Until 2026-11-12 the page drew in slate
+      and gray, colours outside the token layer. The "+" is the page's main action
+      (F1), in the head. %>
+  <section aria-labelledby="personas-own" class="mb-10">
+    <h2 id="personas-own" class="text-sm font-semibold text-heading"><%= t('views.organisations.prompt_personas.index.your_personas') %></h2>
+    <p class="mt-1 mb-3 text-sm text-muted"><%= t('views.organisations.prompt_personas.index.your_personas_hint') %></p>
 
-  <% if @org_personas.any? %>
-    <table class="min-w-full divide-y divide-gray-200 border-2 border-stroke mb-10">
-      <thead class="bg-gray-200">
+    <% if @org_personas.any? %>
+      <table class="min-w-full border-collapse">
+        <thead>
+          <tr>
+            <th scope="col" class="column-head border-b border-ink py-3 pe-4 text-start"><%= t('views.organisations.prompt_personas.index.th_key') %></th>
+            <th scope="col" class="column-head border-b border-ink px-4 py-3 text-start"><%= t('views.organisations.prompt_personas.index.th_label') %></th>
+            <th scope="col" class="column-head border-b border-ink px-4 py-3 text-end"><%= t('views.organisations.prompt_personas.index.th_position') %></th>
+            <th scope="col" class="column-head w-24 border-b border-ink py-3 ps-4 text-end"><%= t('views.organisations.prompt_personas.index.th_actions') %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-cream-200">
+          <% @org_personas.each do |persona| %>
+            <tr class="hover:bg-cream-100">
+              <td class="py-3 pe-4 align-top whitespace-nowrap">
+                <span class="font-mono text-[13px] text-heading"><%= persona.key %></span>
+                <% if @global_personas.any? { |g| g.key == persona.key } %>
+                  <span class="ml-2 inline-flex items-center rounded bg-cream-200 px-2 py-0.5 text-xs text-body"><%= t('views.organisations.prompt_personas.index.badge_override') %></span>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 align-top text-sm text-body">
+                <%= render 'prompt_personas/label_cell', persona: persona %>
+              </td>
+              <td class="px-4 py-3 align-top text-end font-mono text-[13px] tabular-nums text-body"><%= persona.position %></td>
+              <td class="py-3 ps-4 align-top whitespace-nowrap">
+                <div class="flex justify-end gap-2">
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :edit, size: :medium, tag: :a,
+                    href: edit_organisation_prompt_persona_path(@current_organisation, persona),
+                    icon: "pencil", title: t('views.organisations.prompt_personas.index.edit')
+                  ) %>
+                  <%= render Neo::Buttons::IconButtonComponent.new(
+                    variant: :danger, size: :medium, icon: "trash",
+                    title: t('views.organisations.prompt_personas.index.delete'),
+                    interactive: true, confirm: t('views.organisations.prompt_personas.index.confirm_delete', key: persona.key),
+                    tag: :a, href: organisation_prompt_persona_path(@current_organisation, persona),
+                    data: { turbo_method: :delete }
+                  ) %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <%= render 'shared/empty_content',
+            variant: :first_time,
+            icon_class: 'bi bi-person-badge',
+            title: t('views.organisations.prompt_personas.index.empty_your_title'),
+            description: t('views.organisations.prompt_personas.index.empty_your_description') %>
+    <% end %>
+  </section>
+
+  <%# Global templates: read-only, curated by the operator. %>
+  <section aria-labelledby="personas-global">
+    <h2 id="personas-global" class="text-sm font-semibold text-heading"><%= t('views.organisations.prompt_personas.index.global_templates') %></h2>
+    <p class="mt-1 mb-3 text-sm text-muted"><%= t('views.organisations.prompt_personas.index.global_templates_hint') %></p>
+
+    <table class="min-w-full border-collapse">
+      <thead>
         <tr>
-          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider"><%= t('views.organisations.prompt_personas.index.th_key') %></th>
-          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider"><%= t('views.organisations.prompt_personas.index.th_label') %></th>
-          <th scope="col" class="px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider"><%= t('views.organisations.prompt_personas.index.th_position') %></th>
-          <th scope="col" class="w-24 px-6 py-4 text-start text-xs font-medium text-cream-900 uppercase tracking-wider"><%= t('views.organisations.prompt_personas.index.th_actions') %></th>
+          <th scope="col" class="column-head border-b border-ink py-3 pe-4 text-start"><%= t('views.organisations.prompt_personas.index.th_key') %></th>
+          <th scope="col" class="column-head border-b border-ink px-4 py-3 text-start"><%= t('views.organisations.prompt_personas.index.th_label') %></th>
+          <th scope="col" class="column-head border-b border-ink py-3 ps-4 text-end"><span class="sr-only"><%= t('views.organisations.prompt_personas.index.th_actions') %></span></th>
         </tr>
       </thead>
-      <tbody class="bg-surface-raised divide-y divide-gray-200">
-        <% @org_personas.each do |persona| %>
-          <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono font-medium text-gray-900">
-              <%= persona.key %>
-              <% if @global_personas.any? { |g| g.key == persona.key } %>
-                <span class="ml-2 inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 border border-amber-300"><%= t('views.organisations.prompt_personas.index.badge_override') %></span>
+      <tbody class="divide-y divide-cream-200">
+        <% @global_personas.each do |global| %>
+          <tr>
+            <td class="py-3 pe-4 whitespace-nowrap font-mono text-[13px] text-heading"><%= global.key %></td>
+            <%# #label already falls back (requested → DEFAULT → any present) — no need to redo the chain here. %>
+            <td class="px-4 py-3 text-sm text-body"><%= global.label(I18n.locale) %></td>
+            <td class="py-3 ps-4 text-end whitespace-nowrap">
+              <% if @overridden_keys.include?(global.key) %>
+                <span class="inline-flex items-center rounded bg-cream-200 px-2 py-0.5 text-xs text-body"><%= t('views.organisations.prompt_personas.index.already_overridden') %></span>
+              <% else %>
+                <%= link_to t('views.organisations.prompt_personas.index.create_override'),
+                      new_organisation_prompt_persona_path(@current_organisation, from: global.key),
+                      class: 'text-sm text-info hover:underline' %>
               <% end %>
-            </td>
-            <td class="px-6 py-4 text-sm text-gray-700">
-              <%= render 'prompt_personas/label_cell', persona: persona %>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 tabular-nums"><%= persona.position %></td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-              <div class="flex gap-2">
-                <%= render Neo::Buttons::IconButtonComponent.new(
-                  variant: :edit, size: :medium, tag: :a,
-                  href: edit_organisation_prompt_persona_path(@current_organisation, persona),
-                  icon: "pencil", title: t('views.organisations.prompt_personas.index.edit')
-                ) %>
-                <%= render Neo::Buttons::IconButtonComponent.new(
-                  variant: :danger, size: :medium, icon: "trash",
-                  title: t('views.organisations.prompt_personas.index.delete'),
-                  interactive: true, confirm: t('views.organisations.prompt_personas.index.confirm_delete', key: persona.key),
-                  tag: :a, href: organisation_prompt_persona_path(@current_organisation, persona),
-                  data: { turbo_method: :delete }
-                ) %>
-              </div>
             </td>
           </tr>
         <% end %>
       </tbody>
     </table>
-  <% else %>
-    <div class="border-2 border-dashed border-slate-300 rounded-lg px-6 py-10 text-center mb-10">
-      <h3 class="text-base font-bold text-slate-900 mb-1"><%= t('views.organisations.prompt_personas.index.empty_your_title') %></h3>
-      <p class="text-sm text-slate-500"><%= t('views.organisations.prompt_personas.index.empty_your_description') %></p>
-    </div>
-  <% end %>
-
-  <!-- Global templates (read-only; operator-curated) -->
-  <div class="mb-2">
-    <h2 class="text-lg font-bold text-slate-900"><%= t('views.organisations.prompt_personas.index.global_templates') %></h2>
-    <p class="text-sm text-slate-500 mb-4"><%= t('views.organisations.prompt_personas.index.global_templates_hint') %></p>
-
-    <ul class="divide-y divide-slate-200 border border-slate-200 rounded-lg overflow-hidden">
-      <% @global_personas.each do |global| %>
-        <li class="flex items-center justify-between px-4 py-3 bg-surface-raised">
-          <div>
-            <span class="text-sm font-mono font-medium text-gray-900"><%= global.key %></span>
-            <%# #label already falls back (requested → DEFAULT → any present) — no need to redo the chain here. %>
-            <span class="text-sm text-slate-600 ml-3"><%= global.label(I18n.locale) %></span>
-          </div>
-          <% if @overridden_keys.include?(global.key) %>
-            <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500 border border-slate-300"><%= t('views.organisations.prompt_personas.index.already_overridden') %></span>
-          <% else %>
-            <%= link_to t('views.organisations.prompt_personas.index.create_override'),
-                  new_organisation_prompt_persona_path(@current_organisation, from: global.key),
-                  class: "text-sm font-medium text-cobalt-600 hover:text-cobalt-800" %>
-          <% end %>
-        </li>
-      <% end %>
-    </ul>
-  </div>
+  </section>
 </div>

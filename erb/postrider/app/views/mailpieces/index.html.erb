@@ -9,31 +9,23 @@
   <div class="header__actions header__actions--end"></div>
 <% end %>
 
-<div class="page flex flex-column gap">
-  <%= render layout: "shared/filter", locals: { what: "delivered mail", search: search_path } do %>
-    <div data-controller="navigable-list" data-action="keydown->navigable-list#navigate turbo:before-visit@document->navigable-list#rememberSelection turbo:frame-load->navigable-list#forgetSelection"
-          data-navigable-list-actionable-items-value="true">
-      <ul class="rows rows--links">
-        <%= render "shared/count_row", title: "Held", path: mailpieces_held_path, count: Current.user.accessible_mailpieces.held.count %>
-        <%= render "shared/count_row", title: "Failed", path: mailpieces_failed_path, count: Current.user.accessible_mailpieces.failed.count %>
-        <%= render "shared/count_row", title: "Withheld", path: mailpieces_withheld_path, count: Current.user.accessible_mailpieces.withheld.count %>
-        <%= render "shared/count_row", title: "Deferred", path: mailpieces_deferred_path, count: Current.user.accessible_mailpieces.deferred.count %>
-        <%= render "shared/count_row", title: "Queued", path: mailpieces_queued_path, count: Current.user.accessible_mailpieces.queued.count %>
-        <%= render "shared/count_row", title: "Discarded", path: mailpieces_discarded_path, count: Current.user.accessible_mailpieces.discarded.count %>
-      </ul>
+<% what = @status == "all" ? "mail" : "#{status_label(@status).downcase} mail" %>
 
-      <% if @page.used? %>
-        <section class="rows__section">
-          <h2 class="rows__heading txt-small txt-subtle">Delivered</h2>
-          <ul class="rows">
-            <%= with_automatic_pagination :mailpieces, @page do %>
-              <%= render partial: "mailpieces/mailpiece", collection: @page.records %>
-            <% end %>
-          </ul>
-        </section>
-      <% else %>
-        <div class="blank-slate fit-content center"><strong><%= Current.user.accessible_mailpieces.exists? ? "No delivered mail." : "No mail recorded yet." %></strong></div>
-      <% end %>
-    </div>
+<div class="page flex flex-column gap">
+  <%= render layout: "shared/filter", locals: { frame: :mailpieces_results, what: what, search: search_path, quick_filters: render("mailpieces/status_filter", selected: @status) } do %>
+    <% if @page.used? %>
+      <div data-controller="navigable-list" data-action="keydown->navigable-list#navigate turbo:before-visit@document->navigable-list#rememberSelection turbo:frame-load->navigable-list#forgetSelection"
+            data-navigable-list-actionable-items-value="true">
+        <ul class="rows">
+          <%= with_automatic_pagination :mailpieces, @page do %>
+            <%= render partial: "mailpieces/mailpiece", collection: @page.records %>
+          <% end %>
+        </ul>
+      </div>
+    <% elsif @status == "all" %>
+      <%= render "mailpieces/blank_slate", domain: @domain %>
+    <% else %>
+      <div class="blank-slate fit-content center"><strong>No <%= what %>.</strong></div>
+    <% end %>
   <% end %>
 </div>

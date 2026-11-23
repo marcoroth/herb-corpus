@@ -37,9 +37,17 @@
   # reveal_more_controller. See _navigation_application's collapsible group.
   li_class = local_assigns[:more_item] ? 'hidden' : nil
   li_data  = local_assigns[:more_item] ? { 'more-item': '' } : {}
+
+  # The same page above the organisations (the inbox, the people), reached by a
+  # globe at the end of the row. A link of its own BESIDE the row's link, never
+  # inside it: a link inside a link is no valid markup. It shows while the row is
+  # hovered or holds the focus (components/sidebar_nav.css, .sidebar-item--across).
+  across_path = local_assigns[:across_path]
+  li_class = [li_class, ('sidebar-item--across' if across_path)].compact.join(' ').presence
 %>
 <%= content_tag :li, class: li_class, data: li_data do %>
   <%= link_to final_path,
+    "aria-current": local_assigns[:aria_current],
     class: link_classes,
     data: turbo_data do %>
     <%# The icon takes its colour from the row's state, not from a second copy
@@ -48,5 +56,25 @@
       <i class="<%= icon %> <%= sidebar_row_icon_classes %>"></i>
     <% end %>
     <span><%= name %></span>
+    <%# Unread notifications behind the row (an organisation of the inbox above
+        the organisations), at its end. The marker draws nothing at zero. %>
+    <% if local_assigns[:count].to_i.positive? %>
+      <span class="ms-auto">
+        <%= render Neo::UnreadMarkerComponent.new(count: count, label: t('navigation.org_attention_count', count: count.to_i)) %>
+      </span>
+    <% end %>
+    <%# A row that leads out of where it stands (the management list's "Rechnung",
+        which leaves the organisation for its account) says so at its end. %>
+    <% if local_assigns[:trailing_icon].present? %>
+      <i class="<%= trailing_icon %> ms-auto text-xs <%= sidebar_row_icon_classes %>" aria-hidden="true"></i>
+    <% end %>
+  <% end %>
+  <% if across_path %>
+    <%= link_to across_path,
+          class: 'sidebar-row__across',
+          aria: { label: local_assigns[:across_label] },
+          data: turbo_data.merge(sidebar_across: '') do %>
+      <i class="bi bi-globe2" aria-hidden="true"></i>
+    <% end %>
   <% end %>
 <% end %>

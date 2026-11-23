@@ -1,0 +1,33 @@
+<%# locals: (notification:, button_class: nil, icons: false, query: nil, open: false) %>
+<%# The actions on one notification, in the inbox's own words: the status
+    views say "Archiviert", the bulk bar "Als gelesen" and "Archivieren".
+    One owner for the head of the lane and the "···" menu of a row
+    (spec/requests/inbox_row_actions_spec.rb). Every action acts on the whole
+    ticket of the row (cascade in NotificationsController), except "Als
+    ungelesen", which flips only this one back.
+    The answer is a stream (update.turbo_stream.erb); it keeps the list
+    state and the open lane from the page's address (the referrer).
+    Above the organisations (AllInboxesController) the same buttons lead to
+    that page's own addresses, which carry the list state themselves (query:,
+    the state a redrawn list was given); inbox_row_action_path decides.
+    open: the head of the lane, whose row is the open one. %>
+<% lane_head = open && inbox_above_organisations? %>
+<% form = { data: { turbo_frame: '_top', action: ('submit->inbox-lane-head#carry' if lane_head) }.compact, class: 'contents' } %>
+<% if notification.state_archived? %>
+  <%= button_to inbox_row_action_path(:unarchive, notification, query: query, open: open),
+                method: :patch, form: form, class: button_class do %>
+    <% if icons %><i class="bi bi-inbox" aria-hidden="true"></i><% end %>
+    <%= t('views.organisations.notifications.actions.unarchive') %>
+  <% end %>
+<% else %>
+  <% read = notification.state_read? %>
+  <%= button_to inbox_row_action_path(read ? :mark_unread : :mark_read, notification, query: query, open: open),
+                method: :patch, form: form, class: button_class do %>
+    <%= t(read ? 'views.organisations.notifications.actions.mark_unread' : 'views.organisations.notifications.actions.mark_read') %>
+  <% end %>
+  <%= button_to inbox_row_action_path(:archive, notification, query: query, open: open),
+                method: :patch, form: form, class: button_class do %>
+    <% if icons %><i class="bi bi-archive" aria-hidden="true"></i><% end %>
+    <%= t('views.organisations.notifications.actions.archive') %>
+  <% end %>
+<% end %>

@@ -1,4 +1,5 @@
 <div class="container mx-auto max-w-6xl px-4 py-4 sm:py-8">
+  <% selected_ids = Array(local_assigns[:selected_project_ids]).map(&:to_s) %>
   <h1 class="mb-6 text-2xl font-bold text-foreground sm:text-3xl"><%= title %></h1>
 
   <div class="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
@@ -31,6 +32,39 @@
             class: "w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary" %>
         </div>
       </div>
+
+      <% if local_assigns[:projects] %>
+        <div data-controller="project-picker" class="space-y-2">
+          <%= form.label :project_ids, "Projects", class: "block text-sm font-semibold text-foreground" %>
+          <div data-project-picker-target="selected" class="flex flex-wrap gap-2"></div>
+          <details class="group" data-action="toggle->project-picker#focusSearch">
+            <summary class="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-input px-3 py-2 text-sm text-foreground hover:bg-muted/35">
+              <span data-project-picker-target="count"><%= selected_ids.size.positive? ? "Edit projects (#{selected_ids.size})" : "Add a project" %></span>
+              <span aria-hidden="true" class="text-muted-foreground transition group-open:rotate-180">⌄</span>
+            </summary>
+            <div class="mt-2 rounded-lg border border-border bg-popover p-3 shadow-sm">
+              <% if projects.any? %>
+                <input type="search" placeholder="Search projects…" autocomplete="off" aria-label="Search projects"
+                  class="mb-2 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  data-project-picker-target="search" data-action="input->project-picker#filter">
+                <div class="max-h-52 space-y-1 overflow-y-auto">
+                  <% projects.each do |project| %>
+                    <label data-project-picker-target="option" data-project-name="<%= project.name.downcase %>" class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted/35">
+                      <%= check_box_tag "doc[project_ids][]", project.id, selected_ids.include?(project.id.to_s), class: "size-4 rounded border-input text-primary focus:ring-primary", data: { project_picker_target: "checkbox", project_name: project.name, action: "change->project-picker#update" } %>
+                      <span class="min-w-0 flex-1 truncate"><%= project.name %></span>
+                      <span class="shrink-0 text-xs text-muted-foreground"><%= project.status.humanize %></span>
+                    </label>
+                  <% end %>
+                </div>
+                <p data-project-picker-target="empty" class="hidden px-3 py-3 text-sm text-muted-foreground">No matching projects.</p>
+              <% else %>
+                <p class="text-sm text-muted-foreground">No projects yet.</p>
+              <% end %>
+            </div>
+          </details>
+          <p class="text-sm text-muted-foreground">Choose which projects can see this document.</p>
+        </div>
+      <% end %>
 
       <div>
         <%= form.label :content, "Content", class: "mb-2 block text-sm font-semibold text-foreground" %>

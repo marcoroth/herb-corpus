@@ -18,17 +18,17 @@
 <% language = Language.by_code(talk.language) %>
 
 <%= content_tag :div, id: dom_id(talk) do %>
-  <%= turbo_frame_tag dom_id(talk, :video_player) do %>
+  <%= turbo_frame_tag dom_id(talk, :video_player), class: "theater-player block" do %>
     <%= render partial: "talks/video_player", locals: {talk: talk, current_user_watched_talk: current_user_watched_talk, is_watched: is_watched, video_provider: video_provider, video_id: video_id} %>
   <% end %>
 
-  <div id="<%= dom_id(talk, :feedback_banner) %>">
+  <div class="theater-contained" id="<%= dom_id(talk, :feedback_banner) %>">
     <% if is_watched %>
       <%= render partial: "talks/watched_talks/feedback_banner", locals: {talk: talk, watched_talk: current_user_watched_talk} %>
     <% end %>
   </div>
 
-  <div class="flex flex-col">
+  <div class="theater-contained flex flex-col">
     <% if talk.meta_talk? %>
       <div class="badge badge-ghost my-3 flex gap-1 px-3 py-3 hover:bg-gray-300">
         <%= fa("rectangle-history", size: :xs, class: "fill-gray-700 mr-2") %>
@@ -52,12 +52,11 @@
     <div class="flex w-full flex-col divide-y md:gap-1">
       <div class="flex w-full flex-wrap justify-between divide-y">
         <div class="py-4 text-xl font-bold">
-          <span><%= talk.title %></span>
-
           <% if talk.original_title.present? %>
-            <div class="mb-2 text-xs text-gray-500">
-              Original title (<%= talk.language %>): <%= talk.original_title %>
-            </div>
+            <span><%= talk.original_title %></span>
+            <div class="mb-2 text-xs text-gray-500"><%= talk.title %></div>
+          <% else %>
+            <span><%= talk.title %></span>
           <% end %>
         </div>
 
@@ -125,6 +124,18 @@
               <%= ui_button url: player_url, kind: :pill, target: "_blank", data: {action: "click->video-player#pause"} do %>
                 <%= fa("website-brands", size: :xs, style: :solid) %>
                 <span class="text-xs">Play on Website</span>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <% if talk.video_available? %>
+            <%= ui_tooltip "Toggle theater mode" do %>
+              <%= ui_button kind: :pill, class: "hidden lg:inline-flex", aria: {pressed: "false"}, data: {theater_target: "button", action: "theater#toggle"} do %>
+                <%= fa("expand", size: :xs, class: "group-[.theater-mode]/theater:hidden") %>
+                <%= fa("compress", size: :xs, class: "hidden group-[.theater-mode]/theater:inline-block") %>
+
+                <span class="text-xs group-[.theater-mode]/theater:hidden">Theater</span>
+                <span class="hidden text-xs group-[.theater-mode]/theater:inline">Exit theater</span>
               <% end %>
             <% end %>
           <% end %>
@@ -246,7 +257,16 @@
             </div>
           <% end %>
 
-          <h2><%= talk.title %></h2>
+          <h2>
+            <% if talk.original_title.present? %>
+              <%= talk.original_title %>
+            <% else %>
+              <%= talk.title %>
+            <% end %>
+          </h2>
+          <% if talk.original_title.present? %>
+            <div class="line-clamp-1 text-xs text-gray-500"><%= talk.title %></div>
+          <% end %>
           <%= speakers.map(&:name).to_sentence %> • <%= talk.formatted_date %> •
           <%= talk.to_location.to_html(show_links: false) %>
           <% if language && language != "English" %>
@@ -274,7 +294,17 @@
       >
         <article class="prose">
           <p>
-            <b><%= talk.title %></b><br>
+            <b>
+              <% if talk.original_title.present? %>
+                <%= talk.original_title %>
+              <% else %>
+                <%= talk.title %>
+              <% end %>
+            </b>
+            <% if talk.original_title.present? %>
+              <div class="line-clamp-1 text-xs text-gray-500"><%= talk.title %></div>
+            <% end %>
+            <br>
             <%= speakers.map(&:name).to_sentence %> • <%= talk.to_location.to_html(show_links: false) %>
             <% if language && language != "English" %>
               • <%= language %>
@@ -283,7 +313,7 @@
           </p>
 
           <p>
-            Held on: <%= talk.formatted_date %><br>
+            <%= talk.date&.future? ? "Takes place on" : "Held on" %>: <%= talk.formatted_date %><br>
             <span class="text-gray-400">
               Published:
               <% if talk.published_at %>

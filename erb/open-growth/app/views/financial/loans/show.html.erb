@@ -11,8 +11,13 @@
     </div>
     <div class="flex gap-2">
       <%= render Ui::ButtonComponent.new(href: edit_finance_loan_path(@loan), label: "Edit terms", variant: :outline) %>
+      <% if @loan.lifecycle_status == "active" %>
+        <%= button_to "Mark as paid", status_finance_loan_path(@loan), method: :patch, params: { lifecycle_status: "paid" }, class: "rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground", form: { data: { turbo_confirm: "Mark this loan as paid? This only changes its status; the schedule and accounting records stay unchanged." } } %>
+      <% elsif @loan.lifecycle_status == "paid" %>
+        <%= button_to "Reopen loan", status_finance_loan_path(@loan), method: :patch, params: { lifecycle_status: "active" }, class: "rounded-md border border-border px-3 py-2 text-sm font-medium", form: { data: { turbo_confirm: "Reopen this loan? Its existing schedule and accounting records stay unchanged." } } %>
+      <% end %>
       <% if @loan.lifecycle_status == "active" && (@loan.entries.where(entry_type: "loan_disbursement").exists? || @loan.funding_sources.exists?) %>
-        <%= render Ui::ButtonComponent.new(href: disbursement_finance_loan_path(@loan), label: "Undo disbursement", variant: :destructive, method: :delete, data: { turbo_confirm: "Undo this disbursement? The actual loan transaction and borrowed funding source will be deleted. Installment payments must be undone first." }) %>
+        <%= render Ui::ButtonComponent.new(href: disbursement_finance_loan_path(@loan), label: "Undo disbursement", variant: :destructive, method: :delete, data: { turbo_confirm: "Undo this disbursement? The actual payout, fee charge, and borrowed funding source will be deleted. Installment payments must be undone first." }) %>
       <% elsif @loan.entries.empty? && @loan.funding_sources.empty? %>
         <%= render Ui::ButtonComponent.new(href: finance_loan_path(@loan), label: "Delete loan", variant: :destructive, method: :delete, data: { turbo_confirm: "Delete this loan and its unused schedule? Planned installments must be deleted first." }) %>
       <% end %>
@@ -21,12 +26,14 @@
 
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
     <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Principal</p><p class="mt-2 text-xl font-bold"><%= number_to_currency(@loan.principal_amount) %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Withdrawal / transfer fee</p><p class="mt-2 text-xl font-bold"><%= number_to_currency(@loan.disbursement_fee_amount) %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Net payout</p><p class="mt-2 text-xl font-bold"><%= number_to_currency(@loan.net_disbursement_amount) %></p></div>
     <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Actual debt</p><p class="mt-2 text-xl font-bold"><%= number_to_currency(@loan.actual_balance) %></p></div>
     <div class="rounded-xl border border-border bg-card p-4">
       <p class="text-sm text-muted-foreground">Annual interest</p>
       <div class="mt-2 flex items-center gap-2"><p class="text-xl font-bold"><%= @loan.interest_rate ? "#{@loan.interest_rate}%" : "—" %></p><% if @loan.interest_rate_estimated? %><%= render Ui::BadgeComponent.new(label: "Estimated", variant: :secondary) %><% end %></div>
     </div>
-    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Projected repayment</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.projected_repayment) : "—" %></p></div>
+    <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Projected repayment</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.projected_repayment + @loan.disbursement_fee_amount) : "—" %></p></div>
     <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Projected interest</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.projected_interest) : "—" %></p></div>
     <div class="rounded-xl border border-border bg-card p-4"><p class="text-sm text-muted-foreground">Remaining projected interest</p><p class="mt-2 text-xl font-bold"><%= @installments.any? ? number_to_currency(@loan.remaining_projected_interest) : "—" %></p></div>
   </div>
@@ -34,7 +41,8 @@
   <% if @loan.lifecycle_status == "simulated" %>
     <section class="rounded-xl border border-border bg-card p-5">
       <h2 class="font-semibold">Activate and disburse</h2>
-      <p class="mt-1 text-sm text-muted-foreground">Activation creates one actual disbursement transaction. Configure one liability and one destination before activating.</p>
+      <p class="mt-1 text-sm text-muted-foreground">Activation records the net payout to the destination and the withdrawal / transfer fee as a separate charge to the loan liability. Configure one liability and one destination before activating.</p>
+      <p class="mt-1 text-sm">Gross principal <%= number_to_currency(@loan.principal_amount) %> · Fee <%= number_to_currency(@loan.disbursement_fee_amount) %> · Net payout <%= number_to_currency(@loan.net_disbursement_amount) %></p>
       <%= form_with url: activate_finance_loan_path(@loan), method: :post, class: "mt-4 flex flex-wrap items-end gap-2" do %>
         <label class="min-w-56 space-y-1 text-sm">Financial plan<%= render Ui::SelectComponent.new(name: "plan_id", options: @plans.map { |plan| [ plan.name, plan.id ] }, include_blank: "Select plan", required: true) %></label>
         <%= render Ui::ButtonComponent.new(label: "Activate loan", type: "submit") %>

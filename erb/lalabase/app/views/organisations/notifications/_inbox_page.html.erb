@@ -1,0 +1,54 @@
+<%# locals: (lane_open:, head:, list:, lane:, follow_address: false) %>
+<%# The frame both inboxes share (organisations/notifications/index for one
+    organisation, all_inboxes/index above the organisations): the list on the
+    shared list-and-lane grid of "Personen" and "Alle Meetings"
+    (NeoTwoColumnGridComponent, lane: true), the ticket of the chosen
+    notification in the lane. Without a chosen notification the lane is shut
+    and the list takes the width; a click opens it (inbox_master_item_controller
+    loads the frame and writes the address).
+    The lane belongs to layout-toggle and index-page, as on those pages: the ✕
+    of the lane head and Escape shut it and take ?notification= out of the
+    address, Back and Forward restore what the address names. One copy of this
+    wiring for both pages (doc: cross_org_inbox_s3_plan.md §5.4, §10).
+    Below lg the grid gives way to a plain page (the inbox block of
+    application.tailwind.css): the list alone, a click opens the ticket's full
+    view.
+    Locals: head (the list head and what stands above the list frame), list
+    (the content of the list frame), lane (the content of the lane),
+    follow_address (inbox-bulk-select takes the list state from the address). %>
+<div class="labor-layout-view people-page inbox-page <%= 'show-content' if lane_open %>"
+     data-controller="layout-toggle index-page"
+     data-lane-params="<%= lane_params_json(selection: 'notification', preview: KnowledgeFilterHelper::PREVIEW_PARAM) %>"
+     data-lane-preview-url="<%= inbox_lane_preview_url %>"
+     data-layout-toggle-detail-frame-id-value="ticket_pane"
+     data-layout-toggle-content-selector-value=".inbox-lane-content"
+     data-layout-toggle-selected-row-selector-value=".selected-row[data-notification-id]"
+     data-layout-toggle-selection-params-value="<%= %w[notification].to_json %>"
+     data-layout-toggle-storage-key-value="layoutState:inbox"
+     data-index-page-param-name-value="notification"
+     data-index-page-frame-id-value="ticket_pane"
+     data-index-page-content-selector-value=".inbox-lane-content"
+     data-index-page-selected-row-selector-value=".selected-row[data-notification-id]">
+  <%= render NeoTwoColumnGridComponent.new(
+    context_type: :inbox,
+    css_classes: "#{lane_open ? 'show-content' : 'hide-content'} hide-panel",
+    chrome_height: NeoTwoColumnGridComponent::LANE_CHROME_HEIGHT_PX,
+    lane: true
+  ) do |grid| %>
+    <% grid.with_list do %>
+      <%# Stimulus scope of the bulk selection: the head (its "···" item and
+          the bulk bar) and the rows. %>
+      <div class="inbox-list-column" data-controller="inbox-bulk-select"
+           <%= tag.attributes(data: { inbox_bulk_select_follow_address_value: 'true' }) if follow_address %>>
+        <%= head %>
+        <turbo-frame id="notifications_list_frame" class="block">
+          <%= list %>
+        </turbo-frame>
+      </div>
+    <% end %>
+
+    <% grid.with_main_content do %>
+      <%= lane %>
+    <% end %>
+  <% end %>
+</div>

@@ -1,4 +1,4 @@
-<%= form_with(model: message, url: [@chat, message], id: "new_message", class: "contents") do |form| %>
+<%= form_with(model: message, url: [chat, message], id: "new_message", class: "space-y-2", data: { action: "submit->composer#validate turbo:submit-end->composer#resize turbo:submit-start->chat-scroll#jumpToLatest" }) do |form| %>
   <% if message.errors.any? %>
     <div id="error_explanation" class="bg-red-50 text-red-500 px-3 py-2 font-medium rounded-md mt-3">
       <h2><%= pluralize(message.errors.count, "error") %> prohibited this message from being saved:</h2>
@@ -11,13 +11,20 @@
     </div>
   <% end %>
 
-  <div class="my-5">
-    <%= form.label :content, "Message" %>
-    <%= form.text_area :content, rows: 4, placeholder: "Message...", autofocus: true,
-        class: ["block shadow-sm rounded-md border px-3 py-2 mt-2 w-full", {"border-gray-400 focus:outline-blue-600": message.errors[:content].none?, "border-red-400 focus:outline-red-600": message.errors[:content].any?}] %>
+  <div class="space-y-2">
+    <%= form.label :content, "Message", class: "sr-only" %>
+    <%= form.text_area :content, rows: 2, placeholder: "Message Neighbourly...", autofocus: true,
+        maxlength: (LandingQuestion::MAX_LENGTH if chat.guest?),
+        aria: { describedby: "message_content_hint" }, data: { composer_target: "input", action: "input->composer#resize keydown->composer#submitOnEnter" },
+        class: ["block min-h-14 max-h-[min(12rem,25dvh)] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 text-base leading-6 focus:outline-none", {"outline outline-red-400": message.errors[:content].any?}] %>
+    <span id="message_content_hint" class="sr-only">Enter to send. Shift+Enter for a new line.</span>
   </div>
 
-  <div class="inline">
-    <%= form.submit "Send message", class: "w-full sm:w-auto rounded-md px-3.5 py-2.5 bg-sage-600 hover:bg-sage-700 text-white inline-block font-medium cursor-pointer" %>
+  <div class="flex items-center justify-between gap-2">
+    <%= render "chats/model_picker", chat: chat, scope: "message" unless chat.guest? %>
+    <%= form.button type: "submit", disabled: chat.response_in_progress?, aria: { label: "Send message" }, data: { composer_target: "submit" }, class: "ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-sage-600 text-white hover:bg-sage-700 focus-visible:outline-sage-600 disabled:cursor-not-allowed disabled:opacity-40" do %>
+      <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m-6 6 6-6 6 6" /></svg>
+      <span class="sr-only">Send message</span>
+    <% end %>
   </div>
 <% end %>

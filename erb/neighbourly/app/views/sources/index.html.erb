@@ -1,71 +1,57 @@
 <% content_for :title, "Sources" %>
+<% turbo_refreshes_with method: :morph, scroll: :preserve %>
+<%= turbo_stream_from "sources" %>
+<% content_for :admin_actions do %>
+  <%= link_to "Upload source", new_source_path, class: "admin-button-secondary" %>
+  <%= link_to "Add resource", new_document_path, class: "admin-button-primary" %>
+<% end %>
 
-<div class="w-full">
-  <div class="flex justify-between items-center">
-    <h1 class="font-bold text-4xl">Sources</h1>
-    <div class="flex gap-2">
-      <%= link_to "Add resource", new_document_path, class: "rounded-md px-3.5 py-2.5 bg-sage-600 hover:bg-sage-700 text-white block font-medium" %>
-      <%= link_to "Upload source", new_source_path, class: "rounded-md px-3.5 py-2.5 bg-sage-600 hover:bg-sage-700 text-white block font-medium" %>
-    </div>
-  </div>
+<%= render "admin/page_header", title: "Sources", description: "Manage the community resources and uploaded data used in chat and printouts." %>
 
-  <div class="min-w-full divide-y divide-gray-200 mt-5">
-    <% if @sources.any? || @documents.any? %>
-      <% @sources.each do |source| %>
-        <div class="flex flex-col sm:flex-row justify-between items-center py-4">
-          <div class="w-full sm:w-auto space-y-1">
-            <div>
-              <%= link_to source.name, source, class: "font-medium text-blue-600 hover:text-blue-500" %>
-              <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                <%= source.source_type.upcase %>
-              </span>
-            </div>
-            <% if source.url.present? %>
-              <div class="text-sm text-gray-500"><%= source.url %></div>
+<% if @sources.any? || @documents.any? %>
+  <div class="space-y-4">
+    <% @sources.each do |source| %>
+      <article class="admin-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div class="min-w-0 space-y-2">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <%= link_to source.name, source, class: "admin-link text-base" %>
+            <span class="admin-badge bg-stone-100 text-stone-600"><%= source.source_type.upcase %></span>
+            <%= render "ingestion_status", source: source %>
+          </div>
+          <% if source.url.present? %>
+            <p class="break-all text-sm text-stone-500"><%= source.url %></p>
+          <% end %>
+          <p class="text-sm text-stone-500">
+            <%= pluralize(source.documents.count, "document") %>
+            <% if source.last_fetched_at %>
+              &middot; Last ingested <%= time_ago_in_words(source.last_fetched_at) %> ago
             <% end %>
-            <div class="text-sm text-gray-500">
-              <%= pluralize(source.documents.count, "document") %>
-              <% if source.last_fetched_at %>
-                &middot; Last ingested <%= time_ago_in_words(source.last_fetched_at) %> ago
-              <% end %>
-            </div>
-          </div>
-          <div class="w-full sm:w-auto mt-2 sm:mt-0">
-            <%= button_to "Delete", source_path(source), method: :delete, class: "rounded-md px-3.5 py-2.5 bg-red-600 hover:bg-red-500 text-white inline-block font-medium cursor-pointer", data: { turbo_confirm: "Delete source '#{source.name}' and all its documents?" } %>
-          </div>
+          </p>
         </div>
-      <% end %>
+        <%= button_to "Delete", source_path(source), method: :delete, class: "admin-button-danger",
+            form: { class: "shrink-0" }, data: { turbo_confirm: "Delete source '#{source.name}' and all its documents?" } %>
+      </article>
+    <% end %>
 
-      <% @documents.each do |document| %>
-        <div class="flex flex-col sm:flex-row justify-between items-center py-4">
-          <div class="w-full sm:w-auto space-y-1">
-            <div>
-              <%= link_to document.title || "Untitled", document, class: "font-medium text-blue-600 hover:text-blue-500" %>
-              <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                FORM
-              </span>
-            </div>
-            <div class="text-sm text-gray-500">
-              <% if document.metadata["city"].present? %>
-                <%= document.metadata["city"] %>
-              <% end %>
-              <% if document.metadata["categories"].present? %>
-                <% if document.metadata["city"].present? %>&middot;<% end %>
-                <%= Array(document.metadata["categories"]).join(", ") %>
-              <% end %>
-            </div>
-            <div class="text-sm text-gray-500">
-              Added <%= time_ago_in_words(document.created_at) %> ago
-            </div>
+    <% @documents.each do |document| %>
+      <article class="admin-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div class="min-w-0 space-y-2">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <%= link_to document.title.presence || "Untitled", document, class: "admin-link text-base" %>
+            <span class="admin-badge bg-sage-50 text-sage-700">FORM</span>
           </div>
-          <div class="w-full sm:w-auto mt-2 sm:mt-0 flex gap-2">
-            <%= link_to "Edit", edit_document_path(document), class: "rounded-md px-3.5 py-2.5 bg-gray-100 hover:bg-gray-50 inline-block font-medium" %>
-            <%= button_to "Delete", document_path(document), method: :delete, class: "rounded-md px-3.5 py-2.5 bg-red-600 hover:bg-red-500 text-white inline-block font-medium cursor-pointer", data: { turbo_confirm: "Delete resource '#{document.title}'?" } %>
-          </div>
+          <p class="break-words text-sm text-stone-500">
+            <%= [document.location.city.presence, document.category_names.presence&.join(", ")].compact.join(" · ") %>
+          </p>
+          <p class="text-sm text-stone-500">Added <%= time_ago_in_words(document.created_at) %> ago</p>
         </div>
-      <% end %>
-    <% else %>
-      <p class="text-center my-10 text-gray-500">No sources have been added yet.</p>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <%= link_to "Edit", edit_document_path(document), class: "admin-button-secondary" %>
+          <%= button_to "Delete", document_path(document), method: :delete, class: "admin-button-danger", data: { turbo_confirm: "Delete resource '#{document.title}'?" } %>
+        </div>
+      </article>
     <% end %>
   </div>
-</div>
+<% else %>
+  <p class="admin-empty-state">No sources have been added yet.</p>
+<% end %>

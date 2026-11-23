@@ -16,103 +16,122 @@
     ist Standard, US die bewusste Abweichung"), it is stored raw in the payload precisely
     so no row freezes today's wording, and it is resolved to a label at render time. %>
 <div>
-  <%= render 'organisations/shared/ai_area_header',
-        title: t('views.organisations.ai_overview.protocol.title') %>
+  <%# The head of the section with its tab row, "Protokoll" open (doc/verwaltung_seitennavigation_plan.md
+      §4, S3). The tab stays open while AI is off, as its row on the hub does. %>
+  <%= render 'organisations/shared/settings_subnav', active: :ai, tabs: ai_section_tabs(@organisation), tab_active: :protocol %>
 
-  <p class="mb-6 max-w-3xl text-sm text-cream-600">
-    <%= t('views.organisations.ai_overview.protocol.intro') %>
-  </p>
+  <%# The shapes of the rest of the application (doc/belegungstabelle_oberflaeche.md):
+      one entry per row with its clock time on the right, so the content is capped at
+      the wide value (.width-capped--wide), as the project's activity list is. The rows
+      are a record, not something to press, so they are flat (shadow rule) and sit in
+      one quiet frame with thin dividers. Until 2026-11-12 every entry was a white card
+      with a hard shadow and a chip that repeated the sentence below it. %>
+  <% action_icons = {
+       AiProtocolActions::ACTIVATED => 'toggle-on',
+       AiProtocolActions::DEACTIVATED => 'toggle-off',
+       AiProtocolActions::PACKAGE_SELECTED => 'box-seam',
+       AiProtocolActions::TIER_SELECTED => 'speedometer2',
+       AiProtocolActions::CONFIGURATION_CHANGED => 'sliders'
+     } %>
+  <div class="width-capped--wide">
+    <p class="width-text mb-6 text-sm text-muted">
+      <%= t('views.organisations.ai_overview.protocol.intro') %>
+    </p>
 
-  <% if @entries.any? %>
-    <%# <ol>, not <ul>: the order IS the information on this page. %>
-    <ol class="space-y-3">
-      <% @entries.each do |entry| %>
-        <li class="rounded-lg border-2 border-ink bg-white p-4 shadow-[3px_3px_0_0_#000000]">
-          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <span class="inline-flex items-center rounded-md border border-cream-300 bg-cream-100 px-2 py-0.5 text-xs font-bold text-cream-900"
-                  data-protocol-action="<%= entry.action %>">
-              <%= entry.action_text %>
+    <% if @entries.any? %>
+      <%# <ol>, not <ul>: the order IS the information on this page. %>
+      <ol class="divide-y divide-divider rounded-lg border border-edge bg-surface">
+        <% @entries.each do |entry| %>
+          <li class="flex gap-3 px-4 py-3">
+            <span class="mt-0.5 flex h-[22px] w-[22px] shrink-0 items-center justify-center text-faint" aria-hidden="true">
+              <i class="bi bi-<%= action_icons.fetch(entry.action, 'clock-history') %> text-[14px]"></i>
             </span>
-            <time datetime="<%= entry.created_at.iso8601 %>" class="text-xs text-cream-600">
-              <%= l(entry.created_at, format: :long) %>
-            </time>
-          </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+                <span class="text-sm font-semibold text-heading" data-protocol-action="<%= entry.action %>">
+                  <%= entry.action_text %>
+                </span>
+                <time datetime="<%= entry.created_at.iso8601 %>" class="shrink-0 font-mono text-[12px] tabular-nums text-faint">
+                  <%= l(entry.created_at, format: :long) %>
+                </time>
+              </div>
+              <%# ⚠️ Tier LABELS, not the raw keys. Actors::SelectAiPackage stores the two
+                  packages as labels but the two tiers as KEYS, so the sentence read
+                  'Leistungsstufe von "fast" auf "thorough" gewechselt' while every other
+                  surface says "Schnell & günstig" / "Gründlich". On the one page sold as an
+                  AVV record that is the most conspicuous line there is.
 
-          <%# ⚠️ Tier LABELS, not the raw keys. Actors::SelectAiPackage stores the two
-              packages as labels but the two tiers as KEYS, so the sentence read
-              'Leistungsstufe von "fast" auf "thorough" gewechselt' while every other
-              surface says "Schnell & günstig" / "Gründlich". On the one page sold as an
-              AVV record that is the most conspicuous line there is.
+                  Fixed at the READER, not the writer, deliberately: rows written before this
+                  exist and cannot be rewritten, and Activity#message merges its options OVER
+                  the stored parameters — so the same call repairs old and new rows alike.
+                  The label comes from the package the entry points at (operators may rename
+                  a rung), falling back to the shipped defaults and finally to the key, which
+                  is still better than nothing for a package that no longer exists. %>
+              <p class="mt-0.5 text-sm text-body"><%= entry.message(**tier_labels(entry)) %></p>
 
-              Fixed at the READER, not the writer, deliberately: rows written before this
-              exist and cannot be rewritten, and Activity#message merges its options OVER
-              the stored parameters — so the same call repairs old and new rows alike.
-              The label comes from the package the entry points at (operators may rename
-              a rung), falling back to the shipped defaults and finally to the key, which
-              is still better than nothing for a package that no longer exists. %>
-          <p class="mt-2 text-sm text-cream-900"><%= entry.message(**tier_labels(entry)) %></p>
+              <% parameters = entry.parameters || {} %>
+              <% from_jurisdiction = parameters['from_jurisdiction'] %>
+              <% to_jurisdiction = parameters['to_jurisdiction'] %>
+              <%# Only when it MOVED. A row repeating the same jurisdiction on both sides
+                  would train the reader to skip the one line they are here for.
+                  ⚠️ Both sides go through .presence, and BOTH resolve their label through
+                  'blank'. An earlier version asked `to_jurisdiction.present?` and was
+                  therefore silent about the direction that matters most: LEAVING a
+                  jurisdiction. Actors::SelectAiPackage writes to_jurisdiction from
+                  `package&.effective_jurisdiction`, and the "Eigene Konfiguration" card posts
+                  a BLANK package id (E1-C) — so a switch away from a non-EU package stored
+                  from: 'non_eu', to: nil and rendered nothing. For a trail whose stated
+                  purpose is proving when processing abroad began AND ENDED, the end is the
+                  half nobody can reconstruct from anywhere else. Same reason a package whose
+                  jurisdiction column is empty (allow_blank) must not silence the row. %>
+              <% if from_jurisdiction.presence != to_jurisdiction.presence &&
+                    (from_jurisdiction.present? || to_jurisdiction.present?) %>
+                <p class="mt-1 text-xs text-muted">
+                  <%= t('views.organisations.ai_overview.protocol.jurisdiction_change',
+                        from: t("views.organisations.ai_settings.packages.jurisdictions.#{from_jurisdiction.presence || 'blank'}"),
+                        to: t("views.organisations.ai_settings.packages.jurisdictions.#{to_jurisdiction.presence || 'blank'}")) %>
+                </p>
+              <% end %>
 
-          <% parameters = entry.parameters || {} %>
-          <% from_jurisdiction = parameters['from_jurisdiction'] %>
-          <% to_jurisdiction = parameters['to_jurisdiction'] %>
-          <%# Only when it MOVED. A row repeating the same jurisdiction on both sides
-              would train the reader to skip the one line they are here for.
-              ⚠️ Both sides go through .presence, and BOTH resolve their label through
-              'blank'. An earlier version asked `to_jurisdiction.present?` and was
-              therefore silent about the direction that matters most: LEAVING a
-              jurisdiction. Actors::SelectAiPackage writes to_jurisdiction from
-              `package&.effective_jurisdiction`, and the "Eigene Konfiguration" card posts
-              a BLANK package id (E1-C) — so a switch away from a non-EU package stored
-              from: 'non_eu', to: nil and rendered nothing. For a trail whose stated
-              purpose is proving when processing abroad began AND ENDED, the end is the
-              half nobody can reconstruct from anywhere else. Same reason a package whose
-              jurisdiction column is empty (allow_blank) must not silence the row. %>
-          <% if from_jurisdiction.presence != to_jurisdiction.presence &&
-                (from_jurisdiction.present? || to_jurisdiction.present?) %>
-            <p class="mt-1 text-xs text-cream-600">
-              <%= t('views.organisations.ai_overview.protocol.jurisdiction_change',
-                    from: t("views.organisations.ai_settings.packages.jurisdictions.#{from_jurisdiction.presence || 'blank'}"),
-                    to: t("views.organisations.ai_settings.packages.jurisdictions.#{to_jurisdiction.presence || 'blank'}")) %>
-            </p>
-          <% end %>
+              <%# The operating half of the same decision, and the only field in the payload
+                  that cannot be reconstructed from the two package rows afterwards. %>
+              <% if parameters['embedding_lane_moved'] %>
+                <p class="mt-1 text-xs text-muted">
+                  <i class="bi bi-arrow-repeat mr-1" aria-hidden="true"></i><%= t('views.organisations.ai_overview.protocol.reindex_triggered') %>
+                </p>
+              <% end %>
+            </div>
+          </li>
+        <% end %>
+      </ol>
 
-          <%# The operating half of the same decision, and the only field in the payload
-              that cannot be reconstructed from the two package rows afterwards. %>
-          <% if parameters['embedding_lane_moved'] %>
-            <p class="mt-1 text-xs text-cream-600">
-              <i class="bi bi-arrow-repeat mr-1"></i><%= t('views.organisations.ai_overview.protocol.reindex_triggered') %>
-            </p>
-          <% end %>
-        </li>
-      <% end %>
-    </ol>
+      <%# The COMPACT nav, not shared/_pagination_nav. The reason given here used to be a
+          DEFECT: the link builder of the full nav (today PaginationHelper#page_url_for)
+          resolved its links through url_for, whose permit list had no :organisation_id,
+          so it raised below /org/:id. That is fixed — it now builds from request.path and
+          carries every query parameter, exactly like PaginationHelper#pagination_page_url does.
 
-    <%# The COMPACT nav, not shared/_pagination_nav. The reason given here used to be a
-        DEFECT: ApplicationHelper#pagy_url_for resolved its links through url_for, whose
-        permit list had no :organisation_id, so it raised below /org/:id. That is fixed —
-        it now builds from request.path and carries every query parameter, exactly like
-        PaginationHelper#pagination_page_url does.
-
-        Which leaves two builders doing the same job. They are NOT interchangeable yet:
-        pagination_page_url takes explicit organisation/project keywords and returns an
-        absolute URL for tickets (Turbo compatibility). Merging them is a change to that
-        Turbo behaviour and belongs in its own pass. Recorded here rather than silently
-        tolerated. The choice below is now about the compact LOOK, nothing else. %>
-    <%= render 'shared/pagination_nav_compact', pagy: @pagy, items_per_page: @pagy.limit %>
-  <% else %>
-    <%# An empty protocol is a statement, not a failure: nothing has been changed since
-        the trail started. Saying WHEN it started matters, because entries before P4e /
-        S0 do not exist and cannot be reconstructed (L13, "Was heute nicht geschrieben
-        wird, existiert nie") — an admin who reads "keine Einträge" as "nichts ist je
-        passiert" would draw the wrong conclusion from a correct page. %>
-    <div class="rounded-lg border-2 border-dashed border-cream-300 bg-cream-50 p-8 text-center">
-      <i class="bi bi-clock-history text-3xl text-cream-400"></i>
-      <p class="mt-3 text-sm font-bold text-cream-900">
-        <%= t('views.organisations.ai_overview.protocol.empty_title') %>
-      </p>
-      <p class="mx-auto mt-1 max-w-xl text-sm text-cream-600">
-        <%= t('views.organisations.ai_overview.protocol.empty_body') %>
-      </p>
-    </div>
-  <% end %>
+          Which leaves two builders doing the same job. They are NOT interchangeable yet:
+          pagination_page_url takes explicit organisation/project keywords and returns an
+          absolute URL for tickets (Turbo compatibility). Merging them is a change to that
+          Turbo behaviour and belongs in its own pass. Recorded here rather than silently
+          tolerated. The choice below is now about the compact LOOK, nothing else. %>
+      <%= render 'shared/pagination_nav_compact', pagy: @pagy, items_per_page: @pagy.limit %>
+    <% else %>
+      <%# An empty protocol is a statement, not a failure: nothing has been changed since
+          the trail started. Saying WHEN it started matters, because entries before P4e /
+          S0 do not exist and cannot be reconstructed (L13, "Was heute nicht geschrieben
+          wird, existiert nie") — an admin who reads "keine Einträge" as "nichts ist je
+          passiert" would draw the wrong conclusion from a correct page. %>
+      <div class="rounded-lg border border-dashed border-edge bg-surface p-8 text-center">
+        <i class="bi bi-clock-history text-3xl text-faint" aria-hidden="true"></i>
+        <p class="mt-3 text-sm font-semibold text-heading">
+          <%= t('views.organisations.ai_overview.protocol.empty_title') %>
+        </p>
+        <p class="mt-1 text-sm text-muted">
+          <%= t('views.organisations.ai_overview.protocol.empty_body') %>
+        </p>
+      </div>
+    <% end %>
+  </div>
 </div>

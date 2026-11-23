@@ -1,0 +1,58 @@
+<div class="mx-auto max-w-4xl space-y-7 p-4 sm:p-8">
+  <header>
+    <%= link_to t("habits.skills"), habit_skills_path, class: "text-sm text-primary" %>
+
+    <div class="flex justify-between">
+      <h1 class="text-3xl font-bold"><%= @skill.name %></h1><%= link_to t("habits.edit"), edit_habit_skill_path(@skill), class: "btn btn-secondary" %>
+    </div>
+
+    <p><%= t("habits.level") %> <%= @skill.level %> · <%= @skill.xp %> XP</p>
+
+    <div class="mt-3 h-3 rounded bg-muted">
+      <div
+        class="h-3 rounded bg-primary"
+        style="width: <%= @skill.xp % 100 %>%"
+      ></div>
+    </div>
+  </header>
+
+  <section>
+    <h2 class="text-xl font-semibold"><%= t("habits.linked_habits") %></h2>
+
+    <ul class="mt-2 space-y-1">
+      <% @habits.each do |habit| %>
+        <li>
+          <%= link_to habit.name, habit, class: "text-primary hover:underline" %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+
+  <section class="space-y-3">
+    <h2 class="text-xl font-semibold"><%= t("habits.level_goals") %></h2>
+
+    <% @goals.each do |goal| %>
+      <div class="rounded-xl border border-border bg-card p-4">
+        <%= form_with model: goal, url: habit_skill_level_goal_path(@skill, goal), method: :patch, class: "grid gap-2 sm:grid-cols-6" do |f| %>
+          <%= f.number_field :level, min: 1, class: "w-full rounded border border-border bg-background p-2" %>
+          <%= f.text_field :description, class: "sm:col-span-2 w-full rounded border border-border bg-background p-2" %>
+          <%= f.select :habit_id, options_from_collection_for_select(@habits, :id, :name, goal.habit_id), { include_blank: t("habits.manual") }, class: "w-full rounded border border-border bg-background p-2" %>
+          <%= f.select :metric, Habit::LevelGoal::METRICS.map { |metric| [t("habits.metrics.#{metric}"), metric] }, { include_blank: true }, class: "w-full rounded border border-border bg-background p-2" %>
+          <%= f.number_field :target, value: goal.target, step: 0.01, min: 0, placeholder: t("habits.target"), class: "w-full rounded border border-border bg-background p-2" %><label class="sm:col-span-3 text-sm"><%= t("habits.achieved_on") %> <%= f.date_field :achieved_on, class: "rounded border border-border bg-background p-2" %></label><span class="sm:col-span-3 text-sm text-muted-foreground"><%= goal.achieved? ? "#{t("habits.achieved")} · #{l(goal.actual_achieved_on, format: :long)}" : (goal.metric ? "#{goal.progress} / #{goal.target}" : t("habits.pending")) %></span>
+          <%= f.submit t("habits.save"), class: "btn btn-secondary cursor-pointer" %>
+        <% end %><%= button_to t("habits.clear"), habit_skill_level_goal_path(@skill, goal), method: :delete, class: "mt-2 text-sm text-destructive" %>
+      </div>
+    <% end %>
+
+    <h3 class="font-semibold"><%= t("habits.add_goal") %></h3>
+
+    <%= form_with model: @goal, url: habit_skill_level_goals_path(@skill), class: "grid gap-2 sm:grid-cols-3" do |f| %>
+      <%= f.number_field :level, min: 1, required: true, class: "rounded border border-border bg-background p-2" %>
+      <%= f.text_field :description, required: true, placeholder: t("habits.goal_description"), class: "sm:col-span-2 rounded border border-border bg-background p-2" %>
+      <%= f.select :habit_id, options_from_collection_for_select(@habits, :id, :name), { include_blank: t("habits.manual") }, class: "rounded border border-border bg-background p-2" %>
+      <%= f.select :metric, Habit::LevelGoal::METRICS.map { |metric| [t("habits.metrics.#{metric}"), metric] }, { include_blank: true }, class: "rounded border border-border bg-background p-2" %>
+      <%= f.number_field :target, step: 0.01, min: 0, placeholder: t("habits.target"), class: "rounded border border-border bg-background p-2" %>
+      <%= f.submit t("habits.add_goal"), class: "btn btn-primary cursor-pointer" %>
+    <% end %>
+  </section>
+</div>

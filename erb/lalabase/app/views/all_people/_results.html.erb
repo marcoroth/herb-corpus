@@ -1,0 +1,98 @@
+<%# locals: (people:, card: nil) %>
+<%# The rows of the list (People::AcrossOrganisations::Result): four columns the
+    reader compares, so a table at full width, with a tick in front of every row
+    and the menu of a merged row behind it. A click on a row opens the card of
+    that person in the lane (card: the one open now, its row is marked). The
+    search reloads only this frame; every link and form in it leaves the frame
+    (_top). data-list-filter-query is the list state as the server applied it:
+    layout-toggle writes it into the address beside the open card. %>
+<turbo-frame id="<%= AllPeopleController::LIST_FRAME_ID %>">
+  <span hidden data-list-filter-query="<%= all_people_return_state(people).to_query %>"></span>
+  <%# The bar of the ticked rows. The ticks stand in the table and belong to this
+      form by its id (the form attribute), so no form lies around the rows and
+      the form of a row's menu is none inside another. The stylesheet shows the
+      bar once a row is ticked; the refusal of a single row is the server's.
+      The controller (all-people-merge) keeps the chosen rows through a search,
+      which draws this frame again: it counts and names them here and adds the
+      ones out of sight to the form as it leaves. The address of the answer is
+      the list as it stands here, with the card open now (data-lane-keep). %>
+  <%= form_with url: all_people_merges_path, method: :post, id: 'all-people-merge', class: 'all-people-merge',
+                data: { turbo_frame: '_top', all_people_merge_bar: true, lane_keep: true, action: 'submit->all-people-merge#carry' } do %>
+    <% all_people_return_state(people).each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <span class="all-people-merge__count" data-all-people-merge-target="counter" hidden>
+      <span data-all-people-merge-target="count">0</span> <%= t('views.all_people.merge.selected') %><span class="all-people-merge__names">: <span data-all-people-merge-target="names"></span></span>
+    </span>
+    <button type="submit" class="people-secondary-action" data-all-people-merge-target="submit"
+            data-turbo-submits-with="<%= t('views.all_people.merge.submitting') %>">
+      <i class="bi bi-intersect" aria-hidden="true"></i>
+      <%= t('views.all_people.merge.submit') %>
+    </button>
+    <span class="all-people-merge__hint"><%= t('views.all_people.merge.hint') %></span>
+    <button type="button" class="people-quiet-action all-people-merge__clear" data-action="all-people-merge#clear">
+      <%= t('views.all_people.merge.clear') %>
+    </button>
+  <% end %>
+  <% if people.rows.any? %>
+    <table class="all-people-table">
+      <thead>
+        <tr>
+          <th scope="col" class="column-head all-people-table__tick"><span class="sr-only"><%= t('views.all_people.columns.select') %></span></th>
+          <th scope="col" class="column-head"><%= t('views.all_people.columns.name') %></th>
+          <th scope="col" class="column-head all-people-table__wide"><%= t('views.all_people.columns.function') %></th>
+          <th scope="col" class="column-head"><%= t('views.all_people.columns.organisations') %></th>
+          <th scope="col" class="column-head all-people-table__wide all-people-table__last"><%= t('views.all_people.columns.last_contact') %></th>
+          <th scope="col" class="column-head all-people-table__menu"><span class="sr-only"><%= t('views.all_people.columns.actions') %></span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% people.rows.each do |row| %>
+          <%= render 'all_people/row', row: row, return_state: all_people_return_state(people), open: all_people_row_open?(row, card) %>
+        <% end %>
+      </tbody>
+    </table>
+    <% if people.pages > 1 %>
+      <nav class="all-people-paging" aria-label="<%= t('views.all_people.paging.label') %>">
+        <% if people.page > 1 %>
+          <%= link_to t('views.all_people.paging.previous'), all_people_page_path(people.page - 1),
+                      rel: 'prev', class: 'people-text-action', data: { turbo_frame: '_top', lane_keep: true } %>
+        <% end %>
+        <span><%= t('views.all_people.paging.position', page: people.page, pages: people.pages) %></span>
+        <% if people.page < people.pages %>
+          <%= link_to t('views.all_people.paging.next'), all_people_page_path(people.page + 1),
+                      rel: 'next', class: 'people-text-action', data: { turbo_frame: '_top', lane_keep: true } %>
+        <% end %>
+      </nav>
+    <% end %>
+  <%# Without the right in any organisation that is what the page says, also with a
+      search in the address: "nobody matches" would be the wrong reason. %>
+  <% elsif people.organisations.empty? %>
+    <div class="people-empty" data-all-people-empty="no-right">
+      <i class="bi bi-people people-empty__icon" aria-hidden="true"></i>
+      <p class="people-empty__title"><%= t('views.all_people.empty.no_right_title') %></p>
+      <p class="people-empty__text width-text"><%= t('views.all_people.empty.no_right_text') %></p>
+    </div>
+  <% elsif all_people_list_state[:q] %>
+    <div class="people-empty" data-all-people-empty="no-hits">
+      <p class="people-empty__title"><%= t('views.all_people.empty.no_hits_title', query: all_people_list_state[:q]) %></p>
+      <p class="people-empty__text"><%= t('views.all_people.empty.no_hits_text') %></p>
+      <%= link_to t('views.all_people.empty.clear_search'), all_people_path(all_people_list_state.except(:q)),
+                  class: 'people-text-action', data: { turbo_frame: '_top' } %>
+    </div>
+  <% else %>
+    <div class="people-empty" data-all-people-empty="no-people">
+      <i class="bi bi-people people-empty__icon" aria-hidden="true"></i>
+      <p class="people-empty__title"><%= t('views.all_people.empty.no_people_title') %></p>
+      <p class="people-empty__text width-text"><%= t('views.all_people.empty.no_people_text') %></p>
+    </div>
+  <% end %>
+  <%# The search reloads only this frame. The count and the select stand outside
+      it and carry the search, so they come along as a stream, INSIDE the frame:
+      after </turbo-frame> Turbo drops it (the people page's tabs do the same). %>
+  <% if turbo_frame_request_id == AllPeopleController::LIST_FRAME_ID %>
+    <%= turbo_stream.replace 'all_people_tools' do %>
+      <%= render 'all_people/tools', people: people %>
+    <% end %>
+  <% end %>
+</turbo-frame>

@@ -1,0 +1,85 @@
+<%# The lane of the inbox for a row it shows (InboxLane, states :ticket, :kind, :card): the
+    inbox's own chrome around a body. The chrome is the same for every kind: the stream that
+    marks the open row, the 5 s read timer, the head with the project, the actions on the
+    notification and the way out, and the "what was new" block. The body is what
+    Inbox::LaneKind names for the row:
+
+      :inline  the ticket, rendered here (pane_ticket)
+      :frame   an object with a display of its own (a note, a document): turbo-frame#ticket_display_frame
+               with the object's own frame address as src. Its controller draws it under
+               its own policy, as on the activity page of a project; nothing of it is
+               rendered or copied here. The frame id is the ticket's, so the one rule that
+               hides the display's own close button holds (views.css, #ticket_pane
+               #ticket_display_frame).
+      :card    an event without a display, or one whose object is gone (pane_event_card)
+
+    Partial names are written in full: above the organisations a relative name resolves
+    against all_inboxes/. %>
+<% notification = @selected_notification %>
+<% kind = @lane_kind %>
+
+<%# When the pane is freshly loaded via a Turbo Frame click, the
+    master-list entry should also receive the selected state.
+    The turbo-stream element is applied document-wide by Turbo. Above the
+    organisations the row names its organisation, as every row of that page;
+    its links keep the list state of the request (the page's address). %>
+<% if notification %>
+  <%= turbo_stream.replace dom_id(notification) do %>
+    <div id="<%= dom_id(notification) %>"
+         data-notification-item="<%= notification.id %>">
+      <%# group_count: the bundle the list drew this row for, so the row keeps its title
+          (a bundle of a project's events is titled with the project). %>
+      <%= render NeoInboxMasterItemComponent.new(notification: notification, selected: true,
+                                                 group_count: @lane_row_bundle || 1,
+                                                 organisation_name: (@current_organisation.name if inbox_above_organisations?)) %>
+    </div>
+  <% end %>
+<% end %>
+
+<%= turbo_frame_tag 'ticket_pane', class: 'block' do %>
+  <%# Delayed mark_as_read: only for a currently unread notification.
+      Stimulus fires a PATCH after 5s; the server responds with a
+      turbo_stream that only swaps the pills (inbox_pane_status_pills) and the
+      master item, NO full-pane reload, so that an already-open
+      reply form is not destroyed. The address is the row action's
+      (inbox_row_action_path): above the organisations the page's own, with the
+      open row and quiet (no toast). %>
+  <% if notification && notification.unread? %>
+    <div data-controller="pane-mark-read-delay"
+         data-pane-mark-read-delay-url-value="<%= inbox_row_action_path(:mark_read, notification, open: true, quiet: true) %>"
+         <%= tag.attributes(data: { pane_mark_read_delay_follow_address_value: 'true' }) if inbox_above_organisations? %>
+         data-pane-mark-read-delay-delay-value="5000"></div>
+  <% end %>
+
+  <%# inbox-lane-content marks LOADED content for layout-toggle and index-page.
+      ticket-pane-links (the ticket only): a link to another ticket leaves the pane, the
+      head here names this one. On this div, not on the frame: a frame load does not copy
+      the frame's own attributes. %>
+  <%= tag.div class: 'inbox-lane-content',
+              data: (kind.body == :inline ? { controller: 'ticket-pane-links', action: 'click->ticket-pane-links#leave' } : {}) do %>
+
+    <%# Lane head: the project as eyebrow, the actions of the notification
+        on the right (separate partial with a stable id, see there) and the
+        way out. The object's own head with its title follows below. %>
+    <div class="inbox-lane-head">
+      <span class="inbox-lane-head__project"><%= @project.name %></span>
+      <div class="inbox-lane-head__actions">
+        <%= render 'organisations/notifications/pane_status_pills', notification: notification, kind: kind %>
+        <%= render 'organisations/notifications/pane_close' %>
+      </div>
+    </div>
+
+    <%# "What was new" block: the unread notifications of this row's subject (context
+        for the row grouped in the list). %>
+    <%= render 'organisations/notifications/pane_new_activity', new_activities: @new_activities %>
+
+    <% case kind.body %>
+    <% when :inline %>
+      <%= render 'organisations/notifications/pane_ticket' %>
+    <% when :frame %>
+      <%= turbo_frame_tag Inbox::ObjectFrame::FRAME_ID, src: inbox_lane_frame_path, class: 'block' %>
+    <% when :card %>
+      <%= render 'organisations/notifications/pane_event_card', notification: notification, kind: kind %>
+    <% end %>
+  <% end %>
+<% end %>

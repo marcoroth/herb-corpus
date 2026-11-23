@@ -1,0 +1,86 @@
+<%# locals: (proposal:) %>
+<%# The decision on an open proposal in the lane (K5b): ONE form, three ways,
+    each its own submit button with its own address. "Übernehmen" (PATCH
+    accept) takes the spelling, the category and the checked spellings as
+    heard forms into the glossary; "Ist eine Schreibweise von …" (POST
+    merge, the form's own address) goes into a confirmed term, where the
+    proposal and the checked spellings become heard forms, or into another
+    open proposal; "Verwerfen" (PATCH dismiss). The form itself is a POST
+    without _method: each PATCH button sends its _method as its own name and
+    value, so every way keeps its verb, and Enter in the spelling takes the
+    first button, "Übernehmen". The found spelling travels in a hidden field:
+    the accept learns it as a heard form only when the spelling above
+    changed it (Actors::AcceptGlossaryProposal). The filters ride in hidden
+    fields; every way leaves the frame (_top). %>
+<% scope = 'views.organisations.glossary.proposals' %>
+<% accept_url = accept_proposal_organisation_glossary_terms_path(@current_organisation, proposal_id: proposal.id) %>
+<% dismiss_url = dismiss_proposal_organisation_glossary_terms_path(@current_organisation, proposal_id: proposal.id) %>
+<% merge_options = glossary_proposal_merge_options(proposal) %>
+<%= form_with url: merge_proposal_organisation_glossary_terms_path(@current_organisation, proposal_id: proposal.id), method: :post,
+              scope: :proposal, class: 'people-form', data: { turbo_frame: '_top', glossary_proposal_form: true } do |f| %>
+  <% list_state.each do |name, value| %>
+    <%= hidden_field_tag name, value, id: nil %>
+  <% end %>
+  <%= hidden_field_tag 'proposal[variants][]', proposal.term, id: nil %>
+
+  <div class="people-form__field">
+    <%= f.label :term, for: 'glossary_proposal_term' do %>
+      <%= GlossaryProposal.human_attribute_name(:term) %><span class="people-form__required" aria-hidden="true"> *</span>
+    <% end %>
+    <%= f.text_field :term, value: proposal.term, id: 'glossary_proposal_term', class: 'people-input', maxlength: GlossaryTerm::MAX_LENGTH,
+                            required: true, autocomplete: 'off', aria: { describedby: 'glossary_proposal_term_hint' } %>
+    <p id="glossary_proposal_term_hint" class="people-form__hint"><%= t("#{scope}.show.term_hint") %></p>
+  </div>
+
+  <div class="people-form__field">
+    <%= f.label :category, GlossaryProposal.human_attribute_name(:category), for: 'glossary_proposal_category' %>
+    <%# No empty choice once the proposal has a category: the accept keeps it then. %>
+    <%= f.select :category, glossary_category_options,
+                 { selected: proposal.category, include_blank: (t('views.organisations.glossary.form.no_category') if proposal.category.nil?) },
+                 id: 'glossary_proposal_category', class: 'people-input' %>
+  </div>
+
+  <% if proposal.variants.any? %>
+    <fieldset class="people-form__details">
+      <legend><%= t("#{scope}.show.variants_legend") %></legend>
+      <% proposal.variants.each_with_index do |variant, index| %>
+        <label class="inline-flex flex-wrap items-baseline gap-x-2 text-sm text-heading" for="glossary_proposal_variant_<%= index %>">
+          <%= check_box_tag 'proposal[variants][]', variant, true, id: "glossary_proposal_variant_#{index}" %>
+          <span><%= t('views.organisations.glossary.quoted', text: variant) %></span>
+          <span class="text-xs text-muted"><%= t("#{scope}.show.variant_take") %></span>
+        </label>
+      <% end %>
+    </fieldset>
+  <% end %>
+
+  <div class="people-form__actions">
+    <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :medium, type: 'submit', name: '_method', value: 'patch',
+                                                 formaction: accept_url) do %>
+      <%= t("#{scope}.accept") %>
+    <% end %>
+  </div>
+
+  <% if merge_options.any? %>
+    <div class="glossary-merge">
+      <label for="glossary-proposal-merge-target" class="glossary-merge__label"><%= t("#{scope}.show.merge_label") %></label>
+      <p class="people-form__hint"><%= t("#{scope}.show.merge_hint") %></p>
+      <div class="glossary-merge__row">
+        <%= select_tag :target, grouped_options_for_select(merge_options), include_blank: t("#{scope}.show.merge_choose"),
+                                                                            id: 'glossary-proposal-merge-target', class: 'people-input' %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, type: 'submit', formnovalidate: true,
+                                                     confirm: t("#{scope}.show.merge_confirm", term: proposal.term)) do %>
+          <%= t("#{scope}.show.merge_submit") %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="people-footer">
+    <div>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :small, icon: 'x-lg', type: 'submit', name: '_method',
+                                                   value: 'patch', formaction: dismiss_url, formnovalidate: true) do %>
+        <%= t("#{scope}.dismiss") %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

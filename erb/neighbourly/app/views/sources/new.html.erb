@@ -1,62 +1,52 @@
 <% content_for :title, "Upload Source" %>
+<% content_for :admin_actions do %>
+  <%= link_to "Back to sources", sources_path, class: "admin-button-secondary" %>
+<% end %>
 
-<div class="md:w-2/3 w-full">
-  <h1 class="font-bold text-4xl">Upload Source</h1>
+<%= render "admin/page_header", title: "Upload Source", description: "Upload community resource data as a JSON, HTML, or CSV file." %>
 
-  <%= form_with(model: @source, url: sources_path, class: "contents", multipart: true,
+<div class="admin-panel max-w-3xl p-5 sm:p-6">
+  <%= form_with(model: @source, url: sources_path, class: "admin-form space-y-6", multipart: true,
       data: { controller: "submit-spinner", action: "submit->submit-spinner#submit" }) do |form| %>
-    <% if @source.errors.any? %>
-      <div class="bg-red-50 text-red-500 px-3 py-2 font-medium rounded-md mt-3">
-        <h2><%= pluralize(@source.errors.count, "error") %> prohibited this source from being saved:</h2>
-        <ul class="list-disc ml-6">
-          <% @source.errors.each do |error| %>
-            <li><%= error.full_message %></li>
-          <% end %>
-        </ul>
-      </div>
-    <% end %>
+    <%= render "admin/form_errors", record: @source, noun: "source" %>
 
-    <div class="my-5">
-      <%= form.label :name, "Source name" %>
-      <%= form.text_field :name, placeholder: "e.g. BC 211 Shelters", autofocus: true,
-          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+    <div class="space-y-2">
+      <%= form.label :name, "Source name", class: "admin-label" %>
+      <%= form.text_field :name, placeholder: "e.g. BC 211 Shelters", autofocus: true, class: "admin-input", aria: { invalid: @source.errors[:name].any? } %>
     </div>
 
-    <div class="my-5">
-      <%= form.label :url, "Origin URL", class: "block font-medium" %>
-      <span class="text-sm text-gray-500">A reference URL for this data source (used for deduplication)</span>
-      <%= form.text_field :url, placeholder: "https://example.com/data",
-          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+    <div class="space-y-2">
+      <%= form.label :url, "Origin URL", class: "admin-label" %>
+      <p id="source_url_hint" class="text-xs leading-5 text-stone-500">A reference URL, required for HTML sources.</p>
+      <%= form.text_field :url, placeholder: "https://example.com/data", class: "admin-input", aria: { describedby: "source_url_hint", invalid: @source.errors[:url].any? } %>
     </div>
 
-    <div class="my-5">
-      <%= form.label :source_type, "Data type" %>
+    <div class="space-y-2">
+      <%= form.label :source_type, "Data type", class: "admin-label" %>
       <%= form.select :source_type,
-          options_for_select([["JSON (structured API data)", "api"], ["HTML (web page)", "html"]]),
-          {},
-          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+          options_for_select([["HTML (web page)", "html"], ["CSV (spreadsheet rows)", "csv"]], @source.source_type),
+          {}, class: "admin-input", aria: { invalid: @source.errors[:source_type].any? } %>
     </div>
 
-    <div class="my-5">
-      <%= form.label :css_selector, "CSS selector (HTML only)" %>
-      <span class="text-sm text-gray-500">Optional. Targets specific content on the page, e.g. <code>main.content</code></span>
-      <%= form.text_field :css_selector, placeholder: "e.g. .main-content, article",
-          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+    <div class="rounded-xl border border-stone-200 bg-stone-50 p-4">
+      <div class="flex items-center gap-3">
+        <%= form.check_box :enrich_documents, class: "admin-checkbox", aria: { describedby: "source_enrich_hint" } %>
+        <%= form.label :enrich_documents, "Summarize and categorize rows with AI (CSV only)", class: "admin-label flex min-h-11 items-center" %>
+      </div>
+      <p id="source_enrich_hint" class="ml-7 text-sm leading-6 text-stone-500">Optional. An AI model writes a title, a short summary and categories for each row. Each row costs one model call.</p>
     </div>
 
-    <div class="my-5">
-      <%= form.label :file, "Upload file" %>
-      <span class="text-sm text-gray-500">Upload a .json or .html file to ingest</span>
-      <%= form.file_field :file, accept: ".json,.html,.htm",
-          class: "block shadow-sm rounded-md border border-gray-400 focus:outline-blue-600 px-3 py-2 mt-2 w-full" %>
+    <div class="space-y-2">
+      <%= form.label :file, "Upload file", class: "admin-label" %>
+      <p id="source_file_hint" class="text-xs leading-5 text-stone-500">Choose an .html or .csv file to ingest.</p>
+      <%= form.file_field :file, accept: ".html,.htm,.csv", class: "admin-file-input", aria: { describedby: "source_file_hint", invalid: @source.errors[:file].any? } %>
     </div>
 
-    <div class="inline flex items-center gap-3">
-      <%= form.submit "Upload and ingest",
-          data: { submit_spinner_target: "button" },
-          class: "w-full sm:w-auto rounded-md px-3.5 py-2.5 bg-sage-600 hover:bg-sage-700 text-white inline-block font-medium cursor-pointer" %>
-      <span data-submit-spinner-target="spinner" class="hidden items-center gap-2 text-sm text-gray-600">
-        <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <div class="flex flex-wrap items-center gap-3 border-t border-stone-100 pt-6">
+      <%= form.submit "Upload and ingest", data: { submit_spinner_target: "button" }, class: "admin-button-primary" %>
+      <%= link_to "Cancel", sources_path, class: "admin-button-secondary" %>
+      <span role="status" data-submit-spinner-target="spinner" class="hidden items-center gap-2 text-sm text-stone-600">
+        <svg aria-hidden="true" class="h-5 w-5 animate-spin text-sage-600" viewBox="0 0 24 24" fill="none">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
@@ -64,6 +54,4 @@
       </span>
     </div>
   <% end %>
-
-  <%= link_to "Back to sources", sources_path, class: "w-full sm:w-auto text-center mt-2 sm:mt-0 sm:ml-2 rounded-md px-3.5 py-2.5 bg-gray-100 hover:bg-gray-50 inline-block font-medium" %>
 </div>

@@ -1,6 +1,24 @@
 <!-- Compact User Menu for Sidebar -->
-<% if current_organisation.blank? %>
-  <!-- Account context: simplified menu (profile/settings are already in main nav) -->
+<%# Branches on the sidebar's mode, as the layout does (NavigationHelper#sidebar_mode):
+    every page with the account layer (an organisation, its management area, the level
+    above the organisations) shows the name as its handle. %>
+<% mode = sidebar_mode %>
+<% if mode == :account %>
+  <%# An account page (plan D6): the sidebar already is the list of the account, so the name
+      is no handle here. The page looks like the layer standing still: signing out above
+      the name, the name without a chevron. %>
+  <div class="border-b border-cream-300 px-4 py-2">
+    <%= link_to destroy_user_session_path, class: sidebar_row_classes(active: false), data: { turbo_method: :delete } do %>
+      <i class="bi bi-box-arrow-right <%= sidebar_row_icon_classes %>" aria-hidden="true"></i>
+      <span><%= t('navigation.logout') %></span>
+    <% end %>
+  </div>
+  <div class="flex items-center gap-3 px-4 py-2" data-account-name>
+    <i class="bi bi-person-fill" aria-hidden="true"></i>
+    <span class="flex-1 truncate"><%= current_user.email.split('@').first %></span>
+  </div>
+<% elsif !NavigationHelper.account_layer?(mode) %>
+  <%# Nobody signed in (an invitation page): no name, only the way out as before. %>
   <div class="flex items-center gap-3 py-2 px-4">
     <i class="bi bi-person-fill"></i>
     <span class="flex-1 truncate">
@@ -12,57 +30,20 @@
     <% end %>
   </div>
 <% else %>
-  <!-- Organisation context: full expandable menu -->
-  <details class="group">
-    <summary class="list-none cursor-pointer">
-      <div class="flex items-center gap-3 py-2 px-4 hover:bg-cream-200 rounded transition-colors">
-        <span class="relative inline-flex">
-          <i class="bi bi-person-fill"></i>
-          <%# Quiet unread marker for platform news (lime, not the red notification colour). %>
-          <% if changelog_has_unread?(current_user) %>
-            <span class="changelog-unread-dot absolute -top-1 -end-1 w-2 h-2 bg-lime-500 rounded-full border border-stroke"></span>
-          <% end %>
-        </span>
-        <span class="flex-1">
-          <%= current_user.email.split('@').first if current_user %>
-        </span>
-        <i class="bi bi-chevron-right group-open:rotate-90 transition-transform text-xs"></i>
-      </div>
-    </summary>
-
-    <div class="pl-4">
-      <ul class="flex flex-col">
-        <li>
-          <%= link_to edit_user_registration_path, class: 'flex items-center gap-3 py-2 px-4 hover:bg-cream-200 text-sm' do %>
-            <i class="bi bi-person-fill text-xs"></i>
-            <%= t('navigation.profile') %>
-          <% end %>
-        </li>
-        <li>
-          <%= link_to general_user_preferences_path, class: 'flex items-center gap-3 py-2 px-4 hover:bg-cream-200 text-sm' do %>
-            <i class="bi bi-person-gear text-xs"></i>
-            <%= t('navigation.preferences') %>
-          <% end %>
-        </li>
-        <li>
-          <%= link_to user_data_export_path, class: 'flex items-center gap-3 py-2 px-4 hover:bg-cream-200 text-sm' do %>
-            <i class="bi bi-download text-xs"></i>
-            <%= t('navigation.data_export') %>
-          <% end %>
-        </li>
-        <li>
-          <%= link_to organisation_changelog_path(organisation_id: current_organisation.id), class: 'flex items-center gap-3 py-2 px-4 hover:bg-cream-200 text-sm' do %>
-            <i class="bi bi-megaphone text-xs"></i>
-            <%= changelog_nav_label(changelog_has_unread?(current_user)) %>
-          <% end %>
-        </li>
-        <li>
-          <%= link_to destroy_user_session_path, class: 'flex items-center gap-3 py-2 px-4 hover:bg-cream-200 text-sm', data: { turbo_method: :delete } do %>
-            <i class="bi bi-box-arrow-right text-xs"></i>
-            <%= t('navigation.logout') %>
-          <% end %>
-        </li>
-      </ul>
-    </div>
-  </details>
+  <%# Organisation and level: the name is the handle of the account layer
+      (common/_account_layer, F47). A click raises the pages of "Mein Konto" over the
+      sidebar and leaves the page alone. It is a link to the account page, which is
+      what it does without JavaScript; sidebar_layer_controller makes it a button
+      (role, aria-expanded) and keeps the click. Until 2026-11-12 it was a <details>
+      with a short menu of its own. The chevron is F22: it turns while the layer is
+      open (components/sidebar_layer.css reads aria-expanded). %>
+  <% account_name = current_user.email.split('@').first %>
+  <%= link_to edit_user_registration_path,
+        class: 'sidebar-layer__trigger flex items-center gap-3 rounded px-4 py-2 transition-colors hover:bg-cream-200',
+        aria: { label: "#{t('navigation.account_section')}: #{account_name}", controls: 'account-layer' },
+        data: { sidebar_layer_target: 'trigger', action: 'click->sidebar-layer#toggle' } do %>
+    <i class="bi bi-person-fill" aria-hidden="true"></i>
+    <span class="flex-1 truncate"><%= account_name %></span>
+    <i class="bi bi-chevron-down sidebar-layer__chevron text-[10px] text-muted" aria-hidden="true"></i>
+  <% end %>
 <% end %>

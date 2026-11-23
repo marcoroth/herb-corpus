@@ -1,0 +1,66 @@
+<% content_for :title, t('views.all_people.title') %>
+<%# Back must not show an old copy of this page: Turbo's copy keeps the option chosen in
+    the select and the text typed into the search, and they would no longer match the
+    address. Turbo fetches the page again instead, as on the inbox above the organisations. %>
+<% content_for :head, tag.meta(name: 'turbo-cache-control', content: 'no-cache') %>
+<%# The people above the organisations (AllPeopleController): one list over the
+    people of every organisation the reader is an active member of and may see
+    the people of, and the card of one person in the lane beside it, the shape
+    of the people page of an organisation. Search and the organisation select
+    narrow the list; a click on a row opens the card (?card=, the lane frame
+    asks this same address), and the way into an organisation is on the card,
+    per source. Ticked rows are merged into one person by the bar above the
+    list (AllPeople::MergesController): the reader's own note, nothing in an
+    organisation changes. Everything shown is a plain value of
+    People::AcrossOrganisations and People::MergedCard: this page runs without
+    a tenant and reads no model. The wrapper carries people-page for the tone
+    of the chips and the focus ring of the people pages. %>
+<% open = @card.present? %>
+<div class="labor-layout-view people-page all-people-page <%= 'show-content' if open %> hide-panel" data-all-people
+     <%= tag.attributes(data: all_people_page_data(card: @card, people: @people)) %>>
+  <% list = capture do %>
+    <div class="people-head">
+      <%= render NeoTitleBoxComponent.new(title: t('views.all_people.title'), margin_bottom: nil) %>
+    </div>
+
+    <%# The bar of the people page of one organisation: the tools at the right end,
+        the search the last of them. It reloads only the list frame; layout-toggle
+        writes the term into the address beside the card open now
+        (all_people_page_data: list_frame_ids, list_filter_params), one entry of
+        history. %>
+    <div class="people-tools list-tab-bar filter-bar" data-controller="all-people-filter"
+         data-all-people-filter-search-id-value="all-people-search"
+         data-action="turbo:submit-start->all-people-filter#rememberSearch">
+      <%= render 'all_people/tools', people: @people %>
+      <%= render NeoListSearchComponent.new(
+        url: all_people_path, name: :q, value: params[:q],
+        input_id: 'all-people-search', frame: AllPeopleController::LIST_FRAME_ID,
+        form_class: 'all-people-search',
+        label: t('views.all_people.search_label'), placeholder: t('views.all_people.search_placeholder')
+      ) do %>
+        <%= hidden_field_tag :org, all_people_list_state[:org], id: nil if all_people_list_state[:org] %>
+      <% end %>
+    </div>
+
+    <%= render 'all_people/results', people: @people, card: @card %>
+  <% end %>
+
+  <%= render NeoTwoColumnGridComponent.new(
+    selected_item: (open || nil),
+    context_type: :all_people,
+    css_classes: "#{open ? 'show-content' : 'hide-content'} hide-panel",
+    additional_targets: { "index-page-target" => "layout" },
+    chrome_height: NeoTwoColumnGridComponent::LANE_CHROME_HEIGHT_PX,
+    lane: true
+  ) do |grid| %>
+    <% grid.with_list do %>
+      <%= list %>
+    <% end %>
+
+    <% grid.with_main_content do %>
+      <turbo-frame id="<%= AllPeopleController::CARD_FRAME_ID %>">
+        <%= render 'all_people/lane', card: @card %>
+      </turbo-frame>
+    <% end %>
+  <% end %>
+</div>

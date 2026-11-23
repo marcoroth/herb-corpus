@@ -1,0 +1,87 @@
+<% at = mailpiece.created_at %>
+<% size = number_to_human_size(raw_email.byte_size, precision: 0, significant: false).sub("Bytes", "bytes") if raw_email.attached? %>
+<article class="envelope <%= status_class(status) %>" aria-label="Envelope">
+  <p class="envelope__return">
+    <strong><%= local_assigns[:mark] %> <%= from.presence || "No sender" %></strong>
+    <% return_lines.compact_blank.each do |line| %>
+      <span><%= line %></span>
+    <% end %>
+  </p>
+
+  <p class="envelope__status"><%= status_line %></p>
+
+  <div class="envelope__postmark">
+    <%= tag.time class: "envelope__cancellation", datetime: at.iso8601 do %>
+      <svg class="envelope__office" viewBox="0 0 100 100" aria-hidden="true">
+        <title><%= mailpiece.domain.name %></title>
+        <path id="<%= dom_id mailpiece, :postmark %>" d="M16.5 65.6 A37 37 0 1 1 83.5 65.6" />
+        <text><textPath href="#<%= dom_id mailpiece, :postmark %>" startOffset="50%"><%= mailpiece.domain.name.truncate(24) %></textPath></text>
+      </svg>
+      <strong><%= l at, format: "%b %d" %></strong>
+      <span class="envelope__year"><%= at.year %></span>
+      <span><%= l at, format: "%H:%M" %></span>
+    <% end %>
+    <span class="envelope__waves" aria-hidden="true"></span>
+  </div>
+
+  <p class="envelope__stamp <%= "status--#{stamp[:semantic]}" %>">
+    <span class="envelope__paper">
+      <span class="envelope__stamp-face">
+        <%= icon_tag stamp[:icon] %>
+        <strong class="envelope__verdict"><span class="for-screen-reader">Authentication:</span> <%= stamp[:verdict] %></strong>
+        <span class="envelope__checks">
+          <% stamp[:checks].each do |check| %>
+            <span><%= check %></span>
+          <% end %>
+          <% if stamp[:policy] %>
+            <span class="envelope__policy"><%= stamp[:policy] %></span>
+          <% end %>
+        </span>
+        <% if stamp[:note] %>
+          <span class="envelope__stamp-note"><%= stamp[:note] %></span>
+        <% end %>
+      </span>
+    </span>
+  </p>
+
+  <p class="envelope__address">
+    <%= tag.span envelope_subject(mailpiece), class: "envelope__subject", title: envelope_subject(mailpiece) %>
+    <%= tag.strong to, class: "envelope__recipient", title: to %>
+    <% if mx = local_assigns[:mx] %>
+      <%= tag.span "MX #{mx}", class: "envelope__mx", title: "MX #{mx}" %>
+    <% end %>
+  </p>
+
+  <footer class="envelope__foot">
+    <div class="envelope__barcode">
+      <span class="envelope__bars" aria-hidden="true">
+        <% (mailpiece.postable_id * 2).each_char do |char| %>
+          <span class="envelope__bar envelope__bar--<%= char.ord % 4 %>"></span>
+        <% end %>
+      </span>
+      <span class="envelope__ids">
+        <span class="envelope__queue-id"><%= mailpiece.postable_id %></span>
+        <%= [ local_assigns[:message_id], size ].compact.map { |id| "· #{id}" }.join(" ") %>
+      </span>
+    </div>
+
+    <div class="envelope__inks">
+      <% if local_assigns.fetch(:outcome, true) %>
+        <p class="envelope__ink envelope__ink--outcome">
+          <strong><%= status_label status %></strong>
+          <% if note = local_assigns[:note] %>
+            <span><%= note %></span>
+          <% end %>
+        </p>
+      <% end %>
+
+      <% if spam_check = local_assigns[:spam_check] %>
+        <p class="envelope__ink <%= spam_check.flagged? ? "status--warning" : "status--neutral" %>">
+          <span>Spam check</span>
+          <strong><%= spam_check.formatted_score %></strong>
+          <span><%= spam_check.outcome %></span>
+        </p>
+      <% end %>
+    </div>
+  </footer>
+</article>

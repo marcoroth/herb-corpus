@@ -5,20 +5,14 @@
   heading_level ||= 2
   description ||= nil
   height ||= nil
-  copyright ||= nil
-  markers = local_assigns[:markers] || nil
-  geojson = local_assigns[:url]
-  hide_markers_beneath ||= nil
-  key_heading_text ||= "Map key"
-  key ||= nil
+  attribution ||= nil
+  geojson ||= nil
   bounds ||= nil
   max_bounds ||= nil
   disable_ga4 ||= false
 
   heading_obj = { text: heading_text, heading_level: heading_level, margin_bottom: 4, font_size: "m"}
   heading_obj[:font_size] = "s" if heading_level > 2
-  key_heading_obj = nil
-  key_heading_obj = { text: key_heading_text, margin_bottom: 2, heading_level: heading_level + 1, font_size: "s" } if key
 
   map_config = {}
   map_config[:center] = centre if centre.kind_of?(Array) && centre.length == 2
@@ -32,16 +26,15 @@
   component_helper.set_id("map-#{SecureRandom.hex(4)}")
   component_helper.add_data_attribute({ module: "map" })
   component_helper.add_data_attribute({ config: map_config })
-  component_helper.add_data_attribute({ markers: markers.to_json }) if markers
-  component_helper.add_data_attribute({ key: key.to_json }) if markers && key
   component_helper.add_data_attribute({ geojson: geojson }) if geojson
-  component_helper.add_data_attribute({ heading_level: key_heading_obj.nil? ? heading_level + 1 : heading_level + 2 })
   component_helper.add_data_attribute({ csp_worker: ActionController::Base.helpers.asset_path("components/map/im-maplibre-worker.js") })
   component_helper.add_data_attribute({ tracking_enabled: true }) unless disable_ga4
+  component_helper.add_data_attribute({ font_light: ActionController::Base.helpers.asset_path("light-94a07e06a1-v2.woff2") })
+  component_helper.add_data_attribute({ font_bold: ActionController::Base.helpers.asset_path("bold-b542beb274-v2.woff2") })
   skip_link_id = "skip-#{SecureRandom.hex(4)}"
   @include_map_script ||= OpenStruct.new(script_included: false)
 %>
-<% if heading_text && ((map_config[:center] && map_config[:zoom]) || (markers || !geojson.nil?)) %>
+<% if heading_text && ((map_config[:center] && map_config[:zoom]) || !geojson.nil? || bounds) %>
   <%= render "govuk_publishing_components/components/heading", heading_obj %>
   <% if description %>
     <%= render "govuk_publishing_components/components/govspeak", {} do %>
@@ -54,24 +47,10 @@
     href: "##{skip_link_id}",
   } %>
 
-  <% if key %>
-    <%= render "govuk_publishing_components/components/heading", key_heading_obj %>
-    <ul class="govuk-list">
-      <% key.each do |k| %>
-        <li>
-          <% if %w[circle pin square].include?(k["symbol"]) && %w[blue green orange red].include?(k["colour"]) %>
-            <span class="app-c-map__key app-c-map__key--<%= k["symbol"] %> app-c-map__key--<%= k["colour"] %>"></span>
-          <% end %>
-          <%= k["name"] %>
-        </li>
-      <% end %>
-    </ul>
-  <% end %>
-
   <% unless @include_map_script[:script_included] %>
     <%= javascript_include_tag "components/map/defra-map.js", integrity: false %>
     <%= javascript_include_tag "components/map.js", integrity: false, type: "module" %>
-    <%= javascript_include_tag "components/map/map-style-liberty.js", integrity: false %>
+    <%= javascript_include_tag "components/map/map-styles.js", integrity: false %>
     <% @include_map_script[:script_included] = true %>
   <% end %>
 
@@ -89,33 +68,15 @@
         <span class="app-c-map__no-js">This map uses JavaScript to work. To view the map, turn on JavaScript in your browser&apos;s settings.</span>
       <% end %>
     <% end %>
-    <% if copyright %>
-      <div class="govuk-grid-row app-c-map__copyright">
-        <div class="govuk-grid-column-two-thirds">
-          <p class="govuk-body-s app-c-map__copyright-text">
-            <%= copyright %>
-          </p>
-        </div>
-      </div>
-    <% end %>
-    <div id="<%= skip_link_id %>"></div>
-    <% if markers and !hide_markers_beneath %>
-      <%= tag.div(class: "app-c-map__markers-list") do %>
-        <%= render "govuk_publishing_components/components/details", {
-          title: "Locations on this map",
-          classes: "js-list-markers",
-        } do %>
-          <%
-            details_link_tracking = {}
-            unless disable_ga4
-              details_link_tracking[:module] = "ga4-link-tracker"
-              details_link_tracking[:ga4_link] = { "event_name": "information_click", "type": "place" }.to_json
-            end
-          %>
-          <%# this list will be populated by the JavaScript %>
-          <%= tag.ol(class: "govuk-list govuk-list--number govuk-list--spaced", data: details_link_tracking) %>
+    <div class="app-c-map__attribution">
+      <p class="govuk-body-s app-c-map__attribution-text">
+        <% if attribution %>
+          <%= attribution %>
+        <% else %>
+          <a href="https://openfreemap.org" target="_blank" class="govuk-link" rel="noopener noreferrer external">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank" class="govuk-link" rel="noopener noreferrer external">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" class="govuk-link" rel="noopener noreferrer external">OpenStreetMap</a>
         <% end %>
-      <% end %>
-    <% end %>
+      </p>
+    </div>
+    <div id="<%= skip_link_id %>"></div>
   <% end %>
 <% end %>

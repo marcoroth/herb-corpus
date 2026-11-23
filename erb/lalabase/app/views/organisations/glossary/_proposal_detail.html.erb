@@ -1,0 +1,92 @@
+<%# locals: (proposal:) %>
+<%# One proposal of the extraction in the lane (K5b): its spelling with
+    category, status and occurrences, the model's hint, the decision, and the
+    places it was found. An open proposal brings the form of its three ways
+    for manage_glossary (_proposal_form); a dismissed one the way back
+    ("Zurückholen"); an accepted one the term it became. Each place names its
+    kind and its project for every reader of the glossary (E3); its snippet
+    only for a reader of the source, asked now and for all places at once
+    (glossary_source_access), because the run read them with the rights of
+    the account that started it. The hint only for a reader of every source
+    in its model call (glossary_proposal_hint). A place whose
+    source is gone says so. The body ends at reading width. %>
+<% can_decide = policy(proposal).accept? %>
+<% sources = proposal.glossary_proposal_sources.includes(:project).order(occurrences: :desc, created_at: :asc, id: :asc).to_a %>
+<% access = glossary_source_access(sources + proposal.hint_source_references) %>
+<% hint = glossary_proposal_hint(proposal, access) %>
+<% scope = 'views.organisations.glossary.proposals' %>
+<div class="people-detail glossary-detail" data-glossary-proposal-detail>
+  <%= render 'organisations/glossary/lane_head', edit_url: nil %>
+
+  <div class="people-detail__body width-text">
+    <div class="people-identity__text">
+      <h2 class="people-identity__name"><%= proposal.term %></h2>
+      <p class="people-identity__line">
+        <%= [(glossary_category_name(proposal.category) if proposal.category), glossary_proposal_status_name(proposal.status),
+             t("#{scope}.occurrences", count: proposal.occurrences)].compact.join(' · ') %>
+      </p>
+      <% if hint %>
+        <p class="people-form__hint" data-glossary-proposal-hint><%= t("#{scope}.show.hint", hint: hint) %></p>
+      <% end %>
+    </div>
+
+    <% if proposal.open? && can_decide %>
+      <%= render 'organisations/glossary/proposal_form', proposal: proposal %>
+    <% else %>
+      <% if proposal.variants.any? %>
+        <p class="text-[13px] text-heading" data-glossary-proposal-variants>
+          <%= t("#{scope}.variants", forms: proposal.variants.join(', ')) %>
+        </p>
+      <% end %>
+      <% if proposal.accepted? %>
+        <p class="people-history__line">
+          <%= t("#{scope}.show.decided_accepted", date: l((proposal.decided_at || proposal.updated_at).to_date, format: :default)) %>
+          <% if proposal.glossary_term %>
+            <%= link_to t("#{scope}.show.open_term", term: proposal.glossary_term.term),
+                        organisation_glossary_terms_path(@current_organisation, list_state.slice('viewport').merge('term_id' => proposal.glossary_term_id)),
+                        class: 'people-fields__link', data: { turbo_frame: '_top' } %>
+          <% end %>
+        </p>
+      <% elsif proposal.dismissed? %>
+        <p class="people-history__line">
+          <%= t("#{scope}.show.decided_dismissed", date: l((proposal.decided_at || proposal.updated_at).to_date, format: :default)) %>
+        </p>
+        <% if can_decide %>
+          <%= render 'organisations/glossary/proposal_actions', proposal: proposal %>
+        <% end %>
+      <% end %>
+    <% end %>
+
+    <section class="glossary-heard" aria-labelledby="glossary-sources-title">
+      <h3 id="glossary-sources-title" class="people-meetings__title"><%= t("#{scope}.show.sources_title") %></h3>
+      <% if sources.empty? %>
+        <p class="people-meetings__empty"><%= t("#{scope}.show.no_sources") %></p>
+      <% else %>
+        <ul class="glossary-heard__list">
+          <% sources.each do |source| %>
+            <li class="glossary-heard__row" data-glossary-proposal-source="<%= source.id %>">
+              <span class="glossary-heard__speaker"><%= glossary_source_kind(source) %></span>
+              <span class="glossary-heard__origin"><%= source.project&.name || t('views.organisations.glossary.show.no_project') %></span>
+              <span class="glossary-heard__when"><%= t("#{scope}.occurrences", count: source.occurrences) %></span>
+              <% if access.readable?(source) %>
+                <% if source.snippet.present? %>
+                  <span class="w-full text-[13px] leading-relaxed text-heading" data-glossary-source-snippet><%= source.snippet %></span>
+                <% end %>
+              <% elsif access.gone?(source) %>
+                <span class="w-full text-xs text-muted" data-glossary-source-gone><%= t("#{scope}.show.source_gone") %></span>
+              <% else %>
+                <span class="w-full text-xs text-muted"><%= t("#{scope}.show.source_hidden") %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+
+    <% unless can_decide %>
+      <div class="people-footer">
+        <p class="people-footer__readonly"><%= t("#{scope}.show.read_only") %></p>
+      </div>
+    <% end %>
+  </div>
+</div>

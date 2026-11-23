@@ -1,0 +1,49 @@
+<%# locals: (meeting:, token:, dialog:) %>
+<%# The count of one opening of the dialog and its buttons (plan §5.1, §5.2): how often the heard
+    form stands and how often in the turns of the speaker of the marked line, from the same list
+    the correction replaces (Meetings::TermReplacement). Its own frame, reloaded by
+    meeting_term_corrections#count while the heard form is typed; it carries the digest of the
+    transcript it counted, so a correction of another transcript is counted again, never made.
+    No button where the heard form does not stand at the mark, and no "everywhere" where the page
+    hides one of its occurrences (a link target, say): that one would change unseen. %>
+<% tc = 'views.organisations.meetings.term_correction' %>
+<%= turbo_frame_tag term_correction_count_id(meeting.id, token), class: 'term-correction-count block space-y-3' do %>
+  <%= hidden_field_tag :digest, dialog.digest, id: nil %>
+  <% if dialog.recounted? %>
+    <p class="term-correction-notice text-sm text-amber-900" role="status"><%= t("#{tc}.recounted") %></p>
+  <% end %>
+  <p class="text-sm text-cream-800" aria-live="polite">
+    <% if dialog.heard_blank? %>
+      <%= t("#{tc}.count.heard_blank") %>
+    <% elsif dialog.heard_error == :ambiguous %>
+      <%= t("#{tc}.count.ambiguous") %>
+    <% elsif !dialog.correctable? %>
+      <%= t("#{tc}.count.not_at_mark") %>
+    <% elsif dialog.speaker %>
+      <%= t("#{tc}.count.found_by_speaker", count: dialog.count, speaker_count: dialog.speaker_count,
+                                             speaker: dialog.speaker.display_name) %>
+    <% else %>
+      <%= t("#{tc}.count.found", count: dialog.count) %>
+    <% end %>
+  </p>
+  <% if dialog.correctable? && !dialog.everywhere? %>
+    <p class="term-correction-hint text-xs text-cream-600"><%= t("#{tc}.count.everywhere_hidden") %></p>
+  <% end %>
+  <div class="flex flex-wrap justify-end gap-2 border-t border-cream-200 pt-3">
+    <button type="button"
+            class="h-9 rounded border border-cream-300 bg-cream-100 px-4 text-sm font-medium text-cream-800 hover:bg-cream-200"
+            data-action="click->term-correction-modal#close">
+      <%= t("#{tc}.cancel") %>
+    </button>
+    <% if dialog.correctable? %>
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, type: 'submit', name: 'scope', value: 'here') do %>
+        <%= t("#{tc}.here") %>
+      <% end %>
+      <% if dialog.everywhere? %>
+        <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :medium, type: 'submit', name: 'scope', value: 'everywhere') do %>
+          <%= t("#{tc}.everywhere", count: dialog.count) %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

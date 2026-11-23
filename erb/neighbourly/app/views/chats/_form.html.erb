@@ -1,4 +1,4 @@
-<%= form_with(model: chat, url: chats_path, class: "contents") do |form| %>
+<%= form_with(model: chat, url: chats_path, id: "new_chat", class: "space-y-2", data: { action: "submit->composer#validate turbo:submit-end->composer#resize turbo:submit-start->chat-scroll#jumpToLatest" }) do |form| %>
   <% if chat.errors.any? %>
     <div id="error_explanation" class="bg-red-50 text-red-500 px-3 py-2 font-medium rounded-md mt-3">
       <h2><%= pluralize(chat.errors.count, "error") %> prohibited this chat from being saved:</h2>
@@ -11,27 +11,20 @@
     </div>
   <% end %>
 
-  <div class="my-5">
-    <%= form.label :model, "Select AI model:" %>
-    <%= form.select :model,
-        options_for_select(@chat_models.map { |model| [model.label, model.id] }.unshift([default_model_display_name, nil]), @selected_model),
-        {},
-        class: ["block shadow-sm rounded-md border px-3 py-2 mt-2 w-full", {"border-gray-400 focus:outline-blue-600": chat.errors[:model].none?, "border-red-400 focus:outline-red-600": chat.errors[:model].any?}] %>
+  <div class="space-y-2">
+    <%= form.label :prompt, "Prompt", class: "sr-only" %>
+    <%= form.text_area :prompt, rows: 2, placeholder: "Ask about meals, shelter, or community support...", autofocus: true,
+        value: @guest_prompt, maxlength: (LandingQuestion::MAX_LENGTH unless user_signed_in?),
+        aria: { describedby: "chat_prompt_hint" }, data: { composer_target: "input", action: "input->composer#resize keydown->composer#submitOnEnter" },
+        class: ["block min-h-14 max-h-[min(12rem,25dvh)] w-full resize-none overflow-y-auto border-0 bg-transparent px-1 py-1 text-base leading-6 focus:outline-none", {"outline outline-red-400": chat.errors[:prompt].any?}] %>
+    <span id="chat_prompt_hint" class="sr-only">Enter to send. Shift+Enter for a new line.</span>
   </div>
 
-  <div class="my-5">
-    <%= form.label :prompt, "Prompt" %>
-    <%= form.text_area :prompt, rows: 4, placeholder: "What would you like to discuss?", autofocus: true,
-        class: ["block shadow-sm rounded-md border px-3 py-2 mt-2 w-full", {"border-gray-400 focus:outline-blue-600": chat.errors[:prompt].none?, "border-red-400 focus:outline-red-600": chat.errors[:prompt].any?}] %>
-  </div>
-
-  <div class="my-5 flex items-center gap-3">
-    <%= form.check_box :use_rag, class: "rounded border-gray-400 text-blue-600 focus:ring-blue-500 h-5 w-5 cursor-pointer" %>
-    <%= form.label :use_rag, "Search local resources", class: "font-medium cursor-pointer" %>
-    <span class="text-sm text-gray-500">Augment responses with information from ingested community resource data</span>
-  </div>
-
-  <div class="inline">
-    <%= form.submit "Start new chat", class: "w-full sm:w-auto rounded-md px-3.5 py-2.5 bg-sage-600 hover:bg-sage-700 text-white inline-block font-medium cursor-pointer" %>
+  <div class="flex items-center justify-between gap-2">
+    <%= render "model_picker", chat: chat, scope: "chat" if user_signed_in? %>
+    <%= form.button type: "submit", aria: { label: "Start new chat" }, data: { composer_target: "submit" }, class: "ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-sage-600 text-white hover:bg-sage-700 focus-visible:outline-sage-600 disabled:cursor-not-allowed disabled:opacity-40" do %>
+      <svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m-6 6 6-6 6 6" /></svg>
+      <span class="sr-only">Start new chat</span>
+    <% end %>
   </div>
 <% end %>
