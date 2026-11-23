@@ -148,6 +148,11 @@ redistributable has nothing in `erb/` to keep — freezing only records that the
 stops every command from chasing it. Freezing never vendors templates that the license did not
 already permit.
 
+A frozen app also stays in the adoption and prior art reports, as it was last seen. There is nothing
+left to scan, so `adoption` reports it from the version, scope and adoption date that
+`adoption.json` recorded while it was live, and `prior-art` from `prior-art.json`. It is listed
+as `name (frozen)` without links, since its tree and commits on GitHub are gone.
+
 Formatting is maintained by [Yerba](https://github.com/marcoroth/yerba), configured in the
 `Yerbafile`: entries stay alphabetical by `name`, fields stay in a fixed order, and one blank line
 separates entries. `bin/corpus add` shovels new entries into the parsed document and saves with

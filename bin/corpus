@@ -1652,8 +1652,55 @@ def checked_out_apps(report_name, allow_partial)
   cloned
 end
 
+CACHED_COMPONENT_FIELDS = %w[adoption_date adoption_commit source version scope].freeze
+
+def frozen_adoption_report(cache)
+  load_apps.select(&:frozen?).filter_map do |app|
+    components = (cache[app.name] || {}).select { |component, entry| COMPONENTS.key?(component) && entry["version"] }
+    next if components.empty?
+
+    entries = components.to_h do |component, entry|
+      [component, { "adopted" => true, **entry.slice(*CACHED_COMPONENT_FIELDS) }]
+    end
+
+    [app.name, {
+      "repo" => app.repo,
+      "pin" => app.frozen_sha,
+      "frozen" => true,
+      "config" => nil,
+      "config_version" => nil,
+      "components" => entries
+    }]
+  end.to_h
+end
+
+def remember_adoption_state(cache, apps, report)
+  apps.each do |app|
+    current = report.dig(app.name, "components") || {}
+    stored = cache[app.name] || {}
+
+    stored.each do |component, entry|
+      entry.delete("version")
+      entry.delete("scope")
+    end
+
+    current.each do |component, entry|
+      stored[component] = (stored[component] || {}).merge(entry.slice(*CACHED_COMPONENT_FIELDS).compact)
+                                                    .slice(*CACHED_COMPONENT_FIELDS)
+    end
+
+    stored.reject! { |_, entry| entry.empty? }
+
+    if stored.empty?
+      cache.delete(app.name)
+    else
+      cache[app.name] = stored
+    end
+  end
+end
+
 def adoption_report(refresh_history: true, allow_partial: false, jobs: 12)
-  apps = checked_out_apps("adoption", allow_partial)
+  apps = checked_out_apps("adoption", allow_partial).reject(&:frozen?)
   cache = load_adoption_cache
   pending = []
 
@@ -1697,31 +1744,29 @@ def adoption_report(refresh_history: true, allow_partial: false, jobs: 12)
     }]
   end.to_h
 
-  if refresh_history && pending.any?
-    warn "searching history for #{pluralize(pending.size, "component")}..."
+  if refresh_history
+    if pending.any?
+      warn "searching history for #{pluralize(pending.size, "component")}..."
 
-    in_parallel(pending, jobs) do |app, component, spec, entry|
-      found = first_seen(app, component, spec)
-      next unless found
+      in_parallel(pending, jobs) do |app, component, spec, entry|
+        found = first_seen(app, component, spec)
+        next unless found
 
-      entry["adoption_date"] = found["date"]
-      entry["adoption_commit"] = found["commit"]
-      entry["source"] = found["source"]
-    end
-
-    report.each do |name, data|
-      data["components"].each do |component, entry|
-        next unless entry["adoption_date"]
-
-        cache[name] ||= {}
-        cache[name][component] = entry.slice("adoption_date", "adoption_commit", "source")
+        entry["adoption_date"] = found["date"]
+        entry["adoption_commit"] = found["commit"]
+        entry["source"] = found["source"]
       end
     end
+
+    remember_adoption_state(cache, apps, report)
 
     File.write(ADOPTION_CACHE, "#{JSON.pretty_generate(cache.sort.to_h)}\n")
   end
 
-  report
+  merged = report.merge(frozen_adoption_report(cache))
+  order = load_apps.each_with_index.to_h { |app, index| [app.name, index] }
+
+  merged.sort_by { |name, _| order.fetch(name, order.size) }.to_h
 end
 
 def config_version_for(app, config)
@@ -1832,6 +1877,12 @@ def adoption_timeline(report)
   out.join("\n")
 end
 
+def app_label(name, data)
+  return "#{name} (frozen)" if data["frozen"]
+
+  data["pin"] ? "[#{name}](https://github.com/#{data["repo"]}/tree/#{data["pin"]})" : name
+end
+
 def render_adoption(report, summary, total)
   out = []
   by_project = COMPONENTS.group_by { |_, spec| spec["project"] }
@@ -1859,7 +1910,7 @@ def render_adoption(report, summary, total)
     out << "| --- | --- | --- | --- | --- |"
 
     users.sort_by { |name, _| name.downcase }.each_with_index do |(name, data), index|
-      label = data["pin"] ? "[#{name}](https://github.com/#{data["repo"]}/tree/#{data["pin"]})" : name
+      label = app_label(name, data)
 
       out << "|  |  |  |  |  |" unless index.zero?
 
@@ -1868,10 +1919,12 @@ def render_adoption(report, summary, total)
         next unless entry
 
         adopted =
-          if entry["adoption_date"]
-            "[#{entry["adoption_date"]}](https://github.com/#{data["repo"]}/commit/#{entry["adoption_commit"]} \"first seen in #{entry["source"]}\")"
-          else
+          if !entry["adoption_date"]
             "–"
+          elsif data["frozen"]
+            entry["adoption_date"]
+          else
+            "[#{entry["adoption_date"]}](https://github.com/#{data["repo"]}/commit/#{entry["adoption_commit"]} \"first seen in #{entry["source"]}\")"
           end
 
         out << "| #{label} | #{component.sub("@herb-tools/", "")} | #{entry["version"] || "–"} | #{entry["scope"] || "–"} | #{adopted} |"
@@ -2167,8 +2220,22 @@ def load_prior_art_cache
   {}
 end
 
+def frozen_prior_art_report(cache)
+  load_apps.select(&:frozen?).filter_map do |app|
+    components = (cache[app.name] || {}).select { |component, _| PRIOR_ART_COMPONENTS.key?(component) }
+    next if components.empty?
+
+    [app.name, {
+      "repo" => app.repo,
+      "pin" => app.frozen_sha,
+      "frozen" => true,
+      "components" => components.transform_values(&:dup)
+    }]
+  end.to_h
+end
+
 def prior_art_report(refresh_history: true, rescan: false, allow_partial: false, jobs: 12)
-  apps = checked_out_apps("prior art", allow_partial)
+  apps = checked_out_apps("prior art", allow_partial).reject(&:frozen?)
   cache = load_prior_art_cache
   pending = []
 
@@ -2211,11 +2278,15 @@ def prior_art_report(refresh_history: true, rescan: false, allow_partial: false,
     File.write(PRIOR_ART_CACHE, "#{JSON.pretty_generate(cache.sort.to_h)}\n")
   end
 
-  report
+  merged = report.merge(frozen_prior_art_report(cache))
+  order = load_apps.each_with_index.to_h { |app, index| [app.name, index] }
+
+  merged.sort_by { |name, _| order.fetch(name, order.size) }.to_h
 end
 
-def stamp(repo, record, verb)
+def stamp(repo, record, verb, link: true)
   return nil unless record
+  return record["date"] unless link
 
   "[#{record["date"]}](https://github.com/#{repo}/commit/#{record["commit"]} \"#{verb} #{record["source"]}\")"
 end
@@ -2313,17 +2384,20 @@ def render_prior_art_tool(tool, report, adoption, total)
 
     entries.sort_by { |_, _, roll, _| roll.dig("added", "date") || "9999" }.each do |name, data, roll, herb|
       repo = data["repo"]
-      link = data["pin"] ? "[#{name}](https://github.com/#{repo}/tree/#{data["pin"]})" : name
+      live = !data["frozen"]
+      link = app_label(name, data)
 
       chips = [
-        stamp(repo, roll["added"], "added"),
-        stamp(repo, roll["removed"], "removed"),
+        stamp(repo, roll["added"], "added", link: live),
+        stamp(repo, roll["removed"], "removed", link: live),
         roll["version"] ? "gem `#{roll["version"]}`#{roll["direct"] ? "" : " (transitive)"}" : nil,
         roll["file"] ? "`#{roll["file"]}`" : nil
       ]
 
-      if herb
+      if herb && live
         chips << "[herb #{herb["adoption_date"]}](https://github.com/#{repo}/commit/#{herb["adoption_commit"]} \"first seen in #{herb["source"]}\")"
+      elsif herb
+        chips << "herb #{herb["adoption_date"]}"
       end
 
       out << "- #{link}: #{prior_art_story(tool, roll, herb)}"
