@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **375** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,848** from 310 apps |
+| Applications and engines | **376** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,880** from 311 apps |
 | Size of `erb/` | ~67 MB |
 | Excluded pending license review | 65 apps |
 
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**152 of 375** applications use Herb: `herb` 99, `@herb-tools/linter` 61, `@herb-tools/formatter` 36, `.herb.yml` 113, `.herb/` 1.
+**153 of 376** applications use Herb: `herb` 100, `@herb-tools/linter` 61, `@herb-tools/formatter` 36, `.herb.yml` 113, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -225,6 +225,8 @@ cannot make a comparison silently measure the same Herb twice.
 |  |  |  |  |  |
 | [andrewm.codes](https://github.com/andrewmcodes/andrewm.codes/tree/a5926104dca0499c7b7a0ad10247e1b2d2b790de) | formatter | ^0.10.4 | explicit | [2026-07-16](https://github.com/andrewmcodes/andrewm.codes/commit/92ae0ef2e6fad4003f1b3be59a7c6b769178c406 "first seen in package.json") |
 |  | .herb.yml | 0.10.4 | – | [2026-07-16](https://github.com/andrewmcodes/andrewm.codes/commit/92ae0ef2e6fad4003f1b3be59a7c6b769178c406 "first seen in .herb.yml") |
+|  |  |  |  |  |
+| [apistration-siade](https://github.com/datagouv/apistration/tree/7da22a5bed34f9f8c79ce3708396fe0ad64bd476) | herb | 0.11.1 | transitive | – |
 |  |  |  |  |  |
 | [apistration-site](https://github.com/datagouv/apistration/tree/7da22a5bed34f9f8c79ce3708396fe0ad64bd476) | herb | 0.11.1 | transitive | [2026-10-29](https://github.com/datagouv/apistration/commit/ded2393a120faaf2a01aacf02768c7e44e43f7af "first seen in Gemfile.lock") |
 |  |  |  |  |  |
@@ -685,7 +687,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**30 of 375** applications use ReActionView: `reactionview` 30.
+**30 of 376** applications use ReActionView: `reactionview` 30.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -766,9 +768,9 @@ Herb 152 · ReActionView 30
 
 ```mermaid
 pie showData
-  title Herb releases across 95 apps
+  title Herb releases across 96 apps
   "0.11.2" : 1
-  "0.11.1" : 26
+  "0.11.1" : 27
   "0.11.0" : 34
   "0.10.4" : 4
   "0.10.3" : 14
@@ -819,7 +821,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**39 of 375** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
+**39 of 376** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -926,7 +928,7 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 375** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
+**9 of 376** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
 
 > History could not be searched in 97 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -967,7 +969,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 375** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 376** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 

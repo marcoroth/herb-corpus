@@ -1,0 +1,137 @@
+require 'swagger_helper'
+
+RSpec.describe '<%= provider_namespace %>: <%= resource_class.humanize %>', type: %i[request swagger], api: :<%= api %> do
+  <% if civility_validation? -%>
+  path '/v3/<%= provider_namespace.underscore %>/<%= resource_class.underscore.pluralize %>' do
+    get SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.title') do
+      tags(*SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.tags'))
+
+      common_action_attributes
+
+      parameter name: :nom_naissance, in: :query, type: :string, required: true
+      parameter name: :prenoms, in: :query, type: :string, required: true
+      parameter name: :sexe, in: :query, type: :string, required: true
+      parameter name: :date_naissance, in: :query, type: :string, required: true
+      parameter name: :code_cog_insee_commune_naissance, in: :query, type: :string, required: true
+      parameter name: :code_cog_insee_pays_naissance, in: :query, type: :string, required: true
+
+      let(:nom_naissance) { 'Dupont' }
+      let(:prenoms) { 'Jean' }
+      let(:sexe) { 'M' }
+      let(:date_naissance) { '1990-01-01' }
+      let(:code_cog_insee_commune_naissance) { '75056' }
+      let(:code_cog_insee_pays_naissance) { '99100' }
+
+      unauthorized_request
+      forbidden_request
+      too_many_requests(<%= name %>)
+  <% else -%>
+  path '/v3/<%= provider_namespace.underscore %>/<%= resource_class.underscore.pluralize %>/{<%= params %>}' do
+    get SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.title') do
+      tags(*SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.tags'))
+
+      common_action_attributes
+
+      parameter name: :<%= params %>, in: :path, type: :string
+
+      unauthorized_request do
+        let(:<%= params %>) { valid_<%= params %>(:<%= provider_namespace.underscore %>) }
+      end
+
+      forbidden_request do
+        let(:<%= params %>) { valid_<%= params %>(:<%= provider_namespace.underscore %>) }
+      end
+
+      too_many_requests(<%= name %>) do
+        let(:<%= params %>) { valid_<%= params %>(:<%= provider_namespace.underscore %>) }
+      end
+  <% end -%>
+
+      describe 'with valid token and mandatory params' do
+        <% if civility_validation? -%>
+        response '200', 'Données trouvées'<%= prochainement? ? ", pending: 'Implement endpoint'" : nil %> do
+          <% if prochainement? -%>
+          before do
+            allow(MockDataBackend).to receive(:get_response_for).and_return(nil)
+          end
+          <% end -%>
+          description SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.description')
+
+          rate_limit_headers
+
+          schema build_rswag_response(
+            type: '<%= api == "entreprise" ? "entreprise" : "resource" %>',
+            attributes: SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.attributes')
+          )
+
+          run_test!
+        end
+
+        describe 'server errors' do
+          unprocessable_content_error_request(:nom_naissance) do
+            let(:nom_naissance) { '' }
+          end
+
+          response '404', 'Non trouvée'<%= prochainement? ? ", pending: 'Implement endpoint'" : nil %> do
+            let(:nom_naissance) { 'UNKNOWN' }
+
+            build_rswag_example(NotFoundError.new('<%= provider_namespace %>'))
+
+            schema '$ref' => '#/components/schemas/Error'
+
+            run_test!
+          end
+        <% else -%>
+        response '200', 'Entreprise trouvée'<%= prochainement? ? ", pending: 'Implement endpoint'" : nil %> do
+          <% if prochainement? -%>
+          before do
+            allow(MockDataBackend).to receive(:get_response_for).and_return(nil)
+          end
+          <% end -%>
+          description SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.description')
+
+          rate_limit_headers
+
+          schema build_rswag_response(
+            id: valid_<%= params %>(:<%= provider_namespace.underscore %>),
+            type: '<%= api == "entreprise" ? "entreprise" : "resource" %>',
+            attributes: SwaggerData.get('<%= provider_namespace.underscore %>.<%= resource_class.underscore %>.attributes')
+          )
+
+          run_test!
+        end
+
+        describe 'server errors' do
+          let(:<%= params %>) { valid_<%= params %>(:<%= provider_namespace.underscore %>) }
+
+          unprocessable_content_error_request(:<%= params %>) do
+            let(:<%= params %>) { 'lol' }
+          end
+
+          response '404', 'Non trouvée'<%= prochainement? ? ", pending: 'Implement endpoint'" : nil %> do
+            let(:<%= params %>) { not_found_<%= params %>(:<%= provider_namespace.underscore %>) }
+
+            build_rswag_example(NotFoundError.new('<%= provider_namespace %>'))
+
+            schema '$ref' => '#/components/schemas/Error'
+
+            run_test!
+          end
+        <% end -%>
+
+        <% if document_resource? -%>
+          common_provider_errors_request(
+            '<%= provider_namespace %>',
+            <%= name %>,
+            documents_errors('<%= provider_namespace %>')
+          )
+        <% else -%>
+          common_provider_errors_request('<%= provider_namespace %>', <%= name %>)
+        <% end -%>
+          common_network_error_request('<%= provider_namespace %>', <%= name %>)
+        end
+      end
+    end
+  end
+end
+
