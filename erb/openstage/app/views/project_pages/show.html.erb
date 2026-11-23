@@ -1,0 +1,162 @@
+<% project = @focus.project %>
+<% card = @focus.card %>
+<% section = @focus.page.section %>
+<% website = safe_external_url(card&.website) %>
+<% picture = safe_external_url(card&.picture) %>
+<% can_follow = current_user != @user %>
+<% content_for :title, "#{project.name} by #{@user.display_name} — Openstage" %>
+<% content_for :meta_description, card&.description.presence || "#{project.name}, a project #{@user.display_name} is building in public on Openstage." %>
+<% content_for :canonical, project_page_url(@user.username, project.repo.split("/").last) %>
+<%# A shared link shows the project's own picture; without one, its card. %>
+<% content_for :og_image, picture || share_card(og_project_url(@user.username, project.repo.split("/").last)) %>
+<% content_for :main_class, "os-wrap os-stack pt-1.5" %>
+<% unless project.indexed? %>
+  <% content_for :head do %><meta name="robots" content="noindex"><% end %>
+<% end %>
+
+<%= render "application/page_view", ticket: @view_ticket %>
+
+<% if @revealed %>
+  <p role="status" class="rounded-control bg-accent-soft px-4 py-3 os-sm">
+    <b>Only you can see this page.</b> You hid <%= project.name %>, so visitors who open it land on your stage.
+    <%= link_to "Show it again on the dashboard", dashboard_path(anchor: "activity"), class: "os-link text-sm" %>
+  </p>
+<% end %>
+
+<nav aria-label="Breadcrumb" class="os-sm flex items-center gap-2 px-1">
+  <img src="<%= @user.avatar_url %>" alt="" class="os-avatar size-6">
+  <%= link_to @user.display_name, profile_path(@user.username), class: "os-link text-sm" %>
+  <span class="os-muted" aria-hidden="true">/</span>
+  <span class="font-bold" aria-current="page"><%= project.name %></span>
+</nav>
+
+<%# A project past the palette has no colour: no dot by its name, and ink behind its picture. %>
+<% color = project_class(project.rank) %>
+<section class="os-panel <%= ProgressChart::Palette.alone_class(project.rank) %>" aria-label="<%= project.name %>">
+  <div class="flex flex-wrap items-start gap-x-9 gap-y-6">
+    <div class="min-w-0 flex-[999_1_520px]">
+      <div class="flex flex-wrap gap-2">
+        <% if card&.live? %><span class="os-tag soft">Live</span><% end %>
+        <% if card&.archived? %><span class="os-tag">Archived</span><% end %>
+        <% unless card.nil? || card.private_repo.nil? %>
+          <span class="os-tag"><%= card.private_repo ? "Private repo, commit messages only" : "Public repo" %></span>
+        <% end %>
+        <% if (last_commit = @focus.last_commit) %><span class="os-tag">Last commit <%= progress_ago(last_commit) %></span><% end %>
+      </div>
+      <h1 class="os-h1 mt-3.5 flex items-center gap-4 text-[clamp(36px,5vw,56px)] [overflow-wrap:anywhere]">
+        <% if color %><span class="os-dot size-4 shrink-0 bg-(--project)" aria-hidden="true"></span><% end %><%= project.name %>
+      </h1>
+      <% if card&.description %>
+        <p class="os-p mt-3 max-w-[62ch] text-[19px]/[1.5] text-ink"><%= card.description %></p>
+      <% end %>
+      <% figure, words = revenue_on_page(@focus.page.chart) %>
+      <% if figure %>
+        <p class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1" data-revenue>
+          <span class="os-num text-[30px]"><%= figure %></span>
+          <span class="os-sm os-ink2"><%= words %> · <b class="text-ink">Verified with Stripe</b></span>
+        </p>
+      <% end %>
+      <div class="mt-5 flex flex-wrap gap-2.5">
+        <% slug = project.repo.split("/").last %>
+        <% if website && card.github_repo.outbound_url("visit") %>
+          <a href="<%= project_click_out_path(@user.username, slug, "visit") %>" target="_blank" rel="ugc nofollow noopener" data-turbo="false" class="os-btn">Visit <%= URI(website).host %> <span aria-hidden="true">↗</span></a>
+        <% end %>
+        <% if card&.github_repo&.outbound_url("github") %>
+          <a href="<%= project_click_out_path(@user.username, slug, "github") %>" target="_blank" rel="noopener" data-turbo="false" class="os-btn2">View on GitHub <span aria-hidden="true">↗</span></a>
+        <% end %>
+      </div>
+    </div>
+    <% if picture || can_follow %>
+      <div class="os-stack min-w-0 flex-[1_1_300px]">
+        <% if picture %>
+          <img src="<%= picture %>" alt="" data-controller="picture" data-action="load->picture#loaded error->picture#broken" data-loading
+               class="aspect-[2/1] w-full rounded-[12px] bg-(--project)/12 object-cover data-loading:animate-pulse">
+        <% end %>
+        <%= render "project_pages/follow", user: @user, card: card if can_follow %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# The numbers this project shows and the window, over its chart. %>
+  <% chart = @focus.page.chart %>
+  <% serializer = ProgressViewSerializer.new(chart) %>
+  <% view = serializer.attributes %>
+  <% step = chart_step(@user, view, repo: chart.rows.first&.repo) %>
+  <%= react_island("progress", { initial: serializer.as_json, endpoint: api_progress_path(@user.username, project: project.repo, reveal: @revealed), step: step,
+                                 mode: "project", defaultRange: Progress::Window::DEFAULT, shippedTarget: "whats-new-panel" }, id: "progress", class: "mt-[30px]") do %>
+    <%= render "charts/filter", view: view, mode: "project", step: step,
+               path_for: ->(changes) { project_page_for(@user, project, **chart_params(view, default_range: Progress::Window::DEFAULT, **changes).except(:projects)) } %>
+  <% end %>
+</section>
+
+<div class="flex flex-wrap items-start gap-4.5">
+  <div class="os-stack min-w-0 flex-[999_1_560px]">
+    <%= render "profiles/page/whats_new", section: section, lone: true %>
+    <%= render "profiles/page/recent", user: @user, groups: @focus.page.recent, by_project: false, repo: card&.github_repo if @focus.page.recent.any? %>
+  </div>
+
+  <%# Its facts as visitors see them (FocusService#facts); then its other
+      builders and the builder's other projects, each without what its own
+      builder hides. The first of them names the panel, and with none there
+      is no panel. %>
+  <% facts = @focus.facts %>
+  <% heading = [ ("details" if facts.any?), ("co-builders" if @focus.co_builders.any?), ("more-from" if @focus.others.any?) ].compact.first %>
+  <% if heading %>
+    <aside class="os-panel min-w-0 flex-[1_1_300px]" aria-labelledby="<%= heading %>">
+      <% if facts.any? %>
+        <h2 id="details" class="os-h3">Details</h2>
+        <dl class="mt-2.5">
+          <% facts.each do |fact| %>
+            <div class="os-row flex justify-between gap-4 py-2.5">
+              <dt class="os-sm os-muted"><%= fact.label %></dt>
+              <dd class="os-sm m-0 min-w-0 text-right font-semibold [overflow-wrap:anywhere]"><%= fact.value %></dd>
+            </div>
+          <% end %>
+        </dl>
+      <% end %>
+
+      <%# The eight busiest; a big team's page says how many more. %>
+      <% if @focus.co_builders.any? %>
+        <h2 id="co-builders" class="os-h3 mt-6.5 first:mt-0">Also building this</h2>
+        <ul class="mt-1.5">
+          <% @focus.co_builders.first(8).each do |co| %>
+            <li class="os-row py-0">
+              <%= link_to project_page_path(co.user.username, project.repo.split("/").last), class: "flex items-center justify-between gap-3 py-2.5 hover:underline" do %>
+                <span class="inline-flex min-w-0 items-center gap-2.5 font-bold">
+                  <img src="<%= co.user.avatar_url %>" alt="" class="os-avatar size-6 shrink-0"><span class="truncate">@<%= co.user.username %></span>
+                </span>
+                <% if co.commits %><span class="os-xs os-muted shrink-0"><%= pluralize(co.commits, "commit") %></span><% end %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+        <% if (more = @focus.co_builders.size - 8).positive? %>
+          <p class="os-note mt-1"><%= "and #{pluralize(more, 'more builder')}" %></p>
+        <% end %>
+      <% end %>
+
+      <% if @focus.others.any? %>
+        <h2 id="more-from" class="os-h3 mt-6.5 first:mt-0">More from <%= @user.display_name %></h2>
+        <ul class="mt-1.5">
+          <% @focus.others.each do |other| %>
+            <li class="os-row py-0">
+              <%= link_to project_page_for(@user, other), class: "flex items-center justify-between gap-3 py-2.5 hover:underline" do %>
+                <span class="inline-flex min-w-0 items-center gap-2.5 font-bold">
+                  <% if (other_color = project_class(other.rank)) %><span class="os-dot <%= other_color %> bg-(--project)" aria-hidden="true"></span><% end %><span class="truncate"><%= other.name %></span>
+                </span>
+                <% if other.last_commit && other.commits_shown? %><span class="os-xs os-muted shrink-0"><%= progress_ago(other.last_commit) %></span><% end %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+        <% if @focus.more.positive? %>
+          <p class="os-note mt-1"><%= link_to "and #{pluralize(@focus.more, 'more project')}", profile_path(@user.username, anchor: ProjectsTableSerializer::MORE_ANCHOR), class: "os-link" %></p>
+        <% end %>
+      <% end %>
+    </aside>
+  <% end %>
+</div>
+
+<% if invites_to_make_own?(@user) %>
+  <%= render "layouts/invite", title: "Give your projects a page like this one.", about: "It fills itself from GitHub.", ref: "project" %>
+<% end %>

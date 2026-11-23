@@ -1,0 +1,57 @@
+<%# The builder's backlog, on their dashboard alone, never on their stage:
+    entries with no project never show in a project view, and nothing is
+    inferred from their text. One click tags a row and the panel redraws in
+    its frame, still open (DashboardController); without JavaScript the
+    dashboard comes back with it open. count: the entries of the last 12
+    months with no project, whatever the chart above shows; labels: that
+    window's; section: their rows and tag choices, read only while the panel
+    is open. back: the chart filter's params, so the view comes back as it was. %>
+<% open = !section.nil? %>
+<%= turbo_frame_tag "untagged" do %>
+<% if count.positive? || open %>
+  <% if count.positive? %>
+    <p class="os-xs os-muted mt-[18px]">
+      <%= progress_untagged_line(count, labels) %>
+      <%= link_to (open ? "Close" : "Tag them"), dashboard_path(**back, tag: (open ? nil : "1"), anchor: "activity"), class: "os-link text-[13px]" %>
+    </p>
+  <% end %>
+
+  <% if open %>
+    <% untagged = section.tally.untagged %>
+    <div class="os-card mt-2.5 px-3.5 pt-1 pb-2.5" data-tag-panel>
+      <% untagged.each_with_index do |item, i| %>
+        <% if i == 6 %><details class="group"><summary class="os-sm mt-2 cursor-pointer list-none text-ink-2 group-open:hidden [&::-webkit-details-marker]:hidden">Show <%= untagged.size - 6 %> more</summary><% end %>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line py-2.5" data-tag-row="<%= item.id %>">
+          <div class="flex min-w-0 flex-[1_1_300px] items-center gap-2.5">
+            <span class="os-xs w-[74px] shrink-0 font-bold text-ink-3"><%= item.date.strftime("%b %-d") %> · <%= item.shipped? ? "Shipped" : "Published" %></span>
+            <span class="os-sm line-clamp-2 min-w-0"><%= item.title %></span>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <% progress_tag_choices(item, section).each do |project, n| %>
+              <% color = project_class(project.rank) %>
+              <%= button_to entry_project_path(item.id), method: :patch, params: back.merge(repo_name: project.repo),
+                    class: "os-chip #{color} h-[30px] px-2.5 text-xs text-ink" do %>
+                <% if color %><span class="os-dot size-2 bg-(--project)"></span><% end %><%= project.name %><%= " · #{n} that day" if n %>
+              <% end %>
+            <% end %>
+            <%= form_with url: entry_project_path(item.id), method: :patch, data: { controller: "autosubmit" } do %>
+              <% back.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+              <select name="repo_name" aria-label="Other project" data-action="change->autosubmit#submit"
+                      class="h-[30px] cursor-pointer rounded-[10px] border border-line bg-surface px-1.5 text-xs text-ink-2">
+                <option value="">Other…</option>
+                <% section.tally.projects.all.each do |project| %><option value="<%= project.repo %>"><%= project.name %></option><% end %>
+              </select>
+            <% end %>
+            <%= button_to "No project", entry_project_path(item.id), method: :patch, params: back.merge(no_project: "1"),
+                  class: "os-btn2 sm h-[30px] px-2.5 text-xs" %>
+          </div>
+        </div>
+      <% end %>
+      <% if untagged.size > 6 %></details><% end %>
+      <% if untagged.empty? %>
+        <p class="os-sm os-muted mt-2.5">Every entry here has a project now.</p>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+<% end %>

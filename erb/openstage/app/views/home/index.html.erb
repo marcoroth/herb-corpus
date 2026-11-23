@@ -1,0 +1,144 @@
+<% content_for :title, "Openstage: what you're building, project by project" %>
+<% content_for :meta_description, "Connect GitHub once. Openstage keeps a public page of your projects: what each one is, how its commits move, and what shipped. Free for indie builders." %>
+<% content_for :main_class, "os-wrap os-stack pt-1.5" %>
+
+<%
+  # Four questions, each one an objection a builder has before signing in.
+  # The FAQPage JSON-LD below mirrors these, so the markup matches visible text.
+  faqs = [
+    { q: "What is Openstage?",
+      a: "A public page of what you're building, project by project, kept current from GitHub. Each project shows what it is, how its commits move over time and what shipped. It is for indie and side-project builders who want their work seen without a second job." },
+    { q: "What does it read from GitHub?",
+      a: "Sign-in asks only for your email address. Public repos you push to sync every 2 hours, with the description, website and preview image you set on each. Private repos stay out unless you connect them in Settings and include each one, and even then only commit messages and release names appear, never links to the code." },
+    { q: "Does it post for me?",
+      a: "No. Openstage never posts to your X or other accounts, and never ranks or rewrites what you wrote. Share your stage wherever you like; it keeps itself current." },
+    { q: "What does it cost?",
+      a: "Your stage, a page for each project, the sync and a subscribe box are free for good. Pro is $7 a month and adds your subscriber list, MRR on your projects' pages, profile analytics, private entries and pins." }
+  ]
+%>
+
+<% content_for :head do %>
+  <script type="application/ld+json">
+    <%= {
+      "@context" => "https://schema.org",
+      "@type" => "SoftwareApplication",
+      "name" => "Openstage",
+      "applicationCategory" => "DeveloperApplication",
+      "operatingSystem" => "Web",
+      "url" => root_url,
+      "description" => SeoHelper::DEFAULT_DESCRIPTION,
+      "offers" => [
+        { "@type" => "Offer", "name" => "Free", "price" => "0", "priceCurrency" => "USD" },
+        { "@type" => "Offer", "name" => "Pro Monthly", "price" => "7", "priceCurrency" => "USD" }
+      ]
+    }.to_json.html_safe %>
+  </script>
+  <script type="application/ld+json">
+    <%= {
+      "@context" => "https://schema.org",
+      "@type" => "FAQPage",
+      "mainEntity" => faqs.map { |f|
+        {
+          "@type" => "Question",
+          "name" => f[:q],
+          "acceptedAnswer" => { "@type" => "Answer", "text" => f[:a] }
+        }
+      }
+    }.to_json.html_safe %>
+  </script>
+<% end %>
+
+<%# The box first, with "no sign-in" under its button. On a wide screen the
+    hero is a grid whose second row the demo card shares (subgrid), so the
+    sign-in link, the box's fallback, sits on the line of the card's "View
+    this stage", with what the sign-in asks right under it. That block spans
+    the second row and a flexible third one, so its height goes to the
+    third alone and the card gains no empty space. On a phone it all
+    stacks. While previews are off, the sign-in leads, as before the token. %>
+<% sign_in_asks = "Asks only for your email. Your public repos show up on your stage, and you can hide any of them. Private ones only if you add them. Never posts to your X or other accounts." %>
+<% previewing = !user_signed_in? && previews_on? %>
+<section class="os-panel p-6 sm:p-[52px]">
+  <div class="grid lg:grid-cols-2 lg:grid-rows-[auto_auto_1fr] lg:gap-x-9">
+    <div class="lg:col-start-1 lg:row-start-1 lg:self-end">
+      <span class="os-tag">For indie and side-project builders</span>
+      <h1 class="os-h1 mt-4.5"><%= safe_join(HomeHelper::TAGLINE, tag.br) %></h1>
+      <p class="os-p mt-4 text-lg">Openstage keeps a public page of everything you're building, project by project. It stays current from your GitHub commits while you work.</p>
+      <div class="mt-6">
+        <% if user_signed_in? %>
+          <%= link_to "Go to your dashboard", dashboard_path, class: "os-btn" %>
+        <% elsif previewing %>
+          <%= render "previews/form", id: "preview-login", note: "No sign-in needed to preview.", value: @login, error: @missing %>
+        <% else %>
+          <%= render "home/sign_up" %>
+          <p class="os-note mt-3.5"><%= sign_in_asks %></p>
+        <% end %>
+      </div>
+    </div>
+    <% if previewing %>
+      <div class="mt-2 lg:col-start-1 lg:row-span-2 lg:row-start-2 lg:mt-3" data-sign-in-block>
+        <%= render "home/sign_in" %>
+        <p class="os-note mt-1.5"><%= sign_in_asks %></p>
+      </div>
+    <% end %>
+
+    <% if @demo %>
+      <%= render "home/demo", user: @demo_user, section: @demo, chart: ProgressChart::Trend.new(@demo),
+                              class: "mt-9 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0 lg:grid lg:grid-rows-subgrid" %>
+    <% end %>
+  </div>
+</section>
+
+<%= render "home/lately", entries: @lately if @lately.any? %>
+
+<section class="os-panel" aria-labelledby="how">
+  <h2 id="how" class="os-h2">How it works</h2>
+  <p class="os-p mt-1.5">One sign-in and the page fills itself. The rest is optional.</p>
+  <ol class="os-grid2 mt-4.5">
+    <% [ [ "Connect GitHub once", "Your public repos sync every 2 hours. Private ones join only if you add them in Settings. Nothing to install." ],
+         [ "Every project gets its line", "Your stage charts each project's commits over 30 days, 90 days or 12 months. Visitors see what you work on now and what came before, all together or one project at a time." ],
+         [ "What each project is", "Its description, website and picture come from GitHub, or from its README when GitHub has none. Fill any gap once, from your dashboard." ],
+         [ "Launches stand out", "Log a launch or a post in one line. It shows under What's new, on your stage and on the project's own page." ] ].each_with_index do |(title, about), i| %>
+      <li class="os-card">
+        <div class="os-num text-[28px] text-ink-3"><%= format("%02d", i + 1) %></div>
+        <h3 class="os-h3 mt-1.5"><%= title %></h3>
+        <p class="os-p mt-1.5 text-[15px]"><%= about %></p>
+      </li>
+    <% end %>
+  </ol>
+</section>
+
+<%# FAQ: the visible text mirrors the FAQPage schema above. Native <details>
+    collapse without JS and stay keyboard- and screen-reader-correct. %>
+<section class="os-panel" aria-labelledby="faq">
+  <h2 id="faq" class="os-h2">Frequently asked questions</h2>
+  <div class="mt-2.5">
+    <% faqs.each_with_index do |f, i| %>
+      <details class="os-row group py-4" <%= "open" if i.zero? %>>
+        <summary class="flex cursor-pointer list-none items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
+          <h3 class="os-h3"><%= f[:q] %></h3>
+          <svg class="mt-1 h-4 w-4 shrink-0 text-ink-3 transition-transform group-open:rotate-90"
+               fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </summary>
+        <p class="os-p mt-1.5 text-[15px]"><%= f[:a] %></p>
+      </details>
+    <% end %>
+  </div>
+</section>
+
+<section class="os-panel p-7 text-center sm:p-14">
+  <h2 class="os-h1 text-[clamp(30px,4vw,46px)]">Your commits already tell the story.</h2>
+  <p class="os-p mt-2.5 text-lg">Give them a page. Free, and it fills itself.</p>
+  <div class="mt-5.5">
+    <% if user_signed_in? %>
+      <%= link_to "Go to your dashboard", dashboard_path, class: "os-btn" %>
+    <% elsif previewing %>
+      <%= render "previews/form", id: "preview-login-end", note: "No sign-in needed to preview.", form_class: "mx-auto justify-center" %>
+      <%= render "home/sign_in", form_class: "mt-2" %>
+    <% else %>
+      <%= render "home/sign_up", class: "justify-center" %>
+    <% end %>
+  </div>
+  <%= link_to "Pro is $7 a month. See pricing", pricing_path, class: "os-link mt-4 inline-block" %>
+</section>

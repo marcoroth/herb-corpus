@@ -1,0 +1,102 @@
+<%# A project as its builder sees it, laid out like its page: whether their
+    page shows it, the numbers its page shows, and what it is. Each field
+    shows what GitHub says now; leaving it blank keeps GitHub's. %>
+<% content_for :title, "#{@repo.name} — Openstage" %>
+<% content_for :main_class, "os-wrap os-stack pt-1.5" %>
+<% overview = @overview %>
+<% picture = safe_external_url(@repo.picture) %>
+
+<nav aria-label="Breadcrumb" class="os-sm flex items-center gap-2 px-1">
+  <%= link_to "Dashboard", dashboard_path, class: "os-link text-sm" %>
+  <span class="os-muted" aria-hidden="true">/</span>
+  <span class="font-bold" aria-current="page"><%= @repo.name %></span>
+</nav>
+
+<%# A project past the palette has no colour: no dot. %>
+<% color = project_class(overview.project&.rank) %>
+<section class="os-panel <%= color %>" aria-labelledby="project-name">
+  <div class="flex flex-wrap items-start gap-x-9 gap-y-5">
+    <div class="min-w-0 flex-[999_1_520px]">
+      <div class="flex flex-wrap gap-2">
+        <% if @repo.live? %><span class="os-tag soft">Live</span><% end %>
+        <span class="os-tag"><%= @repo.private_repo? ? "Private repo, commit messages only" : "Public repo" %></span>
+        <% if overview.last_commit %><span class="os-tag">Last commit <%= progress_ago(overview.last_commit) %></span><% end %>
+      </div>
+      <h1 id="project-name" class="os-h1 mt-3.5 flex items-center gap-4 text-[clamp(36px,5vw,56px)] [overflow-wrap:anywhere]">
+        <% if color %><span class="os-dot size-4 shrink-0 bg-(--project)" aria-hidden="true"></span><% end %><%= @repo.name %>
+      </h1>
+      <% if @repo.project_description %>
+        <p class="os-p mt-2.5 max-w-[62ch] text-[19px]/[1.5] text-ink"><%= @repo.project_description %></p>
+      <% end %>
+    </div>
+
+    <div class="flex min-w-0 flex-[1_1_260px] flex-col items-start gap-3">
+      <%= form_with url: github_repo_path(@repo), method: :patch, data: { turbo: false }, class: "flex items-center gap-3" do %>
+        <%= hidden_field_tag :included, (!@repo.included?).to_s, id: nil %>
+        <%= hidden_field_tag :back, "project", id: nil %>
+        <button type="submit" role="switch" aria-checked="<%= @repo.included? %>" aria-label="Show <%= @repo.name %> on your stage" class="os-switch"></button>
+        <span>
+          <span class="font-bold"><%= @repo.included? ? "On your stage" : "Hidden from your stage" %></span>
+          <span class="os-xs os-muted block"><%= @repo.included? ? "Its page is public, and it shows on your stage." : "Only you can open its page." %></span>
+        </span>
+      <% end %>
+      <%= link_to project_page_path(current_user.username, @repo.name), class: "os-btn2 sm" do %>View its page <span aria-hidden="true">↗</span><% end %>
+    </div>
+  </div>
+</section>
+
+<div class="flex flex-wrap items-start gap-4">
+  <section class="os-panel min-w-0 flex-[999_1_520px]" aria-labelledby="numbers">
+    <h2 id="numbers" class="os-h3">Numbers on its page</h2>
+    <p class="os-sm os-muted mt-1.5 mb-1">The numbers its page shows. A hidden number keeps counting, and you still see it here.</p>
+
+    <div class="os-row flex items-center gap-3.5 py-3">
+      <span class="min-w-0 flex-auto">
+        <span class="font-bold">Commits</span> <span class="os-num os-muted text-sm"><%= number_with_delimiter(overview.commits) %></span>
+        <span class="os-xs os-muted block">Yours, from GitHub, merges and dependency bumps left out.</span>
+      </span>
+      <span class="os-xs os-muted whitespace-nowrap"><%= @repo.picks?("commits") ? "Shown" : "Hidden" %></span>
+      <%= form_with url: project_numbers_path(@repo), method: :patch, data: { turbo: false } do %>
+        <%= hidden_field_tag :number, "commits", id: nil %>
+        <%= hidden_field_tag :shown, (!@repo.picks?("commits")).to_s, id: nil %>
+        <%= hidden_field_tag :back, "project", id: nil %>
+        <button type="submit" role="switch" aria-checked="<%= @repo.picks?("commits") %>" aria-label="Show commits on <%= @repo.name %>'s page" class="os-switch"></button>
+      <% end %>
+    </div>
+    <%= render "projects/revenue", repo: @repo, overview: overview %>
+    <%= render "projects/site_visits", repo: @repo, overview: overview %>
+    <%= render "projects/site_visitors", repo: @repo, overview: overview %>
+
+    <p class="os-note mt-2">Values are the last 30 days; MRR and paying customers, today's. Whatever its switch says, visitors never see a number at 0: MRR and paying customers go by today's, the others by the window they pick. Your dashboard's table has the same switches, except where flipping one would change nothing visitors see.</p>
+  </section>
+
+  <section class="os-panel min-w-0 flex-[1_1_320px]" aria-labelledby="what-it-is">
+    <h2 id="what-it-is" class="os-h3">What it is</h2>
+    <%= form_with model: @repo, url: project_path(@repo), method: :patch, class: "os-stack mt-3 gap-3" do |f| %>
+      <% if @repo.errors.any? %>
+        <p role="alert" class="os-sm font-bold text-down"><%= @repo.errors.full_messages.to_sentence %></p>
+      <% end %>
+      <label class="os-fieldset">
+        <span class="os-label">Description</span>
+        <%= f.text_area :description_edit, rows: 3, maxlength: 280, class: "os-area min-h-21",
+              placeholder: @repo.description.presence || @repo.readme_line.presence || "One sentence on what it does" %>
+      </label>
+      <label class="os-fieldset">
+        <span class="os-label">Website</span>
+        <%= f.url_field :website_edit, class: "os-field", placeholder: @repo.homepage.presence || "https://" %>
+      </label>
+      <label class="os-fieldset">
+        <span class="os-label">Picture</span>
+        <% if picture %>
+          <img src="<%= picture %>" alt="" data-controller="picture" data-action="load->picture#loaded error->picture#broken" data-loading
+               class="aspect-[2/1] w-full rounded-[12px] bg-fill object-cover data-loading:animate-pulse">
+        <% else %>
+          <span class="os-sm os-muted grid aspect-[2/1] w-full place-items-center rounded-[12px] border-[1.5px] border-dashed border-line">No picture yet</span>
+        <% end %>
+        <%= f.url_field :image_edit, class: "os-field", placeholder: @repo.preview_image_url.presence || "https:// an image, 2:1 suits it best" %>
+      </label>
+      <p class="os-note m-0">The name comes from GitHub. Blank keeps what GitHub says.</p>
+      <div><%= f.submit "Save", class: "os-btn" %></div>
+    <% end %>
+  </section>
+</div>

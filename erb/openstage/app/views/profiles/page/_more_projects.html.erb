@@ -1,0 +1,96 @@
+<%# The projects past the cards (Progress::ListService), a page at a time:
+    each one's name, a link to its page, with Live or Archived, its
+    description on one line, its weekly commits over 52 weeks as a line in
+    ink with their count, and its last commit, while visitors see its
+    commits. Found by name, sorted, filtered to the live ones. The list's
+    script (ProjectsIsland) takes over this first paint; without it, the
+    links and the search form open the stage again on that view. On a phone
+    the name and description take the row, the rest goes under it. On the
+    builder's dashboard (manage) each row also has Edit beside its name and
+    its stage switches last (charts/_stage_switches), the links and the form
+    open the dashboard, with the list's params prefixed, and Hidden lists the
+    projects hidden from the stage instead.
+    list: a called Progress::ListService. %>
+<% manage = local_assigns.fetch(:manage, false) %>
+<% serializer = ProjectListSerializer.new(list, user: user, manage: manage) %>
+<% view = serializer.attributes %>
+<% listing = list.listing.with(hidden: list.hidden) %>
+<% grid = manage ? "md:grid-cols-[minmax(0,1fr)_220px_120px_88px]" : "md:grid-cols-[minmax(0,1fr)_220px_120px]" %>
+<% fields = (request.query_parameters.slice("range", "show", "projects").to_a + view[:back] if manage) %>
+<div id="<%= ProjectsTableSerializer::MORE_ANCHOR %>" class="mt-7 scroll-mt-6">
+  <%= react_island("projects", { initial: serializer.as_json, endpoint: api_projects_path(user.username, **({ dashboard: 1 } if manage).to_h) }, id: "project-list") do %>
+    <div class="os-between">
+      <h3 class="os-h3 text-xl"><%= view[:title] %></h3>
+      <div class="flex flex-wrap items-center gap-2 max-md:w-full">
+        <%= form_with url: (manage ? dashboard_path(anchor: ProjectsTableSerializer::MORE_ANCHOR) : profile_path(user.username, anchor: ProjectsTableSerializer::MORE_ANCHOR)),
+                      method: :get, class: "max-md:w-full", html: { role: "search" } do %>
+          <% project_list_hidden(listing, manage: manage).each do |key, value| %>
+            <% Array(value).each do |item| %><%= hidden_field_tag(value.is_a?(Array) ? "#{key}[]" : key, item, id: nil) %><% end %>
+          <% end %>
+          <input type="search" name="<%= project_list_prefix(manage) %>q" value="<%= listing.query %>" placeholder="Find a project" aria-label="Find a project" class="os-field h-9 w-56 max-md:w-full">
+        <% end %>
+        <div class="os-pills" role="group" aria-label="Sort">
+          <% view[:sorts].each do |sort| %>
+            <%= link_to sort[:label], project_list_path(user, listing.with(sort: sort[:key], page: 1), manage: manage), class: "os-pill",
+                  aria: { current: ("true" if sort[:key] == view[:sort]) } %>
+          <% end %>
+        </div>
+        <% if view[:live_label] %>
+          <%= link_to view[:live_label], project_list_path(user, listing.with(live: !listing.live, page: 1), manage: manage), class: "os-chip",
+                aria: { current: ("true" if view[:live]) } %>
+        <% end %>
+        <% if view[:hidden_label] %>
+          <%= link_to view[:hidden_label], project_list_path(user, listing.with(hidden: !listing.hidden, page: 1), manage: manage), class: "os-chip",
+                aria: { current: ("true" if view[:hidden]) } %>
+        <% end %>
+      </div>
+    </div>
+    <div class="mt-3.5">
+      <div class="hidden gap-x-6 pb-2 text-xs font-bold text-ink-3 md:grid <%= grid %>" aria-hidden="true">
+        <span>Project</span><span>Last 12 months</span><span class="text-right">Last commit</span><% if manage %><span class="text-right">Your stage</span><% end %>
+      </div>
+      <% view[:rows].each do |row| %>
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1.5 border-t border-line py-2.5 <%= grid %>">
+          <div class="min-w-0 max-md:col-span-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <%= link_to row[:name], row[:path], class: "truncate text-[15px] font-bold hover:underline", data: { turbo_frame: "_top" } %>
+              <% if row[:live] %><span class="os-tag soft shrink-0">Live</span><% end %>
+              <% if row[:archived] %><span class="os-tag shrink-0">Archived</span><% end %>
+              <%= link_to "Edit", row[:edit], class: "os-btn2 ml-auto h-[30px] shrink-0 rounded-[9px] px-3 text-[13px]", aria: { label: "Edit #{row[:name]}" } if row[:edit] %>
+            </div>
+            <% if row[:description] %><p class="os-xs os-muted mt-0.5 truncate"><%= row[:description] %></p><% end %>
+          </div>
+          <div class="flex items-center gap-3">
+            <% if row[:line] %>
+              <svg viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true" class="h-6 w-[110px] flex-none overflow-visible md:w-[150px]">
+                <path d="<%= row[:line] %>" fill="none" class="stroke-ink-3" stroke-width="1.75" vector-effect="non-scaling-stroke"/>
+              </svg>
+              <span class="os-num min-w-7 text-right text-[15px]"><%= row[:commits] %><span class="sr-only"> <%= row[:count_words] %></span></span>
+            <% end %>
+          </div>
+          <div class="os-sm os-ink2 text-right"><% if row[:last] %><span class="sr-only">Last commit </span><%= row[:last] %><% end %></div>
+          <% if manage %>
+            <div class="whitespace-nowrap text-right max-md:col-span-2 max-md:text-left">
+              <span class="os-xs os-muted mb-1 block md:hidden">Your stage</span>
+              <%= render "charts/stage_switches", name: row[:name], page: row[:page], pin: row[:pin], fields: fields %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3.5">
+        <span class="os-sm os-muted"><%= view[:range] || view[:empty] %></span>
+        <% if view[:pages] > 1 %>
+          <div class="flex gap-2">
+            <% [ [ "Previous", view[:page] - 1 ], [ "Next", view[:page] + 1 ] ].each do |label, number| %>
+              <% if number.between?(1, view[:pages]) %>
+                <%= link_to label, project_list_path(user, listing.with(page: number), manage: manage), class: "os-btn2 sm" %>
+              <% else %>
+                <span class="os-btn2 sm opacity-50" aria-disabled="true"><%= label %></span>
+              <% end %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

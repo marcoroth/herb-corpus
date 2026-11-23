@@ -1,0 +1,84 @@
+<%# The Week view of the progress section, as far as an email can draw it,
+    in the app's panels: the counters and the chart, then the shipped and
+    published list and the link, so nothing comes between the chart and the
+    list its discs number. No commit titles: the chart carries the commits.
+    With none of them on a project the chart draws (the ten busiest of all
+    time, ProgressChart::Trend#lines), it says why it has no chart.
+    log_url: the builder's own email offers to log an entry when the list is
+    empty. follower: a follower's email, whose counters leave out the ones at
+    zero, as the pages do for visitors. %>
+<% labels = section.labels %>
+<% now = section.tally.totals %>
+<% before = section.tally.previous_totals %>
+<% pick = section.pick %>
+<% tiles = [
+     [ "● Shipped", now.shipped, before&.shipped ],
+     [ "○ Published", now.published, before&.published ],
+     [ "Commits", now.commits, before&.commits ],
+     [ "Active days", now.active_days, before&.active_days ],
+     [ "Projects", now.projects, nil ]
+   ] %>
+<% tiles = tiles.reject { |_label, value, _previous| value.zero? } if local_assigns[:follower] %>
+<%= mail_panel do %>
+<p style="margin: 0 0 14px; font-family: <%= MailHelper::DISPLAY %>; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #0E0F12;"><%= labels.nav %><span style="font-weight: 400; color: #666A73;"><%= " · so far" if labels.running? %></span></p>
+
+<div style="padding-bottom: 6px; border-bottom: 1px solid #E2E4E8;">
+  <% tiles.each do |label, value, previous| %>
+    <span style="display: inline-block; margin: 0 18px 8px 0; white-space: nowrap;">
+      <span style="font-size: 18px; font-weight: 600; color: #0E0F12;"><%= value %></span>
+      <% if (delta = previous && progress_delta(value, previous)) %><span style="font-size: 12px; font-weight: 500; color: <%= delta.last ? '#006B72' : '#666A73' %>;"><%= delta.first %></span><% end %>
+      <br><span style="font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: #666A73;"><%= label %></span>
+    </span>
+  <% end %>
+</div>
+<% if before && (versus = labels.versus) %>
+  <p style="margin: 6px 0 0; font-size: 11px; color: #666A73;">Changes <%= versus %>.</p>
+<% end %>
+
+<% if (image = attachments[ProgressChart::EmailImage::FILE]) %>
+  <% chart = ProgressChart::Trend.new(section, discs: true) %>
+  <p style="margin: 16px 0 0; font-size: 12px; color: #43464D;">
+    <% chart.lines.each do |line| %>
+      <span style="display: inline-block; margin-right: 14px; white-space: nowrap;"><span style="display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; background: <%= ProgressChart::Palette.project_color(line.rank) || "#0E0F12" %>;"></span> <%= line.name %> <strong style="color: #0E0F12;"><%= line.total %></strong></span>
+    <% end %>
+  </p>
+  <img src="<%= image.url %>" width="552" alt="Commits per day by project <%= labels.word %>: <%= ProgressChart::EmailImage.new(chart).summary %>" style="display: block; width: 100%; max-width: 552px; height: auto; margin-top: 10px; border: 0; border-radius: 14px;">
+<% elsif now.commits.positive? %>
+  <p style="margin: 16px 0 0; font-size: 13px; color: #666A73;">Only projects past the tenth have commits <%= labels.word %>, and the chart draws ten projects at most.</p>
+<% else %>
+  <p style="margin: 16px 0 0; font-size: 13px; color: #666A73;">No commits <%= labels.word %><%= " yet" if labels.running? %>.</p>
+<% end %>
+<% end %>
+
+<%= mail_panel do %>
+<p style="margin: 0; padding-bottom: 8px; border-bottom: 1px solid #E2E4E8; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #666A73;">Shipped and published <%= labels.phrase %></p>
+<% if pick.kept.any? %>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse;">
+    <% pick.kept.each_with_index do |item, i| %>
+      <% project = item.repo_name && section.tally.projects.find(item.repo_name) %>
+      <tr>
+        <td valign="top" style="width: 30px; padding: 10px 0; vertical-align: top; border-bottom: 1px solid #E2E4E8;">
+          <% disc = ProgressChart::Palette.project_color(project&.rank) || "#0E0F12" %>
+          <span style="display: inline-block; width: 22px; height: 22px; border-radius: 11px; text-align: center; font-size: 11px; line-height: 22px; font-weight: 700; background: <%= disc %>; color: <%= ProgressChart::Palette.ink_on(disc) %>;"><%= i + 1 %></span>
+        </td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #E2E4E8;">
+          <div style="font-size: 14px; line-height: 20px; color: #0E0F12; font-weight: <%= item.shipped? ? 600 : 500 %>;"><%= item.title %><% if (run_in = progress_run_in(item, section)).present? %><span style="font-weight: 400; color: #666A73;"><%= run_in %></span><% end %></div>
+          <div style="margin-top: 3px; font-size: 12px; color: #666A73;">
+            <%= item.date.strftime("%b %-d") %><%= " · #{project.name}" if project %> · <%= item.shipped? ? "Shipped" : "Published" %>
+          </div>
+        </td>
+      </tr>
+    <% end %>
+  </table>
+  <% if pick.left.any? %>
+    <p style="margin: 10px 0 0; font-size: 12px; color: #666A73;"><%= pick.left.size %> more <%= labels.word %> on the page.</p>
+  <% end %>
+<% else %>
+  <p style="margin: 12px 0 0; font-size: 13px; color: #666A73;">
+    <%= labels.empty %>
+    <% if local_assigns[:log_url] %><a href="<%= log_url %>" style="color: #43464D;">Log an entry</a><% end %>
+  </p>
+<% end %>
+
+<p style="margin: 20px 0 0;"><%= mail_button(link_label, link_url) %></p>
+<% end %>

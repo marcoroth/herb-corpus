@@ -1,0 +1,35 @@
+<%# Whether the projects below are up to date, and the way to fix it if not. %>
+<% last_log = @sync_logs.first %>
+<div data-sync-status>
+  <div class="os-between">
+    <span class="os-xs os-muted"><%= @last_github_sync ? "Synced from GitHub #{time_ago_in_words(@last_github_sync)} ago" : "Not synced from GitHub yet" %></span>
+    <% if last_log&.token_rejected? %>
+      <%# A sign-in stores a new token; the old one cannot sync. %>
+      <%= button_to "Reconnect GitHub", "/auth/github", method: :post, data: { turbo: false }, class: "os-btn sm" %>
+    <% else %>
+      <%= button_to "Sync now", sync_github_path, method: :post, class: "os-btn2 sm" %>
+    <% end %>
+  </div>
+
+  <% if last_log&.error_message.present? %>
+    <p class="os-xs mt-2 line-clamp-2 font-semibold <%= last_log.failed? ? 'text-down' : 'text-warn' %>" title="<%= last_log.error_message %>"><%= last_log.error_message %></p>
+  <% end %>
+
+  <% if @sync_logs.any? %>
+    <details class="mt-1.5">
+      <summary class="os-xs os-muted cursor-pointer list-none hover:text-ink [&::-webkit-details-marker]:hidden">Sync history</summary>
+      <ul class="mt-2 space-y-1.5">
+        <% @sync_logs.each do |log| %>
+          <li class="os-xs flex items-center justify-between gap-2">
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="size-1.5 shrink-0 rounded-full <%= log.success? ? 'bg-up' : log.failed? ? 'bg-down' : 'bg-warn' %>"></span>
+              <span class="capitalize"><%= log.source %></span>
+              <% if log.success? && log.entries_added > 0 %><span class="os-muted">+<%= log.entries_added %></span><% end %>
+            </span>
+            <time class="os-muted shrink-0"><%= time_ago_in_words(log.ran_at) %> ago</time>
+          </li>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
+</div>

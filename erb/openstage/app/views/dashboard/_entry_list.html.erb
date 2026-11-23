@@ -1,0 +1,29 @@
+<%# One tab's list, a page at a time, newest first, in a frame of its own,
+    which a click on a row redraws, or just the row (entries/changed); a
+    page that starts past the newest rows leads back to them. target _top: a
+    link in it leaves the frame. %>
+<%= turbo_frame_tag "entries-#{tab.key}", target: "_top" do %>
+  <%= render "dashboard/entry_list_count", tab: tab %>
+  <% if tab.entries.empty? %>
+    <p class="os-sm os-muted mt-4 rounded-card border border-dashed border-line py-10 text-center">
+      <% if entries_filter.any? %>
+        No entries match that. <%= link_to "Clear the filters", dashboard_path(tab: tab.key, anchor: "entries"),
+                                      data: { action: "entries-filter#clear" }, class: "underline hover:text-ink" %>.
+      <% elsif tab.key == "timeline" %>
+        Nothing here yet. Commits appear after the first sync, or add a milestone above.
+      <% else %>
+        Nothing here now.
+      <% end %>
+    </p>
+  <% else %>
+    <% if tab.past_newest? %>
+      <p class="mt-3"><%= link_to "Back to the newest", dashboard_path(**entries_filter.to_params, tab: tab.key, anchor: "entries"),
+                                    data: { turbo_frame: "entries-lists", turbo_action: "advance" }, class: "os-link text-sm" %></p>
+    <% end %>
+    <div id="entries-list-<%= tab.key %>" class="mt-2.5">
+      <%= render partial: DashboardHelper::ENTRY_ROWS[tab.key], collection: tab.entries, as: :entry, locals: { tab: tab.key } %>
+    </div>
+    <%= render "dashboard/load_more", tab: tab if tab.more? %>
+  <% end %>
+  <%= render "dashboard/entry_list_total", tab: tab if tab.key == "timeline" %>
+<% end %>

@@ -1,0 +1,55 @@
+<%# A chart filter's chart (ProgressChart::Compare, as CompareChartSerializer
+    sends it): a line per project and number, in the project's colour and
+    the number's line style by its place among the numbers drawn, with its
+    gridlines, axis and any note, and a disc on the lines for what shipped
+    and was published (ProgressChart::Marks), each a link to its entry: to
+    its row in the page's What's new (lead "news"), or to the dashboard's
+    entries opened on it (lead "entries"); without a lead, a disc only marks.
+    The chart's script adds the marks at the point, the tooltip, the
+    emphasis and the keyboard. view: a ChartFilterSerializer's attributes. %>
+<% chart = view[:chart] %>
+<%# Nothing to draw and nothing to say, as for a visitor: no empty plot. %>
+<% if chart[:paths].any? || chart[:note] %>
+<div class="mt-[18px]">
+  <div class="os-chart <%= local_assigns[:height] %>">
+    <% chart[:ticks].each do |tick| %>
+      <div class="os-gridline" style="top: <%= tick[:top] %>%"></div>
+    <% end %>
+    <div class="os-axis"></div>
+    <svg viewBox="0 0 <%= ProgressChart::Compare::WIDTH %> <%= ProgressChart::Compare::HEIGHT %>" preserveAspectRatio="none" role="img" aria-label="<%= chart[:aria_label] %>">
+      <% chart[:paths].each do |path| %>
+        <% dash = ChartFilterHelper::LINE_DASHES[chart_line(view, path[:number])] %>
+        <path d="<%= path[:d] %>" class="<%= path[:color_class] %> stroke-(--project)" fill="none" stroke-width="4.5" stroke-linejoin="round"
+              stroke-linecap="round" vector-effect="non-scaling-stroke" data-number="<%= path[:number] %>"<%= %( stroke-dasharray="#{dash}").html_safe if dash %>/>
+      <% end %>
+    </svg>
+    <% chart[:ticks].each do |tick| %>
+      <% next unless tick[:value] || tick[:values].any? %>
+      <div class="os-ylab flex -translate-y-1/2 items-center gap-2.5" style="top: <%= tick[:top] %>%"><% if tick[:value] %><%= tick[:value] %><% else %>
+        <% tick[:values].each do |number| %>
+          <span class="inline-flex items-center gap-1"><%= render "charts/key", line: chart_line(view, number[:key]), css: "h-1.5 w-4" %><%= number[:label] %></span>
+        <% end %>
+      <% end %></div>
+    <% end %>
+    <div class="absolute inset-y-0 right-0 w-0.5 bg-strong" aria-hidden="true"></div>
+    <% chart[:marks].each do |mark| %>
+      <% css = "#{mark[:color_class]} absolute z-[4] -mt-[11px] -ml-[11px] inline-flex size-[22px] items-center justify-center rounded-full bg-(--project) text-(--on-project) shadow-[0_0_0_2px_var(--color-fill)]" %>
+      <% style = "left: clamp(11px, #{mark[:left]}%, calc(100% - 11px)); top: min(#{mark[:top]}%, calc(100% - 11px))" %>
+      <% id = mark[:entries].first[:id] %>
+      <% entries = (dashboard_path(**chart_params(view, default_range: Progress::Window::DEFAULT).compact, entry: id, anchor: "entry-#{id}") if current_user) %>
+      <% href = { "news" => "#entry-#{id}", "entries" => entries }[local_assigns[:lead]] %>
+      <% if href %>
+        <a href="<%= href %>" aria-label="<%= mark[:label] %>" class="<%= css %>" style="<%= style %>"><%= mark_icon(mark[:badge]) %></a>
+      <% else %>
+        <span aria-hidden="true" class="<%= css %>" style="<%= style %>"><%= mark_icon(mark[:badge]) %></span>
+      <% end %>
+    <% end %>
+  </div>
+  <div class="os-xlabs">
+    <% chart[:axis].each_with_index do |label, i| %>
+      <span class="<%= 'font-bold text-ink' if i == chart[:axis].size - 1 %>"><%= label %></span>
+    <% end %>
+  </div>
+  <% if chart[:note] %><p class="os-note mt-2"><%= chart[:note] %></p><% end %>
+</div>
+<% end %>

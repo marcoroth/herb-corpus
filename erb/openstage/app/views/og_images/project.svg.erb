@@ -1,0 +1,44 @@
+<%# One project's page, for a project without a picture of its own: its name,
+    who builds it, its status, what it is, its commits, and its line across
+    the bottom, where X's label over the bottom left corner covers only line.
+    A project past the palette has no colour: no mark, and its line in ink.
+    One whose builder hides its commits, or with none in 12 months, shows
+    neither its commits nor its line. %>
+<% card = @cards.first %>
+<% mark = share_card_color(card.rank) %>
+<% color = mark || ShareCardHelper::INK %>
+<% if mark %><rect x="64" y="84" width="30" height="30" rx="9" fill="<%= mark %>"/><% end %>
+<% name, size = share_card_fit(card.name, width: mark ? 790 : 838, sizes: [ 76, 64, 52, 44 ], font: ShareCardHelper::DISPLAY) %>
+<%= share_card_text(name, x: mark ? 112 : 64, y: 120, size: size, font: ShareCardHelper::DISPLAY, weight: 700) %>
+<%= render "og_images/wordmark", x: 1136, y: 106, size: 34, anchor: "end" %>
+
+<clipPath id="face"><circle cx="84" cy="178" r="20"/></clipPath>
+<% if @avatar %>
+  <image href="<%= share_card_image(@avatar) %>" x="64" y="158" width="40" height="40" preserveAspectRatio="xMidYMid slice" clip-path="url(#face)"/>
+<% else %>
+  <circle cx="84" cy="178" r="20" fill="<%= ShareCardHelper::INK %>"/>
+  <%= share_card_text(share_card_initials(@user), x: 84, y: 186, size: 18, font: ShareCardHelper::DISPLAY, weight: 700, fill: "#FFFFFF", anchor: "middle") %>
+<% end %>
+<% builder, _size = share_card_fit(@user.display_name, width: 460, sizes: [ 30 ]) %>
+<%= share_card_text(builder, x: 116, y: 189, size: 30, fill: ShareCardHelper::INK_2) %>
+<% tag_x = 116 + (builder.length * 30 * ShareCardHelper::LETTER[ShareCardHelper::SANS]).round + 24 %>
+<% { "Live" => card.live?, "Archived" => card.archived? }.select { |_word, shown| shown }.each_key do |word| %>
+  <% live = word == "Live" %>
+  <rect x="<%= tag_x %>" y="159" width="<%= 26 + (word.length * 14) %>" height="38" rx="19" fill="<%= live ? ShareCardHelper::ACCENT_SOFT : ShareCardHelper::FILL %>"/>
+  <%= share_card_text(word, x: tag_x + 13 + (word.length * 7), y: 187, size: 24, weight: 700, fill: live ? ShareCardHelper::ACCENT : ShareCardHelper::INK_2, anchor: "middle") %>
+  <% tag_x += 26 + (word.length * 14) + 12 %>
+<% end %>
+
+<% lines = share_card_lines(card.description, width: 1072, size: 34, lines: 2) %>
+<% lines.each_with_index do |line, i| %>
+  <%= share_card_text(line, x: 64, y: 256 + (i * 44), size: 34, fill: ShareCardHelper::INK_2) %>
+<% end %>
+<% if card.commits_drawn? %>
+  <text x="64" y="<%= lines.any? ? 256 + (lines.size * 44) + 30 : 270 %>" font-family="<%= ShareCardHelper::SANS %>" font-size="28" fill="<%= ShareCardHelper::INK_3 %>"><tspan font-family="<%= ShareCardHelper::DISPLAY %>" font-weight="700" font-size="52" fill="<%= ShareCardHelper::INK %>"><%= card.commits %></tspan>  <%= card.commits == 1 ? "commit" : "commits" %> in 12 months<% if card.last_commit %> · last commit <%= progress_ago(card.last_commit) %><% end %></text>
+
+  <% line, area = progress_sparkline(card.weeks, width: 1200, height: 206) %>
+  <g transform="translate(0 420)">
+    <path d="<%= area %>" fill="<%= color %>" fill-opacity="0.16"/>
+    <path d="<%= line %>" fill="none" stroke="<%= color %>" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+<% end %>

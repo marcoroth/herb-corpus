@@ -9,8 +9,8 @@ Every application is pinned to an exact commit, so results are reproducible acro
 
 | Corpus | |
 | --- | --- |
-| Applications and engines | **362** |
-| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,030** from 297 apps |
+| Applications and engines | **363** |
+| `.erb`, `.rhtml` and `.herb` files in `erb/` | **42,163** from 298 apps |
 | Size of `erb/` | ~66 MB |
 | Excluded pending license review | 65 apps |
 
@@ -217,7 +217,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### Herb
 
-**149 of 362** applications use Herb: `herb` 97, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 112, `.herb/` 1.
+**149 of 363** applications use Herb: `herb` 97, `@herb-tools/linter` 60, `@herb-tools/formatter` 36, `.herb.yml` 112, `.herb/` 1.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -678,7 +678,7 @@ cannot make a comparison silently measure the same Herb twice.
 
 ### ReActionView
 
-**30 of 362** applications use ReActionView: `reactionview` 30.
+**30 of 363** applications use ReActionView: `reactionview` 30.
 
 | App | Component | Version | Dependency | Adopted |
 | --- | --- | --- | --- | --- |
@@ -811,7 +811,7 @@ the commit that removed it.
 
 ### erb_lint
 
-**39 of 362** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
+**39 of 363** applications use `erb_lint` directly. 7 dropped it and now use Herb, and 22 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -918,7 +918,7 @@ the commit that removed it.
 
 ### better_html
 
-**9 of 362** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
+**9 of 363** applications use `better_html` directly. 4 dropped it and now use Herb, and 6 run both.
 
 > History could not be searched in 97 repositories, so the dropped and migrated counts are lower bounds.
 
@@ -959,7 +959,7 @@ the commit that removed it.
 
 ### erb-formatter
 
-**5 of 362** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
+**5 of 363** applications use `erb-formatter` directly. 6 dropped it and now use Herb, and 4 run both.
 
 > History could not be searched in 94 repositories, so the dropped and migrated counts are lower bounds.
 

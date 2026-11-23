@@ -1,0 +1,51 @@
+<%# The latest commits as the GitHub sync wrote them, one row per project and
+    day. Never ranked, never rewritten. by_project: false on a project's own
+    page, where every row is the same project. repo: that project's
+    GithubRepo there, whose commits on GitHub the last link opens; a private
+    repo, or none, has none to open, so the link goes. On the stage it opens
+    the builder's GitHub profile. %>
+<% github = if local_assigns.key?(:repo)
+              url = local_assigns[:repo]&.outbound_url("github")
+              "#{url}/commits" if url
+            else
+              "https://github.com/#{user.github_username}"
+            end %>
+<section class="os-panel" aria-labelledby="recent-commits">
+  <div class="os-between">
+    <h2 id="recent-commits" class="os-h2">Recent commits</h2>
+    <span class="os-xs os-muted">From the GitHub sync, as written</span>
+  </div>
+  <div class="mt-2.5">
+    <% groups.each do |group| %>
+      <div class="os-row flex flex-wrap gap-x-[18px] gap-y-1 py-3.5">
+        <% if local_assigns.fetch(:by_project, true) %>
+          <div class="min-w-0 flex-[0_0_190px]">
+            <div class="flex items-center gap-2 font-bold">
+              <% if (color = project_class(group.project.rank)) %><span class="os-dot <%= color %> bg-(--project)"></span><% end %><%= group.project.name %>
+            </div>
+            <div class="os-xs os-muted"><%= group.date.strftime("%b %-d") %> · <%= pluralize(group.commits.size, "commit") %></div>
+          </div>
+        <% else %>
+          <div class="min-w-0 flex-[0_0_120px]">
+            <div class="font-bold"><%= group.date.strftime("%b %-d") %></div>
+            <div class="os-xs os-muted"><%= pluralize(group.commits.size, "commit") %></div>
+          </div>
+        <% end %>
+        <div class="min-w-0 flex-[1_1_320px]">
+          <% group.commits.first(3).each do |commit| %>
+            <div id="<%= "entry-#{commit.id}" unless commit == local_assigns[:linked] %>" class="text-[15px]/[1.6]">
+              <%= commit.title %><% if commit.branch.present? %> <span class="os-xs os-muted">on <%= commit.branch %></span><% end %>
+            </div>
+          <% end %>
+          <% if group.commits.size > 3 %>
+            <div class="os-xs os-muted">and <%= group.commits.size - 3 %> more</div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <p class="os-note border-t border-line pt-3">
+    Merges and dependency updates stay hidden.
+    <% if github %><a href="<%= github %>" target="_blank" rel="noopener" class="underline hover:text-ink">All commits on GitHub</a><% end %>
+  </p>
+</section>

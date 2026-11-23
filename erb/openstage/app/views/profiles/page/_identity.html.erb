@@ -1,0 +1,59 @@
+<%# Who, with the subscribe box beside it for visitors. Never a count of
+    subscribers. %>
+<div class="os-between items-start">
+  <div class="flex min-w-0 flex-[1_1_480px] items-center gap-4">
+    <img src="<%= user.avatar_url %>" alt="<%= user.display_name %>" class="os-avatar size-18">
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <h1 class="os-h2 text-[30px]"><%= user.display_name %></h1>
+        <% if user.pro? %><span class="os-tag pro">✦ Pro</span><% end %>
+        <span class="os-sm os-muted">@<%= user.username %></span>
+      </div>
+      <% if user.bio.present? %>
+        <p class="os-p mt-1"><%= user.bio %></p>
+      <% end %>
+      <p class="os-xs os-muted mt-1.5 flex flex-wrap gap-x-1.5 gap-y-1">
+        <% facts = [] %>
+        <% facts << link_to(safe_join([ brand_icon(:github), tag.span("GitHub ", class: "sr-only"), user.github_username ]), "https://github.com/#{user.github_username}",
+                            target: "_blank", rel: "noopener", class: "inline-flex items-center gap-1 underline hover:text-ink") %>
+        <% if (handle = user.public_x_username) %>
+          <% facts << link_to(safe_join([ brand_icon(:x), tag.span("X ", class: "sr-only"), "@#{handle}" ]), "https://x.com/#{handle}",
+                              target: "_blank", rel: "noopener", class: "inline-flex items-center gap-1 underline hover:text-ink") %>
+        <% end %>
+        <% if (email = user.public_email) %>
+          <% facts << mail_to(email, safe_join([ email_icon, tag.span("Email ", class: "sr-only"), email ]), class: "inline-flex items-center gap-1 underline hover:text-ink") %>
+        <% end %>
+        <% if (website = safe_external_url(user.website_url)) %>
+          <% facts << link_to(website.gsub(%r{\Ahttps?://}, ""), website, target: "_blank", rel: "ugc nofollow noopener", class: "underline hover:text-ink") %>
+        <% end %>
+        <% facts << "Building since #{user.building_since.strftime('%B %Y')}" if user.building_since.present? %>
+        <% facts.concat(progress_counts(entries: @total_entries, projects: @projects, milestones: @milestones)) %>
+        <% facts << "#{@streak}-day streak" if @streak.positive? %>
+        <% facts.each do |fact| %><span><%= fact %></span><span aria-hidden="true">·</span><% end %>
+        <span class="inline-flex gap-1.5" data-controller="share"
+              data-share-url-value="<%= profile_url(user.username) %>"
+              data-share-title-value="<%= user.display_name %>'s proof-of-work stage">
+          <button type="button" data-action="share#share" data-share-target="button" data-share-button
+                  class="cursor-pointer underline hover:text-ink">Share</button>
+          <span aria-hidden="true">·</span>
+          <a href="<%= profile_url(user.username, format: :rss) %>" title="RSS feed" data-rss-link class="underline hover:text-ink">RSS</a>
+        </span>
+      </p>
+    </div>
+  </div>
+
+  <% unless current_user == user %>
+    <div class="min-w-0 flex-[0_1_380px]" data-subscribe-box>
+      <%= form_with url: profile_subscribe_path(user.username), method: :post, data: { turbo_frame: "_top" } do |f| %>
+        <label for="subscribe-email" class="mb-2 block text-[15px] font-semibold">Get <%= user.display_name %>'s updates by email</label>
+        <div class="flex gap-2">
+          <%= f.email_field :email, id: "subscribe-email", placeholder: "you@example.com", required: true, autocomplete: "email", class: "os-field" %>
+          <%# Honeypot: hidden from people, filled by scripts. %>
+          <div class="hidden" aria-hidden="true"><%= f.text_field :website, tabindex: -1, autocomplete: "off" %></div>
+          <%= f.submit "Subscribe", class: "os-btn" %>
+        </div>
+      <% end %>
+      <p class="os-note mt-2">Double opt-in, one-click unsubscribe. Your address goes to <%= user.display_name %>, not to a list of ours.</p>
+    </div>
+  <% end %>
+</div>

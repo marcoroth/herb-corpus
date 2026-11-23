@@ -1,0 +1,50 @@
+<%# The chart of a window (ProgressChart::Trend), as the landing shows a
+    real page: one line per project, in its colour, and a tooltip per point. %>
+<div data-controller="chart-tooltip">
+  <div class="os-chart <%= local_assigns[:height] %>" data-action="mouseleave->chart-tooltip#hide">
+    <% chart.ticks.each do |tick| %>
+      <div class="os-gridline" style="top: <%= tick.top %>%"></div>
+    <% end %>
+    <div class="os-axis"></div>
+    <svg viewBox="0 0 <%= ProgressChart::Trend::WIDTH %> <%= ProgressChart::Trend::HEIGHT %>" preserveAspectRatio="none" role="img" aria-label="<%= chart.aria_label %>">
+      <% chart.paths.each do |d, rank| %>
+        <path d="<%= d %>" class="<%= project_class(rank) %> stroke-(--project)" fill="none" stroke-width="4.5"
+              stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+      <% end %>
+    </svg>
+    <% chart.ticks.each do |tick| %>
+      <div class="os-ylab -translate-y-1/2" style="top: <%= tick.top %>%"><%= tick.value %></div>
+    <% end %>
+    <div class="absolute inset-y-0 right-0 w-0.5 bg-strong" aria-hidden="true"></div>
+
+    <% chart.columns.each_with_index do |column, i| %>
+      <div class="group absolute inset-y-0 z-[2]" style="left: <%= column.left %>%; width: <%= column.width %>%"
+           data-action="mouseenter->chart-tooltip#show mousemove->chart-tooltip#move" data-chart-tooltip-template-param="trend-tip-<%= i %>">
+        <div class="absolute inset-y-0 w-px bg-ink-3 opacity-0 group-hover:opacity-100" style="left: <%= column.mark %>%"></div>
+      </div>
+    <% end %>
+
+    <div data-chart-tooltip-target="tooltip" class="pointer-events-none absolute z-[5] hidden w-[220px] rounded-[10px] bg-ink px-3 py-2.5 text-xs/snug text-ground shadow-lg"></div>
+    <% chart.columns.each_with_index do |column, i| %>
+      <template id="trend-tip-<%= i %>">
+        <div class="opacity-70"><%= column.title %><%= " · 7-day average" if chart.average? %></div>
+        <% if column.rows.empty? %><div class="mt-1"><%= chart.none %></div><% end %>
+        <% column.rows.each do |row| %>
+          <div class="mt-1 flex items-center gap-2">
+            <span class="<%= project_class(row.rank) %> h-1 w-3 rounded-sm <%= row.rank.nil? ? 'bg-ground' : 'bg-(--project)' %>"></span>
+            <span class="flex-1"><%= row.name %></span>
+            <span class="font-semibold tabular-nums"><%= row.value %></span>
+          </div>
+        <% end %>
+      </template>
+    <% end %>
+  </div>
+  <div class="os-xlabs">
+    <% chart.axis.each_with_index do |label, i| %>
+      <span class="<%= 'font-bold text-ink' if i == chart.axis.size - 1 %>"><%= label %></span>
+    <% end %>
+  </div>
+  <p class="os-note mt-2">
+    <%= chart.lines.any? ? chart.note : chart.empty_note %>
+  </p>
+</div>

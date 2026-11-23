@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title><%= page_title %></title>
+    <meta name="description" content="<%= meta_description %>">
+    <link rel="canonical" href="<%= canonical_url %>">
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0E0F12" media="(prefers-color-scheme: dark)">
+
+    <%# Icons %>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <%# Open Graph %>
+    <meta property="og:site_name" content="Openstage">
+    <meta property="og:type" content="<%= og_type %>">
+    <meta property="og:title" content="<%= page_title %>">
+    <meta property="og:description" content="<%= meta_description %>">
+    <meta property="og:url" content="<%= canonical_url %>">
+    <meta property="og:image" content="<%= og_image_for_page %>">
+
+    <%# Twitter %>
+    <meta name="twitter:card" content="<%= twitter_card %>">
+    <meta name="twitter:creator" content="@tux404">
+    <meta name="twitter:title" content="<%= page_title %>">
+    <meta name="twitter:description" content="<%= meta_description %>">
+    <meta name="twitter:image" content="<%= og_image_for_page %>">
+
+    <%# Site-wide structured data (Organization + WebSite) %>
+    <script type="application/ld+json"><%= site_structured_data.to_json.html_safe %></script>
+
+    <%= yield :head %>
+    <% if ENV["GOOGLE_SITE_VERIFICATION"].present? %>
+      <meta name="google-site-verification" content="<%= ENV["GOOGLE_SITE_VERIFICATION"] %>" />
+    <% end %>
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%# Turbo would load a link's page as the pointer rests on it: a full
+        render, queries and all, for a page often never opened. So none. A
+        preload no longer counts a view, as views count in the browser
+        (CountsPageViews). %>
+    <meta name="turbo-prefetch" content="false">
+    <%= preload_link_tag "funnel-sans-latin.woff2" %>
+    <%= preload_link_tag "funnel-display-latin.woff2" %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+    <%# Turbo runs every script again when it draws an error page, such as a
+        claim page's 404, and a counter loaded twice counts every view after
+        it twice. data-turbo-eval="false" keeps the first one; a page load
+        ignores it. %>
+    <% if ENV["UMAMI_WEBSITE_ID"].present? %>
+      <script defer src="https://cloud.umami.is/script.js" data-website-id="<%= ENV["UMAMI_WEBSITE_ID"] %>" data-turbo-eval="false"></script>
+    <% end %>
+    <% if (token = own_visits_token) %>
+      <script defer src="/v.js" data-project="<%= token %>" data-turbo-eval="false"></script>
+    <% end %>
+  </head>
+
+  <body class="antialiased" <%= tag.attributes(data: { theme: color_theme }) %>>
+    <% unless content_for?(:minimal_page) %>
+      <%= render "layouts/header" %>
+      <%= render "layouts/flash" %>
+    <% end %>
+
+    <main class="<%= content_for(:main_class) || "max-w-5xl mx-auto px-4 py-8" %>">
+      <%= yield %>
+    </main>
+
+    <% unless content_for?(:minimal_page) %>
+      <%= render "layouts/footer" %>
+      <%= tag.div(hidden: true, data: { controller: "zone", zone_url_value: settings_zone_path }) if user_signed_in? && current_user.time_zone.blank? %>
+    <% end %>
+  </body>
+</html>

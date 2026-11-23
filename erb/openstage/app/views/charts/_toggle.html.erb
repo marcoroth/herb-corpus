@@ -1,0 +1,35 @@
+<%# A number above the chart: its line while drawn (a plus when not), its
+    name, its total for the rows in view and a thin bar of how that splits
+    across them, in their colours, a share left empty for a row with none;
+    on the dashboard and analytics also its change. It links to the view it
+    switches to; the last number drawn stays drawn, and three is the most
+    (full).
+    number: one of a ChartFilterSerializer's numbers; view, path_for and
+    changes as charts/toggles has them. %>
+<% drawn = view[:drawn].include?(number[:key]) %>
+<% after = chart_show_toggled(view, number[:key]) %>
+<% css = "relative inline-flex h-11 items-center gap-[7px] whitespace-nowrap rounded-control border-[1.5px] px-[13px] max-md:gap-1.5 max-md:px-[11px] " +
+         (drawn ? "border-ink bg-surface text-ink" : full ? "border-dashed border-line text-ink-3" : "border-line text-ink-2 hover:border-ink-3") %>
+<% inside = capture do %>
+  <% if drawn %>
+    <%= render "charts/key", line: chart_line(view, number[:key]) %>
+  <% else %>
+    <span class="w-3 text-center font-bold text-ink-3" aria-hidden="true">+</span>
+  <% end %>
+  <span class="text-[13px] font-bold"><%= number[:label] %></span>
+  <span class="os-num text-base tracking-[-.02em]"><%= number[:value] %></span>
+  <% if changes && number[:change] %>
+    <span class="text-[11px] font-bold text-ink-2 max-md:hidden"><%= render "charts/change", change: number[:change] %></span>
+  <% end %>
+  <span class="absolute inset-x-3 bottom-[5px] flex h-[3px] gap-0.5 <%= 'opacity-45' unless drawn %>" aria-hidden="true">
+    <% number[:split].each do |part| %>
+      <span class="min-w-[3px] rounded-[2px] <%= "#{part[:color_class]} bg-(--project)" if part[:color_class] %>" style="flex: <%= part[:value] %> 1 0"></span>
+    <% end %>
+  </span>
+<% end %>
+<% if after %>
+  <%= link_to inside, path_for.call(show: after), class: css, aria: { current: ("true" if drawn) } %>
+<% else %>
+  <%= tag.span inside, class: css, role: "link", aria: { disabled: "true", current: ("true" if drawn) },
+                title: drawn ? "The chart keeps at least one number." : "Switch a number off first" %>
+<% end %>

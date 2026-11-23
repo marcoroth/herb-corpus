@@ -1,0 +1,23 @@
+<%# What a click on a row changed in the Entries section, and nothing else,
+    so the page keeps its place and the field its focus: the tabs and their
+    counts; in the list the click came from, the row redrawn, or gone once
+    it no longer belongs there; the other lists, which it may have joined or
+    left, redrawn whole. A refused click redraws its row saying why. %>
+<% if @alert %>
+  <%= turbo_stream.replace entry_row_id(@entry, @from), partial: DashboardHelper::ENTRY_ROWS[@from], locals: { entry: @entry, tab: @from, alert: @alert } %>
+<% else %>
+  <%= turbo_stream.replace "entries-tabs", partial: "dashboard/entry_tabs", locals: { tabs: @entry_tabs, active: entry_tab_active(@entry_tabs) } %>
+  <% @entry_tabs.each do |tab| %>
+    <% if tab.key != @from || tab.entries.empty? %>
+      <%= turbo_stream.replace "entries-#{tab.key}", partial: "dashboard/entry_list", locals: { tab: tab } %>
+    <% else %>
+      <% if @stays %>
+        <%= turbo_stream.replace entry_row_id(@entry, tab.key), partial: DashboardHelper::ENTRY_ROWS[tab.key], locals: { entry: @entry, tab: tab.key } %>
+      <% else %>
+        <%= turbo_stream.remove entry_row_id(@entry, tab.key) %>
+      <% end %>
+      <%= turbo_stream.replace "entries-count-#{tab.key}", partial: "dashboard/entry_list_count", locals: { tab: tab } %>
+      <%= turbo_stream.replace "entries-total-timeline", partial: "dashboard/entry_list_total", locals: { tab: tab } if tab.key == "timeline" %>
+    <% end %>
+  <% end %>
+<% end %>

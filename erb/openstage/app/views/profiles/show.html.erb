@@ -1,0 +1,94 @@
+<% content_for :title do %><%= @user.display_name %> (@<%= @user.username %>) — Openstage<% end %>
+<% counts = progress_counts(entries: @total_entries, projects: @projects, milestones: @milestones) %>
+<% content_for :meta_description do %><%= @user.bio.presence || "#{@user.display_name} is building in public on Openstage#{" — #{counts.join(', ')}" if counts.any?}." %><% end %>
+<% content_for :canonical, profile_url(@user.username) %>
+<% content_for :og_type, "profile" %>
+<% content_for :og_image, share_card(og_builder_url(@user.username)) %>
+<% content_for :main_class, "os-wrap pt-1.5" %>
+<% if @empty %>
+  <% content_for :head do %><meta name="robots" content="noindex"><% end %>
+<% end %>
+
+<% content_for :head do %>
+  <link rel="alternate" type="application/rss+xml" title="<%= @user.display_name %> on Openstage" href="<%= profile_url(@user.username, format: :rss) %>">
+  <script type="application/ld+json">
+    <%= {
+      "@context" => "https://schema.org",
+      "@type"    => "Person",
+      "name"     => @user.display_name,
+      "url"      => profile_url(@user.username),
+      "image"    => @user.avatar_url,
+      "description" => @user.bio.presence,
+      "sameAs"   => [
+        "https://github.com/#{@user.github_username}",
+        ("https://x.com/#{@user.public_x_username}" if @user.public_x_username),
+        safe_external_url(@user.website_url)
+      ].compact
+    }.compact.to_json.html_safe %>
+  </script>
+<% end %>
+
+<%= render "application/page_view", ticket: @view_ticket %>
+
+<% if @syncing %>
+  <meta http-equiv="refresh" content="10">
+  <div class="os-card mb-4 flex items-center gap-3" data-syncing>
+    <svg class="size-4 shrink-0 animate-spin text-ink-3" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+    </svg>
+    <div>
+      <p class="os-sm font-semibold">Still syncing your history.</p>
+      <p class="os-xs os-muted">Your last year of commits is on its way. This page refreshes on its own.</p>
+    </div>
+  </div>
+<% end %>
+
+<%# The chart's numbers, window and projects change in the page's script
+    (react_island); the frame redraws the page in place for its own links.
+    The owner's tag panel is on their dashboard, never here. entry-link: an
+    old link to an entry the page does not show asks for it again with
+    ?entry=. %>
+<div data-controller="entry-link">
+<%= turbo_frame_tag "profile", data: { turbo_action: "advance" } do %>
+  <div class="os-stack">
+    <% if @linked %>
+      <%= render "profiles/page/linked", user: @user, entry: @linked %>
+    <% end %>
+    <section class="os-panel" aria-label="Profile">
+      <%= render "profiles/page/identity", user: @user %>
+      <% if @empty %>
+        <%= render "profiles/page/empty", user: @user %>
+      <% elsif (chart = @page&.chart) %>
+        <% serializer = ProgressViewSerializer.new(chart, linked_id: @linked&.id) %>
+        <% view = serializer.attributes %>
+        <% step = chart_step(@user, view) %>
+        <%= react_island("progress", { initial: serializer.as_json, endpoint: api_progress_path(@user.username), mode: "page", step: step,
+                                       defaultRange: Progress::Window::DEFAULT, shippedTarget: "whats-new-panel" }, id: "progress", class: "mt-[30px]") do %>
+          <%= render "charts/filter", view: view, mode: "page", step: step,
+                     path_for: ->(changes) { progress_view_path(@user, **chart_params(view, default_range: Progress::Window::DEFAULT, **changes)) } %>
+        <% end %>
+      <% end %>
+    </section>
+
+    <% if @page %>
+      <%= render "profiles/page/projects", user: @user, cards: @page.cards, list: @page.list if @page.cards.any? %>
+      <%# What shipped leads; the commits behind it follow, as on a project's page. %>
+      <%= render "profiles/page/whats_new", section: @page.section, linked: @linked unless @empty %>
+      <%= render "profiles/page/recent", user: @user, groups: @page.recent, linked: @linked if @page.recent.any? %>
+    <% end %>
+
+    <footer class="os-stack">
+      <% if invites_to_make_own?(@user) %>
+        <%# Every circulating profile link is an ad. The visitor's next action is
+            their own stage: the header's button, straight to GitHub's sign-in,
+            tagged footer for /admin. Pro removes this; it never paywalls it. %>
+        <%= render "layouts/invite", title: "Want a stage like this?", about: "It fills itself from GitHub.", ref: "footer" %>
+      <% end %>
+      <p class="os-sm text-center">
+        <%= link_to "Explore other builders", feed_path, class: "os-muted hover:text-ink", data: { turbo_frame: "_top" } %>
+      </p>
+    </footer>
+  </div>
+<% end %>
+</div>

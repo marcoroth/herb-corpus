@@ -1,0 +1,20 @@
+<%# The builder's own chart, as their visitors see it, over the table of
+    their projects where they pick what visitors see, the ones with a colour
+    alone, and the list of the rest, as on the stage, and whether GitHub's
+    sync is up to date. The numbers, the window and the boxes switch in the
+    page's script. chart: the dashboard's Progress::ChartService. %>
+<% serializer = ProgressViewSerializer.new(chart) %>
+<% view = serializer.attributes %>
+<% kept = request.query_parameters.except("page", *ProgressHelper::PROGRESS_PARAMS.map(&:to_s), *Progress::Filter::DAYS_PARAMS) %>
+<% path_for = ->(changes) { dashboard_path(kept.merge(chart_params(view, default_range: Progress::Window::DEFAULT, **changes)).compact) } %>
+<% step = chart_step(current_user, view) %>
+<section class="os-panel" aria-labelledby="your-activity">
+  <%= react_island("progress", { initial: serializer.as_json, endpoint: api_progress_path(current_user.username, dashboard: 1), step: step,
+                                 mode: "dashboard", defaultRange: Progress::Window::DEFAULT }, id: "activity-chart") do %>
+    <%= render "charts/filter", view: view, mode: "dashboard", path_for: path_for, step: step,
+               back: chart_params(view, default_range: Progress::Window::DEFAULT).compact %>
+  <% end %>
+  <%= render "profiles/page/more_projects", list: @list, user: current_user, manage: true if @list && (@list.count + @list.hidden_count).positive? %>
+  <%= render "dashboard/untagged", **@untagged, back: chart_params(view, default_range: Progress::Window::DEFAULT).compact %>
+  <div class="mt-4 border-t border-line pt-3"><%= render "dashboard/sync" %></div>
+</section>

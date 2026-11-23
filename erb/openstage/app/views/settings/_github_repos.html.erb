@@ -1,0 +1,45 @@
+<%# The GitHub repos section of Settings. The page renders it from the database
+    with a lazy src; once the Integrations tab shows it, GithubReposController
+    checks GitHub and renders it again, so private repos picked or removed on
+    GitHub show at once. refresh-frame reloads it when the page comes back into
+    view. Links inside leave the frame (target _top). %>
+<%= turbo_frame_tag "github_repos", src: (github_repos_path if refresh), loading: (:lazy if refresh), target: "_top",
+                    data: { controller: ("refresh-frame" if refresh) } do %>
+  <section class="os-panel" aria-labelledby="github-repos">
+    <div class="os-between">
+      <h2 id="github-repos" class="os-h3">GitHub repos</h2>
+      <% if last_github_sync %>
+        <span class="os-xs os-muted">Synced <%= time_ago_in_words(last_github_sync) %> ago</span>
+      <% end %>
+    </div>
+    <% if note %>
+      <p role="status" class="os-xs mt-2 font-semibold text-warn"><%= note %></p>
+    <% end %>
+
+    <% if github_repos.any? %>
+      <p class="os-sm os-muted mt-1.5 mb-1">Excluded repos won't contribute commits to your stage.</p>
+      <%# The first few, and the rest a click away, so the sections below stay in reach. %>
+      <% shown = 5 %>
+      <div data-controller="toggle">
+        <% github_repos.first(shown).each do |repo| %>
+          <%= render "github_repos/repo", repo: repo %>
+        <% end %>
+        <% if github_repos.size > shown %>
+          <div data-toggle-target="content" class="hidden">
+            <% github_repos.drop(shown).each do |repo| %>
+              <%= render "github_repos/repo", repo: repo %>
+            <% end %>
+          </div>
+          <button type="button" class="os-link mt-2.5 text-[13px]" aria-expanded="false" data-toggle-target="trigger" data-action="toggle#toggle">
+            <span data-toggle-target="openIcon">Show all <%= github_repos.size %> repos</span><span data-toggle-target="closeIcon" class="hidden">Show fewer</span>
+          </button>
+        <% end %>
+      </div>
+      <p class="os-sm os-muted mt-3">Private repos are excluded by default. Including one publishes its commit messages and releases on your profile, so your build is public while your code stays private. Commit and release links are never shown for private repos.</p>
+    <% end %>
+
+    <%# Private repos: sign-in asks only for user:email, so GitHub never lists
+        them until the user connects them here. %>
+    <%= render "settings/private_repos", github_app: github_app, repo_scope: repo_scope %>
+  </section>
+<% end %>

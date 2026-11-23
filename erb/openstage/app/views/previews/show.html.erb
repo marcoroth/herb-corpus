@@ -1,0 +1,107 @@
+<%= render "previews/meta", login: @preview.login %>
+<% content_for :main_class, "os-wrap pt-1.5" %>
+
+<%# The claim bar needs something to scroll through between the projects
+    and the page's last card, so it comes with Recent commits alone. %>
+<% groups = @preview.recent %>
+<%= tag.div class: "os-stack", data: { controller: ("claim-bar" if groups.any?) } do %>
+  <%# The page speaks to the login's owner, who typed it or was sent it. What
+      the sign-in asks sits under its button: centred there on a wide
+      screen, where the words beside it line up with the button, and on the
+      left with everything else once the button drops under them. %>
+  <section class="os-panel flex flex-wrap items-start justify-between gap-x-6 gap-y-3.5" aria-labelledby="claim" data-preview-claim>
+    <div class="min-w-0 md:pt-[3px]">
+      <h2 id="claim" class="os-h3 [overflow-wrap:anywhere]">@<%= @preview.login %>, this is your stage.</h2>
+      <p class="os-sm os-muted mt-0.5">Claim it and it stays live and updates as you push.</p>
+    </div>
+    <div class="flex flex-col items-start md:items-center">
+      <%= render "previews/claim" %>
+      <p class="os-note mt-1.5 max-w-[270px] text-balance md:text-center">Free. Sign-in asks only for your email. Never posts to your X or other accounts.</p>
+    </div>
+  </section>
+
+  <section class="os-panel" aria-label="Profile">
+    <div class="flex min-w-0 items-center gap-4">
+      <img src="<%= @preview.avatar_url %>" alt="<%= @preview.display_name %>" class="os-avatar size-18">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <h1 class="os-h2 text-[30px]"><%= @preview.display_name %></h1>
+          <span class="os-sm os-muted">@<%= @preview.login %></span>
+        </div>
+        <% if @preview.bio %>
+          <p class="os-p mt-1"><%= @preview.bio %></p>
+        <% end %>
+        <p class="os-xs os-muted mt-1.5 flex flex-wrap gap-x-1.5 gap-y-1">
+          <% facts = [ link_to(safe_join([ brand_icon(:github), tag.span("GitHub ", class: "sr-only"), @preview.login ]), "https://github.com/#{@preview.login}",
+                               target: "_blank", rel: "noopener", class: "inline-flex items-center gap-1 underline hover:text-ink") ] %>
+          <% if (website = safe_external_url(@preview.website)) %>
+            <% facts << link_to(website.gsub(%r{\Ahttps?://}, ""), website, target: "_blank", rel: "ugc nofollow noopener", class: "underline hover:text-ink") %>
+          <% end %>
+          <% facts << pluralize(@preview.projects.size, "project") if @preview.projects.any? %>
+          <% facts.each_with_index do |fact, i| %><% if i.positive? %><span aria-hidden="true">·</span><% end %><span><%= fact %></span><% end %>
+        </p>
+      </div>
+    </div>
+
+    <% if @preview.empty? %>
+      <%# The stage would be as empty, so it says what fills it: the private
+          work GitHub counts, when they share that count, else their next
+          pushes; their public repos follow (previews/_quiet_repos). %>
+      <div class="mt-8 border-t border-line py-12 text-center">
+        <p class="os-h3">No public commits in the last 12 months</p>
+        <p class="os-sm os-muted mt-1">
+          <% if @preview.private_contributions.positive? %>
+            GitHub counts <%= number_with_delimiter(@preview.private_contributions) %> private contributions in that time. Add those repos once it's yours, and their commits show here.
+          <% else %>
+            Once it's yours, it fills as you push. Private repos can join it too.
+          <% end %>
+        </p>
+      </div>
+    <% else %>
+      <% section = @preview.section %>
+      <div class="mt-[30px] flex flex-wrap items-baseline gap-2.5">
+        <span class="os-num text-[52px] leading-none"><%= number_with_delimiter(@preview.commits) %></span>
+        <span class="os-sm os-ink2">commits, <%= section.labels.words %></span>
+      </div>
+      <div class="os-sharebar mt-3" role="img" aria-label="Share of commits by project">
+        <%# A part per project with a colour, and one for the rest together, so
+            dozens of small projects never crowd it out on a phone. %>
+        <% @preview.cards.each do |card| %>
+          <div class="min-w-1.5 <%= project_class(card.rank) %> bg-(--project)" style="flex: <%= card.project.commits %> 1 0" title="<%= card.name %>: <%= pluralize(card.project.commits, 'commit') %>"></div>
+        <% end %>
+        <% if (others = @preview.rest.sum(&:commits)).positive? %>
+          <div class="min-w-1.5" style="flex: <%= others %> 1 0" title="<%= pluralize(@preview.rest.size, 'other project') %>: <%= pluralize(others, 'commit') %>"></div>
+        <% end %>
+      </div>
+      <div class="mt-5">
+        <%= render "profiles/page/chart", section: section, chart: ProgressChart::Trend.new(section), height: "h-[240px]" %>
+      </div>
+    <% end %>
+  </section>
+
+  <% if @preview.empty? && @preview.quiet_repos.any? %>
+    <%= render "previews/quiet_repos", repos: @preview.quiet_repos %>
+  <% end %>
+  <% if @preview.cards.any? %>
+    <%= render "previews/projects", preview: @preview %>
+  <% end %>
+  <% if groups.any? %>
+    <%= render "previews/recent", preview: @preview, groups: groups %>
+  <% end %>
+
+  <%# Its end repeats the claim for whoever read this far; with no public
+      commits there is nothing to keep current, and the top's button is
+      a glance away. %>
+  <% unless @preview.empty? %>
+    <section class="os-panel flex flex-wrap items-center justify-between gap-x-6 gap-y-3.5" aria-labelledby="claim-end" data-claim-bar-target="end">
+      <div class="min-w-0">
+        <h2 id="claim-end" class="os-h3">Claim it and it keeps itself current.</h2>
+        <p class="os-sm os-muted mt-0.5">A page per project, private repos if you add them, synced every 2 hours.</p>
+      </div>
+      <%= render "previews/claim" %>
+    </section>
+  <% end %>
+  <% if groups.any? %>
+    <%= render "previews/bar" %>
+  <% end %>
+<% end %>

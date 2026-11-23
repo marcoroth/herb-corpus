@@ -1,0 +1,26 @@
+<%# The week at a glance, in one band: what the commits and the updates say.
+    A quiet week points at the box right below instead of nagging. %>
+<section class="os-panel py-4" <%= "data-recap-prompt" if @recap_prompt %>>
+  <div class="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+    <h2 class="os-h3 shrink-0">This week</h2>
+    <p class="os-sm min-w-0 flex-1 text-ink">
+      <% if @recap_prompt %>
+        <% by_repo = @recap_prompt.candidates_by_repo.transform_values(&:size).sort_by { |repo, n| [ -n, repo.to_s ] } %>
+        <% commits = by_repo.sum(&:last) %>
+        <% updates = @recap_prompt.highlights.size %>
+        <% if commits.positive? %>You shipped <b><%= pluralize(commits, "commit") %></b> <%= by_repo.size == 1 ? "in #{by_repo.first.first}" : "across #{by_repo.size} repos" %>.<% end %>
+        <%= updates.positive? ? "You logged #{pluralize(updates, 'update')}." : "You logged no updates yet." %>
+      <% else %>
+        Quiet week so far. An update, logged below, tells visitors what the commits don't.
+      <% end %>
+    </p>
+    <% if @streak > 0 %>
+      <span class="os-xs os-muted"><%= @streak %>-day streak<% unless @logged_today %> · <span class="font-semibold text-warn">log something today to keep it</span><% end %></span>
+    <% end %>
+  </div>
+  <% if @recap_prompt && commits.positive? %>
+    <% projects = section&.tally&.projects&.all || [] %>
+    <% shares = by_repo.map { |repo, n| [ repo, projects.find { |project| project.name == repo }&.rank, n ] } %>
+    <%= render "profiles/page/sharebar", shares: shares, label: "Commits this week by repo", css: "mt-3" %>
+  <% end %>
+</section>

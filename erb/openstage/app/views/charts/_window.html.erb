@@ -1,0 +1,34 @@
+<%# The window, at the top right of what it scopes, the same on every chart
+    page: four ranges, each a link to its view, and Pick dates, the days the
+    builder picks, which names them while they are on screen. Without the
+    script, Pick dates opens a form of two dates that asks for the same page with
+    them as from and to, its other params kept; the script draws a calendar
+    in its place (filter/WindowPills). Pick dates is its icon alone until days
+    are picked, its name left to screen readers; on a phone, it then takes a
+    row of its own, so their dates stay whole. view: a ChartFilterSerializer's
+    attributes; path_for: the page's address for some params changed; css: the
+    pills' place in their row. %>
+<% calendar = view[:calendar] %>
+<% picked = calendar[:picked] %>
+<% action, kept = chart_form_target(path_for.call(range: nil)) %>
+<div class="os-pills <%= local_assigns[:css] %>" role="group" aria-label="Time range">
+  <% ProgressHelper::RANGES.each do |range, label| %>
+    <%= link_to label, path_for.call(range: range), class: "os-pill max-md:px-2", aria: { current: ("page" if view[:range] == range) } %>
+  <% end %>
+  <details class="relative <%= 'max-md:basis-full' if picked %>">
+    <summary class="os-pill gap-1.5 list-none max-md:px-2 [&::-webkit-details-marker]:hidden <%= 'on max-md:w-full max-md:justify-center' if picked %>">
+      <%= calendar_icon(css: "size-3.5 flex-none") %><span class="<%= 'sr-only' unless picked %>"><%= picked ? picked[:name] : "Pick dates" %></span>
+    </summary>
+    <%= form_with url: action, method: :get, class: "absolute top-full right-0 z-20 mt-2 grid w-[min(17rem,calc(100vw-2rem))] gap-3 rounded-card border border-line bg-surface p-4 shadow-lg" do %>
+      <% kept.each do |name, value| %><%= hidden_field_tag name, value, id: nil %><% end %>
+      <% bounds = { min: calendar[:earliest] || Progress::Days::EARLIEST.iso8601, max: calendar[:today] } %>
+      <label class="os-fieldset"><span class="os-label">From</span>
+        <%= date_field_tag :from, picked&.dig(:from), **bounds, required: true, id: nil, class: "os-field" %>
+      </label>
+      <label class="os-fieldset"><span class="os-label">To</span>
+        <%= date_field_tag :to, picked&.dig(:to), **bounds, required: true, id: nil, class: "os-field" %>
+      </label>
+      <button type="submit" class="os-btn sm">Show</button>
+    <% end %>
+  </details>
+</div>

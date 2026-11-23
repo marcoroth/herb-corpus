@@ -1,0 +1,59 @@
+<%# A builder's page: who they are, their projects' share of the last 12
+    months' commits, and the three projects their page shows first, each with
+    its line and commits. A project past the palette has no colour: its share
+    stays empty, and it has no mark and an ink line. One whose builder hides
+    its commits, or with none in 12 months, takes no share and shows its name
+    alone. X lays the site's
+    name over the bottom left corner, so nothing that matters goes there. %>
+<% shares = @cards.select(&:commits_drawn?).sort_by { |card| -card.commits } %>
+<clipPath id="face"><circle cx="112" cy="112" r="48"/></clipPath>
+<% if @avatar %>
+  <image href="<%= share_card_image(@avatar) %>" x="64" y="64" width="96" height="96" preserveAspectRatio="xMidYMid slice" clip-path="url(#face)"/>
+<% else %>
+  <circle cx="112" cy="112" r="48" fill="<%= ShareCardHelper::INK %>"/>
+  <%= share_card_text(share_card_initials(@user), x: 112, y: 128, size: 42, font: ShareCardHelper::DISPLAY, weight: 700, fill: "#FFFFFF", anchor: "middle") %>
+<% end %>
+<% name, size = share_card_fit(@user.display_name, width: 700, sizes: [ 60, 52, 44 ], font: ShareCardHelper::DISPLAY) %>
+<%= share_card_text(name, x: 188, y: 116, size: size, font: ShareCardHelper::DISPLAY, weight: 700) %>
+<%= share_card_text("@#{@user.username}#{" · #{pluralize(@cards.size, 'project')}" if @cards.any?}", x: 188, y: 156, size: 28, fill: ShareCardHelper::INK_3) %>
+<%= render "og_images/wordmark", x: 1136, y: 98, size: 34, anchor: "end" %>
+
+<% if shares.any? %>
+  <clipPath id="bar"><rect x="64" y="196" width="1072" height="16" rx="8"/></clipPath>
+  <g clip-path="url(#bar)">
+    <% share_card_segments(shares.map(&:commits), x: 64, width: 1072, gap: 6, min: 12).zip(shares).each do |(x, width), card| %>
+      <% if (color = share_card_color(card.rank)) %><rect x="<%= x %>" y="196" width="<%= width %>" height="16" fill="<%= color %>"/><% end %>
+    <% end %>
+  </g>
+<% end %>
+
+<% @cards.first(3).each_with_index do |card, i| %>
+  <% mid = 290 + (i * 96) %>
+  <% mark = share_card_color(card.rank) %>
+  <% color = mark || ShareCardHelper::INK %>
+  <% if i.positive? %><line x1="64" x2="1136" y1="<%= mid - 48 %>" y2="<%= mid - 48 %>" stroke="<%= ShareCardHelper::LINE %>" stroke-width="2"/><% end %>
+  <% if mark %><rect x="64" y="<%= mid - 12 %>" width="24" height="24" rx="7" fill="<%= mark %>"/><% end %>
+  <% project, size = share_card_fit(card.name, width: mark ? 434 : 476, sizes: [ 42, 36 ], font: ShareCardHelper::DISPLAY) %>
+  <%= share_card_text(project, x: mark ? 106 : 64, y: mid + 14, size: size, font: ShareCardHelper::DISPLAY, weight: 700) %>
+  <% if card.commits_drawn? %>
+    <% line, area = progress_sparkline(card.weeks, width: 400, height: 60) %>
+    <g transform="translate(560 <%= mid - 32 %>)">
+      <path d="<%= area %>" fill="<%= color %>" fill-opacity="0.16"/>
+      <path d="<%= line %>" fill="none" stroke="<%= color %>" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+    </g>
+    <%= share_card_text(card.commits, x: 1136, y: mid + 14, size: 42, font: ShareCardHelper::DISPLAY, weight: 700, anchor: "end") %>
+  <% end %>
+<% end %>
+
+<% if @cards.any? %>
+  <%# The caption names the lines only while one of the three draws one. %>
+  <% more = @cards.size - 3 %>
+  <% caption = [ ("Commits per week, last 12 months" if @cards.first(3).any?(&:commits_drawn?)), ("and #{pluralize(more, 'more project')}" if more.positive?) ].compact.join(" · ") %>
+  <% if caption.present? %>
+    <%= share_card_text(caption.upcase_first, x: 1136, y: 596, size: 24, fill: ShareCardHelper::INK_3, anchor: "end") %>
+  <% end %>
+<% else %>
+  <% HomeHelper::TAGLINE.each_with_index do |line, i| %>
+    <%= share_card_text(line, x: 64, y: 340 + (i * 64), size: 52, font: ShareCardHelper::DISPLAY, weight: 700, fill: ShareCardHelper::INK_3) %>
+  <% end %>
+<% end %>

@@ -1,0 +1,80 @@
+<%# A project's Site visits row: the last 30 days, where they stand, and the
+    switch that shows them on its page, except while they are paused, when
+    flipping it would change nothing visitors see. Set up, or Edit setup once
+    a counter is picked, opens the setup under it: what counts its visits,
+    Openstage's script and its line to paste, and on Free, first, that Free
+    counts one project. While Free counts another project, Go Pro stands in
+    its place. "Source" is where visitors came from (analytics' panels), so
+    what counts the visits is the counter. %>
+<% host = repo.site_host %>
+<% line, state = site_visits_status(repo, overview) %>
+<div id="site-visits" class="scroll-mt-6" data-controller="toggle" data-toggle-open-value="<%= params[:site] == "open" %>">
+  <div class="os-row flex items-center gap-3.5 py-3">
+    <span class="min-w-0 flex-auto">
+      <span class="font-bold">Site visits</span>
+      <span class="os-num os-muted text-sm"><%= overview.site_visits.positive? ? number_with_delimiter(overview.site_visits) : "–" %></span>
+      <span class="os-xs os-muted block"><%= line %></span>
+    </span>
+    <% if overview.slot_project %>
+      <%= link_to "Go Pro", pricing_path, class: "os-link whitespace-nowrap text-[13px]" %>
+    <% else %>
+      <button type="button" class="os-link whitespace-nowrap text-[13px]" aria-controls="site-source" aria-expanded="false"
+              data-toggle-target="trigger" data-action="toggle#toggle">
+        <span data-toggle-target="openIcon"><%= repo.site_source ? "Edit setup" : "Set up" %></span><span data-toggle-target="closeIcon" class="hidden">Close</span>
+      </button>
+    <% end %>
+    <span class="os-xs os-muted whitespace-nowrap"><%= state %></span>
+    <% unless overview.site_state == :paused %>
+      <%= form_with url: project_numbers_path(repo), method: :patch, data: { turbo: false } do %>
+        <%= hidden_field_tag :number, "visits", id: nil %>
+        <%= hidden_field_tag :shown, (!repo.picks?("visits")).to_s, id: nil %>
+        <%= hidden_field_tag :back, "project", id: nil %>
+        <button type="submit" role="switch" aria-checked="<%= repo.picks?("visits") %>" aria-label="Show site visits on <%= repo.name %>'s page" class="os-switch"></button>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% unless overview.slot_project %>
+    <div id="site-source" data-toggle-target="content" class="os-card mb-3 hidden">
+      <% unless repo.user.pro? %>
+        <p class="os-sm mt-0 mb-3" data-free-notice>
+          Free counts site visits for one project only, the first you set up.
+          <%= link_to "Go Pro", pricing_path, class: "os-link text-[13px]" %> to count them for every project.
+        </p>
+      <% end %>
+      <% if overview.site_state == :no_website %>
+        <p class="os-sm m-0">Add <%= repo.name %>'s website under What it is first: the script counts only there.</p>
+      <% else %>
+        <p class="os-label">What counts <%= host %>'s visits</p>
+        <div class="os-pills mt-2" role="group" aria-label="Counter">
+          <% [ [ "script", "Openstage's script" ], [ "off", "Off" ] ].each do |source, label| %>
+            <% on = source == "off" ? repo.site_source.nil? : repo.site_source == source %>
+            <%= button_to label, project_site_visits_path(repo), method: :patch, params: { source: source },
+                  class: "os-pill", aria: { pressed: on }, form: { data: { turbo: false } } %>
+          <% end %>
+        </div>
+        <% if repo.site_source == "script" %>
+          <div data-controller="clipboard">
+            <p class="os-sm mt-3.5 mb-2">Paste this line into the head of every page on <%= host %>:</p>
+            <div class="os-code whitespace-pre-wrap break-all" data-clipboard-target="source"><%= site_script_tag(repo) %></div>
+            <div class="os-between mt-2.5">
+              <% if repo.site_first_visit_at %>
+                <span class="os-sm font-bold text-up">First visit received <%= site_first_visit(repo) %></span>
+              <% else %>
+                <span class="os-sm os-muted">Waiting for the first visit: open <%= host %> once the line is in.</span>
+              <% end %>
+              <button type="button" class="os-btn2 sm" data-clipboard-target="button" data-action="clipboard#copy">Copy</button>
+            </div>
+          </div>
+          <p class="os-note mt-2">
+            It counts only on <%= host %>. No cookie: a visitor is one IP address, or one IPv6 network, on one day. Only the
+            day's totals are kept, views by page and visitors by the site they came from, ref tag and country.
+            <%= link_to "What it counts", privacy_path(anchor: "builders-sites"), class: "os-link text-[13px]" %>
+          </p>
+        <% else %>
+          <p class="os-sm os-muted mt-3.5 mb-0">Nothing is counted for <%= repo.name %>.</p>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

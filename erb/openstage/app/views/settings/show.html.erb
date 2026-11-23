@@ -1,0 +1,259 @@
+<% content_for :title, "Settings — Openstage" %>
+<% content_for :main_class, "os-wrap pt-1.5" %>
+
+<div class="mx-auto max-w-[880px]" data-controller="tabs" data-tabs-active-value="<%= params[:tab].presence_in(%w[profile integrations billing]) %>">
+  <div class="os-between mb-3.5">
+    <h1 class="os-h2 text-[30px]">Settings</h1>
+    <div class="os-pills" role="tablist" aria-label="Settings">
+      <% [ %w[profile Profile], %w[integrations Integrations], %w[billing Billing] ].each do |key, label| %>
+        <button type="button" role="tab" data-tabs-target="tab" data-tabs-tab="<%= key %>" data-action="click->tabs#show"
+                class="os-pill data-[active=true]:bg-accent data-[active=true]:text-on-accent"><%= label %></button>
+      <% end %>
+    </div>
+  </div>
+
+  <div data-tabs-target="panel" data-tabs-panel="profile" class="os-stack">
+    <%= form_with model: current_user, url: settings_path, method: :patch, class: "os-stack" do |f| %>
+      <section class="os-panel" aria-labelledby="profile">
+        <h2 id="profile" class="os-h3">Profile</h2>
+        <div class="os-stack mt-3.5 gap-3.5">
+          <div class="os-fieldset">
+            <%= f.label :display_name, "Display name", class: "os-label" %>
+            <%= f.text_field :display_name, class: "os-field" %>
+          </div>
+          <div class="os-fieldset">
+            <%= f.label :bio, "Bio", class: "os-label" %>
+            <%= f.text_area :bio, rows: 3, placeholder: "What are you building?", class: "os-area min-h-20" %>
+          </div>
+          <div class="os-grid2 gap-3.5">
+            <div class="os-fieldset">
+              <%= f.label :website_url, "Website", class: "os-label" %>
+              <%= f.url_field :website_url, placeholder: "https://", class: "os-field" %>
+            </div>
+            <div class="os-fieldset">
+              <%= f.label :building_since, "Building since", class: "os-label" %>
+              <%= f.date_field :building_since, class: "os-field" %>
+            </div>
+          </div>
+          <%# Hidden from the page until the builder turns each on. %>
+          <div class="os-grid2 gap-3.5">
+            <div class="os-fieldset">
+              <div class="os-between">
+                <%= f.label :email, "Email", class: "os-label" %>
+                <label class="os-xs os-muted inline-flex items-center gap-2">Show on your stage <%= f.check_box :show_email, class: "os-switch" %></label>
+              </div>
+              <%= f.email_field :email, autocomplete: "email", class: "os-field" %>
+              <span class="os-xs os-muted">Your own mail from Openstage goes here too.</span>
+            </div>
+            <div class="os-fieldset">
+              <div class="os-between">
+                <%= f.label :x_username, "X username", class: "os-label" %>
+                <label class="os-xs os-muted inline-flex items-center gap-2">Show on your stage <%= f.check_box :show_x_username, class: "os-switch" %></label>
+              </div>
+              <%= f.text_field :x_username, placeholder: "@", autocapitalize: "off", spellcheck: false, class: "os-field" %>
+            </div>
+          </div>
+        </div>
+        <%# One form for both panels: either button saves both. %>
+        <div class="pt-4"><%= f.submit "Save changes", class: "os-btn" %></div>
+      </section>
+
+      <section class="os-panel" aria-labelledby="your-page-settings">
+        <h2 id="your-page-settings" class="os-h3">Your stage</h2>
+        <% [ [ :weekly_email, "Weekly email", "On Fridays, when your week has three or more things in it: your week, with a link to your stage." ],
+             [ :branch_commits, "Commits on other branches", "Work not yet on your default branch shows on your stage, marked with its branch, until it merges." ] ].each do |field, title, about| %>
+          <div class="os-row flex items-start justify-between gap-[18px] py-3.5">
+            <%= f.label field, class: "min-w-0" do %>
+              <span class="block font-bold"><%= title %></span>
+              <span class="os-sm os-muted"><%= about %></span>
+            <% end %>
+            <%= f.check_box field, class: "os-switch mt-1" %>
+          </div>
+        <% end %>
+        <div class="os-row flex items-center justify-between gap-[18px] py-3.5">
+          <%= f.label :time_zone, "Time zone", class: "font-bold" %>
+          <%= f.select :time_zone, zone_options(current_user.time_zone), { include_blank: current_user.time_zone.blank? }, class: "os-field w-auto min-w-0" %>
+        </div>
+        <div class="pt-3"><%= f.submit "Save changes", class: "os-btn" %></div>
+      </section>
+    <% end %>
+
+    <section class="os-panel" aria-labelledby="subscribers" data-subscribers data-count="<%= @subscribers.size %>">
+      <div class="os-between">
+        <h2 id="subscribers" class="os-h3">Subscribers</h2>
+        <% unless current_user.pro? %><%= link_to "See who, with Pro", pricing_path, class: "os-link text-[13px]" %><% end %>
+      </div>
+      <p class="os-sm os-ink2 mt-1"><b class="text-ink"><%= pluralize(@subscribers.size, "person") %></b> confirmed they want your updates, from the box on your stage or on a project's page. They get that week by email on Fridays, when it has three or more things in it. Nobody else sees how many.</p>
+      <% if current_user.pro? && @subscribers.any? %>
+        <ul class="mt-2.5">
+          <% @subscribers.each do |subscriber| %>
+            <li class="os-row os-sm flex items-center justify-between gap-3 py-2">
+              <span class="truncate font-mono"><%= subscriber.email %></span>
+              <span class="os-muted shrink-0"><%= subscriber.github_repo ? "#{subscriber.github_repo.name} · " : "" %><%= subscriber.confirmed_at.strftime("%b %-d") %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </section>
+
+    <section class="os-panel" aria-labelledby="username">
+      <h2 id="username" class="os-h3">Username</h2>
+      <% if current_user.can_change_username? %>
+        <%= form_with model: current_user, url: settings_username_path, method: :patch, class: "mt-3" do |f| %>
+          <%= f.label :username, "Username", class: "os-label" %>
+          <div class="mt-1.5 flex gap-2">
+            <span class="os-field flex min-w-0 flex-1 items-center p-0 focus-within:outline-2 focus-within:outline-accent">
+              <span class="os-muted pl-3.5 pr-1 text-sm">openstage.dev/</span>
+              <%= f.text_field :username, class: "h-full min-w-0 flex-auto border-0 bg-transparent pr-3.5 outline-none" %>
+            </span>
+            <%= f.submit "Update", class: "os-btn2 shrink-0" %>
+          </div>
+          <p class="os-xs os-muted mt-2">You can change your username once every 30 days.</p>
+        <% end %>
+      <% else %>
+        <div class="os-between mt-3">
+          <span>
+            <span class="block font-bold">@<%= current_user.username %></span>
+            <span class="os-xs os-muted">Next change available on <%= current_user.next_username_change_at.strftime("%B %-d, %Y") %></span>
+          </span>
+          <span class="os-tag">Locked</span>
+        </div>
+      <% end %>
+    </section>
+
+    <section class="os-panel border-[1.5px] border-down" aria-labelledby="danger-zone">
+      <h2 id="danger-zone" class="os-h3">Danger zone</h2>
+      <p class="os-sm os-ink2 mt-2 mb-3">Your profile goes offline immediately. Sign in again within 30 days to restore it. After that, the account and everything on it are deleted for good. A monthly plan stops renewing at once.</p>
+      <%= button_to "Delete account", settings_path, method: :delete, class: "os-btn danger",
+            data: { turbo_confirm: "Are you sure? Your profile will go offline immediately. Signing in within 30 days restores it." } %>
+    </section>
+  </div>
+
+  <div data-tabs-target="panel" data-tabs-panel="integrations" class="os-stack hidden">
+    <section class="os-panel" aria-labelledby="connected">
+      <h2 id="connected" class="os-h3">Connected accounts</h2>
+      <div class="os-row os-between mt-2.5">
+        <span><b>GitHub</b> <span class="os-muted">@<%= current_user.github_username %></span></span>
+        <span class="os-sm font-bold text-up">Connected</span>
+      </div>
+      <div class="os-row os-between">
+        <span><b>X / Twitter</b></span>
+        <span class="os-sm os-muted">Coming soon</span>
+      </div>
+    </section>
+
+    <%# Refreshed from GitHub when this tab opens. %>
+    <%= render "settings/github_repos", **@github_repos_section, refresh: true, note: nil %>
+
+    <%# Each payment provider gets Connect once it is built. %>
+    <section class="os-panel" aria-labelledby="revenue">
+      <div class="os-between">
+        <h2 id="revenue" class="os-h3">Revenue</h2>
+        <% unless current_user.pro? %><span class="os-tag pro">✦ Pro</span><% end %>
+      </div>
+      <p class="os-sm os-muted mt-1.5 mb-1">Show a project's MRR and paying customers on its page, verified with your payment provider. Openstage keeps daily totals only, never a customer's record. Pro shows them for every project; Free counts one project's, and only you see them. You pick each project's products on its own view.</p>
+      <div class="os-row flex flex-wrap items-center gap-3 py-3">
+        <span class="min-w-0 flex-auto">
+          <span class="font-bold">Stripe</span>
+          <span class="os-xs os-muted block">A restricted key that only reads products, prices, subscriptions and invoices.</span>
+        </span>
+        <% if @stripe_account %>
+          <% if @stripe_account.refused_at %>
+            <span class="os-sm font-bold text-down">Stripe refuses the key ending <%= @stripe_account.key_ending %></span>
+          <% elsif @stripe_account.stale? %>
+            <span class="os-sm font-bold text-down">Not read since <%= @stripe_account.last_read.strftime("%b %-d") %> · key ending <%= @stripe_account.key_ending %></span>
+          <% else %>
+            <span class="os-sm font-bold text-up">Connected · key ending <%= @stripe_account.key_ending %></span>
+          <% end %>
+          <%= button_to "Disconnect", revenue_account_path(@stripe_account), method: :delete, class: "os-link text-[13px]",
+                data: { turbo_confirm: "Disconnect Stripe? Openstage deletes the key and everything it read with it." } %>
+        <% end %>
+      </div>
+      <% if @stripe_account.nil? || @stripe_account.refused_at %>
+        <%= form_with url: revenue_accounts_path, id: "stripe-connect", class: "os-stack gap-2.5 pb-3" do |f| %>
+          <%= f.hidden_field :provider, value: "stripe" %>
+          <p class="os-sm">In Stripe, under Developers and API keys, create a restricted key with Read on Products, Prices, Subscriptions and Invoices, and None on everything else.
+            <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener" class="os-link">Open Stripe's API keys ↗</a>
+            <%= link_to "What it reads and keeps", privacy_path(anchor: "stripe"), class: "os-link" %></p>
+          <div class="os-fieldset">
+            <%= f.label :api_key, "Restricted key", class: "os-label" %>
+            <div class="flex gap-2">
+              <%= f.password_field :api_key, placeholder: "rk_live_…", autocomplete: "off", required: true, class: "os-field min-w-0 flex-auto" %>
+              <%= f.submit "Connect", class: "os-btn" %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+      <p class="os-xs os-muted border-t border-line pt-3">
+        <span class="font-bold text-ink-2">Planned:</span>
+        Lemon Squeezy, Polar, Paddle and RevenueCat.
+      </p>
+    </section>
+
+    <%# Each provider gets Connect once it is built; Vercel waits for a read-only token. %>
+    <section class="os-panel" aria-labelledby="site-analytics">
+      <div class="os-between">
+        <h2 id="site-analytics" class="os-h3">Site analytics</h2>
+        <% unless current_user.pro? %><span class="os-tag pro">✦ Pro</span><% end %>
+      </div>
+      <p class="os-sm os-muted mt-1.5 mb-1">Count visits to your projects' websites, and where they come from. Each project picks one counter on its own page, so no visit counts twice.</p>
+      <div class="os-row flex items-center gap-3 py-3">
+        <span class="min-w-0 flex-auto">
+          <span class="font-bold">Openstage's script</span>
+          <span class="os-xs os-muted block">One line in your site's code. Free counts site visits for the first project you set up, and Pro for every project.</span>
+        </span>
+        <% if @counted_sites.any? %>
+          <span class="os-sm font-bold text-up"><%= @counted_sites.one? ? "Counting #{@counted_sites.first}" : "Counting #{@counted_sites.size} sites" %></span>
+        <% else %>
+          <span class="os-xs os-muted">Set up on a project's page</span>
+        <% end %>
+      </div>
+      <p class="os-xs os-muted border-t border-line pt-3">
+        <span class="font-bold text-ink-2">Planned:</span>
+        Vercel Web Analytics, Plausible, Umami, Google Analytics 4, Cloudflare Web Analytics, PostHog, Fathom, Simple Analytics and Matomo.
+      </p>
+    </section>
+
+
+    <section class="os-panel" aria-labelledby="readme-badge" data-controller="clipboard">
+      <h2 id="readme-badge" class="os-h3">README badge</h2>
+      <p class="os-sm os-muted mt-1">Drop this in your README.md to show your live Openstage stats.</p>
+      <input id="settings-readme-badge-snippet" data-clipboard-target="source" type="text" value="<%= @badge_markdown %>" readonly
+             aria-label="README badge" class="os-code mt-2.5 block w-full">
+      <button type="button" data-action="clipboard#copy" data-clipboard-target="button" class="os-btn2 sm mt-2.5">Copy badge</button>
+    </section>
+
+    <section class="os-panel" aria-labelledby="embed-widget" data-controller="clipboard">
+      <h2 id="embed-widget" class="os-h3">Embed widget</h2>
+      <p class="os-sm os-muted mt-1">Paste this one-liner in your README or personal site to render a live "What I'm building" card.</p>
+      <input id="settings-embed-widget-snippet" data-clipboard-target="source" type="text" value="<%= @embed_script_tag %>" readonly
+             aria-label="Embed widget" class="os-code mt-2.5 block w-full">
+      <button type="button" data-action="clipboard#copy" data-clipboard-target="button" class="os-btn2 sm mt-2.5">Copy</button>
+    </section>
+  </div>
+
+  <div data-tabs-target="panel" data-tabs-panel="billing" class="os-stack hidden">
+    <section class="os-panel" aria-labelledby="plan">
+      <div class="os-between">
+        <h2 id="plan" class="os-h3">Plan</h2>
+        <% if current_user.pro? %><span class="os-tag pro">✦ Pro</span><% end %>
+      </div>
+      <% if current_user.pro? %>
+        <p class="os-sm os-ink2 mt-2.5">Your subscriber list, MRR on your projects' pages, profile analytics, private entries, up to three pins, and no Openstage link in your footer.</p>
+        <div class="os-row os-between mt-3.5">
+          <span class="os-sm">Pro since <%= current_user.pro_since&.strftime("%B %-d, %Y") %></span>
+          <span class="os-sm os-muted"><%= current_user.stripe_subscription_id.present? ? "Monthly" : "Lifetime" %></span>
+        </div>
+        <% if current_user.stripe_customer_id.present? %>
+          <div class="pt-3"><%= link_to "Manage billing on Stripe", billing_portal_path, data: { turbo: false }, class: "os-btn2" %></div>
+        <% end %>
+      <% else %>
+        <p class="os-sm os-ink2 mt-2.5">Free plan. Pro adds your subscriber list, MRR on your projects' pages, profile analytics, private entries and pins.</p>
+        <div class="pt-3">
+          <%= button_to "Go Pro for $7 a month", checkout_path, method: :post, form: { data: { turbo: false } }, class: "os-btn" %>
+        </div>
+      <% end %>
+      <p class="os-xs os-muted mt-2.5">Payments are handled securely by Stripe. Openstage never sees or stores your card details.</p>
+    </section>
+  </div>
+</div>
