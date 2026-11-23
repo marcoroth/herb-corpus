@@ -1,11 +1,15 @@
 <div class="page flex flex-column gap">
-  <article class="record">
-    <header class="record__header">
-      <h2 class="record__title"><%= @page_title %></h2>
-      <p class="record__byline"><%= inbound_status_tag inbound_email, form: :badge %></p>
-      <%= render "emails/byline", from: inbound_email.mail_from, at: inbound_email.created_at, to: inbound_email.rcpt_to %>
-    </header>
+  <% if inbound_email.held? && (inbound_email.contact&.pending? || inbound_email.contact&.denied?) %>
+    <%= render "contacts/screening", contact: inbound_email.contact, forward_to: inbound_email.forward_to %>
+  <% end %>
 
+  <%= render "mailpieces/envelope", mailpiece: mailpiece, status: mailpiece_status(mailpiece), status_line: inbound_envelope_status(inbound_email),
+        from: inbound_email.sender_address, mark: phishing_mark(inbound_email), return_lines: [ inbound_email.remote_host, inbound_email.remote_ip ],
+        stamp: authentication_stamp(inbound_email), to: inbound_email.rcpt_to, spam_check: inbound_email.spam_check,
+        outcome: !inbound_email.delivered?, note: inbound_outcome_note(inbound_email),
+        message_id: inbound_email.parsed_email.message_id, raw_email: inbound_email.raw_email %>
+
+  <article class="record">
     <% if inbound_email.incinerated? %>
       <p class="txt-small txt-subtle margin-none">Message content was incinerated on <%= local_datetime_tag inbound_email.incinerated_at, style: :date %>.</p>
     <% else %>

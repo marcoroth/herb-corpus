@@ -3,13 +3,8 @@
 <%
   frame_id = pagination_frame_id(frame_id: local_assigns[:frame_id])
   items_frame = pagination_items_frame(frame_id: frame_id, selected_object: local_assigns[:selected_object])
-  current_items = if local_assigns.key?(:items_per_page) && local_assigns[:items_per_page].present?
-                    local_assigns[:items_per_page]
-                  elsif params[:items].present?
-                    params[:items].to_i
-                  else
-                    respond_to?(:items_per_page) ? items_per_page : 20
-                  end
+  # The select marks the size this page was cut by, whoever decided it.
+  current_items = local_assigns[:items_per_page].presence || pagy.limit
   org = local_assigns[:current_organisation] || @current_organisation || @organisation
   proj = local_assigns[:project] || @project
   sf_id = local_assigns[:smart_folder_id]
@@ -33,10 +28,11 @@
       </span>
     </div>
 
-    <%# Centered navigation %>
+    <%# Centered navigation: also on a page behind the end of a list of one page,
+        which links back to it (Pagination::Page#links?) %>
     <div class="flex items-center justify-center flex-1">
-      <% if pagy.pages > 1 %>
-        <nav aria-label="Pagination">
+      <% if pagy.links? %>
+        <nav aria-label="<%= t('views.shared.pagination.label') %>">
           <ul class="inline-flex items-center -space-x-px text-sm h-8 rounded hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_0_#000000] transition duration-200">
             <%# Previous page %>
             <li>

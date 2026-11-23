@@ -1,0 +1,66 @@
+<%# locals: (row:, return_state: {}, open: false) %>
+<%# One person (People::AcrossOrganisations::Row). The row opens the card of
+    the person in the lane (list-row: a click, Enter or Space; open: the card
+    in the lane is this person's). The organisations: the chip of the lead
+    source (D11, Row#lead, the one the card names first as well) and "+N" for
+    the others (D14), at every width, one line high. "+N" is text, no control:
+    its title names the others, and so does a text for a screen reader. The
+    way into an organisation is on the card. The chip of the picture says
+    member or contact, as on the people page of an organisation.
+    The tick belongs to the form of the bar above the list (its form attribute)
+    and sends every source of the row; it carries the name for the bar, which
+    names the chosen rows also when a search has taken them out of the list. A row a merge of the reader joined
+    (row.merge_id) has a menu that takes the merge apart again; a row the same
+    account alone made has none, there is nothing stored to take apart. The
+    tick and the menu are no part of the row's click (no-click). %>
+<% kind_word = t("views.organisations.people.show.kind.#{row.kind}") %>
+<% last = all_people_last_contact(row) %>
+<%= tag.tr class: ('selected-row' if open), tabindex: 0,
+           data: { all_people_row: true, person_key: row.sources.first.fields[:id] }.merge(all_people_row_data(row)) do %>
+  <td class="all-people-table__tick no-click">
+    <label class="all-people-row__tick">
+      <span class="sr-only"><%= t('views.all_people.merge.select', name: row.name) %></span>
+      <%= check_box_tag 'rows[]', all_people_row_value(row), false, id: nil, form: 'all-people-merge',
+                        data: { all_people_tick: true, all_people_merge_target: 'tick', name: row.name,
+                                action: 'change->all-people-merge#count' } %>
+    </label>
+  </td>
+  <td>
+    <div class="all-people-row__person">
+      <%= render Neo::Users::AvatarComponent.new(user: row.avatar_user, size: :small, fallback_initials: person_initials(row.name), title: kind_word,
+                                                  class: "people-avatar #{'people-avatar--contact' unless row.kind == 'member'}") %>
+      <span class="all-people-row__name"><%= row.name %></span>
+      <span class="sr-only">, <%= kind_word %></span>
+    </div>
+  </td>
+  <td class="all-people-table__wide all-people-row__role"><%= all_people_role(row) %></td>
+  <td>
+    <% lead = row.sources.find { |source| source.organisation_id == row.lead } %>
+    <% others = row.sources.reject { |source| source.equal?(lead) } %>
+    <div class="all-people-chips">
+      <%= render 'shared/organisation_chip',
+                 name: lead.organisation_name,
+                 color: current_user.org_colors.effective_color(lead.organisation_id) %>
+      <% if others.any? %>
+        <% names = all_people_organisation_names(others) %>
+        <span class="all-people-more" title="<%= names %>" aria-hidden="true" data-row-more><%= t('views.all_people.more.count', count: others.size) %></span>
+        <span class="sr-only"><%= t('views.all_people.more.names', count: others.size, names: names) %></span>
+      <% end %>
+    </div>
+  </td>
+  <%= tag.td(last ? last[:age] : '', class: 'all-people-table__wide all-people-table__last all-people-row__last', title: (last[:date] if last)) %>
+  <td class="all-people-table__menu no-click">
+    <% if row.merge_id %>
+      <details class="more-menu" data-controller="details-autoclose">
+        <summary class="more-menu__trigger" title="<%= t('views.all_people.merge.more_actions', name: row.name) %>"
+                 aria-label="<%= t('views.all_people.merge.more_actions', name: row.name) %>">
+          <i class="bi bi-three-dots" aria-hidden="true"></i>
+        </summary>
+        <div class="more-menu__items">
+          <%= button_to t('views.all_people.merge.split'), all_people_merge_path(row.merge_id, return_state), method: :delete,
+                        form: { data: { turbo_frame: '_top', turbo_confirm: t('views.confirm.split_merged_person', name: row.name) } } %>
+        </div>
+      </details>
+    <% end %>
+  </td>
+<% end %>

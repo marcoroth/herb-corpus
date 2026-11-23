@@ -1,103 +1,127 @@
-<div class="pt-6">
-  <%= render NeoTitleBoxComponent.new(
-    title: t('views.users.personal_access_tokens.index.title'),
-    subtitle: t('views.users.personal_access_tokens.index.subtitle'),
-    variant: :project
-  ) do |c| %>
-    <% c.with_right_content do %>
-      <%= render Neo::Buttons::ButtonComponent.new(
+<%# The API tokens of a person, in the shapes of the rest of the application
+    (doc/belegungstabelle_oberflaeche.md): the shared head with the "+" outermost as
+    the title action, the tokens as flat rows of one list (a hard shadow says "press
+    me", and a row is not pressed), colours from the token layer. Until 2026-11-12
+    every token was a white card with a hard shadow. %>
+<% new_token = capture do %>
+  <%= render Neo::Buttons::IconButtonComponent.new(
         variant: :primary,
-        size: :medium,
         icon: 'plus-lg',
+        size: :medium,
+        title: t('views.users.personal_access_tokens.index.new_button'),
         url: new_users_personal_access_token_path
-      ) do %>
-        <%= t('views.users.personal_access_tokens.index.new_button') %>
-      <% end %>
-    <% end %>
-  <% end %>
+      ) %>
+<% end %>
+<div>
+  <%= render 'head', title_action: new_token %>
 
-  <%# Two-column split: token list (left) beside the plain-language explainer (right),
-      so a confused non-technical user immediately sees what this page is for. On lg the
-      explainer sticks while the list scrolls; on small screens the list comes first. %>
-  <div class="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-5 lg:items-start">
-    <div class="lg:col-span-3">
+  <%# The list beside the plain-language explainer, so a confused non-technical user
+      immediately sees what this page is for. On lg the explainer sticks while the
+      list scrolls; on small screens the list comes first. The list is capped for
+      reading (one token per row, its dates on the line below). %>
+  <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
+    <div class="width-capped--wide min-w-0 flex-1">
+      <p class="width-text mb-6 text-sm text-muted">
+        <%= t('views.users.personal_access_tokens.index.subtitle') %>
+      </p>
+
       <% if @tokens.empty? %>
-        <%= render NeoCardComponent.new(variant: :gray, shadow: :none, padding: :large) do %>
-          <p class="text-sm text-gray-700">
-            <i class="bi bi-key text-2xl mb-2 block text-gray-400"></i>
+        <div class="rounded-lg border border-dashed border-edge bg-surface p-8 text-center">
+          <i class="bi bi-key text-3xl text-faint" aria-hidden="true"></i>
+          <p class="mt-3 text-sm text-muted">
             <%= t('views.users.personal_access_tokens.index.empty') %>
           </p>
-        <% end %>
+        </div>
       <% else %>
-        <div class="space-y-3">
+        <ul class="divide-y divide-divider rounded-lg border border-edge bg-surface" data-token-list>
           <% @tokens.each do |token| %>
-            <%= render NeoCardComponent.new(variant: :white, shadow: :always, padding: :medium) do %>
-              <div class="flex items-start justify-between gap-4">
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
-                    <h3 class="text-base font-bold text-cream-900 truncate"><%= token.name %></h3>
-                    <%= render 'status_badge', token: token %>
-                  </div>
-                  <div class="font-mono text-xs text-gray-500 mb-2"><%= token.token_prefix %>…</div>
-
-                  <div class="text-xs text-gray-700 mb-2">
-                    <strong><%= t('views.users.personal_access_tokens.index.col_scope') %>:</strong>
-                    <%= render 'scope_summary', token: token %>
-                  </div>
-
-                  <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                    <span>
-                      <i class="bi bi-calendar3"></i>
-                      <%= t('views.users.personal_access_tokens.index.col_created') %>:
-                      <%= l(token.created_at, format: :short) %>
+            <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                  <h2 class="truncate text-sm font-semibold text-heading"><%= token.name %></h2>
+                  <%= render 'status_badge', token: token %>
+                  <% if token.app_session? %>
+                    <%# A device signed in through an app, not a token its owner made here. %>
+                    <span class="inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted" data-token-kind="app_session">
+                      <i class="bi bi-phone" aria-hidden="true"></i>
+                      <%= t('views.users.personal_access_tokens.index.kind_app_session') %>
                     </span>
-                    <span>
-                      <i class="bi bi-hourglass-split"></i>
-                      <%= t('views.users.personal_access_tokens.index.col_expires') %>:
-                      <%= l(token.expires_at, format: :short) %>
-                    </span>
-                    <% if token.last_used_at %>
-                      <span>
-                        <i class="bi bi-clock-history"></i>
-                        <%= t('views.users.personal_access_tokens.index.col_last_used') %>:
-                        <%= time_ago_in_words(token.last_used_at) %>
-                      </span>
-                    <% end %>
-                  </div>
-                </div>
-
-                <div class="flex items-center gap-2 shrink-0">
-                  <% if token.active? %>
-                    <%= render Neo::Buttons::ButtonComponent.new(
-                      variant: :secondary,
-                      size: :small,
-                      icon: 'pencil',
-                      url: edit_users_personal_access_token_path(token)
-                    ) do %>
-                      <%= t('views.users.personal_access_tokens.index.edit') %>
-                    <% end %>
-                    <%= render Neo::Buttons::ButtonComponent.new(
-                      variant: :danger,
-                      size: :small,
-                      icon: 'x-lg',
-                      url: users_personal_access_token_path(token),
-                      data: {
-                        turbo_method: :delete,
-                        turbo_confirm: t('views.users.personal_access_tokens.index.revoke_confirm')
-                      }
-                    ) do %>
-                      <%= t('views.users.personal_access_tokens.index.revoke') %>
-                    <% end %>
                   <% end %>
                 </div>
+                <div class="mt-0.5 font-mono text-[12px] text-faint"><%= token.token_prefix %>…</div>
+
+                <p class="mt-2 text-sm text-body">
+                  <span class="text-muted"><%= t('views.users.personal_access_tokens.index.col_scope') %>:</span>
+                  <%= render 'scope_summary', token: token %>
+                </p>
+
+                <dl class="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted">
+                  <div class="flex gap-1">
+                    <dt><%= t('views.users.personal_access_tokens.index.col_created') %>:</dt>
+                    <dd class="tabular-nums"><%= l(token.created_at, format: :short) %></dd>
+                  </div>
+                  <% if token.app_session? && token.active? %>
+                    <%# A device's expiry moves with its use, so the rule says more than
+                        today's date; the days come from the model, never from the text.
+                        A device that is over says when it ended, like every token. %>
+                    <div class="flex gap-1" data-token-expiry="sliding">
+                      <dt><%= t('views.users.personal_access_tokens.index.col_expires') %>:</dt>
+                      <dd><%= t('views.users.personal_access_tokens.index.expires_after_last_use',
+                                days: PersonalAccessToken::MAX_LIFETIME.in_days.to_i) %></dd>
+                    </div>
+                    <div class="flex gap-1">
+                      <dt><%= t('views.users.personal_access_tokens.index.ends_at') %>:</dt>
+                      <dd class="tabular-nums"><%= l(token.ends_at.to_date) %></dd>
+                    </div>
+                  <% else %>
+                    <div class="flex gap-1">
+                      <dt><%= t('views.users.personal_access_tokens.index.col_expires') %>:</dt>
+                      <dd class="tabular-nums"><%= l(token.expires_at, format: :short) %></dd>
+                    </div>
+                  <% end %>
+                  <% if token.last_used_at %>
+                    <div class="flex gap-1">
+                      <dt><%= t('views.users.personal_access_tokens.index.col_last_used') %>:</dt>
+                      <dd><%= time_ago_in_words(token.last_used_at) %></dd>
+                    </div>
+                  <% end %>
+                </dl>
               </div>
-            <% end %>
+
+              <% if token.active? %>
+                <div class="flex shrink-0 items-center gap-2">
+                  <%# No rename for a device token: the policy refuses it. %>
+                  <% if policy(token).edit? %>
+                    <%= render Neo::Buttons::ButtonComponent.new(
+                          variant: :secondary,
+                          size: :small,
+                          icon: 'pencil',
+                          url: edit_users_personal_access_token_path(token)
+                        ) do %>
+                      <%= t('views.users.personal_access_tokens.index.edit') %>
+                    <% end %>
+                  <% end %>
+                  <%= render Neo::Buttons::ButtonComponent.new(
+                        variant: :danger,
+                        size: :small,
+                        icon: 'x-lg',
+                        url: users_personal_access_token_path(token),
+                        data: {
+                          turbo_method: :delete,
+                          turbo_confirm: t('views.users.personal_access_tokens.index.revoke_confirm')
+                        }
+                      ) do %>
+                    <%= t('views.users.personal_access_tokens.index.revoke') %>
+                  <% end %>
+                </div>
+              <% end %>
+            </li>
           <% end %>
-        </div>
+        </ul>
       <% end %>
     </div>
 
-    <div class="lg:col-span-2 lg:sticky lg:top-6">
+    <div class="lg:sticky lg:top-6 lg:w-96 lg:shrink-0">
       <%= render 'explainer' %>
     </div>
   </div>

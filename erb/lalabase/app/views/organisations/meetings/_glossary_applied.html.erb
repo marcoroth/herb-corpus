@@ -1,0 +1,37 @@
+<%# locals: (meeting:) %>
+<%# What the glossary did to this transcript before it arrived (K4d): the recording app
+    sent the replacements it made along with the text. One line with the sums, the list
+    behind it: heard spelling → term, how often; a spelling that was only righted says so.
+    The term leads into the glossary for a reader of it (GlossaryPolicy) while the term
+    exists; for everyone else it is text. Nothing when the meeting brought no list. %>
+<% applications = meeting.term_applications.in_text_order.to_a %>
+<% if applications.any? %>
+  <% ga = 'views.organisations.meetings.glossary_applied' %>
+  <% glossary_readable = policy(GlossaryTerm).index? %>
+  <details class="transcript-glossary" data-meetings-glossary-applied="">
+    <summary class="transcript-glossary__summary">
+      <i class="bi bi-book" aria-hidden="true"></i>
+      <%= t("#{ga}.summary",
+            places: t("#{ga}.places", count: applications.sum(&:replaced_count)),
+            terms: t("#{ga}.terms", count: applications.map { |row| GlossaryText.normalize(row.term) }.uniq.size)) %>
+    </summary>
+    <ul class="transcript-glossary__list">
+      <% applications.each do |application| %>
+        <li class="transcript-glossary__row">
+          <span class="transcript-glossary__heard"><%= application.heard %></span>
+          <span class="transcript-glossary__arrow" aria-hidden="true">→</span>
+          <% if glossary_readable && application.glossary_term_id %>
+            <%= link_to application.term, organisation_glossary_term_path(current_organisation, application.glossary_term_id),
+                        class: 'people-fields__link', data: { turbo_frame: '_top' } %>
+          <% else %>
+            <span class="transcript-glossary__term"><%= application.term %></span>
+          <% end %>
+          <span class="transcript-glossary__count"><%= t("#{ga}.times", count: application.replaced_count) %></span>
+          <% if application.spelling? %>
+            <span class="transcript-glossary__kind"><%= t("#{ga}.spelling") %></span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </details>
+<% end %>

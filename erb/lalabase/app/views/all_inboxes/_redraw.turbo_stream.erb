@@ -1,0 +1,77 @@
+<%# locals: (list:, action_type: nil, said: nil, open_lane: nil) %>
+<%# A redraw of the inbox above the organisations, for two callers:
+
+    - the answer to an action on a row (AllInboxesController#change_row,
+      update.turbo_stream.erb): list, counts and a toast (none for the lane's
+      5 s timer); when the row is the one open in the lane (open_lane:, loaded
+      under the row's tenant by the action), the head of the lane and nothing
+      else of it, so an open reply form survives;
+    - the answer to an action of the bulk bar (#change_selection, the same
+      template): list, counts and a sentence that names the number of rows (said:);
+    - the live redraw (index as turbo_stream, live.turbo_stream.erb) after a
+      signal: list and counts, or the counts alone (list: false) while the
+      reader looks at the list, which then does not move under them.
+
+    The list is redrawn whole from the state the address carried, as the inbox of
+    an organisation does: a row that no longer fits the view is gone, a period
+    heading without rows too. With it the stamp it was drawn with
+    (_drawn_stamp). The counts are everything that shows one: the pill at
+    "Ungelesen", the organisation select of the tools and the sidebar. %>
+<% if list %>
+  <% organisation_names = @inbox_organisations.to_h { |organisation| [organisation[:id], organisation[:name]] } %>
+  <%= turbo_stream.replace 'inbox_master_list' do %>
+    <%= render 'organisations/notifications/master_list',
+               presenter: @presenter, selected_notification: nil,
+               query_context: @presenter.query_context, organisation_names: organisation_names %>
+  <% end %>
+
+  <%= turbo_stream.replace 'all_inboxes_drawn_stamp' do %>
+    <%= render 'all_inboxes/drawn_stamp', stamp: @stamp %>
+  <% end %>
+<% end %>
+
+<%= turbo_stream.replace 'inbox_unread_count' do %>
+  <%= render 'organisations/notifications/unread_count', count: @unread_count %>
+<% end %>
+
+<%= turbo_stream.replace 'inbox_list_tools' do %>
+  <%= render 'organisations/notifications/list_tools',
+             presenter: @presenter, projects: [], unread_count: @unread_count, organisations: @inbox_organisations %>
+<% end %>
+
+<%= turbo_stream.replace 'all_inboxes_nav' do %>
+  <%= render 'common/navigation_level', organisations: @inbox_organisations %>
+<% end %>
+
+<%# The header with the switcher counts every organisation on this page too, from the same
+    numbers (ApplicationController#level_unread_counts): one count per organisation. Only its
+    numbers are replaced, never the menu: a redraw must not close it under the reader. %>
+<% header_counts = level_unread_counts %>
+<% header_ids = switcher_organisations(current_user).map(&:id) %>
+<% header_ids.each do |organisation_id| %>
+  <%= turbo_stream.replace "org_attention_count_#{organisation_id}" do %>
+    <%= render 'notifications/org_attention_count', target_id: "org_attention_count_#{organisation_id}",
+                                                    count: header_counts[organisation_id].to_i %>
+  <% end %>
+<% end %>
+<%= turbo_stream.replace 'org_attention_count_overflow' do %>
+  <%= render 'notifications/org_attention_count', target_id: 'org_attention_count_overflow',
+                                                  count: Notifications::UnreadSignals.overflow_count(header_counts, header_ids) %>
+<% end %>
+
+<% if open_lane %>
+  <%= turbo_stream.replace_all "#inbox_pane_status_pills[data-notification-id='#{open_lane[:notification].id}']" do %>
+    <%= render 'organisations/notifications/pane_status_pills',
+               notification: open_lane[:notification], kind: open_lane[:kind] %>
+  <% end %>
+<% end %>
+
+<% if action_type %>
+  <%= turbo_stream.prepend 'flash_messages' do %>
+    <%= render 'organisations/notifications/action_toast', action_type: action_type %>
+  <% end %>
+<% end %>
+
+<% if said %>
+  <%= render 'all_inboxes/said', notice: said %>
+<% end %>

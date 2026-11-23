@@ -1,0 +1,45 @@
+<%# locals: (term:, selected: nil) %>
+<%# One term: the spelling, its category and, unless confirmed, its status;
+    the heard forms below; then speakers and projects as names. The number on
+    the right counts the corrections. A proposal carries "Bestätigen" and
+    "Verwerfen" for those who may keep the glossary (buttons do not open the
+    row, list-row skips them). Enter and Space open the row like a click. %>
+<% open = selected&.id == term.id %>
+<% row_data = { controller: 'list-row', action: 'click->list-row#click keydown.enter->list-row#click keydown.space->list-row#click',
+                glossary_row: true,
+                list_row_url_value: organisation_glossary_term_path(@current_organisation, term), list_row_id_value: term.id,
+                list_row_param_value: 'term_id', list_row_params_value: GlossaryHelper::SELECTION_PARAMS.to_json,
+                list_row_frame_value: Organisations::GlossaryController::DETAIL_FRAME_ID } %>
+<% count = term.term_corrections.size %>
+<%# Class names written out: Tailwind keeps only component classes it finds whole in a template. %>
+<%= tag.li data: row_data, tabindex: 0, class: ['people-row glossary-row', ('glossary-row--rejected' if term.rejected?), ('selected-row' if open)].compact.join(' ') do %>
+  <%# A div, not a span: it holds the status actions, a div with forms. %>
+  <div class="people-row__text">
+    <span class="glossary-row__head">
+      <span class="people-row__name"><%= term.term %></span>
+      <% if term.category %>
+        <span class="people-badge"><%= glossary_category_name(term.category) %></span>
+      <% end %>
+      <% unless term.confirmed? %>
+        <span class="glossary-status <%= term.rejected? ? 'glossary-status--rejected' : 'glossary-status--proposed' %>"><%= glossary_status_name(term.status) %></span>
+      <% end %>
+      <% open_forms = glossary_open_form_count(term) %>
+      <% if open_forms.positive? %>
+        <span class="glossary-status glossary-status--proposed"><%= t('views.organisations.glossary.index.open_forms', count: open_forms) %></span>
+      <% end %>
+    </span>
+    <% if count.positive? %>
+      <span class="people-row__sub"><%= t('views.organisations.glossary.index.heard_as', forms: glossary_row_forms(term)) %></span>
+      <% origin = glossary_row_origin(term) %>
+      <% if origin.present? %>
+        <span class="people-row__sub glossary-row__origin"><%= origin %></span>
+      <% end %>
+    <% end %>
+    <% if term.proposed? && policy(term).confirm? %>
+      <%= render 'organisations/glossary/status_actions', term: term, lane: false %>
+    <% end %>
+  </div>
+  <span class="glossary-row__count" title="<%= t('views.organisations.glossary.index.corrections_count', count: count) %>">
+    <%= count %><span class="sr-only"> <%= t('views.organisations.glossary.index.corrections_count', count: count) %></span>
+  </span>
+<% end %>

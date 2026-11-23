@@ -1,0 +1,136 @@
+<%# locals: (status_counts:, origin_projects:, proposal_counts:) %>
+<%# The head of the list, built like "Alle Meetings": the title with the "+"
+    for those who may keep the glossary (?new=term in the lane), and on the
+    right the "···" with "Liste importieren" for every reader (?new=import,
+    GlossaryHelper#glossary_import_link). Below it the bar (further down):
+    the statuses as tabs, project and category, and the way between the
+    terms and the review list of the extraction (K5b).
+    No way back to the meetings in the head (user, 2026-11-10): the sidebar
+    keeps "Alle Meetings" lit on this page (MEETINGS_SECTION_CONTROLLERS),
+    and that entry is the way back. A back button, or a cobalt word, was the
+    one thing in the head that was neither the page's action nor its menu. %>
+<% frame_id = Organisations::GlossaryController::DETAIL_FRAME_ID %>
+<% mobile = @viewport_mode == 'mobile' %>
+<% can_create = policy(GlossaryTerm).create? %>
+<% add_url = organisation_glossary_terms_path(@current_organisation, list_state.merge('new' => Organisations::GlossaryController::NEW_STATE)) %>
+<% add_data = {
+     controller: 'lane-link',
+     action: 'click->lane-link#click',
+     lane_link_url_value: new_organisation_glossary_term_path(@current_organisation),
+     lane_link_frame_value: frame_id,
+     lane_link_set_value: { new: Organisations::GlossaryController::NEW_STATE }.to_json,
+     lane_link_remove_value: GlossaryHelper::SELECTION_PARAMS.to_json,
+     lane_link_focus_value: '#glossary_term_term'
+   } %>
+<%# The "···" of the head. The import opens in the lane and the head stays,
+    so the item closes its menu itself (dropdown#close). The trigger takes
+    the height of the "+" beside it (F40): 40 px on a phone, 32 px above. %>
+<% import = glossary_import_link %>
+<% more_menu = capture do %>
+  <%= render Neo::OverflowMenuComponent.new(size: mobile ? :large : :medium) do |menu| %>
+    <% menu.with_item(label: t('views.organisations.glossary.import.open'), url: import[:url], icon: 'list-ul',
+                      data: import[:data].merge(action: 'click->lane-link#click click->dropdown#close',
+                                                glossary_import_link: true)) %>
+  <% end %>
+<% end %>
+<div class="people-head">
+  <% if mobile %>
+    <div class="people-head__action flex items-center gap-2">
+      <%= more_menu %>
+      <% if can_create %>
+        <%= render Neo::Buttons::IconButtonComponent.new(variant: :primary, icon: 'plus-lg', size: :large, url: add_url,
+                                                         title: t('views.organisations.glossary.index.new_term'), data: add_data) %>
+      <% end %>
+    </div>
+  <% else %>
+    <%= render NeoTitleBoxComponent.new(title: t('views.organisations.glossary.index.title'), variant: :organisation, margin_bottom: nil) do |box| %>
+      <% if can_create %>
+        <% box.with_title_action do %>
+          <%= render Neo::Buttons::IconButtonComponent.new(variant: :primary, icon: 'plus-lg', size: :medium, url: add_url,
+                                                           title: t('views.organisations.glossary.index.new_term'), data: add_data) %>
+        <% end %>
+      <% end %>
+      <% box.with_right_content do %>
+        <%= more_menu %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<%# The bar of the ticket list, as on the inbox and Personen (user,
+    2026-11-11): the statuses of the list as its tabs on the row's divider,
+    each with its count, then at the right end project and category as
+    selects (one form, a full visit of the index, auto-submitted) and,
+    outermost, the way to the other list: "Prüfliste" with its open
+    proposals from the terms, "Zurück zu den Begriffen" from the review list,
+    the way in and the way out in one place. Switching the list leaves the
+    status behind (it belongs to its list); project and category go along.
+    No search: the glossary has none. %>
+<div class="people-tools list-tab-bar glossary-tools">
+  <% if glossary_proposals_view? %>
+    <div role="tablist" aria-label="<%= t('views.organisations.glossary.proposals.status_filter_label') %>" class="list-tab-bar__tabs">
+      <% GlossaryProposal::STATUSES.each do |status| %>
+        <% active = glossary_proposal_status == status %>
+        <%# The open ones are the review list without a status: one address per state. %>
+        <% shown = status == Organisations::GlossaryController::DEFAULT_PROPOSAL_STATUS ? nil : status %>
+        <%= link_to organisation_glossary_terms_path(@current_organisation, list_state.merge('status' => shown).compact),
+                    role: 'tab', 'aria-selected': active.to_s, class: NeoFilterBarComponent.tab_classes(active),
+                    data: { turbo_frame: '_top', glossary_proposal_status: status } do %>
+          <%= glossary_proposal_status_name(status) %>
+          <span class="people-pill__count"><%= proposal_counts.fetch(status, 0) %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <div role="tablist" aria-label="<%= t('views.organisations.glossary.index.status_filter_label') %>" class="list-tab-bar__tabs">
+      <% ([nil] + GlossaryTerm::STATUSES).each do |status| %>
+        <% active = list_state['status'] == status %>
+        <% count = status ? status_counts.fetch(status, 0) : status_counts.values.sum %>
+        <%= link_to organisation_glossary_terms_path(@current_organisation, list_state.merge('status' => status).compact),
+                    role: 'tab', 'aria-selected': active.to_s, class: NeoFilterBarComponent.tab_classes(active),
+                    data: { turbo_frame: '_top', glossary_term_status: status || 'all' } do %>
+          <%= status ? t("views.organisations.glossary.index.status_filter.#{status}") : t('views.organisations.glossary.index.status_filter.all') %>
+          <span class="people-pill__count"><%= count %></span>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <div class="list-tab-bar__tools">
+    <%= form_with url: organisation_glossary_terms_path(@current_organisation), method: :get, class: 'glossary-filters',
+                  data: { controller: 'auto-submit', turbo_frame: '_top' } do %>
+      <%= hidden_field_tag :view, list_state['view'], id: nil if list_state['view'] %>
+      <%= hidden_field_tag :status, list_state['status'], id: nil if list_state['status'] %>
+      <%= hidden_field_tag :viewport, 'mobile', id: nil if list_state['viewport'] %>
+      <label>
+        <span class="sr-only"><%= t('views.organisations.glossary.index.project_filter_label') %></span>
+        <%= select_tag :project_id, options_for_select(origin_projects.map { |id, name| [name, id] }, list_state['project_id']),
+                       include_blank: t('views.organisations.glossary.index.all_projects'), id: 'glossary-project-filter',
+                       class: "list-tab-bar__select #{'list-tab-bar__select--active' if list_state['project_id']}" %>
+      </label>
+      <label>
+        <span class="sr-only"><%= t('views.organisations.glossary.index.category_filter_label') %></span>
+        <%= select_tag :category, options_for_select(glossary_category_options, list_state['category']),
+                       include_blank: t('views.organisations.glossary.index.all_categories'), id: 'glossary-category-filter',
+                       class: "list-tab-bar__select #{'list-tab-bar__select--active' if list_state['category']}" %>
+      </label>
+      <noscript>
+        <button type="submit" class="people-secondary-action"><%= t('views.organisations.glossary.index.apply_filters') %></button>
+      </noscript>
+    <% end %>
+
+    <% if glossary_proposals_view? %>
+      <%= link_to organisation_glossary_terms_path(@current_organisation, list_state.except('view', 'status')),
+                  class: 'people-pill', data: { turbo_frame: '_top', glossary_terms_link: true } do %>
+        <i class="bi bi-arrow-left" aria-hidden="true"></i><%= t('views.organisations.glossary.proposals.back_to_terms') %>
+      <% end %>
+    <% else %>
+      <% review_state = list_state.except('status').merge('view' => Organisations::GlossaryController::PROPOSALS_VIEW) %>
+      <%= link_to organisation_glossary_terms_path(@current_organisation, review_state),
+                  class: 'people-pill', data: { turbo_frame: '_top', glossary_review_link: true } do %>
+        <i class="bi bi-list-check" aria-hidden="true"></i><%= t('views.organisations.glossary.proposals.review_list') %>
+        <span class="people-pill__count"><%= proposal_counts.fetch('open', 0) %></span>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,4 +1,9 @@
+<turbo-frame id="planned-transactions">
 <section aria-labelledby="planned-transactions-title" class="space-y-4" data-controller="planned-transaction-order">
+  <% if request.headers["Turbo-Frame"] == "planned-transactions" %>
+    <%= render "shared/flash" %>
+  <% end %>
+  <% all_accounts = assets + liabilities %>
   <% account_options = assets.map { |asset| [ "Asset · #{asset.name}", "asset:#{asset.id}" ] } + liabilities.map { |liability| [ "Liability · #{liability.name}", "liability:#{liability.id}" ] } %>
   <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
@@ -11,7 +16,7 @@
     </div>
   </div>
 
-  <%= form_with url: finance_plan_planned_transaction_order_path(plan), method: :patch, class: "hidden", data: { planned_transaction_order_target: "form" } do %>
+  <%= form_with url: finance_plan_planned_transaction_order_path(plan), method: :patch, class: "hidden", data: { planned_transaction_order_target: "form", turbo_frame: "planned-transactions" } do %>
     <div data-planned-transaction-order-target="inputs">
       <% planned_transactions.each do |transaction| %>
         <%= hidden_field_tag "planned_transaction_order[ordered_ids][]", transaction.id %>
@@ -27,13 +32,12 @@
       <tbody class="divide-y divide-border">
         <% projection_rows = projection.rows.index_by { |row| row.transaction.id } %>
         <% planned_transactions.each do |transaction| %>
-          <% source_route_options = transaction.kind == "liability_charge" ? liabilities.map { |liability| [ "Liability · #{liability.name}", "liability:#{liability.id}" ] } : assets.map { |asset| [ "Asset · #{asset.name}", "asset:#{asset.id}" ] } %>
-          <% destination_route_options = transaction.kind == "liability_payment" ? liabilities.map { |liability| [ "Liability · #{liability.name}", "liability:#{liability.id}" ] } : assets.map { |asset| [ "Asset · #{asset.name}", "asset:#{asset.id}" ] } %>
+          <% destination_accounts = transaction.destination_accounts(accounts: all_accounts).map { |account| [ "#{account.account_group.humanize} · #{account.name}", "#{account.account_group}:#{account.id}" ] } %>
           <tr class="align-top <%= 'bg-destructive/5' if projection_rows[transaction.id]&.balance&.negative? %>" draggable="true" data-planned-transaction-order-target="row" data-transaction-id="<%= transaction.id %>" data-action="dragstart->planned-transaction-order#dragStart dragover->planned-transaction-order#dragOver drop->planned-transaction-order#drop dragend->planned-transaction-order#dragEnd">
-            <td class="p-3">
+            <td class="p-3 text-center">
               <span class="block font-medium"><%= transaction.position %></span>
               <% unless plan.lifecycle_status.in?(%w[closed cancelled]) %>
-                <span class="mt-2 flex gap-1">
+                <span class="mx-auto mt-2 flex w-fit flex-col gap-1">
                   <%= render Ui::ButtonComponent.new(aria_label: "Move #{transaction.description} up", variant: :outline, size: :icon, data: { action: "planned-transaction-order#moveUp" }) do %>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
                   <% end %>
@@ -57,7 +61,18 @@
                 <p class="mt-1 text-xs">Paid <%= l(transaction.actual_payment_date) %></p>
               <% end %>
             </td>
-            <td class="p-3 font-medium"><%= number_to_currency(projection_rows[transaction.id]&.balance) %></td>
+            <td class="p-3">
+              <div class="space-y-1 leading-tight">
+                <div>
+                  <p class="text-xs text-muted-foreground">Consumed</p>
+                  <p class="font-semibold tabular-nums"><%= number_to_currency(projection_rows[transaction.id]&.consumed) %></p>
+                </div>
+                <div>
+                  <p class="text-xs text-muted-foreground">Left</p>
+                  <p class="font-semibold tabular-nums"><%= number_to_currency(projection_rows[transaction.id]&.balance) %></p>
+                </div>
+              </div>
+            </td>
             <td class="p-3 space-y-1">
               <%= render Ui::BadgeComponent.new(label: transaction.execution_status.humanize, variant: transaction.execution_status == "applied" ? :secondary : :outline) %>
               <% if transaction.payment_timing %>
@@ -82,9 +97,9 @@
                     <%= render Ui::InputComponent.new(name: "planned_transaction[due_date]", value: transaction.due_date, type: "date") %>
                     <%= render Ui::InputComponent.new(name: "planned_transaction[notes]", value: transaction.notes, placeholder: "Minimum payment, refinance, or other context") %>
                     <%= render Ui::SelectComponent.new(name: "planned_transaction[importance]", options: Financial::PlannedTransaction::IMPORTANCES.map { |importance| [ importance.humanize, importance ] }, selected: transaction.importance) %>
-                    <label class="space-y-1 text-xs text-muted-foreground">Source account<%= render Ui::SelectComponent.new(name: "planned_transaction[source_selection]", options: source_route_options, selected: transaction.source_selection, include_blank: "Select source") %></label>
+                    <label class="space-y-1 text-xs text-muted-foreground">Source account<%= render Ui::SelectComponent.new(name: "planned_transaction[source_selection]", options: account_options, selected: transaction.source_selection, include_blank: "Search all accounts…", required: true, searchable: true) %></label>
                     <% if transaction.kind.in?(%w[transfer liability_payment]) %>
-                      <label class="space-y-1 text-xs text-muted-foreground">Destination account<%= render Ui::SelectComponent.new(name: "planned_transaction[destination_selection]", options: destination_route_options, selected: transaction.destination_selection, include_blank: "Select destination") %></label>
+                      <label class="space-y-1 text-xs text-muted-foreground">Destination account<%= render Ui::SelectComponent.new(name: "planned_transaction[destination_selection]", options: destination_accounts, selected: transaction.destination_selection, include_blank: "Select destination", searchable: true) %></label>
                     <% end %>
                     <% unless transaction.budget_consuming? %>
                       <label class="flex items-center gap-2 text-sm sm:col-span-2"><%= hidden_field_tag "planned_transaction[commits_plan_funds]", "0", id: nil %><%= check_box_tag "planned_transaction[commits_plan_funds]", "1", transaction.commits_plan_funds? %><span>Reserve funds</span></label>
@@ -96,14 +111,14 @@
                   <% end %>
                 </details>
               <% elsif transaction.financial_entry %>
-                <%= link_to "View actual entry", finance_entry_path(transaction.financial_entry), class: "text-primary hover:underline" %>
+                <%= link_to "View actual entry", finance_entry_path(transaction.financial_entry), class: "text-primary hover:underline", data: { turbo_frame: "_top" } %>
                 <% unless plan.lifecycle_status.in?(%w[closed cancelled]) %>
                   <details class="text-sm">
                     <summary class="cursor-pointer text-primary">Edit planned route</summary>
                     <%= form_with url: finance_plan_planned_transaction_path(plan, transaction), method: :patch, class: "mt-2 grid gap-2 sm:grid-cols-2" do %>
-                      <label class="space-y-1 text-xs text-muted-foreground">Source account<%= render Ui::SelectComponent.new(name: "planned_transaction[source_selection]", options: source_route_options, selected: transaction.source_selection, include_blank: "Select source") %></label>
+                      <label class="space-y-1 text-xs text-muted-foreground">Source account<%= render Ui::SelectComponent.new(name: "planned_transaction[source_selection]", options: account_options, selected: transaction.source_selection, include_blank: "Search all accounts…", required: true, searchable: true) %></label>
                       <% if transaction.kind.in?(%w[transfer liability_payment]) %>
-                        <label class="space-y-1 text-xs text-muted-foreground">Destination account<%= render Ui::SelectComponent.new(name: "planned_transaction[destination_selection]", options: destination_route_options, selected: transaction.destination_selection, include_blank: "Select destination") %></label>
+                        <label class="space-y-1 text-xs text-muted-foreground">Destination account<%= render Ui::SelectComponent.new(name: "planned_transaction[destination_selection]", options: destination_accounts, selected: transaction.destination_selection, include_blank: "Select destination", searchable: true) %></label>
                       <% end %>
                       <% unless transaction.budget_consuming? %>
                         <label class="flex items-center gap-2 text-sm sm:col-span-2"><%= hidden_field_tag "planned_transaction[commits_plan_funds]", "0", id: nil %><%= check_box_tag "planned_transaction[commits_plan_funds]", "1", transaction.commits_plan_funds? %><span>Reserve funds</span></label>
@@ -131,11 +146,11 @@
         <label class="space-y-1 text-sm">Payment note<%= render Ui::InputComponent.new(name: "planned_transaction[notes]", placeholder: "Minimum payment, refinance, or other context") %></label>
         <label class="space-y-1 text-sm">
           <span data-planned-transaction-form-target="sourceLabel">Source account</span>
-          <%= render Ui::SelectComponent.new(name: "planned_transaction[source_selection]", options: account_options, include_blank: "Select account", required: true, data: { planned_transaction_form_target: "source" }) %>
+          <%= render Ui::SelectComponent.new(name: "planned_transaction[source_selection]", options: account_options, include_blank: "Search all accounts…", required: true, searchable: true, data: { planned_transaction_form_target: "source" }) %>
         </label>
-        <label class="space-y-1 text-sm" data-planned-transaction-form-target="categoryFields">Category<%= render Ui::SelectComponent.new(name: "planned_transaction[category_id]", options: categories.map { |category| [ category.name, category.id ] }, include_blank: "Select category", required: true, data: { planned_transaction_form_target: "category" }) %></label>
+        <label class="space-y-1 text-sm" data-planned-transaction-form-target="categoryFields">Category<%= render Ui::SelectComponent.new(name: "planned_transaction[category_id]", options: categories.map { |category| [ category.selection_label, category.id ] }, include_blank: "Select category", required: true, data: { planned_transaction_form_target: "category" }) %></label>
         <div class="hidden space-y-3" data-planned-transaction-form-target="destinationFields">
-          <label class="space-y-1 text-sm">Destination account<%= render Ui::SelectComponent.new(name: "planned_transaction[destination_selection]", options: account_options, include_blank: "Select destination", data: { planned_transaction_form_target: "destination", action: "planned-transaction-form#toggle" }) %></label>
+          <label class="space-y-1 text-sm">Destination account<%= render Ui::SelectComponent.new(name: "planned_transaction[destination_selection]", options: account_options, include_blank: "Search all accounts…", searchable: true, data: { planned_transaction_form_target: "destination", action: "planned-transaction-form#toggle" }) %></label>
           <label class="flex items-center gap-2 text-sm"><%= hidden_field_tag "planned_transaction[commits_plan_funds]", "0", id: nil %><%= check_box_tag "planned_transaction[commits_plan_funds]", "1" %><span>Reserve funds</span></label>
         </div>
         <div class="self-end md:col-span-2"><%= render Ui::ButtonComponent.new(label: "Add transaction", type: "submit", size: :sm) %></div>
@@ -143,3 +158,4 @@
     </details>
   <% end %>
 </section>
+</turbo-frame>

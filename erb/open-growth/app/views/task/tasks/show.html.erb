@@ -1,0 +1,73 @@
+<%
+  edit_path = edit_task_task_path(@task, return_to: ("dashboard" if @return_to_dashboard))
+%>
+<%= turbo_frame_tag "task_detail_panel" do %>
+  <div class="fixed inset-0 z-50 h-dvh max-h-dvh w-full overflow-y-auto overflow-x-hidden border-l border-border bg-card shadow-xl animate-slide-in-right sm:inset-y-0 sm:right-0 sm:left-auto sm:max-w-md">
+    <div class="min-w-0 p-6">
+      <div class="mb-4 flex items-start justify-between gap-2">
+        <div class="min-w-0 flex-1">
+          <p class="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground"><%= @task.task_number %></p>
+          <h2 class="break-words text-xl font-bold text-foreground"><%= @task.title %></h2>
+        </div>
+        <%= link_to t("task.recurring_tasks.show.close_panel"), task_close_panel_path, data: { turbo_frame: "task_detail_panel" }, class: "flex-shrink-0 rounded p-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" %>
+      </div>
+
+      <div class="mb-5 flex flex-wrap gap-2">
+        <%= render StatusBadgeComponent.new(status: @task.status, type: :status) %>
+        <%= render StatusBadgeComponent.new(status: @task.priority, type: :priority) %>
+      </div>
+
+      <dl class="space-y-3 text-sm">
+        <div>
+          <dt class="font-medium text-muted-foreground">Project</dt>
+          <dd class="text-foreground"><%= @task.project&.name || t("tasks.project.unassigned", default: "Unassigned") %></dd>
+        </div>
+        <div>
+          <dt class="font-medium text-muted-foreground">Owner</dt>
+          <dd class="text-foreground"><%= @task.user.name %></dd>
+        </div>
+        <div>
+          <dt class="font-medium text-muted-foreground">Due date</dt>
+          <dd class="text-foreground <%= 'font-semibold text-danger' if @task.overdue? %>">
+            <%= @task.due_date ? l(@task.due_date, format: :short) : "—" %>
+            <%= " · Overdue" if @task.overdue? %>
+          </dd>
+        </div>
+        <% if @task.description.present? %>
+          <div class="min-w-0">
+            <dt class="mb-1 font-medium text-muted-foreground">Description</dt>
+            <dd class="markdown-content break-words text-foreground"><%= render_markdown(@task.description) %></dd>
+          </div>
+        <% end %>
+      </dl>
+
+      <section class="mt-6 border-t border-border pt-4">
+        <h3 class="mb-3 font-semibold text-foreground">Comments</h3>
+        <div class="mb-4 space-y-3">
+          <% @comments.each do |comment| %>
+            <article class="rounded-lg bg-muted/40 p-3">
+              <p class="whitespace-pre-wrap break-words text-sm text-foreground"><%= comment.body %></p>
+              <p class="mt-2 text-xs text-muted-foreground"><%= comment.user.name %> · <%= l(comment.created_at.in_time_zone(Current.user.time_zone), format: :short) %></p>
+            </article>
+          <% end %>
+        </div>
+        <%= form_with model: Projects::Task::Comment.new, scope: :task_comment, url: task_task_comments_path(@task, return_to: ("dashboard" if @return_to_dashboard)), class: "space-y-2" do |form| %>
+          <%= form.label :body, "Add a comment", class: "sr-only" %>
+          <%= form.text_area :body, required: true, rows: 3, class: "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground", placeholder: "Write a comment…" %>
+          <%= form.submit "Comment", class: "inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90" %>
+        <% end %>
+      </section>
+
+      <div class="mt-6 flex flex-wrap gap-2 border-t border-border pt-4">
+        <%= button_to "Mark done",
+          task_task_path(@task, return_to: ("dashboard" if @return_to_dashboard)),
+          method: :patch,
+          params: { task: { status: "done" } },
+          form: { data: { turbo_frame: "_top", turbo: false } },
+          class: "inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90" %>
+        <button type="button" onclick="window.drawerOpen('<%= j(edit_path) %>')" class="inline-flex items-center justify-center rounded-lg bg-muted px-4 py-2 text-sm text-foreground hover:bg-muted/80">Edit</button>
+        <%= link_to t("task.recurring_tasks.show.close_panel"), task_close_panel_path, data: { turbo_frame: "task_detail_panel" }, class: "inline-flex items-center justify-center px-4 py-2 text-sm text-muted-foreground hover:text-foreground" %>
+      </div>
+    </div>
+  </div>
+<% end %>

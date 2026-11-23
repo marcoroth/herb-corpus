@@ -1,0 +1,23 @@
+<% models = @chat_models || available_chat_models %>
+<% options = models.map { |model| [model.label, model.id] }.uniq { |option| option.last } %>
+<% selected_model = @selected_model.presence || chat.model_id || RubyLLM.config.default_model %>
+<% current_model_selected = @selected_model.blank? && chat.persisted? %>
+<% selection_available = models.any? { |model| model.id == selected_model && (!current_model_selected || model.provider.to_s == chat.provider.to_s) } %>
+<% if selection_available && current_model_selected %>
+  <% options.reject! { |option| option.last == chat.model_id } %>
+  <% options.unshift([chat.model.label, chat.model_id]) %>
+<% elsif !selection_available %>
+  <% label = current_model_selected ? "#{chat.model.label} (unavailable)" : "Choose a model" %>
+  <% options.unshift([label, "", { disabled: true }]) %>
+  <% selected_model = "" %>
+<% end %>
+<div class="min-w-0 max-w-64 flex-1">
+  <%= label_tag "#{scope}_model", "Model", class: "sr-only" %>
+  <%= select_tag "#{scope}[model]", options_for_select(options, selected_model),
+      id: "#{scope}_model", required: true, title: "Model for your next message", aria: { describedby: "#{scope}_model_hint" },
+      class: "block min-h-11 w-full min-w-0 rounded-full border-0 bg-stone-100 px-3 py-1.5 text-base text-stone-600 focus:outline-sage-600" %>
+  <span id="<%= scope %>_model_hint" class="sr-only">Applies to your next message. Earlier replies are unchanged.</span>
+  <% unless selection_available %>
+    <p class="mt-1 text-xs text-amber-700" role="status"><%= models.empty? ? "No models are available. Please contact the site administrator." : "Choose an available model to continue." %></p>
+  <% end %>
+</div>

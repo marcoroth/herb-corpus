@@ -1,0 +1,50 @@
+<%# locals: (organisations:) %>
+<%# The sidebar's middle above the organisations (Belegungstabelle F48; variant C,
+    user, 2026-11-14): the lists of the level in one fixed order ("Übersicht", the
+    cockpit; "Gesamt-Inbox" and "Personen", the people of all organisations, from
+    two active organisations on; a later list of the level is one more row here),
+    then every organisation with an active membership
+    and its unread count. An organisation row OPENS that organisation (its start
+    page: the full page moves the session's organisation, ApplicationController#
+    load_tenant_from_session). It never narrows a list and is never marked: the
+    inbox narrows through the select field at its list, nowhere else.
+
+    The active row comes from the page's controller (NavigationHelper#level_page_key),
+    never from the address: this partial is also drawn by the redraw stream of the
+    inbox (all_inboxes/_redraw), whose request is a row action or the live redraw.
+
+    organisations: [{ id:, name:, unread: }] in the order of Organisation.by_name,
+    from what the page already loaded (ApplicationController#level_organisations).
+    The id is the target of that stream. %>
+<% page = level_page_key %>
+<div id="all_inboxes_nav" class="w-full px-4 pt-6" data-all-inboxes-nav>
+  <ul class="flex flex-col gap-1">
+    <%= render 'common/navigation_item', name: t('navigation.overview'), path: select_organisation_path,
+                                         icon: 'bi bi-grid', active: page == :overview,
+                                         aria_current: ('page' if page == :overview) %>
+    <% if organisations.many? %>
+      <%= render 'common/navigation_item', name: t('navigation.all_inboxes'), path: all_inboxes_path,
+                                           icon: 'bi bi-bell', active: page == :all_inboxes,
+                                           aria_current: ('page' if page == :all_inboxes) %>
+      <%= render 'common/navigation_item', name: t('navigation.people'), path: all_people_path,
+                                           icon: 'bi bi-people', active: page == :all_people,
+                                           aria_current: ('page' if page == :all_people) %>
+    <% end %>
+  </ul>
+
+  <%# Without an active organisation there is nothing to list: no label over an empty list. %>
+  <% if organisations.any? %>
+    <p class="px-3 pb-1.5 pt-5 section-label text-muted"><%= t('navigation.organisations') %></p>
+    <nav aria-label="<%= t('navigation.organisations') %>">
+      <ul class="flex flex-col gap-1">
+        <% organisations.each do |organisation| %>
+          <%= render 'common/navigation_item',
+                name: organisation[:name],
+                path: organisation_root_path(organisation_id: organisation[:id]),
+                icon: 'bi bi-building',
+                count: organisation[:unread] %>
+        <% end %>
+      </ul>
+    </nav>
+  <% end %>
+</div>

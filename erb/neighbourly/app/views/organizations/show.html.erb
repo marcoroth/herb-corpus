@@ -1,0 +1,57 @@
+<% content_for :title, @organization.name %>
+<% content_for :admin_actions do %>
+  <%= link_to "Back to organizations", organizations_path, class: "admin-button-secondary" %>
+  <%= link_to "Edit", edit_organization_path(@organization), class: "admin-button-primary" %>
+  <% if policy(@organization).destroy? %>
+    <%= button_to "Delete", organization_path(@organization), method: :delete, class: "admin-button-danger",
+        data: { turbo_confirm: "Delete organization '#{@organization.name}'? Its services are kept, without an organization." } %>
+  <% end %>
+<% end %>
+
+<%= render "admin/page_header", title: @organization.name, description: "Review this organization and the services it offers." %>
+
+<dl class="admin-panel max-w-4xl divide-y divide-stone-100">
+  <% [["About", @organization.description], ["Location", @organization.address&.one_line], ["Phone", @organization.phone], ["Email", @organization.email]].each do |label, value| %>
+    <% next if value.blank? %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500"><%= label %></dt>
+      <dd class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-stone-900"><%= value %></dd>
+    </div>
+  <% end %>
+  <% if @organization.website.present? %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500">Website</dt>
+      <dd class="mt-2 break-all text-sm leading-6"><%= web_link(@organization.website) %></dd>
+    </div>
+  <% end %>
+  <% if current_user.admin? %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500">Members</dt>
+      <dd class="mt-2 break-all text-sm leading-6 text-stone-900">
+        <% if @organization.members.any? %>
+          <%= safe_join(@organization.members.order(:email).map { |member| link_to(member.email, member, class: "admin-link") }, ", ") %>
+        <% else %>
+          None yet. Choose an organization on a user's page to make them a member.
+        <% end %>
+      </dd>
+    </div>
+  <% end %>
+  <% if @organization.source %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500">First seen in</dt>
+      <dd class="mt-2 text-sm leading-6"><%= link_to_if policy(@organization.source).show?, @organization.source.name, @organization.source, class: "admin-link" %></dd>
+    </div>
+  <% end %>
+</dl>
+
+<section aria-labelledby="organization-services" class="mt-10 max-w-4xl">
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h2 id="organization-services" class="text-lg font-semibold text-stone-900">Services</h2>
+    <%= link_to "Add service", new_service_path(organization_id: @organization.id), class: "admin-button-secondary" %>
+  </div>
+  <% if @services.any? %>
+    <%= render "services/table", services: @services, show_organization: false %>
+  <% else %>
+    <p class="admin-empty-state">This organization has no services yet.</p>
+  <% end %>
+</section>

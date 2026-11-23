@@ -68,9 +68,24 @@
       <%= render AppSidebarComponent.new(current_controller: controller_path) %>
 
       <div data-sidebar-target="content" class="min-h-screen md:pl-[var(--sidebar-width,16rem)] transition-[padding-left] duration-200 ease-linear bg-[linear-gradient(180deg,hsl(var(--shell-gradient-start))_0%,hsl(var(--shell-gradient-end))_100%)]">
-        <header class="sticky top-0 z-30 mb-6 border-b border-sidebar-border bg-[hsl(var(--shell-main-surface))] p-3 text-sidebar-foreground shadow-sm md:hidden">
+        <header class="sticky top-0 z-30 <%= content_for?(:compact_page) ? 'mb-2' : 'mb-6' %> border-b border-sidebar-border bg-[hsl(var(--shell-main-surface))] p-3 text-sidebar-foreground shadow-sm md:hidden">
           <div class="container mx-auto flex items-center justify-between gap-4">
-            <div class="min-w-0 font-semibold truncate max-w-[70%] text-sm" title="<%= nav_page_title %>"><%= nav_page_title %></div>
+            <div class="min-w-0 max-w-[70%]">
+              <div class="truncate text-sm font-semibold" title="<%= nav_page_title %>"><%= nav_page_title %></div>
+              <% if Current.account %>
+                <% if Current.user&.accounts&.many? %>
+                  <%= form_with url: account_switch_path, method: :post, local: true, class: "-ml-1" do |f| %>
+                    <%= f.label :account_id, "Current account", class: "sr-only" %>
+                    <%= f.select :account_id,
+                        options_from_collection_for_select(Current.user.accounts, :id, :name, Current.account.id),
+                        {},
+                        { onchange: "this.form.submit()", aria: { label: "Switch account" }, class: "max-w-full cursor-pointer border-0 bg-transparent p-1 text-xs text-sidebar-foreground/70 focus:ring-0" } %>
+                  <% end %>
+                <% else %>
+                  <div class="truncate text-xs text-sidebar-foreground/70" title="Current account: <%= Current.account.name %>">Account: <%= Current.account.name %></div>
+                <% end %>
+              <% end %>
+            </div>
             <div class="flex items-center gap-2">
               <button
                 type="button"
@@ -99,8 +114,8 @@
 
         <%= yield :overlays %>
 
-        <main class="mx-auto w-full max-w-7xl px-0 pt-4 pb-8 sm:px-4">
-          <div class="rounded-none border-0 bg-[hsl(var(--shell-main-surface))] p-0 shadow-none sm:rounded-3xl sm:border sm:border-border sm:p-6 sm:shadow-[var(--shell-main-shadow)] sm:backdrop-blur-sm">
+        <main class="mx-auto w-full <%= content_for?(:compact_page) ? 'max-w-none px-0 pt-0 pb-8' : 'max-w-7xl px-0 pt-4 pb-8 sm:px-4' %>">
+          <div class="<%= content_for?(:compact_page) ? 'rounded-none border-0 bg-transparent p-0 shadow-none' : 'rounded-none border-0 bg-[hsl(var(--shell-main-surface))] p-0 shadow-none sm:rounded-3xl sm:border sm:border-border sm:p-6 sm:shadow-[var(--shell-main-shadow)] sm:backdrop-blur-sm' %>">
             <%= yield %>
           </div>
         </main>

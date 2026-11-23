@@ -3,7 +3,8 @@
     Without an effective color (one org / off / not set) NO override -> :root default applies. %>
 <html lang="<%= I18n.locale %>" class="theme-lime theme-pop"<% if (brand_style = brand_style_for(current_user, @current_organisation)) %> style="<%= brand_style %>"<% end %>>
   <head>
-    <title><%= t('application.title', default: 'Projektmanagement') %></title>
+    <%# A page may name itself (content_for :title), as the pages without a session do. %>
+    <title><%= content_for?(:title) ? yield(:title) : t('application.title', default: 'Projektmanagement') %></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <%= csrf_meta_tags %> <%= csp_meta_tag %>
 
@@ -111,17 +112,30 @@
         are decided CENTRALLY; returns only valid hex (no 'off' leak as a CSS value).
         The line is gated (only when a color is present) -> default orgs: no line -> pixel-identical. %>
     <% org_brand = current_user&.org_colors&.effective_color(@current_organisation) if user_signed_in? && @current_organisation %>
+    <%# What the sidebar's middle shows has ONE owner, NavigationHelper#sidebar_mode
+        (Belegungstabelle F44, F48); this layout only renders by it. %>
+    <% mode = sidebar_mode %>
+    <%# The account layer rises over this sidebar on an organisation's page and on the
+        level above the organisations (common/_account_layer, F47);
+        sidebar_layer_controller sits on the aside because it reaches the name at its
+        foot, the layer and what the layer covers. An account page has none: its
+        sidebar already is the list. %>
+    <% account_layer = NavigationHelper.account_layer?(mode) %>
     <aside id="sidebar"
       class="fixed inset-y-0 start-0 sidebar flex flex-col w-64 lg:min-w-64 h-screen overflow-hidden <%= 'bg-cream-200' unless org_brand %> border-r border-cream-300 <%= 'border-s-[3px] border-s-brand' if org_brand %> transition-all duration-500 ease-in-out -translate-x-full lg:translate-x-0 max-lg:z-sidebar rtl:translate-x-full lg:rtl:translate-x-0"
-      <% if org_brand %> style="background-color: <%= org_brand %>;"<% end %>>
+      <% if org_brand %> style="background-color: <%= org_brand %>;"<% end %>
+      <% if account_layer %> data-controller="sidebar-layer"<% end %>>
 
       <!-- Scrollable content container -->
       <div class="flex flex-col h-full">
         <!-- Fixed top section -->
         <div class="flex-shrink-0">
-          <!-- logo + changelog -->
+          <!-- logo -->
           <div class="flex items-center justify-between mx-7 pt-4 pb-4">
-            <%= link_to @current_organisation.present? ? organisation_root_path(organisation_id: @current_organisation.id) : root_path, class: "text-2xl font-black flex flex-row items-center gap-1.5" do %>
+            <%# NavigationHelper#brand_link_path: the start of the level above the
+                organisations for someone in two or more (level_home_path), else the
+                organisation's start page. %>
+            <%= link_to brand_link_path, class: "text-2xl font-black flex flex-row items-center gap-1.5", data: { brand_link: true } do %>
               <%# The brand mark of the public pages, ONE partial (user, 10.09.2026: the
                   application carried a third fashion, "alaBase" with a 2px shadow). The
                   chip keeps the org recognition colour through bg-brand (BrandHelper sets
@@ -129,15 +143,29 @@
                   the public chip's lime-300, so without a colour the two are one. %>
               <%= render 'shared/brand_mark', chip_class: 'bg-brand' %>
             <% end %>
-            <%# No header icons anymore: "Neuigkeiten" (changelog) moved into the account menu
-                (#109, common/_user_menu_compact); global search moved to a labelled "Suche"
+            <%# No header icons anymore: global search moved to a labelled "Suche"
                 nav item + body-level overlay (search_overlay). The logo stands alone here. %>
           </div>
         </div>
 
+        <%# The stage: everything between the logo and the reader's name. ONE grid cell
+            that the sidebar's own content and the account layer share, so the layer
+            covers exactly this and needs no measured offsets. It clips (the layer
+            slides in from below the cell), and it is deliberately NOT positioned: the
+            organisation switcher's menu is placed against the aside
+            (details_autoclose_controller#reposition) and has to keep that reference. %>
+        <div class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-hidden">
+        <div class="col-start-1 row-start-1 flex min-h-0 flex-col" data-sidebar-layer-target="covered">
         <!-- Scrollable middle section -->
         <div class="flex-1 overflow-y-auto scrollbars">
-          <% if user_signed_in? && @current_organisation.blank? %>
+          <%# The header with the switcher (F49): in an organisation, its management area
+              and on the level above the organisations, for everybody signed in. %>
+          <%= render 'common/sidebar_header' if %i[organisation management level].include?(mode) %>
+          <% if mode == :level %>
+            <%# Above the organisations: the lists of the level and the organisations,
+                with the counts the page already loaded. %>
+            <%= render 'common/navigation_level', organisations: level_organisations %>
+          <% elsif mode == :account %>
             <%= render 'common/navigation_account' %>
           <% else %>
             <%= render 'common/navigation_application', current_organisation: @current_organisation %>
@@ -145,7 +173,9 @@
               <%= turbo_stream_from Notifications::Streams.badge(current_user, @current_organisation) %>
               <%= render 'notifications/count_data_frame', count: current_user.unread_notifications_count(@current_organisation) %>
             <% end %>
-            <% if user_signed_in? && @current_organisation.present? %>
+            <%# No projects while the management area is open: the sidebar lists its
+                sections then (common/_navigation_management). %>
+            <% if mode == :organisation %>
               <%= render 'common/sidebar_project_list' %>
             <% end %>
           <% end %>
@@ -160,7 +190,7 @@
               material, not a full nav row (doc/in_app_hilfe_plan.md §3.4) — the "?" is
               learned app-wide via the contextual-help triggers. The mobile sidebar is an
               overlay, hence the max-lg padding bumps (≥44px touch targets). %>
-          <div class="px-4 py-2.5 border-b border-cream-300 flex items-center justify-between gap-2">
+          <div class="px-4 py-2.5 flex items-center justify-between gap-2">
             <%# Notizblock trigger replaces the (redundant) "Ansicht" label; theme toggles stay
                 on the right. Opens the body-level slide-over drawer (personal_tasks_drawer). %>
             <% if user_signed_in? && @current_organisation.present? %>
@@ -227,11 +257,14 @@
           <%# "Neues Projekt" moved from here into common/_sidebar_project_list (object
               action lives with the object); the help entry collapsed into the icon-only
               "?" in the utility row above. %>
+        </div>
+        </div>
+        <%= render 'common/account_layer' if account_layer %>
+        </div>
 
-          <!-- User Menu -->
-          <div class="space-y-0">
-            <%= render 'common/user_menu_compact', current_organisation: @current_organisation %>
-          </div>
+        <%# The reader's name: outside the stage, so it stays while the layer is up. %>
+        <div class="flex-shrink-0 border-t border-cream-300">
+          <%= render 'common/user_menu_compact', current_organisation: @current_organisation %>
         </div>
       </div>
     </aside>

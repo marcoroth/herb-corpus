@@ -11,7 +11,7 @@
 
 <div class="story_content">
   <% if @story.markeddown_description.present? && @story.stories_count == 0 %>
-    <div class="story_text">
+    <div class="story_text" id="story_text">
       <%= raw @story.markeddown_description %>
     </div>
   <% end %>
@@ -68,7 +68,7 @@
 
   <details>
       <summary><%= @story.suggested_taggings.count %> tag suggestions</summary>
-      
+
       <table class="data zebra moderations" width="100%" cellspacing=0>
         <tr>
           <th>User</th>
@@ -99,7 +99,8 @@
 <% end %>
 
 <% if !@story.previewing %>
-  <% @merged_stories.select { it.can_be_seen_by_user?(@user) }.each do |ms| %>
+  <% @comments.each_thread(@merged_stories) do |ms, thread| %>
+    <% next unless ms.can_be_seen_by_user?(@user) %>
     <% if @story.stories_count > 0 %>
       <ol class="stories">
         <li class="story">
@@ -108,14 +109,14 @@
               <span class="merge"></span>
             </div>
             <div class="details" id="<%= ms.comments_anchor %>">
-              <span role="heading" aria-level="2" class="link h-cite u-repost-of">
+              <h2 class="link h-cite u-repost-of">
                 <% if ms.can_be_seen_by_user?(@user) %>
                   <a class="u-url" href="<%= Routes.url_or_comments_path(ms) %>" rel="ugc <%= ms.send_referrer? ? '' : 'noreferrer' %>"><%= ms.title %></a>
                 <% end %>
                 <% if ms.is_gone? %>
                   [Story removed by <%= ms.is_moderated? ? "moderator" : "submitter" %>]
                 <% end %>
-              </span>
+              </h2>
 
               <span class="byline">
                 <span>&nbsp;</span>
@@ -184,11 +185,10 @@
       <li class="comments_subtree" id="<%= "comments-#{ms.short_id}" %>">
         <% if @user && @comments.size > 0 %>
           <div class="thread_summary">
-            <%= pluralize(@comments.select { it.story_id == ms.id }.size, "comment") %>,
-            <% unread = @ribbon.unread_count(@comments.select { it.story_id == ms.id }) %>
+            <%= pluralize(thread.size, "comment") %>,
             <% if @ribbon.new_record? %>
               all unread
-            <% elsif unread > 0 %>
+            <% elsif (unread = @unread_counts[ms.id]) > 0 %>
               <span role='link' class='comment_unread'><%= unread %> unread</span>
             <% else %>
               0 unread
@@ -197,7 +197,7 @@
         <% end %>
 
         <%= render partial: 'comments/threads', locals: {
-          thread: @comments.select { it.story_id == ms.id },
+          thread:,
           story: ms,
           ribbon: @ribbon,
           read_by_notifications: @read_by_notifications,

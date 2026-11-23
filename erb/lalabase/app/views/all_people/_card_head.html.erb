@@ -1,0 +1,89 @@
+<%# locals: (card:, editing: false, mode: :contact) %>
+<%# The head of an open card. "Bearbeiten": for a person of several
+    organisations it shows Herkunft with the pencils, whatever mode the reader
+    chose (a state of this card, taken back by "Fertig", which returns to that
+    mode); for a person of one organisation it is the pencil itself, the way
+    into that form. Offered only where the reader may write somewhere.
+    The switch Kontakt | Herkunft is the reader's own (AllPeopleController#sources,
+    people_card_sources: true is Herkunft), the view switch of the app: two
+    tiles, each a form that sends its mode and the open card. It keeps Turbo
+    and answers inside the lane's frame (turbo_frame), so the list beside the
+    card keeps its page and its search. Offered only for several sources and
+    not while "Bearbeiten" is on: that shows Herkunft already, and the switch
+    would change nothing there. The ✕ closes the lane in place (layout-toggle).
+    Links and the switch stay in the lane's frame; what leaves the page says so
+    (_top).
+
+    Behind "···", the rarer actions: taking a contact over into another
+    organisation (per source that is a contact without an account, when there
+    is somewhere to take it; the dialog of that organisation's people page,
+    loaded into its frame below the head, with from=all_people so that every
+    answer comes back to a card here), and undoing the reader's merge: a
+    source can leave alone where everybody else stays as shown
+    (Source#detachable, never with two parts), or the whole merge goes
+    (AllPeople::MergesController#destroy, back to this card). After one source
+    left, "this card" is the card of the people who stay merged: the way back
+    names a source that stays, not the one that leaves. A person the same
+    account alone joins has nothing stored to undo. %>
+<% several = card.sources.many? %>
+<% only = card.sources.first unless several %>
+<% return_state = all_people_return_state.merge(AllPeopleController::CARD_PARAM => card.address) %>
+<% items = [] %>
+<% card.sources.select(&:takeover).each do |source| %>
+  <% text = several ? t('views.all_people.card.takeover_from', organisation: source.organisation_name) : t('views.organisations.people.takeover.menu') %>
+  <% items << link_to(text, new_organisation_person_takeover_path(source.organisation_id, source.takeover,
+                                                                  from: Organisations::PersonTakeoversController::FROM_ALL_PEOPLE),
+                      data: { turbo_frame: person_takeover_modal_id(source.takeover), card_takeover: true }) %>
+<% end %>
+<% if card.merge_id %>
+  <% card.sources.select(&:detachable).each do |source| %>
+    <% stays = card.sources.find { |other| !other.equal?(source) } %>
+    <% back = return_state.merge(AllPeopleController::CARD_PARAM => People::MergedCard.address_of(stays.organisation_id, stays.address)) %>
+    <% items << button_to(t('views.all_people.card.detach', organisation: source.organisation_name),
+                          all_people_merge_path(card.merge_id, back.merge(source: People::MergedCard.address_of(source.organisation_id, source.address))),
+                          method: :delete,
+                          form: { data: { turbo_frame: '_top', card_detach: true,
+                                          turbo_confirm: t('views.all_people.card.detach_confirm', name: source.name, organisation: source.organisation_name) } }) %>
+  <% end %>
+  <% items << button_to(t('views.all_people.merge.split'), all_people_merge_path(card.merge_id, return_state), method: :delete,
+                        form: { data: { turbo_frame: '_top', card_split: true,
+                                        turbo_confirm: t('views.confirm.split_merged_person', name: card.name) } }) %>
+<% end %>
+<div class="people-lane__head" data-lane-head data-lane-index-url="<%= all_people_path %>">
+  <% if only&.edit %>
+    <%= link_to all_people_edit_path(only.organisation_id, only.edit), class: 'people-ghost-action',
+                                                                    data: { turbo_frame: '_top', card_edit: true } do %>
+      <i class="bi bi-pencil" aria-hidden="true"></i><%= t('views.organisations.people.show.edit') %>
+    <% end %>
+  <% elsif several && editing %>
+    <%= link_to all_people_card_path(card), class: 'people-ghost-action', data: { card_edit_done: true } do %>
+      <i class="bi bi-check-lg" aria-hidden="true"></i><%= t('views.all_people.card.edit_done') %>
+    <% end %>
+  <% elsif several && card.sources.any?(&:edit) %>
+    <%= link_to all_people_card_path(card, editing: true), class: 'people-ghost-action', data: { card_edit: true } do %>
+      <i class="bi bi-pencil" aria-hidden="true"></i><%= t('views.organisations.people.show.edit') %>
+    <% end %>
+  <% end %>
+  <% if several && !editing %>
+    <div class="all-people-card__modes" data-card-mode-switch>
+      <%= render NeoViewSwitchComponent.new(label: t('views.all_people.card.modes.label'), items: all_people_mode_items(card, mode)) %>
+    </div>
+  <% end %>
+  <% if items.any? %>
+    <%# The trigger of this menu has an id of its own: every takeover dialog it opens
+        returns the focus here, whichever contact it is for (its frame names the id). %>
+    <details class="more-menu" data-controller="details-autoclose">
+      <summary class="more-menu__trigger" id="<%= AllPeopleHelper::CARD_MORE_ACTIONS_ID %>"
+               title="<%= t('views.all_people.card.more_actions') %>"
+               aria-label="<%= t('views.all_people.card.more_actions') %>"><i class="bi bi-three-dots" aria-hidden="true"></i></summary>
+      <div class="more-menu__items"><%= safe_join(items) %></div>
+    </details>
+  <% end %>
+  <span class="people-lane__divider" aria-hidden="true"></span>
+  <%= render 'all_people/lane_close' %>
+</div>
+<%# contents: an empty frame takes no gap of the column; the dialog is fixed. %>
+<% card.sources.filter_map(&:takeover).each do |person_id| %>
+  <%= turbo_frame_tag person_takeover_modal_id(person_id), class: 'contents',
+                      data: { person_takeover_return_id: AllPeopleHelper::CARD_MORE_ACTIONS_ID } %>
+<% end %>

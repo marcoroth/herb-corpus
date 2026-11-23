@@ -1,0 +1,48 @@
+<%# locals: (proposal:, can_decide:, access:, selected: nil) %>
+<%# One proposal of the review list (K5b): the spelling and its category, the
+    other spellings, the model's hint in grey (only for a reader of its whole
+    model context: access is glossary_source_access, asked once for the whole list),
+    then the projects of its sources (names, a part of the glossary for every
+    reader, like the project of a heard form); the number on the right counts
+    its occurrences. With manage_glossary the decisions of its status
+    (_proposal_actions; buttons do not open the row, list-row skips them). A
+    click, Enter or Space opens the proposal in the lane (?proposal_id=). %>
+<% open = selected&.id == proposal.id %>
+<% row_data = { controller: 'list-row', action: 'click->list-row#click keydown.enter->list-row#click keydown.space->list-row#click',
+                glossary_row: true, glossary_proposal_row: true,
+                list_row_url_value: proposal_organisation_glossary_terms_path(@current_organisation, proposal_id: proposal.id),
+                list_row_id_value: proposal.id, list_row_param_value: 'proposal_id',
+                list_row_params_value: GlossaryHelper::SELECTION_PARAMS.to_json,
+                list_row_frame_value: Organisations::GlossaryController::DETAIL_FRAME_ID } %>
+<% projects = glossary_proposal_projects(proposal) %>
+<% hint = glossary_proposal_hint(proposal, access) %>
+<% occurrences = t('views.organisations.glossary.proposals.occurrences', count: proposal.occurrences) %>
+<%# Class names written out: Tailwind keeps only component classes it finds whole in a template. %>
+<%= tag.li data: row_data, tabindex: 0, class: ['people-row glossary-row', ('selected-row' if open)].compact.join(' ') do %>
+  <%# A div, not a span: it holds the actions, a div with forms. %>
+  <div class="people-row__text">
+    <span class="glossary-row__head">
+      <span class="people-row__name"><%= proposal.term %></span>
+      <% if proposal.category %>
+        <span class="people-badge"><%= glossary_category_name(proposal.category) %></span>
+      <% end %>
+    </span>
+    <% if proposal.variants.any? %>
+      <span class="people-row__sub" data-glossary-proposal-variants>
+        <%= t('views.organisations.glossary.proposals.variants', forms: proposal.variants.join(', ')) %>
+      </span>
+    <% end %>
+    <% if hint %>
+      <span class="people-row__sub text-cream-500" data-glossary-proposal-hint><%= hint %></span>
+    <% end %>
+    <% if projects.any? %>
+      <span class="people-row__sub glossary-row__origin" data-glossary-proposal-projects><%= projects.join(', ') %></span>
+    <% end %>
+    <% if can_decide %>
+      <%= render 'organisations/glossary/proposal_actions', proposal: proposal %>
+    <% end %>
+  </div>
+  <span class="glossary-row__count" title="<%= occurrences %>">
+    <%= proposal.occurrences %><span class="sr-only"> <%= occurrences %></span>
+  </span>
+<% end %>

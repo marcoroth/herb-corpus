@@ -1,0 +1,64 @@
+<% content_for :title, t('views.all_inboxes.title') %>
+<%# Back must not show an old copy of this list: a row read in its organisation
+    would still stand as unread. Turbo fetches the page again instead. %>
+<% content_for :head, tag.meta(name: 'turbo-cache-control', content: 'no-cache') %>
+
+<%# The inbox above the organisations (AllInboxesController): the list of the
+    organisation's inbox, drawn by the same partials and on the same frame
+    (organisations/notifications/_inbox_page), over every organisation of the
+    person. Each row names its organisation. A ticket row opens in the lane on
+    this page: GET /inbox with ?notification= and the header Turbo-Frame:
+    ticket_pane answers the pane of the ticket's organisation, rendered in that
+    organisation (AllInboxesController#render_lane); a full load with
+    ?notification= draws the lane open and lets its frame load the same
+    address. Its "···" menu, the head of the lane and the bulk bar act in place
+    (update.turbo_stream.erb). Rows of another kind still leave for their
+    organisation (S4).
+    Live: one signal per person (Notifications::Streams.all_inboxes) carries an
+    opaque stamp. all_inboxes_live_controller compares it with the stamp the list
+    was drawn with; when they differ it redraws the counts and shows the banner,
+    the list moves only on the banner's word (or when a hidden tab is shown
+    again). Its element wraps the frame without a box of its own (contents), so
+    the grid lays out as on the page of one organisation. %>
+<% head = capture do %>
+  <%= render 'organisations/notifications/list_head',
+             presenter: @presenter, projects: [], unread_count: @unread_count, organisations: @inbox_organisations %>
+
+  <%= turbo_stream_from Notifications::Streams.all_inboxes(current_user) %>
+  <%= render 'all_inboxes/signal', stamp: @stamp %>
+  <%= render 'notifications/new_notifications_banner',
+             id: 'all_inboxes_banner', refresh_action: 'all-inboxes-live#refresh', shown: false %>
+<% end %>
+
+<% list = capture do %>
+  <%= render 'all_inboxes/drawn_stamp', stamp: @stamp %>
+  <%= render 'organisations/notifications/master_list',
+             presenter: @presenter, selected_notification: nil,
+             organisation_names: @inbox_organisations.to_h { |organisation| [organisation[:id], organisation[:name]] } %>
+  <%# The search reloads only this frame; the tools that carry the search
+      in their addresses follow as streams inside its answer, as in the
+      inbox of one organisation (organisations/notifications/index). %>
+  <% if turbo_frame_request_id == 'notifications_list_frame' %>
+    <%= turbo_stream.replace 'inbox_list_tools' do %>
+      <%= render 'organisations/notifications/list_tools',
+                 presenter: @presenter, projects: [], unread_count: @unread_count, organisations: @inbox_organisations %>
+    <% end %>
+    <%= turbo_stream.replace 'inbox_view_switch' do %>
+      <%= render 'organisations/notifications/view_switch', presenter: @presenter %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%# The lane loads by its own request (one request, one organisation): the
+    frame names this page's address, the page itself reads no ticket. %>
+<% lane = if @lane_address
+            turbo_frame_tag('ticket_pane', src: @lane_address, class: 'block')
+          else
+            render('organisations/notifications/pane_empty')
+          end %>
+
+<div class="contents" data-all-inboxes
+     data-controller="all-inboxes-live" data-all-inboxes-live-url-value="<%= all_inboxes_path %>">
+  <%= render 'organisations/notifications/inbox_page',
+             lane_open: @lane_address.present?, head: head, list: list, lane: lane, follow_address: true %>
+</div>

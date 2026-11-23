@@ -1,0 +1,32 @@
+<%# locals: (person: nil, member: nil, more_url:) %>
+<%# The newest meetings of a person (three, then "Alle N anzeigen", which
+    reloads the lane with ?meetings=all). Only what the viewer may read
+    (People::Contacts); a row opens the meeting where "Alle Meetings" opens
+    it. The last contact is not repeated here: the row of the list carries
+    it, and without a meeting the section says so once. %>
+<% scope = person_meetings(person: person, member: member) %>
+<% all_shown = params[:meetings] == 'all' %>
+<% total = scope.count %>
+<% meetings = all_shown ? scope.to_a : scope.limit(Organisations::PeopleController::MEETINGS_SHOWN).to_a %>
+<section class="people-meetings <%= 'people-meetings--empty' if meetings.empty? %>" aria-labelledby="people-meetings-title">
+  <h3 id="people-meetings-title" class="people-meetings__title"><%= t('views.organisations.people.show.meetings') %></h3>
+  <% if meetings.empty? %>
+    <p class="people-meetings__empty"><%= t('views.organisations.people.show.no_meeting') %></p>
+  <% else %>
+    <ul class="people-meetings__list">
+      <% meetings.each do |meeting| %>
+        <li>
+          <%= link_to organisation_meetings_path(@current_organisation, meeting_id: meeting.id), class: 'people-meetings__row',
+                                                                                                data: { turbo_frame: '_top' } do %>
+            <% date = meeting.occurred_at.to_date %>
+            <time class="people-meetings__date" datetime="<%= date.iso8601 %>"><%= person_short_date(date) %></time>
+            <span class="people-meetings__name"><%= meeting.title %></span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+    <% if !all_shown && total > meetings.size %>
+      <%= link_to t('views.organisations.people.show.all_meetings', count: total), more_url, class: 'people-text-action' %>
+    <% end %>
+  <% end %>
+</section>

@@ -1,5 +1,9 @@
 <%= form_with(model: concept_scheme, url: classifications_path, namespace: concept_scheme&.id, local: true, class: 'classification-tree-label-form') do |f| %>
+  <% active_locale = I18n.locale %>
+
   <div class="ca-buttons">
+    <%= render 'data_cycle_core/classifications/locale_menu', id: "concept-scheme-locales-menu-#{concept_scheme&.id}", active_locale:, translated_locales: concept_scheme.translated_locales %>
+
     <%= tag.button(tag.i(class: 'fa fa-check'), class: 'button-prime small success update submit-button', data: { disable_with: tag.i(class: 'fa fa-spinner fa-spin fa-fw') }) %>
 
     <button class="button-prime small discard secondary" type="reset">
@@ -12,6 +16,29 @@
   <div class="ca-input required">
     <%= f.label :name, concept_scheme.class.human_attribute_name(:name, locale: active_ui_locale), class: 'ca-label' %>
     <%= f.text_field :name, class: 'ca-input-field', disabled: !can?(:update, concept_scheme), required: true %>
+  </div>
+
+  <div class="ca-input translated">
+    <% I18n.available_locales.each do |locale| %>
+      <% field_id = "#{concept_scheme.id}_concept_scheme_#{locale}_description" %>
+      <% description = concept_scheme.description(locale:) %>
+      <% sanitized_description = sanitized_rich_text(description) %>
+
+      <div class="translated-fields <%= locale %> <%= 'active' if locale == active_locale %>">
+        <div class="form-element">
+          <div class="editor-block">
+            <%= label_tag field_id, safe_join([
+              "#{concept_scheme.class.human_attribute_name(:description, locale: active_ui_locale)} (#{locale})",
+              tag.i(class: 'fa fa-info-circle', data: { dc_tooltip: t('classification_administration.concept_scheme_description_hint', locale: active_ui_locale) })
+            ], ' ') %>
+            <%# enabled by ClassificationEditForm#changeLocale: the editor rewrites what it holds on save, so a language nobody opened stays unsent %>
+            <%= hidden_field_tag "concept_scheme[translation][#{locale}][description]", description, id: field_id, disabled: locale != active_locale %>
+            <%# to_str: Rails leaves an html_safe attribute value unescaped, which would turn a sanitized &lt;img&gt; back into markup on reset %>
+            <%= tag.div(sanitized_description, class: 'quill-editor', data: { hidden_field_id: field_id, size: 'minimal', default_value: sanitized_description&.to_str }) %>
+          </div>
+        </div>
+      </div>
+    <% end %>
   </div>
 
   <% if can?(:update_internal, concept_scheme) %>

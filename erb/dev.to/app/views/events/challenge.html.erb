@@ -10,7 +10,7 @@
   <meta name="twitter:image:src" content="<%= @event.social_image_url %>">
   <meta name="twitter:card" content="summary_large_image">
 <% end %>
-<div class="crayons-layout event-show-layout container">
+<div class="crayons-layout event-show-layout container grid-cols-1">
   <!-- Banner Image -->
   <% banner_image = @event.cover_image.presence&.url || @event.data&.dig('banner_image_url') %>
   <% if banner_image.present? %>
@@ -18,6 +18,8 @@
       <img src="<%= banner_image %>" alt="<%= @event.title %>" class="w-100" style="max-height: 400px; object-fit: cover; display: block;">
     </div>
   <% end %>
+
+  <%= render "event_tabs" %>
 
   <div class="flex flex-col m:flex-row gap-6">
     <!-- Main Content Left Column -->
@@ -44,9 +46,13 @@
             <% end %>
           </div>
 
-          <div class="mt-4 flex items-center gap-2">
+          <div class="mt-4 flex flex-wrap items-center gap-2">
             <span class="fs-s color-base-60 font-bold">Challenge Status:</span>
-            <% if @event.start_time <= Time.current && @event.end_time >= Time.current %>
+            <% now = Time.current %>
+            <% if @event.start_time > now %>
+              <span class="inline-block shrink-0 px-2 py-0.5 rounded text-white font-bold fs-xs bg-base-40" style="background-color: var(--base-40); vertical-align: middle;"><%= t("views.events.challenge.upcoming") %></span>
+              <span class="fs-s color-base-60"><%= t("views.events.challenge.starts_on", date: l(@event.start_time.in_time_zone(@event.time_zone).to_date, format: :long)) %></span>
+            <% elsif @event.end_time >= now %>
               <span class="live-indicator inline-block px-2 py-0.5 rounded text-white font-bold fs-xs bg-error" style="background-color: var(--error); vertical-align: middle;">LIVE</span>
             <% else %>
               <span class="inline-block px-2 py-0.5 rounded text-white font-bold fs-xs bg-base-40" style="background-color: var(--base-40); vertical-align: middle;">ENDED</span>
@@ -54,7 +60,7 @@
           </div>
         </header>
 
-        <div class="crayons-article__body text-lg">
+        <div class="crayons-article__body text-styles text-lg">
           <% if @event.body_markdown.blank? && @event.data&.dig('body_markdown').present? %>
             <%= MarkdownProcessor::Parser.new(@event.data['body_markdown']).finalize.html_safe %>
           <% else %>
@@ -74,7 +80,7 @@
           <h2 class="crayons-title mb-4"><%= prompt_title %></h2>
           
           <% if prompt_markdown.present? %>
-            <div class="crayons-article__body mb-4">
+            <div class="crayons-article__body text-styles mb-4">
               <%= MarkdownProcessor::Parser.new(prompt_markdown).finalize.html_safe %>
             </div>
           <% end %>
@@ -109,7 +115,7 @@
       <% if how_to_participate.present? %>
         <div class="crayons-card p-6 mb-6">
           <h2 class="crayons-title mb-4">How To Participate</h2>
-          <div class="crayons-article__body">
+          <div class="crayons-article__body text-styles">
             <%= MarkdownProcessor::Parser.new(how_to_participate).finalize.html_safe %>
           </div>
         </div>
@@ -120,7 +126,7 @@
       <% if faq_markdown.present? %>
         <div class="crayons-card p-6 mb-6">
           <h2 class="crayons-title mb-4">Frequently Asked Questions</h2>
-          <div class="crayons-article__body">
+          <div class="crayons-article__body text-styles">
             <%= MarkdownProcessor::Parser.new(faq_markdown).finalize.html_safe %>
           </div>
         </div>
@@ -131,7 +137,7 @@
       <% if rules_markdown.present? %>
         <div class="crayons-card p-6 mb-6">
           <h2 class="crayons-title mb-4">Rules</h2>
-          <div class="crayons-article__body">
+          <div class="crayons-article__body text-styles">
             <%= MarkdownProcessor::Parser.new(rules_markdown).finalize.html_safe %>
           </div>
         </div>
@@ -139,7 +145,7 @@
     </main>
 
     <!-- Sidebar Right Column -->
-    <aside class="w-100 m:w-80 flex-shrink-0">
+    <aside class="w-100 m:w-25 shrink-0">
       <% if @event.end_time > Time.current %>
         <div class="crayons-card p-4 mb-6 text-center">
           <h3 class="font-bold mb-2">Join the Challenge</h3>
@@ -175,11 +181,11 @@
         <ul class="space-y-3 fs-s color-base-80">
           <li>
             <div class="font-bold">Contest Start</div>
-            <div><%= @event.start_time.in_time_zone.strftime("%B %d, %Y") %></div>
+            <div><%= @event.start_time.in_time_zone(@event.time_zone).strftime("%B %d, %Y") %></div>
           </li>
           <li>
             <div class="font-bold">Submissions Due</div>
-            <div><%= @event.end_time.in_time_zone.strftime("%B %d, %Y") %></div>
+            <div><%= @event.end_time.in_time_zone(@event.time_zone).strftime("%B %d, %Y") %></div>
           </li>
           <% winners_announced = @event.data&.dig('winners_announced_date') %>
           <% if winners_announced.present? %>
@@ -218,6 +224,8 @@
       <% end %>
     </aside>
   </div>
+
+  <%= render "event_articles", articles: @event_articles, event: @event, previews: @event_article_previews %>
 </div>
 
 <%= javascript_include_tag "tagFollows", defer: true %>

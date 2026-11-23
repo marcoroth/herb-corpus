@@ -1,0 +1,47 @@
+<%# locals: (meeting:, participants:, clamp:, correctable: false, glossary: false) %>
+<%# The transcript of a meeting, rendered through Markdown (Neo::MarkdownPreviewComponent), with
+    its speaker turns bolded against the participant list. clamp: collapsed to its tall preview.
+    correctable (the meeting page with write access, never the panel beside a ticket): a mark in
+    the transcript shows "Korrigieren" (transcript_selection_controller), which opens the dialog
+    of a term correction (K4b) in the frame _meeting_reading puts beside this section. The section
+    carries the digest of the transcript it shows; a correction redraws it in full.
+    glossary (the meeting page, never the panel): what the glossary did to the transcript before
+    it arrived (K4d, _glossary_applied), under the heading. %>
+<% source = meeting_transcript_source(meeting, participants) %>
+<% tc = 'views.organisations.meetings.term_correction' %>
+<% data = if correctable
+            { controller: 'transcript-selection',
+              transcript_selection_url_value: new_organisation_project_meeting_term_correction_path(current_organisation, meeting.project, meeting),
+              transcript_selection_digest_value: meeting_transcript_digest(meeting) }
+          else
+            {}
+          end %>
+<%= tag.section id: meeting_transcript_section_id(meeting), class: ('transcript-section relative' if correctable), data: data do %>
+  <h3 class="text-xs font-mono uppercase tracking-wider text-cream-600 mb-2">
+    <%= t('views.organisations.meetings.show.transcript_heading') %>
+  </h3>
+  <% if glossary %>
+    <%= render 'organisations/meetings/glossary_applied', meeting: meeting %>
+  <% end %>
+  <%= tag.div data: ({ transcript_selection_target: 'content' } if correctable) do %>
+    <% if clamp %>
+      <%= render Neo::MarkdownPreviewComponent.new(
+            markdown: source,
+            clamp: :tall,
+            more_label: t('views.organisations.meetings.show.transcript_show_full'),
+            less_label: t('views.organisations.meetings.show.transcript_collapse')) %>
+    <% else %>
+      <%= render Neo::MarkdownPreviewComponent.new(markdown: source) %>
+    <% end %>
+  <% end %>
+  <% if correctable %>
+    <%= link_to new_organisation_project_meeting_term_correction_path(current_organisation, meeting.project, meeting),
+                id: term_correction_trigger_id(meeting.id),
+                class: 'transcript-correct hidden rounded border-2 border-ink bg-lime-300 px-2.5 py-1 text-[13px] font-semibold text-ink shadow-[2px_2px_0_0_#000] hover:bg-lime-400',
+                title: t("#{tc}.trigger_label"),
+                data: { turbo_frame: term_correction_modal_id(meeting.id), transcript_selection_target: 'button',
+                        action: 'mousedown->transcript-selection#keepSelection' } do %>
+      <i class="bi bi-spellcheck" aria-hidden="true"></i><%= t("#{tc}.trigger") %>
+    <% end %>
+  <% end %>
+<% end %>

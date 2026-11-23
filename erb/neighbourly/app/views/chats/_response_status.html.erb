@@ -1,0 +1,24 @@
+<% busy = response&.active? || false %>
+<% failed = response&.failed? || false %>
+<% cancelled = response&.cancelled? || false %>
+<% retry_error = local_assigns[:retry_error] %>
+<%= tag.div id: "chat_#{chat.id}_response_status", data: { composer_target: "response", response_sync_target: "status", responding: busy, response_id: response&.id || 0, response_version: chat_sync_version(response), assistant_message_id: response&.assistant_message_id }, hidden: !busy && !failed && !cancelled && retry_error.blank?, role: failed || retry_error.present? ? "alert" : "status", class: "mt-4 text-sm text-stone-500" do %>
+  <% if retry_error.present? %>
+    <p class="mb-2 text-red-700"><%= retry_error %></p>
+  <% end %>
+  <% if busy %>
+    <p><%= { "queued" => "Getting ready…", "searching" => "Finding local resources…", "writing" => "Writing a response…", "cancelling" => "Stopping…" }.fetch(response.status) %></p>
+    <% unless response.cancelling? %>
+      <%= button_to "Stop response", stop_chat_chat_response_path(chat, response), method: :post, params: { attempt_token: response.attempt_token },
+        class: "mt-2 min-h-11 rounded-lg border border-stone-200 px-3 py-2.5 text-stone-700 hover:bg-stone-50 focus-visible:outline-sage-600",
+        data: { turbo_submits_with: "Stopping…" } %>
+    <% end %>
+  <% elsif failed %>
+    <p class="text-red-700"><%= response.error_message.presence || "The assistant couldn't finish this reply. Your question is saved." %></p>
+    <%= button_to "Retry reply", retry_chat_chat_response_path(chat, response), method: :post, params: { attempt_token: response.attempt_token },
+      class: "mt-2 min-h-11 rounded-lg border border-stone-200 px-3 py-2.5 text-stone-700 hover:bg-stone-50 focus-visible:outline-sage-600",
+      data: { turbo_submits_with: "Retrying…" } %>
+  <% elsif cancelled %>
+    <p>Response stopped.</p>
+  <% end %>
+<% end %>

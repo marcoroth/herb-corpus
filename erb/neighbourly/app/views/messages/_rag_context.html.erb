@@ -1,37 +1,49 @@
-<div id="message_<%= message.id %>_rag_context">
+<div id="message_<%= message.id %>_rag_context" data-citations-target="references">
   <% if message.rag_documents.any? %>
-    <details class="mt-2 rounded border border-gray-200 bg-white">
-      <summary class="cursor-pointer px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700">
-        Sources (<%= message.rag_documents.size %>)
+    <details class="mt-2">
+      <summary class="min-h-11 w-fit cursor-pointer rounded-full border border-stone-200 bg-white px-3 py-2.5 text-sm font-medium text-stone-600 hover:bg-stone-50 focus-visible:outline-sage-600">
+        References · <%= message.rag_documents.size %>
       </summary>
-      <div class="divide-y divide-gray-100 px-3 pb-2">
-        <% message.rag_documents.includes(:source).each do |doc| %>
-          <div class="py-2" data-controller="dialog">
-            <div class="flex justify-between items-start">
-              <div class="flex-1">
-                <p class="text-xs font-medium text-gray-700"><%= doc.title %></p>
-                <p class="text-xs text-gray-500">Source: <%= doc.source.name %></p>
-                <p class="text-xs text-gray-400"><%= doc.source.url %></p>
+      <div class="mt-2 rounded-lg border border-stone-200 bg-white px-4 pb-2">
+        <p class="py-3 text-xs text-stone-500">Reference material found for this reply. Cited items are marked.</p>
+        <% message.rag_documents.includes(:source, :service).order("document_messages.id").each_with_index do |doc, index| %>
+          <div id="message_<%= message.id %>_reference_<%= doc.id %>" tabindex="-1" data-reference-id="<%= doc.id %>" data-reference-number="<%= index + 1 %>" data-reference-title="<%= reference_title(doc) %>" class="border-t border-stone-100 py-3 focus-visible:outline-sage-600" data-controller="dialog">
+            <div class="flex justify-between items-start gap-3">
+              <div class="min-w-0 flex-1">
+                <p class="break-words text-sm font-medium text-stone-800"><span class="mr-1 text-xs text-stone-400">[<%= index + 1 %>]</span><%= reference_title(doc) %></p>
+                <span data-citation-status hidden class="mr-1.5 rounded bg-sage-50 px-1.5 py-0.5 text-xs font-medium text-sage-700">Cited</span>
+                <% if (source_url = reference_source_url(doc.source)) %>
+                  <%= link_to source_url, target: "_blank", rel: "noopener noreferrer", class: "inline-block min-h-11 max-w-full py-3 text-sm text-sage-700 underline break-words focus-visible:outline-sage-600" do %>
+                    <%= doc.source.name %><span class="sr-only"> (opens in a new tab)</span>
+                  <% end %>
+                <% else %>
+                  <p class="text-xs text-stone-500"><%= doc.source.name %> · No public link available</p>
+                <% end %>
               </div>
               <% if local_assigns.fetch(:show_report_button, false) %>
                 <button type="button"
                         data-action="dialog#open"
-                        class="ml-2 text-xs text-stone-400 hover:text-red-600 transition-colors cursor-pointer"
+                        class="min-h-11 shrink-0 rounded-lg px-2 text-sm text-stone-500 hover:text-red-600 transition-colors cursor-pointer focus-visible:outline-sage-600"
                         title="Report this document">
                   Report
                 </button>
               <% end %>
             </div>
-            <p class="mt-1 text-xs text-gray-600 whitespace-pre-wrap"><%= doc.content %></p>
+            <details class="mt-2">
+              <summary class="min-h-11 w-fit cursor-pointer py-3 text-sm font-medium text-stone-500 hover:text-stone-700 focus-visible:outline-sage-600">View full text</summary>
+              <p class="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-sm text-stone-600"><%= doc.content %></p>
+            </details>
 
             <% if local_assigns.fetch(:show_report_button, false) %>
+              <% report_heading_id = "message_#{message.id}_reference_#{doc.id}_report_heading" %>
               <dialog data-dialog-target="dialog"
                       data-action="click->dialog#clickOutside"
-                      class="rounded-lg shadow-xl border border-stone-200 p-0 backdrop:bg-black/50 w-full max-w-md">
-                <div class="p-6">
-                  <h3 class="text-lg font-semibold text-stone-900 mb-1">Report Document</h3>
-                  <p class="text-sm text-stone-500 mb-4">
-                    Reporting: <span class="font-medium"><%= doc.title %></span>
+                      aria-labelledby="<%= report_heading_id %>"
+                      class="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto overscroll-contain rounded-xl shadow-xl border border-stone-200 p-0 backdrop:bg-black/50">
+                <div class="p-4 sm:p-6">
+                  <h3 id="<%= report_heading_id %>" class="text-lg font-semibold text-stone-900 mb-1">Report Document</h3>
+                  <p class="break-words text-sm text-stone-500 mb-4">
+                    Reporting: <span class="font-medium"><%= reference_title(doc) %></span>
                   </p>
 
                   <%= form_with url: reports_path, scope: :report, method: :post, class: "space-y-4" do |f| %>
@@ -41,9 +53,9 @@
                       <legend class="text-sm font-medium text-stone-700 mb-2">Reason for reporting</legend>
                       <div class="space-y-2">
                         <% Report::REASONS.each do |reason| %>
-                          <label class="flex items-center space-x-2 cursor-pointer">
+                          <label class="flex min-h-11 items-center gap-3 rounded-lg px-2 hover:bg-stone-50 cursor-pointer">
                             <input type="radio" name="report[reason]" value="<%= reason %>"
-                                   class="text-sage-600 focus:ring-sage-500" required>
+                                   class="size-4 shrink-0 accent-sage-600 focus:ring-sage-500" required>
                             <span class="text-sm text-stone-700"><%= reason.capitalize %></span>
                           </label>
                         <% end %>
@@ -51,20 +63,22 @@
                     </fieldset>
 
                     <div>
-                      <%= f.label :details, "Additional details (optional)", class: "block text-sm font-medium text-stone-700 mb-1" %>
+                      <% details_id = "message_#{message.id}_reference_#{doc.id}_report_details" %>
+                      <%= f.label :details, "Additional details (optional)", for: details_id, class: "block text-sm font-medium text-stone-700 mb-1" %>
                       <%= f.text_area :details, rows: 3,
-                          class: "w-full rounded-md border border-stone-300 shadow-sm focus:outline-sage-500 text-sm px-3 py-2",
+                          id: details_id,
+                          class: "w-full rounded-md border border-stone-300 shadow-sm focus:outline-sage-500 text-base px-3 py-2",
                           placeholder: "Provide any additional context..." %>
                     </div>
 
-                    <div class="flex justify-end space-x-3 pt-2">
+                    <div class="flex flex-wrap justify-end gap-3 pt-2">
                       <button type="button"
                               data-action="dialog#close"
-                              class="px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-md hover:bg-stone-50 transition-colors cursor-pointer">
+                              class="min-h-11 flex-1 px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-md hover:bg-stone-50 transition-colors cursor-pointer focus-visible:outline-sage-600 sm:flex-none">
                         Cancel
                       </button>
                       <button type="submit"
-                              class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-500 transition-colors cursor-pointer">
+                              class="min-h-11 flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-500 transition-colors cursor-pointer focus-visible:outline-red-600 sm:flex-none">
                         Submit Report
                       </button>
                     </div>

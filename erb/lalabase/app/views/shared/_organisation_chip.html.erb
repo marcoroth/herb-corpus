@@ -1,0 +1,39 @@
+<%# locals: (name:, color: nil, action: nil, url: nil, label: nil, hint: nil) %>
+<%# An organisation as a chip: a square in its recognition colour and its name.
+    color: what User::OrgColorSettings#effective_color answers for the reader
+    (nil below two organisations and when switched off: the square stays
+    neutral). The colour is the reader's own setting, so the chip belongs on
+    pages of one person, above the organisations. With action ({ url:, label:,
+    data: }) the chip names the organisation and carries a pencil behind the
+    name: a link of its own that leaves the frame, named by its label (the card
+    above the organisations: edit this value in that organisation).
+
+    With url the chip is the way into that organisation, a link that leaves the
+    frame, named by label (the card above the organisations: "In … öffnen").
+    With url and action the name is that link and the pencil a second link
+    beside it, never a link inside a link. With url and hint (a word for a chip
+    that carries no pencil, "Nur lesen") the hint stands where the pencil would:
+    as the chip's title and for a screen reader. %>
+<% swatch = tag.span(class: 'organisation-chip__swatch', aria: { hidden: true },
+                     style: ("background-color: #{color};" if OrgColor.hex?(color))) %>
+<% inner = safe_join([swatch, tag.span(name, class: 'organisation-chip__name')]) %>
+<% if url && !action && !hint %>
+  <%= link_to inner, url, class: 'organisation-chip organisation-chip--link', title: label, 'aria-label': label,
+                          data: { organisation_chip: true, turbo_frame: '_top' } %>
+<% elsif action || hint %>
+  <% named = url ? link_to(inner, url, class: 'organisation-chip__link', title: label, 'aria-label': label, data: { turbo_frame: '_top' }) : inner %>
+  <%= tag.span class: "organisation-chip #{action ? 'organisation-chip--action' : 'organisation-chip--hint'}", title: hint,
+               data: { organisation_chip: true } do %>
+    <%= named %>
+    <% if action %>
+    <%= link_to action[:url], class: 'organisation-chip__action', title: action[:label], 'aria-label': action[:label],
+                              data: { turbo_frame: '_top' }.merge(action[:data] || {}) do %>
+      <i class="bi bi-pencil" aria-hidden="true"></i>
+    <% end %>
+    <% else %>
+    <span class="sr-only"><%= hint %></span>
+    <% end %>
+  <% end %>
+<% else %>
+  <%= tag.span inner, class: 'organisation-chip', title: name, data: { organisation_chip: true } %>
+<% end %>

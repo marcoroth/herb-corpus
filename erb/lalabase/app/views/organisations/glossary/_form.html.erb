@@ -1,0 +1,55 @@
+<%# locals: (term:, message: nil) %>
+<%# The form in the lane, new and edit: the spelling and the category. It
+    leaves the frame (_top): a save lands on the list with the term open, a
+    refused save (a spelling already in the glossary) renders the page again
+    with this form and its reason. lock_version travels along, so a save over
+    someone else's change is refused instead of writing the old values back.
+    The filters ride in hidden fields. %>
+<% url = term.persisted? ? organisation_glossary_term_path(@current_organisation, term) : organisation_glossary_terms_path(@current_organisation) %>
+<% title = term.persisted? ? t('views.organisations.glossary.form.edit_title', term: term.term_in_database) : t('views.organisations.glossary.form.new_title') %>
+<% cancel_url = term.persisted? ? organisation_glossary_term_path(@current_organisation, term, list_state) : organisation_glossary_terms_path(@current_organisation, list_state) %>
+<div class="people-form-wrap">
+  <div class="people-lane__head" data-lane-head data-lane-index-url="<%= organisation_glossary_terms_path(@current_organisation) %>">
+    <h2 class="people-form__title"><%= title %></h2>
+    <%= link_to cancel_url, class: 'people-icon-action', title: t('views.organisations.glossary.show.close'),
+                            data: ({ lane_close: true, turbo_frame: '_top' } unless term.persisted?) do %>
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    <% end %>
+  </div>
+
+  <% if message.present? %>
+    <p class="people-callout people-callout--danger" role="alert"><%= message %></p>
+  <% end %>
+
+  <%= form_with model: term, url: url, scope: :glossary_term, class: 'people-form', data: { turbo_frame: '_top' } do |f| %>
+    <% list_state.each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <% if term.persisted? %>
+      <%= f.hidden_field :lock_version %>
+    <% end %>
+
+    <div class="people-form__field">
+      <%= f.label :term do %>
+        <%= GlossaryTerm.human_attribute_name(:term) %><span class="people-form__required" aria-hidden="true"> *</span>
+      <% end %>
+      <%= f.text_field :term, class: 'people-input', maxlength: GlossaryTerm::MAX_LENGTH, required: true, autocomplete: 'off',
+                              placeholder: t('views.organisations.glossary.form.term_placeholder') %>
+      <p class="people-form__hint"><%= t('views.organisations.glossary.form.term_hint') %></p>
+    </div>
+
+    <div class="people-form__field">
+      <%= f.label :category %>
+      <%= f.select :category, glossary_category_options, { include_blank: t('views.organisations.glossary.form.no_category') },
+                   class: 'people-input' %>
+    </div>
+
+    <div class="people-form__actions">
+      <%= render Neo::Buttons::ButtonComponent.new(variant: :primary, size: :medium, type: 'submit') do %>
+        <%= t('views.organisations.glossary.form.save') %>
+      <% end %>
+      <%= link_to t('views.organisations.glossary.form.cancel'), cancel_url, class: 'people-quiet-action',
+                                                                            data: ({ turbo_frame: '_top' } unless term.persisted?) %>
+    </div>
+  <% end %>
+</div>

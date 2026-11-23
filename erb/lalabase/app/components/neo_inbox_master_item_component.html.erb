@@ -1,78 +1,55 @@
 <div class="<%= row_classes %>"
      data-inbox-bulk-select-target="row"
      data-notification-id="<%= notification.id %>">
-  <div class="flex items-start gap-3">
-
-    <%# Bulk-select checkbox %>
-    <div class="flex-shrink-0 pt-1">
-      <input type="checkbox"
-             class="w-4 h-4 border-2 border-stroke rounded cursor-pointer"
-             aria-label="<%= t('views.organisations.notifications.item.select_aria', default: 'Auswählen') %>"
-             data-inbox-bulk-select-target="checkbox"
-             data-notification-id="<%= notification.id %>"
-             data-action="change->inbox-bulk-select#toggle click->inbox-bulk-select#stopRowClick">
-    </div>
-
-    <%# Clickable main area: for ticket notifications → load the pane via
-        turbo-frame, otherwise full navigation. %>
-    <%= link_to link_url,
-                class: 'flex items-start gap-3 flex-1 min-w-0',
-                data: link_data do %>
-
-    <%# Unread indicator. The event icon was DELIBERATELY removed — it got lost in
-        the information noise of the row and was barely noticed. %>
-    <div class="flex-shrink-0 pt-1.5">
-      <% if unread? %>
-        <%= render Neo::UnreadMarkerComponent.new(count: 1, variant: :dot, class: 'block',
-                                                  label: t('views.organisations.notifications.item.unread_label')) %>
-      <% else %>
-        <span class="w-2 h-2 block"></span>
-      <% end %>
-    </div>
-
-    <%# Main content %>
-    <div class="flex-1 min-w-0">
-
-      <%# Row 1: actor + archived badge + time-ago %>
-      <div class="flex items-baseline justify-between gap-2">
-        <span class="font-bold text-sm truncate <%= primary_text_class %>">
-          <%= actor_name %>
-        </span>
-        <% if archived? %>
-          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-mono font-bold rounded bg-cream-200 text-cream-700 border border-cream-300 flex-shrink-0">
-            <i class="bi bi-archive text-[9px]"></i>
-            <%= t('views.organisations.notifications.item.archived_badge', default: 'Archiviert') %>
-          </span>
-        <% end %>
-        <%# Bundle indicator: subtle — stack icon + number, no background.
-            Full text in the title (hover/screenreader). %>
-        <% if show_group_badge? %>
-          <span class="inline-flex items-center gap-0.5 text-[11px] font-mono font-medium tabular-nums flex-shrink-0 <%= secondary_text_class %>"
-                title="<%= t('views.organisations.notifications.item.bundle_badge_title', count: group_count, default: '%{count} Aktualisierungen') %>">
-            <i class="bi bi-layers text-[10px]" aria-hidden="true"></i><%= group_count %>
-          </span>
-        <% end %>
-        <span class="text-xs flex-shrink-0 <%= secondary_text_class %>">
-          <%= time_ago %>
-        </span>
-      </div>
-
-      <%# Row 2: event + notifiable title %>
-      <p class="text-sm mt-0.5 line-clamp-2 <%= primary_text_class %>">
-        <span class="<%= secondary_text_class %>"><%= event_label %></span>
-        <% if notifiable_title.present? %>
-          <span class="font-medium">— <%= notifiable_title %></span>
-        <% end %>
-      </p>
-
-      <%# Row 3: project subline %>
-      <% if project_name.present? %>
-        <p class="text-xs mt-0.5 truncate <%= secondary_text_class %>">
-          <i class="bi bi-folder text-xs mr-1"></i><%= project_name %>
-        </p>
-      <% end %>
-    </div>
+  <%# The gutter holds the unread dot and, in the same place, the bulk
+      checkbox: the checkbox shows on hover and while rows are selected
+      (inbox block of application.tailwind.css), the dot otherwise. A label,
+      so that a click or a tap beside the small box counts as well. Above the
+      organisations the checkbox names its organisation: the bulk bar asks
+      before an action on rows of more than one (inbox_bulk_select_controller). %>
+  <label class="inbox-row__gutter">
+    <% if unread? %>
+      <%= render Neo::UnreadMarkerComponent.new(count: 1, variant: :dot, class: 'inbox-row__dot',
+                                                label: t('views.organisations.notifications.item.unread_label')) %>
     <% end %>
-    <%# End of link_to main area %>
-  </div>
+    <%= tag.input type: 'checkbox', class: 'inbox-row__check',
+                  aria: { label: t('views.organisations.notifications.item.select_aria', title: notifiable_title.presence || event_label) },
+                  data: { inbox_bulk_select_target: 'checkbox', notification_id: notification.id,
+                          action: 'change->inbox-bulk-select#toggle click->inbox-bulk-select#stopRowClick',
+                          **organisation_data } %>
+  </label>
+
+  <%# Clickable main area: for ticket notifications the lane loads by
+      turbo-frame, otherwise a full navigation. The ticket comes first (what
+      it is about), who did what and where stands small below it. %>
+  <%= link_to link_url, class: 'inbox-row__link', data: link_data do %>
+    <span class="inbox-row__line">
+      <span class="inbox-row__title"><%= notifiable_title.presence || event_label %></span>
+      <span class="inbox-row__time"><%= time_ago %></span>
+    </span>
+    <span class="inbox-row__line inbox-row__meta">
+      <span class="inbox-row__meta-text"><%= meta_line %></span>
+      <% if archived? %>
+        <span class="inbox-row__archived"><%= t('views.organisations.notifications.item.archived_badge') %></span>
+      <% elsif new_count.positive? %>
+        <span class="inbox-row__new"
+              title="<%= t('views.organisations.notifications.item.bundle_badge_title', count: group_count) %>">
+          <%= t('views.organisations.notifications.item.new_count', count: new_count) %>
+        </span>
+      <% end %>
+    </span>
+  <% end %>
+
+  <%# The actions on this notification without opening it: "···" in the place
+      of the time, shown on hover and on focus like the checkbox in the
+      gutter, always on a touch screen (no hover there). The same buttons as
+      the head of the lane. A <details>, so the menu opens without JavaScript
+      too; details-autoclose closes it on a click outside and on Escape.
+      Above the organisations too: the row acts in place there. %>
+  <details class="more-menu inbox-row__menu" data-controller="details-autoclose">
+    <summary class="more-menu__trigger" title="<%= menu_label %>" aria-label="<%= menu_label %>"><i class="bi bi-three-dots" aria-hidden="true"></i></summary>
+    <div class="more-menu__items">
+      <%= render 'organisations/notifications/notification_actions', notification: notification, query: @query_context.presence %>
+    </div>
+  </details>
 </div>

@@ -1,0 +1,97 @@
+<% content_for :title, @service.name %>
+<% content_for :admin_actions do %>
+  <%= link_to "Back to services", services_path, class: "admin-button-secondary" %>
+  <%= link_to "Edit", edit_service_path(@service), class: "admin-button-primary" %>
+  <% if policy(@service).destroy? %>
+    <%= button_to "Delete", service_path(@service), method: :delete, class: "admin-button-danger",
+        data: { turbo_confirm: "Delete service '#{@service.name}'?" } %>
+  <% end %>
+<% end %>
+
+<% if @service.document && !@service.closed? %>
+  <p class="admin-panel mb-6 max-w-4xl px-5 py-4 text-sm leading-6 text-stone-600 sm:px-6">
+    This service was imported, so it can't be deleted here. To take it off printouts and out of chat, edit it and mark it closed.
+  </p>
+<% end %>
+
+<%= render "admin/page_header", title: @service.name, description: "Review the information held for this service." %>
+
+<% location = @service.address&.one_line %>
+<dl class="admin-panel max-w-4xl divide-y divide-stone-100">
+  <div class="px-5 py-4 sm:px-6">
+    <dt class="text-sm font-medium text-stone-500">Offered by</dt>
+    <dd class="mt-2 text-sm leading-6 text-stone-900">
+      <% if @service.organization %>
+        <%= link_to @service.organization.name, @service.organization, class: "admin-link" %>
+      <% else %>
+        No organization
+      <% end %>
+    </dd>
+  </div>
+  <div class="px-5 py-4 sm:px-6">
+    <dt class="text-sm font-medium text-stone-500">Last confirmed</dt>
+    <dd class="mt-2 space-y-3 text-sm leading-6 text-stone-900">
+      <p>
+        <% if @service.confirmation %>
+          <%= @service.confirmation %><%= " by #{@service.confirmed_by.email}" if current_user.admin? && @service.confirmed_by %>
+        <% else %>
+          Not confirmed yet
+        <% end %>
+      </p>
+      <% if policy(@service).update? %>
+        <%= form_with url: confirm_service_path(@service), method: :post, class: "flex flex-wrap items-end gap-3" do |form| %>
+          <div class="min-w-0 space-y-1">
+            <%= form.label :confirmation_method, "How did you check the details are right?", class: "admin-label" %>
+            <%= form.select :confirmation_method, Service::CHECKING_METHODS.map { |key, wording| [wording.capitalize, key] },
+                { include_blank: "Choose one" }, required: true, class: "admin-input" %>
+          </div>
+          <%= form.submit "Confirm details", class: "admin-button-secondary" %>
+        <% end %>
+      <% end %>
+    </dd>
+  </div>
+  <% removed = @service.document&.removal_accepted? %>
+  <% if @service.closed? || removed %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500">Status</dt>
+      <dd class="mt-2 text-sm leading-6 text-stone-900">
+        <%= [("Closed" if @service.closed?), ("Removed by a moderator after a report, so it is left off printouts" if removed)].compact.join(". ") %>
+      </dd>
+    </div>
+  <% end %>
+  <% [["Description", @service.description], ["Location", location], ["Phone", @service.phone], ["Email", @service.email], ["Hours of operation", @service.hours], ["Categories", @service.category_names.join(", ")]].each do |label, value| %>
+    <% next if value.blank? %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500"><%= label %></dt>
+      <dd class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-stone-900"><%= value %></dd>
+    </div>
+  <% end %>
+  <% if @service.website.present? %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="text-sm font-medium text-stone-500">Website</dt>
+      <dd class="mt-2 break-all text-sm leading-6"><%= web_link(@service.website) %></dd>
+    </div>
+  <% end %>
+  <% @service.additional_details.each do |key, value| %>
+    <%# false is a real answer, like "referral required: no", so only empty values are skipped. %>
+    <% next unless value == false || value.present? %>
+    <div class="px-5 py-4 sm:px-6">
+      <dt class="break-words text-sm font-medium text-stone-500"><%= key.to_s.humanize %></dt>
+      <dd class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-stone-900"><%= service_detail_text(value) %></dd>
+    </div>
+  <% end %>
+  <div class="px-5 py-4 sm:px-6">
+    <dt class="text-sm font-medium text-stone-500">Added from</dt>
+    <dd class="mt-2 text-sm leading-6 text-stone-900">
+      <%# Members can't open documents or sources, so they see the names alone. %>
+      <% if @service.document %>
+        <%= link_to_if policy(@service.document).show?, @service.document.title.presence || "Imported row", @service.document, class: "admin-link" %>
+        in <%= link_to_if policy(@service.source).show?, @service.source.name, @service.source, class: "admin-link" %>
+      <% elsif @service.source.form? %>
+        Added on this site
+      <% else %>
+        <%= link_to_if policy(@service.source).show?, @service.source.name, @service.source, class: "admin-link" %>
+      <% end %>
+    </dd>
+  </div>
+</dl>

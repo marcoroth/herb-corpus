@@ -1,0 +1,144 @@
+<%# The header of the sidebar with the switcher (Belegungstabelle F49): the name of where
+    the reader stands, an organisation or "Alle Organisationen" (the level above them),
+    and a menu of the places. It renders in an organisation, in its management area and
+    on the level, for every signed-in person (navigation plan, finding 3: also with one
+    organisation and without the right to invite, so everybody reaches the level).
+
+    The menu lists places of one kind (plan D7): "Alle Organisationen" first, leading to
+    the level's start (level_home_path), then the organisations, then the invitation
+    inside an organisation. An organisation row is a link to its start page: the full
+    page moves the session's organisation (ApplicationController#load_tenant_from_session).
+    It loads without Turbo so the permanent assistant and the document's recognition colour
+    belong to the destination organisation, too.
+    In the management area the row is a form instead (POST set_organisation_path with the
+    open section): OrganisationsController#set keeps the reader in the same section of
+    the other organisation, which a link cannot do.
+
+    The menu floats with a soft shadow (F29) and is placed against the aside by
+    details_autoclose_controller#reposition: positioned absolutely, out of the sidebar's
+    scroll column, so opening it does not grow that column. No hard shadow here: neither
+    the gear nor the chevron is the main action (rule 5 of the Belegungstabelle). %>
+<% mode = sidebar_mode %>
+<% organisation = (current_organisation if mode != :level) %>
+<% can_manage_org = can_manage_organisation?(organisation) %>
+<% can_invite = can_invite_to_organisation?(organisation) %>
+<%# The switcher list (query, order and cap: ApplicationController#switcher_organisations). %>
+<% menu_orgs = switcher_organisations(current_user).to_a %>
+<%# The number at an organisation row: its unread notifications. Inside an organisation the
+    OTHER organisations count, live through the organisation's badge stream
+    (Notifications::UnreadSignals); on the level every organisation counts, from the counts
+    the level's sidebar already holds (ApplicationController#level_organisations). %>
+<% org_counts = if organisation.nil?
+                  level_unread_counts
+                elsif menu_orgs.many?
+                  Notifications::UnreadSignals.counts_for(current_user, except: organisation)
+                else
+                  {}
+                end %>
+<%# On the inbox above the organisations the answer to a row action and the live redraw
+    replace the numbers of the rows (org_attention_count_<id>, ..._overflow) with the counts of
+    the sidebar (all_inboxes/_redraw); the menu itself stays, open or not, with its focus. %>
+<div class="w-full mt-2 border-b border-cream-300" data-sidebar-header>
+  <details class="group" data-controller="details-autoclose" data-action="toggle->details-autoclose#onToggle">
+    <%# pr-2.5: the gear's centre stands where the pins of the project rows stand (pr-3 and a
+        w-6 pin there, 24px from the edge; here 10px and the w-7 gear), user 19.11.2026. %>
+    <summary class="flex items-center justify-between gap-2 pl-6 pr-2.5 py-2 cursor-pointer hover:bg-white/55 rounded transition-colors list-none"
+             title="<%= organisation ? t('navigation.organisation') : t('navigation.all_organisations') %>">
+      <%# The chevron of the switcher stands at the name it changes, not at the edge beside
+          the gear, where it read as a second button of its own (user, 19.11.2026): a long
+          name is cut, the chevron stays behind it. It turns when the menu opens; no tile,
+          which would cling to the name. %>
+      <h3 class="flex flex-1 min-w-0 items-center gap-0.5">
+        <span class="block min-w-0 truncate text-sm font-bold text-cream-700 group-hover:text-cream-900 transition-colors"><%= organisation ? organisation.name : t('navigation.all_organisations') %></span>
+        <span class="flex items-center justify-center w-7 h-7 shrink-0 text-cream-600 group-hover:text-cream-900 transition-colors" data-sidebar-switcher-sign aria-hidden="true">
+          <i class="bi bi-chevron-down text-xs group-open:rotate-180 transition-transform"></i>
+        </span>
+      </h3>
+      <% if organisation && menu_orgs.many? %>
+        <%= render 'notifications/other_orgs_dot', counts: org_counts %>
+      <% end %>
+      <% if can_manage_org %>
+        <%# Manage THIS organisation: the gear next to its name, the way into the management
+            area. stopPropagation so a click navigates without toggling the menu; marked on
+            every page of the area. No edge of its own (user, 19.11.2026): it stands bare like
+            the head buttons of the assistant panel, a grey tile under the pointer, and the
+            same tile marks the management area. %>
+        <% gear_classes = if management_section_active?
+                            'bg-cream-200 text-cream-900'
+                          else
+                            'text-cream-600 hover:bg-cream-200 hover:text-cream-900'
+                          end %>
+        <%= link_to organisation_settings_path(organisation),
+              title: t('navigation.management'), aria: { label: t('navigation.management') },
+              data: { controller: 'return-referrer', action: 'click->details-autoclose#stop turbo:before-fetch-request@document->return-referrer#refresh' },
+              class: "flex items-center justify-center w-7 h-7 rounded shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink #{gear_classes}" do %>
+          <i class="bi bi-gear text-xs" aria-hidden="true"></i>
+        <% end %>
+      <% end %>
+    </summary>
+    <%# The open menu (F29): opacity-0 until details_autoclose has placed it, so it does
+        not flash in the corner for a frame; a long list scrolls inside it. %>
+    <ul data-details-autoclose-target="panel"
+        class="absolute z-30 flex flex-col py-1 bg-surface-raised border border-cream-300 rounded-lg shadow-md overflow-y-auto opacity-0">
+      <%# One row style for every row of the menu; each row adds only its delta. %>
+      <% row_base = 'flex items-center gap-2 text-sm px-3 py-2 hover:bg-cream-200 transition-colors' %>
+      <li>
+        <%# The level above the organisations (D7), marked where the reader stands on it.
+            Its number: hits in organisations beyond the menu's cap
+            (Notifications::UnreadSignals.overflow_count). %>
+        <% on_level = organisation.nil? %>
+        <%= link_to level_home_path, class: [row_base, 'min-h-[44px]', ('font-bold text-cream-900' if on_level)],
+                                     aria: { current: ('true' if on_level) }, data: { level_entry: 'switcher' } do %>
+          <i class="bi bi-grid" aria-hidden="true"></i><span class="flex-1 min-w-0"><%= t('navigation.all_organisations') %></span>
+          <%= render 'notifications/org_attention_count', target_id: 'org_attention_count_overflow',
+                     count: Notifications::UnreadSignals.overflow_count(org_counts, menu_orgs.map(&:id)) %>
+          <% if on_level %>
+            <i class="bi bi-check-lg text-cream-900 shrink-0" aria-hidden="true"></i>
+          <% end %>
+        <% end %>
+      </li>
+      <% menu_orgs.each_with_index do |org, index| %>
+        <% is_current = organisation && org.id == organisation.id %>
+        <% org_color = current_user.org_colors.effective_color(org) %>
+        <% row_classes = [row_base, 'w-full text-left min-h-[44px]', ('border-t border-cream-200' if index.zero?),
+                          ('font-bold text-cream-900' if is_current)] %>
+        <%# The row's content once, for the link and for the form's button alike. %>
+        <% row_content = capture do %>
+          <span class="shrink-0 w-4 h-4 rounded border border-cream-300 <%= 'bg-cream-200' unless org_color %>" aria-hidden="true"
+                <% if org_color %> style="background-color: <%= org_color %>;"<% end %>></span>
+          <span class="flex-1 min-w-0 truncate"><%= org.name %></span>
+          <% unless is_current %>
+            <%= render 'notifications/org_attention_count', target_id: "org_attention_count_#{org.id}", count: org_counts[org.id].to_i %>
+          <% end %>
+          <% if is_current %>
+            <i class="bi bi-check-lg text-cream-900 shrink-0" aria-hidden="true"></i>
+          <% end %>
+        <% end %>
+        <li>
+          <% if mode == :management %>
+            <%# In the management area the switch stays in the open section
+                (OrganisationsController#set checks it may). %>
+            <%= form_with url: set_organisation_path, method: :post, data: { turbo: false } do %>
+              <%= hidden_field_tag :organisation_id, org.id, id: nil %>
+              <%= hidden_field_tag :section, management_section_key, id: nil %>
+              <%= button_tag row_content, type: :submit, "aria-current": (is_current ? 'true' : nil), class: row_classes,
+                                          data: { switcher_org: org.id } %>
+            <% end %>
+          <% else %>
+            <%= link_to row_content, organisation_root_path(organisation_id: org.id),
+                        "aria-current": (is_current ? 'true' : nil), class: row_classes, data: { switcher_org: org.id, turbo: false } %>
+          <% end %>
+        </li>
+      <% end %>
+      <% if can_invite %>
+        <li>
+          <%= link_to new_organisation_invitation_path(organisation_id: organisation.id),
+                data: { controller: 'return-referrer', action: 'turbo:before-fetch-request@document->return-referrer#refresh' },
+                class: "#{row_base} border-t border-cream-200" do %>
+            <i class="bi bi-person-plus" aria-hidden="true"></i><span><%= t('navigation.invite_member') %></span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </details>
+</div>

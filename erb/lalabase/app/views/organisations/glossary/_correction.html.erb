@@ -1,0 +1,42 @@
+<%# locals: (correction:, meetings:) %>
+<%# One correction of a heard form: who spoke (a name only when the reader
+    may see the speaker, else a neutral word; a link only with view_people),
+    the project it came from (a name for every reader of the glossary), the
+    meeting (title and link only when the reader may read it, meetings holds
+    those), the date and how often it was replaced. Deleting is the whole
+    heard form's (_detail). A form from the glossary extraction or from an
+    import (K5b, origin) has no meeting: it names where it came from after
+    the project instead. %>
+<% speaker = glossary_speaker_name(correction) %>
+<% speaker_url = glossary_speaker_url(correction) %>
+<% meeting_title = meetings[correction.meeting_id] %>
+<% origin = (t("views.organisations.glossary.heard_origins.#{correction.origin}") unless correction.origin == 'meeting') %>
+<li class="glossary-heard__row">
+  <span class="glossary-heard__speaker">
+    <% if speaker_url %>
+      <%= link_to speaker, speaker_url, class: 'people-fields__link', data: { turbo_frame: '_top' } %>
+    <% elsif glossary_speaker_visible?(correction) %>
+      <%= speaker %>
+    <% else %>
+      <span class="text-muted"><%= speaker || t('views.organisations.glossary.show.no_speaker') %></span>
+    <% end %>
+  </span>
+  <span class="glossary-heard__origin">
+    <%= correction.project&.name || t('views.organisations.glossary.show.no_project') %>
+    <% if origin %>
+      · <span data-glossary-heard-origin="<%= correction.origin %>"><%= origin %></span>
+    <% elsif meeting_title %>
+      · <%= link_to meeting_title, organisation_meetings_path(@current_organisation, meeting_id: correction.meeting_id),
+                    class: 'people-fields__link', data: { turbo_frame: '_top' } %>
+    <% end %>
+  </span>
+  <span class="glossary-heard__when">
+    <time datetime="<%= correction.created_at.iso8601 %>"><%= l(correction.created_at.to_date, format: :default) %></time>
+    <% if correction.replaced_count > 1 %>
+      · <%= t('views.organisations.glossary.show.replaced', count: correction.replaced_count) %>
+    <% end %>
+    <% if correction.proposed? %>
+      · <span class="glossary-heard__proposed"><%= t('views.organisations.glossary.show.proposed_row') %></span>
+    <% end %>
+  </span>
+</li>

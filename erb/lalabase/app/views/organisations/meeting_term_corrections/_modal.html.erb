@@ -1,0 +1,126 @@
+<%# locals: (meeting:, token:, dialog:, fields: {}, errors: [], notice: nil) %>
+<%# The dialog "Begriff korrigieren" (K4b, plan §5.1). Lives in the frame beside the transcript;
+    the button over a mark loads meeting_term_corrections#new into it. The root carries the id of
+    THIS opening (token): a refused correction replaces exactly it, a correction removes it. Shape
+    and lifecycle after README_MODAL_PATTERN.md (reference: the ticket relation modal).
+
+    The mark rides along as hidden fields, the place is the server's (Meetings::TermCorrectionDialog).
+    The count and the two buttons sit in a frame of their own (_count): it reloads when the heard
+    form changes, with the digest of the transcript it counted. Glossary suggestions only with
+    view_glossary; the box says "propose" without manage_glossary (E2). %>
+<% tc = 'views.organisations.meetings.term_correction' %>
+<% modal_id = term_correction_modal_id(meeting.id) %>
+<% manage = GlossaryPolicy.manage_allowed?(current_user, current_organisation) %>
+<% suggestions = term_correction_suggestions %>
+<% field_class = 'w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-sm focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink' %>
+<% selected_speaker = fields[:speaker_id].nil? ? dialog.speaker&.id : fields[:speaker_id] %>
+<div id="<%= term_correction_modal_instance_id(meeting.id, token) %>"
+     data-controller="term-correction-modal"
+     data-term-correction-modal-return-id-value="<%= term_correction_trigger_id(meeting.id) %>"
+     data-term-correction-modal-count-url-value="<%= count_organisation_project_meeting_term_correction_path(current_organisation, meeting.project, meeting) %>"
+     data-term-correction-modal-count-frame-value="<%= term_correction_count_id(meeting.id, token) %>"
+     data-action="keydown@window->term-correction-modal#closeOnEscape keydown@window->term-correction-modal#trapFocus">
+  <div class="fixed inset-0 z-50 overflow-y-auto"
+       data-action="click->term-correction-modal#closeOnBackdrop">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-60 backdrop-blur-sm" aria-hidden="true"></div>
+    <div class="relative flex min-h-screen items-center justify-center p-4"
+         data-action="click->term-correction-modal#closeOnBackdrop">
+      <div class="term-correction-modal relative w-full rounded-lg border border-slate-200 bg-surface-raised shadow-xl"
+           role="dialog" aria-modal="true" aria-labelledby="<%= modal_id %>-title"
+           data-term-correction-modal-target="card">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
+          <h3 id="<%= modal_id %>-title" class="text-lg font-bold text-cream-900">
+            <i class="bi bi-spellcheck mr-1" aria-hidden="true"></i>
+            <%= t("#{tc}.title") %>
+          </h3>
+          <button type="button" class="text-gray-400 hover:text-gray-600"
+                  title="<%= t("#{tc}.close") %>" aria-label="<%= t("#{tc}.close") %>"
+                  data-action="click->term-correction-modal#close">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="space-y-3 p-5">
+          <% if notice %>
+            <div class="term-correction-notice rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+              <%= t("#{tc}.#{notice}") %>
+            </div>
+          <% end %>
+          <% if errors.any? %>
+            <div class="term-correction-error rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+              <% errors.each do |message| %>
+                <p><%= message %></p>
+              <% end %>
+            </div>
+          <% end %>
+
+          <% if dialog.mark_error %>
+            <p class="term-correction-error text-sm text-red-800" role="alert">
+              <%= t("#{tc}.mark_errors.#{dialog.mark_error}", max: GlossaryTerm::MAX_LENGTH) %>
+            </p>
+            <div class="flex justify-end border-t border-cream-200 pt-3">
+              <button type="button"
+                      class="h-9 rounded border border-cream-300 bg-cream-100 px-4 text-sm font-medium text-cream-800 hover:bg-cream-200"
+                      data-action="click->term-correction-modal#close">
+                <%= t("#{tc}.close") %>
+              </button>
+            </div>
+          <% else %>
+            <%= form_with url: organisation_project_meeting_term_correction_path(current_organisation, meeting.project, meeting),
+                          method: :post, class: 'space-y-3', data: { term_correction_modal_target: 'form' } do %>
+              <%= hidden_field_tag :modal_token, token, id: nil %>
+              <% dialog.mark.slice(:text, :before, :after, :offset).each do |key, value| %>
+                <%= hidden_field_tag "mark[#{key}]", value, id: nil %>
+              <% end %>
+
+              <div>
+                <label for="<%= modal_id %>-heard" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{tc}.heard_label") %></label>
+                <%= text_field_tag 'term_correction[heard]', fields[:heard] || dialog.heard,
+                                   id: "#{modal_id}-heard", autocomplete: 'off', class: field_class,
+                                   data: { term_correction_modal_target: 'heard', action: 'input->term-correction-modal#recount' } %>
+              </div>
+
+              <div>
+                <label for="<%= modal_id %>-correct" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{tc}.correct_label") %></label>
+                <%= text_field_tag 'term_correction[correct]', fields[:correct],
+                                   id: "#{modal_id}-correct", autocomplete: 'off', required: true, class: field_class,
+                                   placeholder: t("#{tc}.correct_placeholder"),
+                                   list: ("#{modal_id}-suggestions" if suggestions.any?),
+                                   data: { term_correction_modal_target: 'correct' } %>
+                <% if suggestions.any? %>
+                  <datalist id="<%= modal_id %>-suggestions">
+                    <% suggestions.each do |term| %>
+                      <option value="<%= term %>"></option>
+                    <% end %>
+                  </datalist>
+                <% end %>
+              </div>
+
+              <div>
+                <label for="<%= modal_id %>-speaker" class="mb-1 block text-sm font-medium text-cream-800"><%= t("#{tc}.speaker_label") %></label>
+                <%= select_tag 'term_correction[speaker_id]',
+                               options_for_select(dialog.participants.map { |participant| [participant.display_name, participant.id] }, selected_speaker),
+                               include_blank: t("#{tc}.no_speaker"), id: "#{modal_id}-speaker", class: field_class %>
+              </div>
+
+              <div>
+                <label class="flex items-center gap-2 text-sm text-cream-800">
+                  <%= hidden_field_tag 'term_correction[to_glossary]', '0', id: nil %>
+                  <%= check_box_tag 'term_correction[to_glossary]', '1', fields[:to_glossary] != '0', id: "#{modal_id}-glossary" %>
+                  <%= manage ? t("#{tc}.to_glossary_confirm") : t("#{tc}.to_glossary_propose") %>
+                </label>
+                <% unless manage %>
+                  <p class="mt-1 text-xs text-cream-500"><%= t("#{tc}.propose_hint") %></p>
+                <% end %>
+              </div>
+
+              <p class="text-xs text-cream-500"><%= t("#{tc}.hint") %></p>
+
+              <%= render 'organisations/meeting_term_corrections/count', meeting: meeting, token: token, dialog: dialog %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

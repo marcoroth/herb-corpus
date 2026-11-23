@@ -1,33 +1,87 @@
 <section class="space-y-7 p-4 sm:p-8">
-  <header class="rounded-2xl border border-border bg-card p-6 shadow-sm">
-    <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-      <div class="space-y-2">
-        <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"><%= t("dashboard.welcome")+ " "+@user %></h1>
-        <p class="max-w-2xl text-sm text-muted-foreground sm:text-base">
-          Focus on your next financial move, then navigate to supporting modules.
-        </p>
-      </div>
-
-      <div class="grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
-        <%= render Ui::ButtonComponent.new(href: new_finance_entry_path(entry_type: "expenses"), label: t("dashboard.add_expense"), variant: :default, css_class: "h-10 w-full justify-start") %>
-        <%= render Ui::ButtonComponent.new(href: new_finance_plan_path, label: "New financial plan", variant: :outline, css_class: "h-10 w-full justify-start") %>
-        <%= render Ui::ButtonComponent.new(href: new_budget_period_path, label: t("dashboard.new_budget_period"), variant: :outline, css_class: "h-10 w-full justify-start") %>
-        <%= render Ui::ButtonComponent.new(href: new_shopping_item_path, label: t("dashboard.add_shopping_item"), variant: :ghost, css_class: "h-10 w-full justify-start") %>
-      </div>
-    </div>
+  <header class="space-y-2">
+    <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"><%= t("dashboard.next_steps_title") %></h1>
+    <p class="max-w-2xl text-sm text-muted-foreground sm:text-base"><%= t("dashboard.next_steps_description") %></p>
   </header>
 
+  <section class="space-y-2">
+    <div class="flex items-center justify-between"><h2 class="text-base font-semibold"><%= t("habits.today") %></h2><%= link_to t("habits.title"), habits_path, class: "text-sm text-primary hover:underline" %></div>
+    <% if @due_habits.any? %><div class="grid gap-3 md:grid-cols-2"><% @due_habits.each do |habit| %><%= render "habits/habit_card", habit: habit, today: @habit_today, dashboard: true %><% end %></div><% else %><p class="text-sm text-muted-foreground"><%= t("habits.nothing_due") %></p><% end %>
+  </section>
+
   <% if @pending_tasks.any? %>
-    <section class="rounded-xl border border-warning-soft bg-warning-soft p-4">
-      <div class="mb-2 flex items-center justify-between gap-3">
-        <h2 class="text-base font-semibold text-foreground"><%= t("task.recurring_tasks.index.title") %></h2>
-        <%= link_to t("task.recurring_tasks.index.title"), task_root_path, class: "text-sm font-medium text-accent hover:text-accent-dark hover:underline" %>
+    <section class="space-y-2">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <h2 class="text-base font-semibold text-foreground"><%= t("dashboard.tasks_to_do") %></h2>
+          <span class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"><%= @pending_tasks.size %></span>
+        </div>
+        <%= link_to t("dashboard.view_all_tasks"), task_root_path, class: "shrink-0 text-sm font-medium text-accent hover:text-accent-dark hover:underline" %>
       </div>
-      <ul class="space-y-1.5 text-sm">
+      <ul class="divide-y divide-border border-y border-border text-sm">
         <% @pending_tasks.each do |task| %>
           <%= render Dashboard::PendingTaskRowComponent.new(task: task) %>
         <% end %>
       </ul>
+    </section>
+  <% end %>
+
+  <% if Current.account %>
+    <section class="min-w-0 space-y-3">
+      <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold text-foreground">Money to follow up</h2>
+          <p class="text-sm text-muted-foreground">Overdue and upcoming items due in the next 14 days.</p>
+        </div>
+        <%= link_to "All planned transactions", finance_planned_transactions_path, class: "self-start text-sm font-medium text-accent hover:underline sm:shrink-0 sm:self-auto" %>
+      </div>
+
+      <div class="grid min-w-0 gap-4 lg:grid-cols-2">
+        <section class="min-w-0 rounded-xl border border-border bg-card p-4">
+          <h3 class="mb-3 text-sm font-semibold text-foreground">Planned transactions</h3>
+          <% if @pending_planned_transactions.any? %>
+            <ul class="space-y-2">
+              <% @pending_planned_transactions.each do |transaction| %>
+                <% due_date = transaction.due_date || transaction.planned_for %>
+                <li class="flex min-w-0 flex-col gap-1 border-b border-border pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                  <div class="min-w-0">
+                    <div class="break-words text-sm font-medium text-foreground"><%= transaction.description %></div>
+                    <div class="text-xs text-muted-foreground"><%= due_date < Date.current ? "Overdue" : "Due" %> <%= l(due_date, format: :short) %></div>
+                  </div>
+                  <div class="flex min-w-0 items-center justify-between gap-3 sm:shrink-0 sm:flex-col sm:items-end sm:gap-0">
+                    <div class="text-sm font-semibold text-foreground"><%= number_to_currency(transaction.amount) %></div>
+                    <%= link_to "Review", transaction.plan ? finance_plan_path(transaction.plan) : finance_planned_transactions_path, class: "text-xs text-accent hover:underline" %>
+                  </div>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-sm text-muted-foreground">No planned transactions due soon.</p>
+          <% end %>
+        </section>
+
+        <section class="min-w-0 rounded-xl border border-border bg-card p-4">
+          <h3 class="mb-3 text-sm font-semibold text-foreground">Expected money</h3>
+          <% if @expected_funding.any? %>
+            <ul class="space-y-2">
+              <% @expected_funding.each do |source| %>
+                <li class="flex min-w-0 flex-col gap-1 border-b border-border pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                  <div class="min-w-0">
+                    <div class="break-words text-sm font-medium text-foreground"><%= source.description %></div>
+                    <div class="text-xs text-muted-foreground"><%= source.expected_date < Date.current ? "Overdue" : "Expected" %> <%= l(source.expected_date, format: :short) %></div>
+                  </div>
+                  <div class="flex min-w-0 items-center justify-between gap-3 sm:shrink-0 sm:flex-col sm:items-end sm:gap-0">
+                    <div class="text-sm font-semibold text-foreground"><%= number_to_currency(source.expected_amount) %></div>
+                    <%= link_to "Review", finance_plan_path(source.financial_plan), class: "text-xs text-accent hover:underline" %>
+                  </div>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-sm text-muted-foreground">No expected income due soon.</p>
+          <% end %>
+        </section>
+      </div>
     </section>
   <% end %>
 

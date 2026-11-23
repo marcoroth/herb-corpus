@@ -1,32 +1,21 @@
 <%# Sortable table header %>
 <%
-  # Aktuellen URL-Parameter kopieren und bewahren, inkl. smart_folder_id
+  # The address of this request with the new sorting.
   sort_query_params = { sort: { column: column, direction: sort_direction == "asc" ? "desc" : "asc" } }
-  
-  # WICHTIG: Alle relevanten Kontext-Parameter beibehalten
-  if params[:smart_folder_id].present?
-    sort_query_params[:smart_folder_id] = params[:smart_folder_id]
-  end
-  
-  # Projekt-ID beibehalten, wenn vorhanden
-  if params[:project_id].present?
-    sort_query_params[:project_id] = params[:project_id]
-  end
-  
-  # Paginierungsparameter entfernen, um bei Sortierung immer auf Seite 1 zurückzukehren
-  # aber andere wichtige Parameter (wie search) beibehalten
-  permitted_params = params.permit(:search, :context_type, :filter)
-  sort_query_params.merge!(permitted_params.to_h)
-  
-  # URL generieren
-  sort_url = url_for(request.path_parameters.merge(sort_query_params))
-  
-  # Stelle sicher, dass der Query-String die SmartFolder-ID enthält
-  # (für den Fall, dass url_for die Parameter nicht korrekt hinzufügt)
-  unless sort_url.include?("smart_folder_id=") && params[:smart_folder_id].present?
-    separator = sort_url.include?('?') ? '&' : '?'
-    sort_url = "#{sort_url}#{separator}smart_folder_id=#{params[:smart_folder_id]}"
-  end
+
+  # The saved view and the project of the address travel with the link. Both
+  # through `permit`, which keeps scalars only: read from `params` directly, a
+  # value sent as a hash (`?project_id[a]=1`) raised in `to_query` (until 2026-11-19).
+  sort_query_params.merge!(params.permit(:smart_folder_id, :project_id).to_h.compact_blank)
+
+  # No page: a new sorting starts at page 1. The search stays.
+  sort_query_params.merge!(params.permit(:search, :context_type, :filter).to_h)
+
+  # The path of this request without its format (PaginationHelper#page_url_base_path),
+  # not url_for with the path parameters: that raised "arguments passed to url_for
+  # can't be handled", and the tag list, the only page with this header, answered
+  # 500 until 2026-11-19.
+  sort_url = "#{page_url_base_path}?#{sort_query_params.to_query}"
 %>
 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-50">
   <a href="<%= sort_url %>" class="text-gray-500 no-underline" data-turbo="true">

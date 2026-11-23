@@ -1,20 +1,33 @@
-<%# locals: (active:, title_action: nil) %>
-<%# The management area's header. Title, org subtitle and tab bar all come from
-    organisations/shared/_subnav, which is also what the times area renders -
-    the two used to be byte-identical partials that had already drifted apart in
-    one class (the active marker). Access is checked per page via Pundit.
+<%# locals: (active:, title: nil, badge: nil, tabs: [], tab_active: nil, title_action: nil, right_content: nil, below_tab: false) %>
+<%# The head of a page of the management area. Since 2026-11-11 the sections are
+    the sidebar's list while the area is open (common/_navigation_management,
+    doc/verwaltung_seitennavigation_plan.md), so this head is the page head of
+    every other page: the title names the SECTION (`active`, a key of
+    NavigationHelper::SETTINGS_TABS), the organisation below, the tools right of
+    it (right_content; the main action as title_action, outermost, #143).
 
-    Tabs come from NavigationHelper::SETTINGS_TABS - the single source shared
-    with the sidebar "Verwaltung" active-state (management_section_active?), so
-    the two never drift.
+    tabs: the section's own pages, where it has some (the members and their access
+    overview, KI with the hub and its pages); tab_active names the open one. The title
+    stays the section's on every tab (user, 2026-11-11). Without tabs there is no bar.
 
-    title_action: a captured block for the one main action of a page, rendered in
-    the title row (the AI overview's "Zugang einrichten"). Passed through, not
-    placed here: _subnav owns the row, and a caller that rendered a button beside
-    the partial would give the page a second left edge. %>
+    A page below a section or a tab (a role being edited, an import file, the
+    invitation form) keeps this head and names itself in the crumb line right
+    after it (organisations/shared/_section_crumb): one title rule for the whole
+    area. below_tab: true says the page is below tab_active, not that tab itself,
+    so the tab stays marked as the parent and the crumb's page is the one
+    aria-current="page".
+
+    Title box and bar come from organisations/shared/_subnav, which the times area
+    renders as well: one owner of the left edge and the active marker. Access is
+    checked per page via Pundit. Only a page whose controller has a section may
+    render this head (spec/architecture/management_head_guard_spec.rb): the
+    sidebar switches to the management list by the same answer. %>
 <%= render 'organisations/shared/subnav',
-      tabs: organisation_settings_tabs(current_organisation),
-      active: active,
-      aria_label: t('navigation.management'),
-      title: t('navigation.management'),
-      title_action: title_action %>
+      tabs: tabs,
+      active: tab_active || active,
+      aria_label: title || management_section_label(active),
+      title: title || management_section_label(active),
+      badge: badge,
+      title_action: title_action,
+      right_content: right_content,
+      below_tab: below_tab %>

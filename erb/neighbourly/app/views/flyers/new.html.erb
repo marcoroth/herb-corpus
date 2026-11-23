@@ -1,0 +1,200 @@
+<% content_for :title, "Printout" %>
+<% categories = Flyer.available_categories %>
+<% organizations = Flyer.available_organizations %>
+
+<div data-controller="flyer-builder"
+     data-flyer-builder-preview-url-value="<%= preview_flyers_path(format: :json) %>"
+     data-flyer-builder-locate-url-value="<%= locate_flyers_path(format: :json) %>"
+     data-action="turbo:before-cache@document->flyer-builder#beforeCache resize@window->flyer-builder#layoutChanged">
+  <header class="mb-3 pt-3 sm:mb-7 sm:pt-0">
+    <h1 class="text-xl font-semibold tracking-tight text-stone-900 sm:text-2xl">Build your resource guide</h1>
+    <p class="mt-1 text-sm text-stone-600" data-flyer-builder-target="subtitle">Print a guide with addresses, hours, and contacts.</p>
+  </header>
+
+  <%= form_with model: @flyer, url: flyers_path, scope: :flyer,
+        data: { turbo: false, flyer_builder_target: "form", action: "submit->flyer-builder#generate" } do |form| %>
+    <% if @flyer.errors.any? %>
+      <div role="alert" class="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-5">
+        <ul class="list-disc ml-5">
+          <% @flyer.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <%# Two screens in one form, so the browser sends both when printing. The Stimulus
+        controller shows one at a time and switches between them without a page load,
+        which keeps a typed address out of the URL and browser history. Without
+        JavaScript, both show as one long form, which still works. %>
+    <section class="mb-5 max-w-2xl rounded-xl border border-stone-200 bg-white p-4 sm:mb-8 sm:p-6"
+             aria-labelledby="flyer-location-heading"
+             data-flyer-builder-target="locationStep">
+      <h2 id="flyer-location-heading" tabindex="-1" class="font-semibold text-xl text-stone-900"
+          data-flyer-builder-target="locationHeading">Where should we measure distances from?</h2>
+      <p class="mt-2 text-stone-600">
+        Your printout can show how far away each resource is, with a walking time. This is optional, and your location isn't saved.
+      </p>
+
+      <%# The buttons here are shown by the controller, since they need JavaScript. %>
+      <button type="button" hidden
+              class="mt-5 min-h-11 w-full cursor-pointer rounded-lg bg-sage-600 px-4 py-2.5 font-medium text-white hover:bg-sage-700"
+              data-flyer-builder-target="useLocation"
+              data-action="flyer-builder#useMyLocation">Use my location</button>
+      <p class="mt-2 text-sm text-stone-800" role="status" data-flyer-builder-target="locationStatus" hidden></p>
+      <p class="mt-2 text-xs text-stone-600" data-flyer-builder-target="locationNote" hidden>
+        Your browser may use a location service, such as Google's or Apple's, to find you. We only use the result to work out distances.
+      </p>
+
+      <div class="mt-6">
+        <%= form.label :near, "Enter a place", class: "font-medium text-stone-900" %>
+        <p id="flyer-near-hint" class="mt-1 mb-2 text-sm text-stone-600">A street address or intersection.</p>
+        <%= form.text_field :near, maxlength: 200, autocomplete: "off",
+              placeholder: "e.g. 919 Pandora Ave or Douglas St and Yates St",
+              aria: { describedby: "flyer-near-hint" },
+              class: "block min-h-11 w-full rounded-[7px] border border-stone-400 px-3 py-2 text-base text-stone-900 focus:outline-sage-600",
+              data: { flyer_builder_target: "near",
+                      action: "input->flyer-builder#locationChanged keydown.enter->flyer-builder#confirmPlace:prevent" } %>
+        <p class="mt-2 text-sm text-red-700" role="alert" data-flyer-builder-target="placeError" hidden></p>
+        <button type="button" hidden
+                class="mt-3 min-h-11 cursor-pointer rounded-lg border border-sage-600 px-4 py-2 font-medium text-sage-800 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-50"
+                data-flyer-builder-target="confirmPlaceButton"
+                data-action="flyer-builder#confirmPlace">Continue</button>
+      </div>
+
+      <button type="button" hidden
+              class="mt-6 min-h-11 cursor-pointer font-medium text-sage-800 underline"
+              data-flyer-builder-target="skipLocation"
+              data-action="flyer-builder#skipLocation">Skip distances</button>
+
+      <%= form.hidden_field :lat, autocomplete: "off", data: { flyer_builder_target: "lat" } %>
+      <%= form.hidden_field :lng, autocomplete: "off", data: { flyer_builder_target: "lng" } %>
+    </section>
+
+    <div data-flyer-builder-target="builderStep">
+    <p class="mb-5 flex flex-wrap items-center gap-x-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-stone-800"
+       data-flyer-builder-target="locationSummaryRow" hidden>
+      <span data-flyer-builder-target="locationSummary"></span>
+      <button type="button"
+              class="min-h-11 cursor-pointer font-medium text-sage-800 underline"
+              data-action="flyer-builder#changeLocation">Change</button>
+    </p>
+
+    <%= render "mobile_filters", form: form, categories: categories, organizations: organizations %>
+
+    <div class="grid grid-cols-1 gap-5 items-start sm:grid-cols-[240px_minmax(0,1fr)] lg:gap-7">
+      <aside class="rounded-xl border border-stone-200 bg-white px-4 py-5 sm:sticky sm:top-0 sm:flex sm:h-dvh sm:flex-col"
+             aria-label="Resource filters" data-flyer-builder-target="sidebar">
+        <div class="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-3">
+          <div class="w-full min-w-0" role="search" aria-label="Find resources for your guide" hidden data-flyer-builder-target="desktopSearch"></div>
+          <p class="min-w-0 flex-1 text-lg font-semibold text-stone-900">Categories</p>
+          <details class="relative hidden shrink-0 sm:block" data-flyer-builder-target="desktopSort"
+                   data-action="pointerenter->flyer-builder#hoverDesktopSort pointerleave->flyer-builder#leaveDesktopSort keydown.esc->flyer-builder#closeDesktopSort">
+            <summary aria-label="Sort resources"
+                     class="grid size-11 cursor-pointer list-none place-items-center rounded-lg border border-stone-200 text-stone-700 hover:bg-sage-50 focus-visible:outline-sage-600 [&::-webkit-details-marker]:hidden">
+              <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 4v16m-4-4 4 4 4-4m4 4V4m-4 4 4-4 4 4" />
+              </svg>
+            </summary>
+            <div class="absolute top-full right-0 z-20 w-max min-w-32 pt-1">
+              <div class="rounded-xl border border-stone-200 bg-white p-1 shadow-md" role="group" aria-labelledby="desktop-sort-heading">
+                <p id="desktop-sort-heading" class="px-2 pt-1 pb-0.5 text-[10px] font-medium tracking-wide text-stone-500 uppercase">Sort by</p>
+                <% Flyer::SORT_OPTIONS.each do |label, order| %>
+                  <button type="button" aria-pressed="<%= @flyer.sort == order %>"
+                          class="group flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 text-left text-sm text-stone-800 hover:bg-stone-50 focus-visible:outline-sage-600 aria-pressed:bg-sage-50 aria-pressed:font-semibold aria-pressed:text-sage-900 disabled:cursor-not-allowed disabled:text-stone-500"
+                          <% if order == Flyer::DISTANCE_SORT %> disabled title="Choose a starting location to sort by distance" <% end %>
+                          data-flyer-builder-target="desktopSortOption" data-action="flyer-builder#applyDesktopSort"
+                          data-flyer-builder-order-param="<%= order %>">
+                    <span><%= label %></span>
+                    <svg aria-hidden="true" class="invisible size-3 shrink-0 text-sage-700 group-aria-pressed:visible" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m3 8 3 3 7-7" />
+                    </svg>
+                  </button>
+                <% end %>
+              </div>
+            </div>
+          </details>
+        </div>
+        <% if organizations.any? %>
+          <%# Collapsed by default: most guides cover every organization. %>
+          <%= tag.details class: "mt-3 shrink-0 rounded-lg border border-stone-200", open: @flyer.organizations.any? do %>
+            <summary class="flex min-h-11 cursor-pointer items-center px-3 text-sm font-medium text-stone-800 focus-visible:outline-sage-600">Organizations</summary>
+            <fieldset class="min-w-0 border-t border-stone-100 px-1 pb-1">
+              <legend class="sr-only">Organizations</legend>
+              <p class="px-2 pt-2 pb-1 text-sm text-stone-600">No selection includes every organization.</p>
+              <div role="region" aria-label="Organization list" tabindex="0" class="max-h-48 space-y-1 overflow-y-auto overscroll-contain pr-1 focus-visible:outline-sage-600">
+                <%= form.collection_check_boxes :organizations, organizations, :first, :last do |option| %>
+                  <%= option.label class: "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[7px] p-2.5 text-sm text-stone-800 hover:bg-sage-50 has-checked:bg-sage-100" do %>
+                    <%= option.check_box class: "h-4 w-4 shrink-0 rounded border-stone-400 text-sage-600 accent-sage-600 focus:ring-sage-500",
+                          data: { flyer_builder_target: "organization", action: "change->flyer-builder#filter" } %>
+                    <span class="min-w-0 break-words"><%= option.text %></span>
+                  <% end %>
+                <% end %>
+              </div>
+            </fieldset>
+          <% end %>
+        <% end %>
+        <fieldset class="min-w-0 sm:flex sm:min-h-0 sm:flex-1 sm:flex-col">
+          <legend class="sr-only">Categories</legend>
+          <p class="mt-1 mb-4 shrink-0 text-sm text-stone-600">No selection shows all available resources.</p>
+          <div role="region" aria-label="Category list" tabindex="0"
+               class="grid max-h-[min(26rem,55dvh)] grid-cols-2 gap-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable] focus-visible:outline-sage-600 sm:block sm:min-h-0 sm:max-h-none sm:flex-1 sm:space-y-1">
+            <%= form.collection_check_boxes :categories, categories, :first, :last do |option| %>
+              <%= option.label class: "flex h-full min-h-11 cursor-pointer items-center gap-2.5 rounded-[7px] p-2.5 text-sm text-stone-800 hover:bg-sage-50 has-checked:bg-sage-100 sm:h-auto sm:text-base" do %>
+                <%= option.check_box class: "h-4 w-4 shrink-0 rounded border-stone-400 text-sage-600 accent-sage-600 focus:ring-sage-500",
+                      data: { flyer_builder_target: "category", action: "change->flyer-builder#filter" } %>
+                <span><%= option.text %></span>
+              <% end %>
+            <% end %>
+          </div>
+        </fieldset>
+        <button type="button" class="mt-2 min-h-11 shrink-0 text-left text-sm font-medium text-sage-700 underline" hidden
+                data-flyer-builder-target="clearSearchOrder" data-action="flyer-builder#clearSearchAndOrder">
+          Clear search and sort
+        </button>
+      </aside>
+
+      <section class="flex min-w-0 flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-4" aria-labelledby="flyer-preview-heading">
+        <div class="my-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 sm:col-start-1 sm:row-start-1 sm:my-0 sm:self-center">
+          <p class="text-lg font-semibold text-stone-900 sm:hidden">Guide preview</p>
+          <h2 id="flyer-preview-heading" class="text-xs text-stone-600 sm:text-xl sm:font-semibold sm:text-stone-900" tabindex="-1" data-flyer-builder-target="builderHeading count" aria-live="polite">Loading resources…</h2>
+          <span class="sr-only" data-flyer-builder-target="status" role="status"></span>
+        </div>
+
+        <div class="order-last sticky bottom-0 z-10 -mx-4 mt-4 border-t border-stone-200 bg-white px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:contents">
+          <div class="sm:col-span-2 sm:row-start-3">
+            <div class="mb-2 text-sm text-red-700 sm:mt-5 sm:mb-0" data-flyer-builder-target="printError" role="alert" hidden></div>
+            <div class="mb-2 rounded-lg border border-sage-200 bg-sage-50 px-3 py-2 sm:mt-5 sm:mb-0 sm:p-4" data-flyer-builder-target="printout" hidden>
+              <p class="text-sm text-stone-800 sm:text-base" role="status">Your printout is ready.<span class="hidden sm:inline"> Use the PDF viewer to print or save it.</span></p>
+              <a class="inline-flex min-h-11 items-center font-medium text-sage-800 underline sm:mt-2" data-flyer-builder-target="pdfLink" target="_blank" rel="noopener">Open printout</a>
+            </div>
+          </div>
+          <%= form.button type: :submit,
+                class: "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-sage-600 px-4 py-2.5 font-medium text-white hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-50 sm:col-start-2 sm:row-start-1 sm:w-auto",
+                data: { flyer_builder_target: "generate" } do %>
+            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 8.25V3.75h10.5v4.5m-10.5 9H4.5A2.25 2.25 0 0 1 2.25 15V10.5A2.25 2.25 0 0 1 4.5 8.25h15a2.25 2.25 0 0 1 2.25 2.25V15a2.25 2.25 0 0 1-2.25 2.25h-2.25m-10.5-3h10.5v6H6.75v-6Zm10.5-3h.008v.008h-.008v-.008Z" />
+            </svg>
+            <span data-flyer-builder-target="generateLabel">Generate printout</span>
+          <% end %>
+        </div>
+
+        <div class="sm:col-span-2 sm:row-start-2 sm:mt-6">
+          <div class="mb-5 rounded-lg bg-red-50 px-4 py-3 text-red-700" data-flyer-builder-target="previewError" role="alert" hidden>
+            <p data-flyer-builder-target="previewErrorMessage"></p>
+            <button type="button" class="mt-2 min-h-11 cursor-pointer font-medium underline" data-action="flyer-builder#refresh">Try again</button>
+          </div>
+
+          <div data-flyer-builder-target="cards" aria-busy="false">
+            <div class="rounded-[10px] border border-dashed border-stone-300 px-5 py-12 text-center text-stone-600">
+              <p class="font-medium text-stone-900">Loading your guide…</p>
+              <p class="mt-1">Select categories to narrow the results.</p>
+            </div>
+          </div>
+          <noscript><p class="mt-5 text-stone-600">Preview needs JavaScript. You can still select categories and generate a PDF.</p></noscript>
+        </div>
+      </section>
+    </div>
+    </div>
+  <% end %>
+</div>

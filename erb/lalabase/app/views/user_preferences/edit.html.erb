@@ -1,0 +1,268 @@
+<%# The preferences: ONE page of sections (user, 2026-11-12). Until then seven pages of
+    one or two fields each hung under a sidebar group, every one titled "Einstellungen",
+    and the phone reached only the first. A page of sections is scanned in seconds, the
+    browser's search finds every setting, and it grows downwards; a section that becomes
+    a function of its own (a list, a create flow) moves out to its own page, as the API
+    tokens did.
+
+    Head and shapes are the application's (doc/belegungstabelle_oberflaeche.md): the
+    shared page head with the person's name where other areas name the organisation,
+    the content capped because one reads it line by line (.width-capped), a section as
+    a quiet heading over its fields.
+
+    A change saves at once and says so beside its section's heading
+    (user_preferences/_section, preferences_autosave_controller).
+
+    A preference says how the application behaves for the person. The picture and the
+    "email for the others" say how OTHERS see them and stand on the account's profile
+    tab (devise/registrations/_display_form). %>
+<% field_class = 'block w-full rounded border border-cream-300 bg-surface-raised px-3 py-2 text-sm text-body focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all' %>
+<% label_class = 'mb-1 block text-sm font-medium text-cream-700' %>
+<% hint_class = 'mt-1 block text-xs text-muted' %>
+<% choice_class = 'flex cursor-pointer items-center gap-3 rounded border border-cream-300 bg-surface-raised px-4 py-3 transition-all hover:border-ink' %>
+<div>
+  <%= render 'organisations/shared/subnav',
+        title: t('navigation.preferences'),
+        subtitle: current_user.display_name,
+        aria_label: t('navigation.preferences'),
+        active: nil,
+        tabs: [] %>
+
+  <%# The outline beside the sections (shared/_page_outline): from lg on a column of
+      its own that sticks while the page scrolls, as the API tokens' explainer does;
+      below lg a row under the head. First in the markup, so the keyboard reaches the
+      list before the six forms. Its entries are the controller's SECTIONS, the list
+      the sections below are held against (user_preferences_spec). %>
+  <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-12">
+    <div class="lg:sticky lg:top-6 lg:order-last lg:w-48 lg:shrink-0">
+      <%= render 'shared/page_outline',
+            sections: UserPreferencesController::SECTIONS.map { |key|
+              { label: t("user_preferences.edit.sections.#{key}"), anchor: preferences_section_anchor(key) }
+            } %>
+    </div>
+
+    <div class="width-capped min-w-0 flex-1 space-y-8">
+      <%# ---- Display: lists and names, for the reader's own view. ---- %>
+      <%= render layout: 'user_preferences/section',
+                 locals: { key: 'general', title: t('user_preferences.edit.sections.general') } do %>
+        <div>
+          <%= label_tag 'preferences_items_per_page', t('user_preferences.edit.general.items_per_page.label'), class: label_class %>
+          <%= select_tag 'preferences[items_per_page]',
+                options_for_select([10, 20, 50, 100].map { |count| [t("user_preferences.edit.general.items_per_page.options.#{count}"), count] },
+                                   @user.items_per_page_preference),
+                class: field_class %>
+          <p class="<%= hint_class %>"><%= t('user_preferences.edit.general.items_per_page.description') %></p>
+        </div>
+
+        <%# Name display mode (doc/user_display_name_avatar_plan.md, S1). VIEWER preference:
+            controls how ALL user names render for this user. The preview next to each
+            option renders the viewer's own name through the SAME component every call
+            site uses, so what is promised here is what the app shows. %>
+        <div>
+          <span class="<%= label_class %>"><%= t('user_preferences.edit.display.name_display.label') %></span>
+          <% current_mode = @user.preference_store.name_display_mode %>
+          <div class="space-y-2">
+            <% User::PreferenceStore::NAME_DISPLAY_MODES.each do |mode| %>
+              <label class="<%= choice_class %> justify-between">
+                <span class="flex items-center gap-3">
+                  <%= radio_button_tag 'preferences[name_display]', mode, current_mode == mode %>
+                  <span class="text-sm text-body"><%= t("user_preferences.edit.display.name_display.#{mode}") %></span>
+                </span>
+                <span class="text-sm text-muted">
+                  <%= render Neo::Users::NameComponent.new(user: @user, mode: mode) %>
+                </span>
+              </label>
+            <% end %>
+          </div>
+          <p class="<%= hint_class %>"><%= t('user_preferences.edit.display.name_display.description') %></p>
+        </div>
+      <% end %>
+
+      <%# ---- Tickets: GLOBAL ticket-view preferences (per user, all projects). Per-project
+          column/field settings live in the ticket's "Detail-Ansicht anpassen" modal; the
+          intro points users there to avoid confusion. ---- %>
+      <%= render layout: 'user_preferences/section',
+                 locals: { key: 'tickets', title: t('user_preferences.edit.sections.tickets'),
+                           intro: t('user_preferences.edit.tickets.intro') } do %>
+        <div>
+          <%= label_tag 'preferences_post_direction', t('user_preferences.edit.tickets.timeline_order.label'), class: label_class %>
+          <%= select_tag 'preferences[post_direction]',
+                options_for_select([
+                  [t('user_preferences.edit.tickets.timeline_order.chronological'), 'chronological'],
+                  [t('user_preferences.edit.tickets.timeline_order.reverse'), 'reverse']
+                ], @user.preference_store.post_direction_preference),
+                class: field_class %>
+          <p class="<%= hint_class %>"><%= t('user_preferences.edit.tickets.timeline_order.description') %></p>
+        </div>
+
+        <div>
+          <%= label_tag 'preferences_description_collapse', t('user_preferences.edit.tickets.description_collapse.label'), class: label_class %>
+          <%= select_tag 'preferences[description_collapse]',
+                options_for_select([
+                  [t('user_preferences.edit.tickets.description_collapse.auto'), 'auto'],
+                  [t('user_preferences.edit.tickets.description_collapse.always_full'), 'always_full']
+                ], @user.preference_store.description_collapse_preference),
+                class: field_class %>
+          <p class="<%= hint_class %>"><%= t('user_preferences.edit.tickets.description_collapse.description') %></p>
+        </div>
+      <% end %>
+
+      <%# ---- Meetings: detection mode for meeting transcripts (Gespräche Slice 5, plan
+          decision 12). User-global setting; the org-level AI gate ALWAYS outranks it at
+          runtime, and the AI option is only selectable when at least one of the user's
+          organisations has AI available (opt-in AND configured). ---- %>
+      <%= render layout: 'user_preferences/section',
+                 locals: { key: 'meetings', title: t('user_preferences.edit.sections.meetings'),
+                           intro: t('user_preferences.edit.meetings.intro') } do %>
+        <div>
+          <%# R2: :meeting_participant_detection — the setting drives exactly ONE path, the
+              LLM leg of the participant detection. It must therefore ask the SAME key as
+              meetings/_form_fields, whose detect button this setting turns on; any other
+              key would reproduce "the same gate, two answers" — the defect S1c removed
+              here — in feature form. Was ai_available_for_chat?, before that
+              ai_available?('openai'). %>
+          <% ai_selectable = current_user.organisations.any? { |org| org.ai_available_for?(:meeting_participant_detection).available? } %>
+          <%# Edge case: 'ai' stored but currently not selectable (no org has AI): show
+              'offline' as the selection so the 'ai' option is never rendered selected AND
+              disabled at once. The stored value stays 'ai' unless the user actively saves
+              THIS section: every section is a form of its own for that reason too, a
+              change elsewhere on the page never sends this field. The org gate outranks
+              the setting at runtime and 'ai' re-applies once an org enables AI. %>
+          <% stored_mode = @user.preference_store.meeting_detection_mode_preference %>
+          <% selected_mode = ai_selectable ? stored_mode : 'offline' %>
+          <%= label_tag 'preferences_meeting_detection_mode', t('user_preferences.edit.meetings.detection_mode.label'), class: label_class %>
+          <%= select_tag 'preferences[meeting_detection_mode]',
+                options_for_select([
+                  [t('user_preferences.edit.meetings.detection_mode.offline'), 'offline'],
+                  [t('user_preferences.edit.meetings.detection_mode.ai'), 'ai', { disabled: !ai_selectable }]
+                ], selected_mode),
+                class: field_class %>
+          <p class="<%= hint_class %>"><%= t('user_preferences.edit.meetings.detection_mode.description') %></p>
+          <% unless ai_selectable %>
+            <p class="mt-2 text-xs text-amber-700"><%= t('user_preferences.edit.meetings.detection_mode.ai_unavailable_hint') %></p>
+          <% end %>
+        </div>
+      <% end %>
+
+      <%# ---- Date and time ---- %>
+      <%= render layout: 'user_preferences/section',
+                 locals: { key: 'datetime', title: t('user_preferences.edit.sections.datetime') } do %>
+        <%# user-preferences owns the toggles of this section (custom format row, "one
+            format for all", the per-area rows) and the format check. It marks a format it
+            refuses as invalid on the field, and an invalid form is not saved. %>
+        <div class="space-y-5" data-controller="user-preferences">
+          <div>
+            <%= label_tag 'preferences_date_display_global_format', t('user_preferences.edit.datetime.global_format.label'), class: label_class %>
+            <%= select_tag 'preferences[date_display][global_format]',
+                  options_for_select(%w[relative german international custom].map { |format| [t("user_preferences.edit.datetime.formats.#{format}"), format] },
+                                     @user.preferences.dig('date_display', 'global_format') || 'relative'),
+                  class: field_class,
+                  data: { user_preferences_target: 'globalFormat', action: 'change->user-preferences#toggleCustomFormat' } %>
+          </div>
+
+          <div data-user-preferences-target="customFormatRow" style="display: none;">
+            <%= label_tag 'preferences_date_display_custom_format', t('user_preferences.edit.datetime.custom_format_label'), class: label_class %>
+            <%= text_field_tag 'preferences[date_display][custom_format]',
+                  @user.preferences.dig('date_display', 'custom_format') || '%d.%m.%Y %H:%M',
+                  class: field_class, placeholder: '%d.%m.%Y %H:%M', autocomplete: 'off',
+                  data: { action: 'input->user-preferences#validateGlobalFormat blur->user-preferences#validateGlobalFormat' } %>
+            <p class="<%= hint_class %>"><%= t('user_preferences.edit.datetime.format_codes_hint') %></p>
+          </div>
+
+          <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-cream-300 bg-surface p-4">
+            <input type="checkbox"
+                   id="use_global_for_all"
+                   name="preferences[date_display][use_global_for_all]"
+                   value="1"
+                   <%= 'checked' if @user.preference_store.using_global_date_format_for_all? %>
+                   class="mt-0.5 h-5 w-5 rounded border border-cream-300"
+                   data-user-preferences-target="useGlobalCheckbox"
+                   data-action="change->user-preferences#toggleAreaSettings">
+            <span>
+              <span class="block text-sm font-medium text-heading"><%= t('user_preferences.edit.datetime.use_global.label') %></span>
+              <span class="<%= hint_class %>"><%= t('user_preferences.edit.datetime.use_global.description') %></span>
+            </span>
+          </label>
+
+          <div data-user-preferences-target="areaSettings">
+            <h3 class="mb-3 text-sm font-semibold text-heading"><%= t('user_preferences.edit.datetime.individual_areas.title') %></h3>
+
+            <div class="space-y-4">
+              <% %w[posts ticket_header ticket_list_large ticket_list_compact activity_logs].each do |key| %>
+                <div>
+                  <%= label_tag "preferences_date_display_areas_#{key}", t("user_preferences.datetime.areas.#{key}"), class: label_class %>
+                  <%= select_tag "preferences[date_display][areas][#{key}]",
+                        options_for_select([
+                          [t('user_preferences.edit.datetime.area_formats.inherit'), 'inherit'],
+                          [t('user_preferences.edit.datetime.formats.relative'), 'relative'],
+                          [t('user_preferences.edit.datetime.formats.german'), 'german'],
+                          [t('user_preferences.edit.datetime.formats.international'), 'international'],
+                          [t('user_preferences.edit.datetime.formats.custom'), 'custom']
+                        ], @user.preferences.dig('date_display', 'areas', key) || 'inherit'),
+                        class: "#{field_class} area-format-select",
+                        data: { area: key, user_preferences_target: 'areaFormatSelect',
+                                action: 'change->user-preferences#toggleAreaCustomFormat' } %>
+
+                  <div class="area-custom-format-row mt-2" data-area="<%= key %>" style="display: none;">
+                    <%= label_tag "preferences_date_display_areas_custom_#{key}", t('user_preferences.edit.datetime.custom_format_label'), class: 'mb-1 block text-xs text-muted' %>
+                    <%= text_field_tag "preferences[date_display][areas_custom][#{key}]",
+                          @user.preferences.dig('date_display', 'areas_custom', key) || '%d.%m.%Y %H:%M',
+                          class: field_class, placeholder: '%d.%m.%Y %H:%M', autocomplete: 'off',
+                          data: { action: 'input->user-preferences#validateAreaFormat blur->user-preferences#validateAreaFormat', area: key } %>
+                    <p class="<%= hint_class %>"><%= t('user_preferences.edit.datetime.format_codes_hint') %></p>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <%# Back to the defaults: asks first, then sets the fields and reports a change,
+              which saves like any other. Quiet (secondary, medium): it is not the page's
+              main action, the page has none. %>
+          <div class="flex justify-end">
+            <%= render Neo::Buttons::ButtonComponent.new(variant: :secondary, size: :medium, icon: 'arrow-counterclockwise',
+                                                         data: { action: 'click->user-preferences#resetDefaults' }) do %>
+              <%= t('user_preferences.edit.actions.reset_defaults') %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <%# ---- Language. A change reloads the page: it is in the new language at once. ---- %>
+      <%= render layout: 'user_preferences/section',
+                 locals: { key: 'language', title: t('user_preferences.edit.sections.language'),
+                           intro: t('user_preferences.language.interface_description') } do %>
+        <fieldset>
+          <legend class="sr-only"><%= t('user_preferences.language.interface_language') %></legend>
+          <%# D4 selection cards: selected = warmly highlighted (cream-200 + border-ink, no lime/shadow). %>
+          <div class="flex flex-col gap-3 sm:flex-row">
+            <% [%w[de 🇩🇪 Deutsch], %w[en 🇺🇸 English]].each do |value, flag, name| %>
+              <label class="cursor-pointer">
+                <input type="radio" name="user[language_preference]" value="<%= value %>"
+                       <%= 'checked' if current_user.language_preference == value %> class="peer sr-only">
+                <span class="flex items-center gap-3 rounded-lg border border-cream-300 bg-surface-raised p-4 transition-all hover:bg-cream-100 peer-checked:border-ink peer-checked:bg-cream-200 peer-focus-visible:ring-1 peer-focus-visible:ring-ink">
+                  <span class="text-xl" aria-hidden="true"><%= flag %></span>
+                  <span class="text-sm font-medium text-heading"><%= name %></span>
+                </span>
+              </label>
+            <% end %>
+          </div>
+        </fieldset>
+      <% end %>
+
+      <%# ---- Session ---- %>
+      <%= render layout: 'user_preferences/section',
+                 locals: { key: 'session', title: t('user_preferences.edit.sections.session'),
+                           intro: t('views.user_preferences.session.subtitle') } do %>
+        <div>
+          <%= label_tag 'user_session_timeout_minutes', t('views.user_preferences.session.label'), class: label_class %>
+          <%= select_tag 'user[session_timeout_minutes]',
+                options_for_select(User::ALLOWED_SESSION_TIMEOUTS.map { |minutes| [t("views.user_preferences.session.options.#{minutes}"), minutes] },
+                                   current_user.session_timeout_minutes),
+                id: 'user_session_timeout_minutes', class: field_class %>
+          <p class="<%= hint_class %>"><%= t('views.user_preferences.session.hint') %></p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

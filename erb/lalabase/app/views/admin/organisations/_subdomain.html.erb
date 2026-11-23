@@ -1,0 +1,43 @@
+<%# The subdomain the organisation is shown under (doc/org_subdomains_plan.md, S1). Set
+    only here: nobody in the organisation can. %>
+<% domain = Organisations::Hosts.parent_domain %>
+<% current = organisation.current_subdomain %>
+<% holds = organisation.subdomains.held.order(:held_until) %>
+<div id="organisation-subdomain" class="mb-6 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0_0_#000000] overflow-hidden">
+  <div class="px-4 py-3 border-b-2 border-black bg-gray-50">
+    <h2 class="text-lg font-bold"><%= t('.title') %></h2>
+  </div>
+  <div class="p-4">
+    <% if domain %>
+      <p class="text-sm text-gray-700 mb-3">
+        <% if current %>
+          <%= t('.current', host: "#{current.subdomain}.#{domain}") %>
+        <% else %>
+          <%= t('.none', host: domain) %>
+        <% end %>
+      </p>
+      <%= form_with scope: :organisation_subdomain, url: subdomain_admin_organisation_path(organisation), method: :patch, local: true do |f| %>
+        <%= f.label :subdomain, t('.label'), class: 'block text-sm font-medium text-gray-700 mb-1' %>
+        <div class="flex items-center gap-2 mb-2">
+          <%= f.text_field :subdomain, value: current&.subdomain, autocomplete: 'off', spellcheck: false,
+                                       class: 'w-full border-2 border-black rounded-md px-3 py-2' %>
+          <span class="text-sm text-gray-600 whitespace-nowrap">.<%= domain %></span>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">
+          <%= t('.hint', days: OrganisationSubdomain::HOLD_PERIOD.in_days.to_i) %>
+        </p>
+        <%= f.submit t('.save'), class: 'px-4 py-2 bg-lime-400 border-2 border-black rounded-lg font-medium hover:shadow-[2px_2px_0_0_#000000] transition-all' %>
+      <% end %>
+      <% if holds.any? %>
+        <h3 class="text-sm font-medium text-gray-700 mt-4 mb-1"><%= t('.held_title') %></h3>
+        <ul class="text-sm text-gray-700 list-disc pl-5">
+          <% holds.each do |hold| %>
+            <li><%= t('.held_until', host: "#{hold.subdomain}.#{domain}", date: l(hold.held_until.to_date)) %></li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% else %>
+      <p class="text-sm text-gray-600"><%= t('.off') %></p>
+    <% end %>
+  </div>
+</div>
